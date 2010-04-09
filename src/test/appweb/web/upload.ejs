@@ -1,0 +1,14 @@
+<html>
+<body>
+<% 	
+	if (request.method == "POST") {
+        d("PARAMS", params)
+        d("request.files", request.files)
+        //image = request.files.logo
+		//mv(logo.filename, "/tmp/uploaded.tmp")
+        write("Uploaded")
+    }
+%>
+</body>
+</html>
+

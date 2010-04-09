@@ -1,0 +1,10 @@
+
+require ejs.test
+
+if (test.config["http_client"] == 1 && session["http"]) {
+
+    // sh("ejsc http/ejs.test.http.es")
+
+} else {
+    test.skip("Requires http client")
+}

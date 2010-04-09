@@ -1,0 +1,25 @@
+#
+#	Ssl configuration
+#
+
+if [ "$BLD_SSL_DIR" != "" ] ; then
+    BLD_SSL_DIR=`canonPath "$BLD_MPR_DIR"`
+    BLD_SSL_IMP_LIBPATH="$BLD_MPR_DIR/lib"
+    BLD_SSL_IMP_LIBS="mprssl"
+    BLD_SSL_IFLAGS="$BLD_MPR_DIR/include"
+fi
+
+if [ "$BLD_FEATURE_STATIC" = 1 ] ; then
+    BLD_SSL_LIBPATHS="$BLD_OPENSSL_LIBPATHS $BLD_MATRIXSSL_LIBPATHS"
+    BLD_SSL_LIBS="mprssl mpr $BLD_OPENSSL_LIBS $BLD_MATRIXSSL_LIBS"
+else
+    BLD_SSL_DEP_LIBPATHS="$BLD_OPENSSL_LIBPATHS $BLD_MATRIXSSL_LIBPATHS"
+    BLD_SSL_DEP_LIBS="$BLD_OPENSSL_LIBS $BLD_MATRIXSSL_LIBS"
+    BLD_SSL_LIBS="mprssl mpr"
+fi
+
+if [ "$BLD_HOST_OS" = LINUX ] ; then
+    # TODO only needed when SSL is built shared / multithreaded
+    BLD_SSL_DEP_LIBS="$BLD_SSL_DEP_LIBS pthread.so"
+    BLD_SSL_LIBS="$BLD_SSL_LIBS pthread.so"
+fi

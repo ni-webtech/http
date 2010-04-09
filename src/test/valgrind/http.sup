@@ -1,0 +1,138 @@
+#
+#	libcrypto
+#
+{
+   <insert a suppression name here>
+   Memcheck:Cond
+   obj:*libcrypto.so*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Value8
+   obj:*libcrypto.so*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Addr8
+   fun:AES*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Value8
+   obj:*libcrypto*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Value8
+   fun:mem*
+   fun:SHA1*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Cond
+   fun:mem*
+   fun:SHA1*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Cond
+   fun:*
+   fun:ssl3_*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Cond
+   fun:*
+   fun:*
+   fun:ssl3_*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Value8
+   fun:*
+   fun:*
+   fun:ssl3_*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Value8
+   fun:*
+   fun:ssl3_*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Cond
+   fun:*
+   fun:*
+   fun:ssl3_*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Cond
+   fun:mem*
+   fun:BN*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Cond
+   fun:mem*
+   fun:OPENSSL*
+}
+
+#
+#	libssl
+#
+{
+   <insert a suppression name here>
+   Memcheck:Cond
+   obj:*libssl*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Value8
+   obj:*libssl*
+}
+
+#
+#	libpthread
+#
+{
+   <insert a suppression name here>
+   Memcheck:Param
+   write(buf)
+   obj:*libpthread*.so*
+}
+
+#
+#	libld
+#
+{
+   <insert a suppression name here>
+   Memcheck:Addr8
+   fun:*
+   obj:*ld-*.so*
+}
+
+{
+   <insert a suppression name here>
+   Memcheck:Addr8
+   fun:*
+   obj:/*/ld-*.so*
+}
+
+#
+#	Mpr
+#

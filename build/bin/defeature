@@ -1,0 +1,16 @@
+#!/bin/sh
+#   
+#   Strip out unwanted features from source code
+#
+#   Usage: defeature configFile fileToEdit
+#
+ARGS=
+. $1
+
+eval pp $ARGS $2 >pp$$.tmp
+mv pp$$.tmp $2
+
+if [ $BLD_HOST_OS = WIN ]
+then
+    unix2dos -U $2
+fi

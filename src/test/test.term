@@ -1,0 +1,18 @@
+/*
+ *  Terminate unit tests
+ */
+
+require ejs.test
+
+/*
+ *   Stop the web server
+ */
+pidfile = session["appwebPidFile"]
+if (pidfile && exists(pidfile)) {
+    path = Path(pidfile)
+    pid = path.readString()
+    try {
+        kill(pid)
+    } catch (e) { }
+    path.remove()
+}

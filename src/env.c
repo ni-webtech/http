@@ -1,0 +1,317 @@
+/*
+    env.c -- Manage the request environment
+    Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
+ */
+
+/********************************* Includes ***********************************/
+
+#include    "http.h"
+
+/*********************************** Code *************************************/
+/*
+    Define standard CGI environment variables
+ */
+void httpCreateEnvVars(HttpConn *conn)
+{
+    HttpReceiver    *rec;
+    HttpTransmitter *trans;
+    MprSocket       *sock;
+    MprHashTable    *vars;
+    MprHash         *hp;
+    HttpUploadFile  *up;
+    char            port[16], size[16];
+    int             index;
+
+    rec = conn->receiver;
+    trans = conn->transmitter;
+    vars = rec->formVars;
+
+    //  TODO - Vars for COOKIEs
+    
+    /*  Alias for REMOTE_USER. Define both for broader compatibility with CGI */
+    mprAddHash(vars, "AUTH_TYPE", rec->authType);
+    mprAddHash(vars, "AUTH_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
+    mprAddHash(vars, "AUTH_GROUP", conn->authGroup);
+    mprAddHash(vars, "AUTH_ACL", "");
+    mprAddHash(vars, "CONTENT_LENGTH", rec->contentLength);
+    mprAddHash(vars, "CONTENT_TYPE", rec->mimeType);
+    mprAddHash(vars, "GATEWAY_INTERFACE", "CGI/1.1");
+    mprAddHash(vars, "QUERY_STRING", rec->parsedUri->query);
+
+    if (conn->sock) {
+        mprAddHash(vars, "REMOTE_ADDR", conn->ip);
+    }
+    mprItoa(port, sizeof(port) - 1, conn->port, 10);
+    mprAddHash(vars, "REMOTE_PORT", mprStrdup(vars, port));
+
+    /*  Same as AUTH_USER (yes this is right) */
+    mprAddHash(vars, "REMOTE_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
+    mprAddHash(vars, "REQUEST_METHOD", rec->method);
+    mprAddHash(vars, "REQUEST_TRANSPORT", (char*) ((conn->secure) ? "https" : "http"));
+    
+    sock = conn->sock;
+    mprAddHash(vars, "SERVER_ADDR", sock->acceptIp);
+    mprAddHash(vars, "SERVER_NAME", conn->server->name);
+    mprItoa(port, sizeof(port) - 1, sock->acceptPort, 10);
+    mprAddHash(vars, "SERVER_PORT", mprStrdup(rec, port));
+
+    /*  HTTP/1.0 or HTTP/1.1 */
+    mprAddHash(vars, "SERVER_PROTOCOL", conn->protocol);
+    mprAddHash(vars, "SERVER_SOFTWARE", HTTP_NAME);
+
+    /*  This is the complete URI before decoding */ 
+    mprAddHash(vars, "REQUEST_URI", rec->uri);
+
+    /*  URLs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} */
+    mprAddHash(vars, "PATH_INFO", rec->pathInfo);
+    mprAddHash(vars, "SCRIPT_NAME", rec->scriptName);
+    mprAddHash(vars, "SCRIPT_FILENAME", trans->filename);
+
+    if (rec->pathTranslated) {
+        /*  Only set PATH_TRANSLATED if PATH_INFO is set (CGI spec) */
+        mprAddHash(vars, "PATH_TRANSLATED", rec->pathTranslated);
+    }
+    //  MOB -- how do these relate to MVC apps and non-mvc apps
+    mprAddHash(vars, "DOCUMENT_ROOT", conn->documentRoot);
+    mprAddHash(vars, "SERVER_ROOT", conn->server->serverRoot);
+
+    if (rec->files) {
+        for (index = 0, hp = 0; (hp = mprGetNextHash(conn->receiver->files, hp)) != 0; index++) {
+            up = (HttpUploadFile*) hp->data;
+            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_FILENAME", index), up->filename);
+            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
+            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_CONTENT_TYPE", index), up->contentType);
+            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_NAME", index), hp->key);
+            mprItoa(size, sizeof(size) - 1, up->size, 10);
+            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_SIZE", index), size);
+        }
+    }
+}
+
+
+/*  
+    Add variables to the vars environment store. This comes from the query string and urlencoded post data.
+    Make variables for each keyword in a query string. The buffer must be url encoded (ie. key=value&key2=value2..., 
+    spaces converted to '+' and all else should be %HEX encoded).
+ */
+void httpAddVars(HttpConn *conn, cchar *buf, int len)
+{
+    HttpTransmitter *trans;
+    HttpReceiver    *rec;
+    MprHashTable    *vars;
+    cchar           *oldValue;
+    char            *newValue, *decoded, *keyword, *value, *tok;
+
+    trans = conn->transmitter;
+    rec = conn->receiver;
+    vars = rec->formVars;
+    if (vars == 0) {
+        return;
+    }
+    decoded = (char*) mprAlloc(trans, len + 1);
+    decoded[len] = '\0';
+    memcpy(decoded, buf, len);
+
+    keyword = mprStrTok(decoded, "&", &tok);
+    while (keyword != 0) {
+        if ((value = strchr(keyword, '=')) != 0) {
+            *value++ = '\0';
+            value = mprUriDecode(rec, value);
+        } else {
+            value = "";
+        }
+        keyword = mprUriDecode(rec, keyword);
+
+        if (*keyword) {
+            /*  
+                Append to existing keywords.
+             */
+            oldValue = mprLookupHash(vars, keyword);
+            if (oldValue != 0 && *oldValue) {
+                if (*value) {
+                    newValue = mprStrcat(vars, conn->limits->maxHeader, oldValue, " ", value, NULL);
+                    mprAddHash(vars, keyword, newValue);
+                    mprFree(newValue);
+                }
+            } else {
+                mprAddHash(vars, keyword, value);
+            }
+        }
+        keyword = mprStrTok(0, "&", &tok);
+    }
+    /*  Must not free "decoded". This will be freed when the response completes */
+}
+
+
+void httpAddVarsFromQueue(HttpQueue *q)
+{
+    HttpConn        *conn;
+    MprBuf          *content;
+
+    mprAssert(q);
+    
+    conn = q->conn;
+    if (conn->receiver->form && q->first && q->first->content) {
+        content = q->first->content;
+        mprAddNullToBuf(content);
+        mprLog(q, 3, "Form body data: length %d, \"%s\"", mprGetBufLength(content), mprGetBufStart(content));
+        httpAddVars(conn, mprGetBufStart(content), mprGetBufLength(content));
+    }
+}
+
+
+int httpTestFormVar(HttpConn *conn, cchar *var)
+{
+    MprHashTable    *vars;
+    
+    vars = conn->receiver->formVars;
+    if (vars == 0) {
+        return 0;
+    }
+    return vars && mprLookupHash(vars, var) != 0;
+}
+
+
+cchar *httpGetFormVar(HttpConn *conn, cchar *var, cchar *defaultValue)
+{
+    MprHashTable    *vars;
+    cchar           *value;
+    
+    vars = conn->receiver->formVars;
+    if (vars) {
+        value = mprLookupHash(vars, var);
+        return (value) ? value : defaultValue;
+    }
+    return defaultValue;
+}
+
+
+int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
+{
+    MprHashTable    *vars;
+    cchar           *value;
+    
+    vars = conn->receiver->formVars;
+    if (vars) {
+        value = mprLookupHash(vars, var);
+        return (value) ? (int) mprAtoi(value, 10) : defaultValue;
+    }
+    return defaultValue;
+}
+
+
+void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value) 
+{
+    MprHashTable    *vars;
+    
+    vars = conn->receiver->formVars;
+    if (vars == 0) {
+        /* This is allowed. Upload filter uses this when uploading to the file handler */
+        return;
+    }
+    mprAddHash(vars, var, (void*) value);
+}
+
+
+void httpSetIntFormVar(HttpConn *conn, cchar *var, int value) 
+{
+    MprHashTable    *vars;
+    
+    vars = conn->receiver->formVars;
+    if (vars == 0) {
+        /* This is allowed. Upload filter uses this when uploading to the file handler */
+        return;
+    }
+    mprAddHash(vars, var, mprAsprintf(vars, -1, "%d", value));
+}
+
+
+int httpCompareFormVar(HttpConn *conn, cchar *var, cchar *value)
+{
+    MprHashTable    *vars;
+    
+    vars = conn->receiver->formVars;
+    
+    if (vars == 0) {
+        return 0;
+    }
+    if (strcmp(value, httpGetFormVar(conn, var, " __UNDEF__ ")) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+
+void httpAddUploadFile(HttpConn *conn, cchar *id, HttpUploadFile *upfile)
+{
+    HttpReceiver   *rec;
+
+    rec = conn->receiver;
+    if (rec->files == 0) {
+        rec->files = mprCreateHash(rec, -1);
+    }
+    mprAddHash(rec->files, id, upfile);
+}
+
+
+void httpRemoveUploadFile(HttpConn *conn, cchar *id)
+{
+    HttpReceiver    *rec;
+    HttpUploadFile  *upfile;
+
+    rec = conn->receiver;
+
+    upfile = (HttpUploadFile*) mprLookupHash(rec->files, id);
+    if (upfile) {
+        mprDeletePath(conn, upfile->filename);
+        upfile->filename = 0;
+    }
+}
+
+
+void httpRemoveAllUploadedFiles(HttpConn *conn)
+{
+    HttpReceiver    *rec;
+    HttpUploadFile  *upfile;
+    MprHash        *hp;
+
+    rec = conn->receiver;
+
+    for (hp = 0; rec->files && (hp = mprGetNextHash(rec->files, hp)) != 0; ) {
+        upfile = (HttpUploadFile*) hp->data;
+        if (upfile->filename) {
+            mprDeletePath(conn, upfile->filename);
+            upfile->filename = 0;
+        }
+    }
+}
+
+/*
+    @copy   default
+    
+    Copyright (c) Embedthis Software LLC, 2003-2010. All Rights Reserved.
+    Copyright (c) Michael O'Brien, 1993-2010. All Rights Reserved.
+    
+    This software is distributed under commercial and open source licenses.
+    You may use the GPL open source license described below or you may acquire 
+    a commercial license from Embedthis Software. You agree to be fully bound 
+    by the terms of either license. Consult the LICENSE.TXT distributed with 
+    this software for full details.
+    
+    This software is open source; you can redistribute it and/or modify it 
+    under the terms of the GNU General Public License as published by the 
+    Free Software Foundation; either version 2 of the License, or (at your 
+    option) any later version. See the GNU General Public License for more 
+    details at: http://www.embedthis.com/downloads/gplLicense.html
+    
+    This program is distributed WITHOUT ANY WARRANTY; without even the 
+    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+    
+    This GPL license does NOT permit incorporating this software into 
+    proprietary programs. If you are unable to comply with the GPL, you must
+    acquire a commercial license to use this software. Commercial licenses 
+    for this software and support services are available from Embedthis 
+    Software at http://www.embedthis.com 
+    
+    @end
+ */
