@@ -1,0 +1,8 @@
+#
+#	Clean assist for Xcode
+#
+all:
+	include 	.makedep
+
+clean cleanExtra:
+	rm -fr */build 
