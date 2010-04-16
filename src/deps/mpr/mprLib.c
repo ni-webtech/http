@@ -3,7 +3,7 @@
 /******************************************************************************/
 /* 
  *  This file is an amalgamation of all the individual source code files for
- *  Multithreaded Portable Runtime 3.3.0.
+ *  Multithreaded Portable Runtime 4.0.0.
  *
  *  Catenating all the source into a single file makes embedding simpler and
  *  the resulting application faster, as many compilers can do whole file
@@ -4002,6 +4002,12 @@ void mprSetCmdDir(MprCmd *cmd, cchar *dir)
  */
 static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
 {
+#if VXWORKS
+    cmd->argv = argv;
+    cmd->argc = argc;
+    cmd->env = 0;
+#endif
+
 #if BLD_UNIX_LIKE
     char    *cp;
     int     index, i, hasPath, hasLibPath;
@@ -10798,7 +10804,7 @@ MprList *mprGetPathFiles(MprCtx ctx, cchar *dir, bool enumDirs)
     MprDirEntry     *dp;
     MprPath         fileInfo;
     MprList         *list;
-    char            *path;
+    char            *path, pbuf[MPR_MAX_PATH];
     int             sep;
 #if WINCE
     WIN32_FIND_DATAA findData;
@@ -10809,7 +10815,7 @@ MprList *mprGetPathFiles(MprCtx ctx, cchar *dir, bool enumDirs)
     list = 0;
     dp = 0;
 
-    if ((path = mprJoinPath(dir, "*.*")) == 0) {
+    if ((path = mprJoinPath(ctx, dir, "*.*")) == 0) {
         return 0;
     }
     sep = mprGetPathSeparator(ctx, dir);
@@ -10839,10 +10845,10 @@ MprList *mprGetPathFiles(MprCtx ctx, cchar *dir, bool enumDirs)
 
             /* dp->lastModified = (uint) findData.ftLastWriteTime.dwLowDateTime; */
 
-            if (mprSprintf(path, sizeof(path), "%s%c%s", dir, sep, dp->name) < 0) {
+            if (mprSprintf(pbuf, sizeof(pbuf), "%s%c%s", dir, sep, dp->name) < 0) {
                 dp->lastModified = 0;
             } else {
-                mprGetPathInfo(ctx, path, &fileInfo);
+                mprGetPathInfo(ctx, pbuf, &fileInfo);
                 dp->lastModified = fileInfo.mtime;
             }
             dp->isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
@@ -11385,8 +11391,8 @@ char *mprGetNormalizedPath(MprCtx ctx, cchar *pathArg)
     char            *dupPath, *path, *sp, *dp, *mark, **segments;
     int             addSep, i, segmentCount, hasDot, len, last, sep;
 
-    if (pathArg == 0 || pathArg == '\0') {
-        return mprStrdup(ctx, ".");
+    if (pathArg == 0 || *pathArg == '\0') {
+        return mprStrdup(ctx, "");
     }
     fs = mprLookupFileSystem(ctx, pathArg);
 
@@ -13729,8 +13735,8 @@ int mprCreateNotifierService(MprWaitService *ws)
         /*
             Cygwin doesn't work with INADDR_ANY
          */
-        ws->breakAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
         // ws->breakAddress.sin_addr.s_addr = INADDR_ANY;
+        ws->breakAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
         ws->breakAddress.sin_port = htons((short) breakPort);
         rc = bind(breakSock, (struct sockaddr *) &ws->breakAddress, sizeof(ws->breakAddress));
         if (breakSock >= 0 && rc == 0) {
@@ -14520,19 +14526,14 @@ static void disconnectSocket(MprSocket *sp)
     char    buf[16];
     int     fd;
 
-    if (sp->fd < 0) {
-        return;
-    }
-
     /*  
         Defensive lock buster. Use try lock incase an operation is blocked somewhere with a lock asserted. 
         Should never happen.
      */
     if (!mprTryLock(sp->mutex)) {
-        closesocket(sp->fd);
         return;
     }
-    if (sp->fd >= 0) {
+    if (sp->fd >= 0 || !(sp->flags & MPR_SOCKET_EOF)) {
         /*
             Read any outstanding read data to minimize resets. Then do a shutdown to send a FIN and read 
             outstanding data.  All non-blocking.
@@ -14543,8 +14544,6 @@ static void disconnectSocket(MprSocket *sp)
         }
         shutdown(sp->fd, SHUT_RDWR);
         fd = sp->fd;
-        sp->fd = -1;
-        closesocket(fd);
         sp->flags |= MPR_SOCKET_EOF;
         mprRecallWaitHandler(sp, fd);
     }
@@ -19149,7 +19148,9 @@ static int firstDay(int year, int mon, int wday)
     tm.tm_year = year;
     tm.tm_mon = mon;
     tm.tm_mday = 1;
-    mktime(&tm);
+    if (mktime(&tm) == -1) {
+        return -1;
+    }
     return (1 + (wday - tm.tm_wday + 7) % 7);
 }
 #endif
@@ -20717,7 +20718,7 @@ void mprEnableWaitEvents(MprWaitHandler *wp, int mask)
 
 
 /*
-    Set a handler to be recalled without further I/O. May be called with a null wp.
+    Set a handler to be recalled without further I/O
  */
 void mprRecallWaitHandler(MprCtx ctx, int fd)
 {
@@ -20730,7 +20731,6 @@ void mprRecallWaitHandler(MprCtx ctx, int fd)
     for (index = 0; (wp = (MprWaitHandler*) mprGetNextItem(ws->handlers, &index)) != 0; ) {
         if (wp->fd == fd) {
             wp->flags |= MPR_WAIT_RECALL_HANDLER;
-            wp->desiredMask &= ~(MPR_READABLE | MPR_WRITABLE);
             ws->needRecall = 1;
             mprWakeWaitService(wp->service);
             break;
@@ -22046,6 +22046,7 @@ time_t mktime(struct tm *tp)
     s.wMinute = tp->tm_min;
     s.wSecond = tp->tm_sec;
 
+    //  MOB -- rc
     SystemTimeToFileTime(&s, &f);
     result = (time_t) (fileTimeToTime(f) + tz.Bias   60);
     if (rc == TIME_ZONE_ID_DAYLIGHT) {

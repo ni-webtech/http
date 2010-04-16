@@ -2,7 +2,7 @@
 /******************************************************************************/
 /* 
  *  This file is an amalgamation of all the individual source code files for
- *  Multithreaded Portable Runtime 3.3.0.
+ *  Multithreaded Portable Runtime 4.0.0.
  *
  *  Catenating all the source into a single file makes embedding simpler and
  *  the resulting application faster, as many compilers can do whole file
@@ -451,6 +451,12 @@ extern "C" {
 #define BLD_HAS_UNNAMED_UNIONS 0
 #else
 #define BLD_HAS_UNNAMED_UNIONS 1
+#endif
+
+#if BLD_WIN_LIKE || VXWORKS
+    #define  VA_NULL    {0}
+#else
+    #define  VA_NULL    {{0}}
 #endif
 
 
