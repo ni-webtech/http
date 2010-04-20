@@ -19,3 +19,4 @@ doc/api/mpr
 src/include/buildConfig.h
 *.mod
 buildConfig.make
+lib/*.so
