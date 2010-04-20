@@ -2494,7 +2494,7 @@ void mprWaitForIO(MprWaitService *ws, int timeout)
             mprDoWaitRecall(ws);
             return;
         }
-        ws->willAwake = mprGetMpr()->eventService->now + timeout;
+        ws->willAwake = mprGetMpr(ws)->eventService->now + timeout;
         rc = SetTimer(ws->hwnd, 0, timeout, NULL);
         mprAssert(rc != 0);
 
@@ -2554,7 +2554,7 @@ void mprWakeNotifier(MprCtx ctx)
 {
     MprWaitService  *ws;
    
-    ws = mprGetMpr()->waitService;
+    ws = mprGetMpr(ctx)->waitService;
     if (!ws->wakeRequested && ws->hwnd) {
         ws->wakeRequested = 1;
         PostMessage(ws->hwnd, WM_NULL, 0, 0L);
@@ -2572,12 +2572,10 @@ int mprInitWindow(MprWaitService *ws)
     HWND        hwnd;
     int         rc;
 
-    mpr = mprGetMpr();
-
+    mpr = mprGetMpr(ws);
     if (ws->hwnd) {
         return 0;
     }
-
     wc.style            = CS_HREDRAW | CS_VREDRAW;
     wc.hbrBackground    = (HBRUSH) (COLOR_WINDOW+1);
     wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
@@ -2594,7 +2592,6 @@ int mprInitWindow(MprWaitService *ws)
         mprError(mpr, "Can't register windows class");
         return MPR_ERR_CANT_INITIALIZE;
     }
-
     hwnd = CreateWindow(mprGetAppName(mpr), mprGetAppTitle(mpr), WS_OVERLAPPED, CW_USEDEFAULT, 0, 0, 0, NULL, NULL, 0, NULL);
     if (!hwnd) {
         mprError(mpr, "Can't create window");
@@ -2615,7 +2612,7 @@ static LRESULT msgProc(HWND hwnd, uint msg, uint wp, long lp)
     MprWaitService      *ws;
     int                 sock, winMask;
 
-    mpr = mprGetMpr();
+    mpr = mprGetMpr(NULL);
     ws = mpr->waitService;
 
     if (msg == WM_DESTROY || msg == WM_QUIT) {
