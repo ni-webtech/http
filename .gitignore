@@ -20,3 +20,10 @@ src/include/buildConfig.h
 *.mod
 buildConfig.make
 lib/*.so
+*.pdb
+*.obj
+*.exe
+*.lib
+*.dll
+*.exp
+bin/*.def
