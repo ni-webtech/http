@@ -1296,6 +1296,8 @@ typedef struct HttpConn {
     MprWaitHandler  waitHandler;            /**< I/O wait handler */
     struct HttpServer *server;              /**< Server object (if releveant) */
     MprSocket       *sock;                  /**< Underlying socket handle */
+
+    /* NOTE: documentRoot may be different for virtual hosts, so can't use server->documentRoot */
     char            *documentRoot;          /**< Directory for documents */
 
     struct HttpReceiver *receiver;          /**< Receiver object */
@@ -1777,6 +1779,8 @@ extern bool     maValidatePamCredentials(HttpAuth *auth, cchar *realm, cchar *us
 #endif /* AUTH_PAM */
 
 /********************************** HttpLocation  *********************************/
+
+#if UNUSED
 /*
     Location flags
  */
@@ -1784,6 +1788,7 @@ extern bool     maValidatePamCredentials(HttpAuth *auth, cchar *realm, cchar *us
 #define HTTP_LOC_APP_DIR          0x4       /**< Location defines a directory of applications */
 #define HTTP_LOC_AUTO_SESSION     0x8       /**< Auto create sessions in this location */
 #define HTTP_LOC_BROWSER          0x10      /**< Send errors back to the browser for this location */
+#endif
 #define HTTP_LOC_PUT_DELETE       0x20      /**< Support PUT|DELETE */
 
 /**
@@ -1823,9 +1828,11 @@ extern struct HttpStage *httpGetHandlerByExtension(HttpLocation *location, cchar
 extern cchar *httpLookupErrorDocument(HttpLocation *location, int code);
 extern void httpResetPipeline(HttpLocation *location);
 extern void httpSetLocationAuth(HttpLocation *location, HttpAuth *auth);
+extern void httpSetLocationAutoDelete(HttpLocation *location, int enable);
+extern void httpSetLocationFlags(HttpLocation *location, int flags);
 extern void httpSetLocationHandler(HttpLocation *location, cchar *name);
 extern void httpSetLocationPrefix(HttpLocation *location, cchar *uri);
-extern void httpSetLocationFlags(HttpLocation *location, int flags);
+extern void httpSetLocationScript(HttpLocation *location, cchar *script);
 extern int httpSetConnector(HttpLocation *location, cchar *name);
 extern int httpAddHandler(HttpLocation *location, cchar *name, cchar *extensions);
 
@@ -2656,6 +2663,11 @@ extern int httpStartServer(HttpServer *server);
     @ingroup HttpServer
  */
 extern void httpStopServer(HttpServer *server);
+
+//  MOB
+extern void httpSetDocumentRoot(HttpServer *server, cchar *path);
+extern void httpSetServerRoot(HttpServer *server, cchar *path);
+extern void httpSetIpAddr(HttpServer *server, cchar *ip, int port);
 
 #ifdef __cplusplus
 } /* extern C */

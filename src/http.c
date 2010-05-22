@@ -106,6 +106,7 @@ Http *httpCreate(MprCtx ctx)
 
     //  MOB -- this needs to be controllable via the HttpServer API in ejs
     //  MOB -- test that memory allocation errors are correctly handled
+
     http->location = location = httpCreateLocation(http);
     httpAddFilter(location, http->authFilter->name, NULL, HTTP_STAGE_OUTGOING);
     httpAddFilter(location, http->rangeFilter->name, NULL, HTTP_STAGE_OUTGOING);

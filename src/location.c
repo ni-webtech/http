@@ -62,6 +62,7 @@ HttpLocation *httpCreateInheritedLocation(Http *http, HttpLocation *parent)
     location->auth = httpCreateAuth(location, parent->auth);
     location->uploadDir = parent->uploadDir;
     location->autoDelete = parent->autoDelete;
+    location->script = parent->script;
     location->searchPath = parent->searchPath;
     location->ssl = parent->ssl;
     return location;
@@ -106,8 +107,13 @@ int httpAddHandler(HttpLocation *location, cchar *name, cchar *extensions)
         return MPR_ERR_NOT_FOUND;
     }
     if (extensions && *extensions) {
+        mprLog(location, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, extensions);
+    } else {
+        mprLog(location, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, location->prefix);
+    }
+    if (extensions && *extensions) {
         /*
-            Add to the handler extension hash
+            Add to the handler extension hash. Skip over "*." and "."
          */ 
         extlist = mprStrdup(location, extensions);
         word = mprStrTok(extlist, " \t\r\n", &tok);
@@ -132,12 +138,6 @@ int httpAddHandler(HttpLocation *location, cchar *name, cchar *extensions)
             mprAddHash(location->extensions, "", handler);
         }
         mprAddItem(location->handlers, handler);
-    }
-
-    if (extensions && *extensions) {
-        mprLog(location, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, extensions);
-    } else {
-        mprLog(location, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, location->prefix);
     }
     return 0;
 }
@@ -291,6 +291,19 @@ void httpSetLocationPrefix(HttpLocation *location, cchar *uri)
 void httpSetLocationFlags(HttpLocation *location, int flags)
 {
     location->flags = flags;
+}
+
+
+void httpSetLocationAutoDelete(HttpLocation *location, int enable)
+{
+    location->autoDelete = enable;
+}
+
+
+void httpSetLocationScript(HttpLocation *location, cchar *script)
+{
+    mprFree(location->script);
+    location->script = mprStrdup(location, script);
 }
 
 

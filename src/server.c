@@ -181,6 +181,35 @@ void httpSetServerAsync(HttpServer *server, int async)
 }
 
 
+void httpSetDocumentRoot(HttpServer *server, cchar *documentRoot)
+{
+    mprFree(server->documentRoot);
+    server->documentRoot = mprStrdup(server, documentRoot);
+}
+
+
+void httpSetServerRoot(HttpServer *server, cchar *serverRoot)
+{
+    mprFree(server->serverRoot);
+    server->serverRoot = mprStrdup(server, serverRoot);
+}
+
+
+void httpSetIpAddr(HttpServer *server, cchar *ip, int port)
+{
+    if (ip) {
+        mprFree(server->ip);
+        server->ip = mprStrdup(server, ip);
+    }
+    if (port >= 0) {
+        server->port = port;
+    }
+    if (server->sock) {
+        httpStopServer(server);
+        httpStartServer(server);
+    }
+}
+
 /*
     @copy   default
     
