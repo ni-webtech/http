@@ -170,7 +170,7 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet)
     HttpTransmitter     *trans;
     HttpConn            *conn;
     MprIOVec            *iovec;
-    int                 index;
+    int                 index, mask;
 
     conn = q->conn;
     trans = conn->transmitter;
@@ -185,6 +185,10 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet)
     }
     if (httpGetPacketLength(packet) > 0) {
         addToNetVector(q, mprGetBufStart(packet->content), mprGetBufLength(packet->content));
+    }
+    mask = HTTP_TRACE_TRANSMIT | ((packet->flags & HTTP_PACKET_HEADER) ? HTTP_TRACE_HEADERS : HTTP_TRACE_BODY);
+    if (httpShouldTrace(conn, mask)) {
+        httpTraceContent(conn, packet, 0, trans->bytesWritten, mask);
     }
 }
 

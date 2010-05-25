@@ -231,6 +231,7 @@ void httpAddConn(Http *http, HttpConn *conn)
     lock(http);
     mprAddItem(http->connections, conn);
     conn->started = mprGetTime(conn);
+    conn->seqno = http->connCount++;
     if ((http->now + MPR_TICKS_PER_SEC) < conn->started) {
         updateCurrentDate(http);
     }

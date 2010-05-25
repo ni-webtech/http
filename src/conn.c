@@ -111,6 +111,7 @@ void httpPrepServerConn(HttpConn *conn)
         conn->expire = conn->time + conn->http->keepAliveTimeout;
         conn->errorMsg = 0;
         conn->state = 0;
+        conn->traceMask = 0;
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
     }
@@ -681,6 +682,20 @@ void httpConnError(HttpConn *conn, int status, cchar *fmt, ...)
             httpCloseConn(conn);
         }
     }
+}
+
+
+int httpSetupTrace(HttpConn *conn, cchar *ext)
+{
+    if (conn->traceMask && ext) {
+        if (conn->traceInclude && !mprLookupHash(conn->traceInclude, ext)) {
+            return 0;
+        }
+        if (conn->traceExclude && mprLookupHash(conn->traceExclude, ext)) {
+            return 0;
+        }
+    }
+    return conn->traceMask;
 }
 
 

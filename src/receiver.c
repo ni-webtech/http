@@ -19,15 +19,11 @@ static bool parseRange(HttpConn *conn, char *value);
 static void parseRequestLine(HttpConn *conn, HttpPacket *packet);
 static void parseResponseLine(HttpConn *conn, HttpPacket *packet);
 static bool processCompletion(HttpConn *conn);
-static bool parseBodyContent(HttpConn *conn, HttpPacket *packet);
+static bool processContent(HttpConn *conn, HttpPacket *packet);
 static bool startPipeline(HttpConn *conn);
 static bool processPipeline(HttpConn *conn);
 static bool servicePipeline(HttpConn *conn);
 static void threadRequest(HttpConn *conn);
-
-#if BLD_DEBUG
-static void traceContent(HttpConn *conn, HttpPacket *packet, int len);
-#endif
 
 /*********************************** Code *************************************/
 
@@ -106,7 +102,7 @@ void httpAdvanceReceiver(HttpConn *conn, HttpPacket *packet)
             break;
 
         case HTTP_STATE_CONTENT:
-            conn->canProceed = parseBodyContent(conn, packet);
+            conn->canProceed = processContent(conn, packet);
             break;
 
         case HTTP_STATE_PROCESS:
@@ -162,12 +158,13 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpConnError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
         return 0;
     }
+#if UNUSED
     if (isprint((int) (uchar) *start)) {
         *end = '\0'; 
         LOG(conn, 3, "\n@@@ Incoming =>\n%s\n", start); 
         *end = '\r';
     }
-
+#endif
     if (conn->server) {
         parseRequestLine(conn, packet);
     } else {
@@ -198,8 +195,10 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
 {
     HttpReceiver        *rec;
     HttpTransmitter     *trans;
+    MprBuf              *content;
+    cchar               *endp;
     char                *method, *uri, *protocol;
-    int                 methodFlags;
+    int                 methodFlags, mask, len;
 
     LOG(conn, 4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
 
@@ -286,10 +285,26 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     rec->flags |= methodFlags;
     rec->method = method;
 
-    LOG(conn, 2, "%s %s %s", method, uri, conn->protocol);
-
     if (httpSetUri(conn, uri) < 0) {
         httpConnError(conn, HTTP_CODE_BAD_REQUEST, "Bad URL format");
+    }
+
+    httpSetState(conn, HTTP_STATE_FIRST);
+    if (conn->traceMask == 0) {
+        conn->traceMask = httpSetupTrace(conn, conn->transmitter->extension);
+    }
+    if (conn->traceMask) {
+        mask = HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS;
+        if (httpShouldTrace(conn, mask)) {
+            mprLog(conn, conn->traceLevel, "\n@@@ New request from %s:%d to %s:%d\n%s %s %s", 
+                conn->ip, conn->port, conn->sock->ip, conn->sock->port, method, uri, protocol);
+            content = packet->content;
+            endp = strstr((char*) content->start, "\r\n\r\n");
+            len = (endp) ? (endp - mprGetBufStart(content) + 4) : 0;
+            httpTraceContent(conn, packet, len, 0, mask);
+        }
+    } else {
+        LOG(rec, 2, "%s %s %s", method, uri, protocol);
     }
 }
 
@@ -302,7 +317,10 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
 {
     HttpReceiver    *rec;
     HttpTransmitter *trans;
+    MprBuf          *content;
+    cchar           *endp;
     char            *protocol, *status;
+    int             len;
 
     rec = conn->receiver;
     trans = conn->transmitter;
@@ -327,7 +345,12 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     if ((int) strlen(rec->statusMessage) >= conn->limits->maxUri) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
     }
-    LOG(conn, 2, "%s %s %s", conn->protocol, status, rec->statusMessage);
+    if (httpShouldTrace(conn, HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS)) {
+        content = packet->content;
+        endp = strstr((char*) content->start, "\r\n\r\n");
+        len = (endp) ? (endp - mprGetBufStart(content) + 4) : 0;
+        httpTraceContent(conn, packet, len, 0, HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS);
+    }
 }
 
 
@@ -836,13 +859,13 @@ static bool startPipeline(HttpConn *conn)
     Process request body data (typically post or put content). Packet will be null if the client closed the
     connection to signify end of data.
  */
-static bool parseBodyContent(HttpConn *conn, HttpPacket *packet)
+static bool processContent(HttpConn *conn, HttpPacket *packet)
 {
     HttpReceiver    *rec;
     HttpTransmitter *trans;
     HttpQueue       *q;
     MprBuf          *content;
-    int             nbytes, remaining;
+    int             nbytes, remaining, mask;
 
     rec = conn->receiver;
     trans = conn->transmitter;
@@ -867,12 +890,12 @@ static bool parseBodyContent(HttpConn *conn, HttpPacket *packet)
     nbytes = min(remaining, mprGetBufLength(content));
     mprAssert(nbytes >= 0);
 
-#if BLD_DEBUG
-    LOG(conn, 7, "parseBodyContent: packet of %d bytes, remaining %d", mprGetBufLength(content), remaining);
-    if (mprGetLogLevel(conn) >= 5) {
-        traceContent(conn, packet, nbytes);
+    mask = HTTP_TRACE_BODY | HTTP_TRACE_RECEIVE;
+    if (httpShouldTrace(conn, mask)) {
+        httpTraceContent(conn, packet, 0, 0, mask);
     }
-#endif
+
+    LOG(conn, 7, "processContent: packet of %d bytes, remaining %d", mprGetBufLength(content), remaining);
 
     if (nbytes > 0) {
         mprAssert(httpGetPacketLength(packet) > 0);
@@ -895,7 +918,7 @@ static bool parseBodyContent(HttpConn *conn, HttpPacket *packet)
         conn->input = 0;
         if (remaining == 0 && mprGetBufLength(packet->content) > nbytes) {
             /*  Split excess data belonging to the next pipelined request.  */
-            LOG(conn, 7, "parseBodyContent: Split packet of %d at %d", httpGetPacketLength(packet), nbytes);
+            LOG(conn, 7, "processContent: Split packet of %d at %d", httpGetPacketLength(packet), nbytes);
             conn->input = httpSplitPacket(conn, packet, nbytes);
         }
         if ((q->count + httpGetPacketLength(packet)) > q->max) {
@@ -1479,30 +1502,73 @@ static bool parseRange(HttpConn *conn, char *value)
 }
 
 
-#if BLD_DEBUG
-static void traceContent(HttpConn *conn, HttpPacket *packet, int len)
+static void traceBuf(HttpConn *conn, cchar *buf, int len, int mask)
 {
-    char    *data, *buf;
-    int     i, printable;
+    cchar   *cp, *tag, *digits;
+    char    *data, *dp;
+    int     level, i, printable;
 
-    buf = mprGetBufStart(packet->content);
+    level = conn->traceLevel;
 
     for (printable = 1, i = 0; i < len; i++) {
         if (!isascii(buf[i])) {
             printable = 0;
         }
     }
+    tag = (mask & HTTP_TRACE_TRANSMIT) ? "Transmit" : "Receive";
     if (printable) {
         data = mprAlloc(conn, len + 1);
         memcpy(data, buf, len);
         data[len] = '\0';
-        mprRawLog(conn, 5, "@@@ Content =>\n%s\n", data);
+        mprRawLog(conn, level, "%s packet, conn %d, len %d >>>>>>>>>>\n%s", tag, conn->seqno, len, data);
         mprFree(data);
     } else {
-        mprRawLog(conn, 5, "@@@ Content => Binary\n");
+        mprRawLog(conn, level, "%s packet, conn %d, len %d >>>>>>>>>> (binary)\n", tag, conn->seqno, len);
+        data = mprAlloc(conn, len * 3 + ((len / 16) + 1) + 1);
+        digits = "0123456789ABCDEF";
+        for (i = 0, cp = buf, dp = data; cp < &buf[len]; cp++) {
+            *dp++ = digits[(*cp >> 4) & 0x0f];
+            *dp++ = digits[*cp++ & 0x0f];
+            *dp++ = ' ';
+            if ((++i % 16) == 0) {
+                *dp++ = '\n';
+            }
+        }
+        *dp++ = '\n';
+        *dp = '\0';
+        mprRawLog(conn, level, "%s", data);
+    }
+    mprRawLog(conn, level, "<<<<<<<<<< %s packet end, conn %d\n\n", tag, conn->seqno);
+}
+
+
+void httpTraceContent(HttpConn *conn, HttpPacket *packet, int size, int offset, int mask)
+{
+    int     len;
+
+    mprAssert(conn->traceMask);
+
+    if (offset >= conn->traceMaxLength) {
+        mprLog(conn, conn->traceLevel, "Abbreviating response trace for conn %d", conn->seqno);
+        conn->traceMask = 0;
+        return;
+    }
+    if (size <= 0) {
+        size = INT_MAX;
+    }
+    if (packet->prefix) {
+        len = mprGetBufLength(packet->prefix);
+        len = min(len, size);
+        traceBuf(conn, mprGetBufStart(packet->prefix), len, mask);
+    }
+    if (packet->content) {
+        len = mprGetBufLength(packet->content);
+        len = min(len, size);
+        traceBuf(conn, mprGetBufStart(packet->content), len, mask);
     }
 }
-#endif
+
+
 
 
 /*
