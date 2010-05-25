@@ -8,4 +8,9 @@
 #
 ###############################################################################
 
-. build/os/config.base
+. build/config/config.base
+
+#
+#   Tools
+#
+eval BLD_${KIND}_MAKE=gmake
