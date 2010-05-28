@@ -180,7 +180,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
             return 0;
         }
     } else {
-        if (!( 100 <= rec->status && rec->status < 200))
+        if (!(100 <= rec->status && rec->status < 200))
             httpSetState(conn, HTTP_STATE_PARSED);        
         }
     return 1;
