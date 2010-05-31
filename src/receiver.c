@@ -257,7 +257,6 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         }
         break;
     }
-
     if (methodFlags == 0) {
         httpConnError(conn, HTTP_CODE_BAD_METHOD, "Unknown method");
     }
@@ -281,18 +280,15 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     } else if (strcmp(protocol, "HTTP/1.1") != 0) {
         httpConnError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
-
     rec->flags |= methodFlags;
     rec->method = method;
 
     if (httpSetUri(conn, uri) < 0) {
         httpConnError(conn, HTTP_CODE_BAD_REQUEST, "Bad URL format");
     }
-
     httpSetState(conn, HTTP_STATE_FIRST);
-    if (conn->traceMask == 0) {
-        conn->traceMask = httpSetupTrace(conn, conn->transmitter->extension);
-    }
+
+    conn->traceMask = httpSetupTrace(conn, conn->transmitter->extension);
     if (conn->traceMask) {
         mask = HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS;
         if (httpShouldTrace(conn, mask)) {
@@ -396,7 +392,6 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             httpConnError(conn, HTTP_CODE_BAD_REQUEST, "Bad header key value");
             break;
         }
-
         if ((oldValue = mprLookupHash(rec->headers, key)) != 0) {
             mprAddHash(rec->headers, key, mprAsprintf(rec->headers, -1, "%s, %s", oldValue, value));
         } else {
