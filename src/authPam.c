@@ -19,7 +19,6 @@
 /********************************* Defines ************************************/
 
 typedef struct {
-    MprCtx  ctx;
     char    *name;
     char    *password;
 } UserInfo;
@@ -45,7 +44,6 @@ bool maValidatePamCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *
     struct pam_conv     conv = { pamChat, &info };
     int                 res;
    
-    info.ctx = auth;
     info.name = (char*) user;
     info.password = (char*) password;
     pamh = NULL;
@@ -61,7 +59,8 @@ bool maValidatePamCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *
 }
 
 
-/*  Callback invoked by the pam_authenticate function
+/*  
+    Callback invoked by the pam_authenticate function
  */
 static int pamChat(int msgCount, const struct pam_message **msg, struct pam_response **resp, void *data) 
 {
@@ -76,7 +75,7 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
     if (resp == 0 || msg == 0 || info == 0) {
         return PAM_CONV_ERR;
     }
-    if ((reply = mprAlloc(info->ctx, msgCount * sizeof(struct pam_response))) == 0) {
+    if ((reply = malloc(msgCount * sizeof(struct pam_response))) == 0) {
         return PAM_CONV_ERR;
     }
     for (i = 0; i < msgCount; i++) {
@@ -85,18 +84,17 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
         
         switch (msg[i]->msg_style) {
         case PAM_PROMPT_ECHO_ON:
-            reply[i].resp = mprStrdup(info->ctx, info->name);
+            reply[i].resp = strdup(info->name);
             break;
 
         case PAM_PROMPT_ECHO_OFF:
-            reply[i].resp = mprStrdup(info->ctx, info->password);
+            reply[i].resp = strdup(info->password);
             break;
 
         default:
             return PAM_CONV_ERR;
         }
     }
-    //  MOB -- who frees this?
     *resp = reply;
     return PAM_SUCCESS;
 }
