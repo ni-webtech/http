@@ -11,9 +11,6 @@
 #		make compile				# Compiles the source
 #		make depend					# Generates the make dependencies
 #		make test 					# Runs unit tests
-#		make leakTest 				# Runs memory leak tests
-#		make loadTest 				# Runs load tests
-#		make benchmark 				# Runs benchmarks
 #
 
 include		build/make/Makefile.top
