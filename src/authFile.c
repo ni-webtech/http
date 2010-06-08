@@ -42,7 +42,7 @@ bool httpValidateNativeCredentials(HttpAuth *auth, cchar *realm, cchar *user, cc
     hashedPassword = 0;
     
     if (auth->type == HTTP_AUTH_BASIC) {
-        mprSprintf(passbuf, sizeof(passbuf), "%s:%s:%s", user, realm, password);
+        mprSprintf(auth, passbuf, sizeof(passbuf), "%s:%s:%s", user, realm, password);
         len = strlen(passbuf);
         hashedPassword = mprGetMD5Hash(auth, passbuf, len, NULL);
         password = hashedPassword;
@@ -597,7 +597,7 @@ int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
     hp = mprGetNextHash(auth->users, 0);
     while (hp) {
         up = (HttpUser*) hp->data;
-        mprSprintf(buf, sizeof(buf), "%d: %s: %s: %s\n", up->enabled, up->name, up->realm, up->password);
+        mprSprintf(http, buf, sizeof(buf), "%d: %s: %s: %s\n", up->enabled, up->name, up->realm, up->password);
         mprWrite(file, buf, (int) strlen(buf));
         hp = mprGetNextHash(auth->users, hp);
     }
@@ -630,7 +630,7 @@ int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
     hp = mprGetNextHash(auth->groups, 0);
     while (hp) {
         gp = (HttpGroup*) hp->data;
-        mprSprintf(buf, sizeof(buf), "%d: %x: %s: ", gp->enabled, gp->acl, gp->name);
+        mprSprintf(http, buf, sizeof(buf), "%d: %x: %s: ", gp->enabled, gp->acl, gp->name);
         mprWrite(file, buf, (int) strlen(buf));
         for (next = 0; (name = mprGetNextItem(gp->users, &next)) != 0; ) {
             mprWrite(file, name, (int) strlen(name));

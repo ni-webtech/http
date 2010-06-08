@@ -116,7 +116,7 @@ static HttpPacket *createHeaderPacket(HttpConn *conn)
 
     if (conn->authType && strcmp(conn->authType, "basic") == 0) {
         char    abuf[MPR_MAX_STRING];
-        mprSprintf(abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
+        mprSprintf(conn, abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
         encoded = mprEncode64(conn, abuf);
         httpAddHeader(conn, "Authorization", "basic %s", encoded);
         mprFree(encoded);
@@ -134,24 +134,24 @@ static HttpPacket *createHeaderPacket(HttpConn *conn)
         mprFree(conn->authCnonce);
         conn->authCnonce = mprAsprintf(conn, -1, "%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime(conn)); 
 
-        mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
+        mprSprintf(conn, a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
         len = strlen(a1Buf);
         ha1 = mprGetMD5Hash(trans, a1Buf, len, NULL);
-        mprSprintf(a2Buf, sizeof(a2Buf), "%s:%s", trans->method, parsedUri->path);
+        mprSprintf(conn, a2Buf, sizeof(a2Buf), "%s:%s", trans->method, parsedUri->path);
         len = strlen(a2Buf);
         ha2 = mprGetMD5Hash(trans, a2Buf, len, NULL);
         qop = (conn->authQop) ? conn->authQop : (char*) "";
 
         conn->authNc++;
         if (mprStrcmpAnyCase(conn->authQop, "auth") == 0) {
-            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
+            mprSprintf(conn, digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
                 ha1, conn->authNonce, conn->authNc, conn->authCnonce, conn->authQop, ha2);
         } else if (mprStrcmpAnyCase(conn->authQop, "auth-int") == 0) {
-            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
+            mprSprintf(conn, digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
                 ha1, conn->authNonce, conn->authNc, conn->authCnonce, conn->authQop, ha2);
         } else {
             qop = "";
-            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, conn->authNonce, ha2);
+            mprSprintf(conn, digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, conn->authNonce, ha2);
         }
         mprFree(ha1);
         mprFree(ha2);

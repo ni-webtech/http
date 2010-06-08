@@ -380,7 +380,7 @@ static char *createDigestNonce(MprCtx ctx, cchar *secret, cchar *etag, cchar *re
     mprAssert(realm && *realm);
 
     now = mprGetTime(ctx);
-    mprSprintf(nonce, sizeof(nonce), "%s:%s:%s:%Lx", secret, etag, realm, now);
+    mprSprintf(ctx, nonce, sizeof(nonce), "%s:%s:%s:%Lx", secret, etag, realm, now);
     return mprEncode64(ctx, nonce);
 }
 
@@ -425,27 +425,27 @@ static int calcDigest(MprCtx ctx, char **digest, cchar *userName, cchar *passwor
     if (userName == 0) {
         ha1 = mprStrdup(ctx, password);
     } else {
-        mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", userName, realm, password);
+        mprSprintf(ctx, a1Buf, sizeof(a1Buf), "%s:%s:%s", userName, realm, password);
         ha1 = md5(ctx, a1Buf);
     }
 
     /*
         HA2
      */ 
-    mprSprintf(a2Buf, sizeof(a2Buf), "%s:%s", method, uri);
+    mprSprintf(ctx, a2Buf, sizeof(a2Buf), "%s:%s", method, uri);
     ha2 = md5(ctx, a2Buf);
 
     /*
         H(HA1:nonce:HA2)
      */
     if (strcmp(qop, "auth") == 0) {
-        mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
+        mprSprintf(ctx, digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
 
     } else if (strcmp(qop, "auth-int") == 0) {
-        mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
+        mprSprintf(ctx, digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
 
     } else {
-        mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, nonce, ha2);
+        mprSprintf(ctx, digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, nonce, ha2);
     }
     *digest = md5(ctx, digestBuf);
     mprFree(ha1);
