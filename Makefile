@@ -20,6 +20,6 @@ diff import sync:
 		$(MAKE) -S --no-print-directory _RECURSIVE_=1 -C $(BLD_TOP)/build/src compile ; \
 	fi
 	if [ "`git branch`" != "* master" ] ; then echo "Sync only in default branch" ; echo 255 ; fi
-	$(BLD_TOOLS_DIR)/import.ksh --$@ ../tools/releases/tools-all.tgz
-	$(BLD_TOOLS_DIR)/import.ksh --$@ ../mpr/releases/mpr-all.tgz
+	$(BLD_TOOLS_DIR)/import.sh --$@ ../tools/releases/tools-all.tgz
+	$(BLD_TOOLS_DIR)/import.sh --$@ ../mpr/releases/mpr-all.tgz
 

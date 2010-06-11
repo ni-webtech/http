@@ -19567,7 +19567,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
             break;
 
         case 's':                                       /* seconds since epoch */
-            mprPutFmtToBuf(buf, "%d", mprMakeTime(ctx, tp) / MS_PER_SEC);
+            mprPutFmtToBuf(buf, "%d", mprMakeUniversalTime(ctx, tp) / MS_PER_SEC);
             break;
 
         case 'T':

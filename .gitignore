@@ -27,3 +27,4 @@ lib/*.so
 *.dll
 *.exp
 bin/*.def
+releases
