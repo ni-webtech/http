@@ -284,7 +284,7 @@ int httpCreateSecret(Http *http)
 
 void httpEnableTraceMethod(Http *http, bool on)
 {
-    http->traceEnabled = on;
+    http->enableTraceMethod = on;
 }
 
 

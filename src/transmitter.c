@@ -456,7 +456,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     buf = packet->content;
 
     if (rec->flags & HTTP_TRACE) {
-        if (!http->traceEnabled) {
+        if (!http->enableTraceMethod) {
             trans->status = HTTP_CODE_NOT_ACCEPTABLE;
             httpFormatBody(conn, "Trace Request Denied", "<p>The TRACE method is disabled on this server.</p>");
         } else {
@@ -465,7 +465,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     } else if (rec->flags & HTTP_OPTIONS) {
         handlerFlags = trans->traceMethods;
         httpSetHeader(conn, "Allow", "OPTIONS%s%s%s%s%s%s",
-            (http->traceEnabled) ? ",TRACE" : "",
+            (http->enableTraceMethod) ? ",TRACE" : "",
             (handlerFlags & HTTP_STAGE_GET) ? ",GET" : "",
             (handlerFlags & HTTP_STAGE_HEAD) ? ",HEAD" : "",
             (handlerFlags & HTTP_STAGE_POST) ? ",POST" : "",
