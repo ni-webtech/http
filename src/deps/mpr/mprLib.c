@@ -5965,7 +5965,6 @@ static int dispatchEvents(MprDispatcher *dispatcher)
 #if BLD_DEBUG
     lock(es);
     if (dispatcher->active && dispatcher->active != mprGetCurrentThread(es)) {
-        mprError(dispatcher, "WARNING: Calling dispatchEvents reentrantly. Check calls to mprServiceEvents");
         unlock(es);
         return 0;
     }
@@ -6002,7 +6001,6 @@ static int dispatchEvents(MprDispatcher *dispatcher)
         }
         unlock(es);
     }
-
 #if BLD_DEBUG
     dispatcher->active = 0;
 #endif
@@ -6010,6 +6008,9 @@ static int dispatchEvents(MprDispatcher *dispatcher)
 }
 
 
+/*
+    Service a single dispatcher. Runs in a worker thread.
+ */
 static void serviceDispatcher(MprDispatcher *dispatcher)
 {
     MprEventService     *es;
@@ -21053,7 +21054,7 @@ MprModule *mprLoadModule(MprCtx ctx, cchar *name, cchar *initFunction, void *dat
                 close(fd);
                 if (initFunction) {
 #if BLD_HOST_CPU_ARCH == MPR_CPU_IX86 || BLD_HOST_CPU_ARCH == MPR_CPU_IX64
-                    mprSprintf(entryPoint, sizeof(entryPoint), "_%s", initFunction);
+                    mprSprintf(ctx, entryPoint, sizeof(entryPoint), "_%s", initFunction);
 #else
                     mprStrcpy(entryPoint, sizeof(entryPoint), initFunction);
 #endif
@@ -21683,7 +21684,7 @@ void mprWriteToOsLog(MprCtx ctx, cchar *message, int flags, int level)
     if (once == 0) {
         /*  Initialize the registry */
         once = 1;
-        mprSprintf(logName, sizeof(logName), "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\%s",
+        mprSprintf(ctx, logName, sizeof(logName), "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\%s",
             mprGetAppName(ctx));
         hkey = 0;
 
