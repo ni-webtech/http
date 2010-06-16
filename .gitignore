@@ -29,3 +29,4 @@ lib/*.so
 bin/*.def
 releases
 staging
+bin/angel*
