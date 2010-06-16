@@ -66,13 +66,18 @@ HttpReceiver *httpCreateReceiver(HttpConn *conn)
 
 void httpDestroyReceiver(HttpConn *conn)
 {
-    conn->freePackets = NULL;
     if (conn->receiver) {
         mprFree(conn->receiver->arena);
         conn->receiver = 0;
     }
     if (conn->server) {
         httpPrepServerConn(conn);
+    }
+    if (conn->input) {
+        /* Left over packet */
+        if (mprGetParent(conn->input) != conn) {
+            conn->input = httpSplitPacket(conn, conn->input, 0);
+        }
     }
 }
 
@@ -1007,7 +1012,6 @@ static bool processCompletion(HttpConn *conn)
             conn->input = 0;
         }
     }
-    conn->freePackets = NULL;
     if (conn->server) {
         httpDestroyReceiver(conn);
         return more;

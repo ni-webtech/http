@@ -160,7 +160,10 @@ void httpPrepClientConn(HttpConn *conn, int retry)
         conn->flags = 0;
         conn->expire = conn->time + conn->http->keepAliveTimeout;
         conn->errorMsg = 0;
+#if UNUSED
+        //  MOB -- is this right?
         conn->input = NULL;
+#endif
         conn->state = 0;
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
