@@ -1238,7 +1238,7 @@ int httpSetUri(HttpConn *conn, cchar *uri)
     rec->uri = rec->parsedUri->uri;
     conn->transmitter->extension = rec->parsedUri->ext;
     mprFree(rec->pathInfo);
-    rec->pathInfo = httpValidateUri(rec, mprUriDecode(rec, rec->parsedUri->path));
+    rec->pathInfo = httpNormalizeUriPath(rec, mprUriDecode(rec, rec->parsedUri->path));
     rec->scriptName = mprStrdup(rec, "");
     return 0;
 }
