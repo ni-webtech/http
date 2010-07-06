@@ -6096,10 +6096,12 @@ extern int mprCalcDigest(MprCtx ctx, char **digest, cchar *userName, cchar *pass
 /*  
     Character encoding masks
  */
-#define MPR_ENCODE_HTML            0x1
-#define MPR_ENCODE_SHELL           0x2
-#define MPR_ENCODE_URI             0x4
-#define MPR_ENCODE_URI_COMPONENT   0x8
+#define MPR_ENCODE_HTML             0x1
+#define MPR_ENCODE_SHELL            0x2
+#define MPR_ENCODE_URI              0x4             /* Encode for ejs Uri.encode */
+#define MPR_ENCODE_URI_COMPONENT    0x10            /* Encode for ejs Uri.encodeComponent */
+#define MPR_ENCODE_JS_URI           0x10            /* Encode according to ECMA encodeUri() */
+#define MPR_ENCODE_JS_URI_COMPONENT 0x20            /* Encode according to ECMA encodeUriComponent */
 
 /** 
     Encode a string escaping typical command (shell) characters
