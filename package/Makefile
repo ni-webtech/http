@@ -1,5 +1,5 @@
 #
-#	Makefile for the all-in-one HTTP distribution
+#	Makefile for the all-in-one combined HTTP distribution
 #
 #	Copyright (c) Embedthis Software LLC, 2003-2010. All Rights Reserved.
 #
@@ -20,7 +20,7 @@ include			.makedep
 HEADERS			+= ../src/include/http.h
 HTTP_SOURCES 	+= $(wildcard ../src/*.c) 
 
-packageExtra: 	prep $(TARGETS) $(ARCHIVE)
+combo packageExtra: prep $(TARGETS) $(ARCHIVE)
 
 prep:
 	rm -fr $(STAGING)
