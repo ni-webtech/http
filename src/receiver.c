@@ -1246,8 +1246,9 @@ int httpSetUri(HttpConn *conn, cchar *uri)
 
 /*  
     Wait for the Http object to achieve a given state.
+    NOTE: timeout is an inactivity timeout
  */
-int httpWait(HttpConn *conn, int state, int timeout)
+int httpWait(HttpConn *conn, int state, int inactivityTimeout)
 {
     Http            *http;
     HttpTransmitter *trans;
@@ -1257,21 +1258,20 @@ int httpWait(HttpConn *conn, int state, int timeout)
     http = conn->http;
     trans = conn->transmitter;
 
-    if (timeout < 0) {
-        timeout = conn->timeout;
+    if (inactivityTimeout < 0) {
+        inactivityTimeout = conn->timeout;
     }
-    if (timeout < 0) {
-        timeout = MAXINT;
+    if (inactivityTimeout < 0) {
+        inactivityTimeout = MAXINT;
     }
     if (conn->state <= HTTP_STATE_BEGIN) {
         mprAssert(conn->state >= HTTP_STATE_BEGIN);
         return MPR_ERR_BAD_STATE;
     } 
     http->now = mprGetTime(conn);
-    expire = http->now + timeout;
-    remainingTime = timeout;
+    expire = http->now + inactivityTimeout;
+    remainingTime = inactivityTimeout;
     while (conn->state < state && conn->sock && !mprIsSocketEof(conn->sock) && remainingTime >= 0) {
-MprTime before = mprGetTime(conn);
         fd = conn->sock->fd;
         if (!trans->writeComplete) {
             events = mprWaitForSingleIO(conn, fd, MPR_WRITABLE, remainingTime);
@@ -1282,11 +1282,12 @@ MprTime before = mprGetTime(conn);
                 events = mprWaitForSingleIO(conn, fd, MPR_READABLE, remainingTime);
             }
         }
-LOG(conn, 6, "Waited for %d, got %d", mprGetTime(conn) - before, events);
+        http->now = mprGetTime(conn);
+        remainingTime = (int) (expire - http->now);
         if (events) {
+            expire = http->now + inactivityTimeout;
             httpCallEvent(conn, events);
         }
-        http->now = mprGetTime(conn);
         if (conn->state >= HTTP_STATE_PARSED) {
             if (conn->state < state) {
                 return MPR_ERR_BAD_STATE;
@@ -1296,8 +1297,6 @@ LOG(conn, 6, "Waited for %d, got %d", mprGetTime(conn) - before, events);
             }
             break;
         }
-        http->now = mprGetTime(conn);
-        remainingTime = (int) (expire - http->now);
     }
     if (conn->sock == 0 || conn->error) {
         return MPR_ERR_CONNECTION;
