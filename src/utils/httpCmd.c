@@ -633,6 +633,7 @@ static int doRequest(HttpConn *conn, cchar *url)
             mprAssert(conn->state >= HTTP_STATE_PARSED);
 LOG(conn, 0, "Wait complete state %d, status %d", conn->state, (conn->receiver) ? conn->receiver->status : -2);
             if (httpNeedRetry(conn, &redirect)) {
+LOG(conn, 0, "Retrying");
                 if (redirect) {
                     url = resolveUrl(conn, redirect);
                     httpPrepClientConn(conn, HTTP_NEW_REQUEST);
