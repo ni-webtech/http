@@ -300,7 +300,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
     uri = 0;
     trans->status = status;
 
-    LOG(conn, 3, "redirect %d %s", status, targetUri);
+    mprLog(conn, 3, "redirect %d %s", status, targetUri);
 
     prev = rec->parsedUri;
     target = httpCreateUri(trans, targetUri, 0);
@@ -638,7 +638,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     trans->headerSize = mprGetBufLength(buf);
     trans->flags |= HTTP_TRANS_HEADERS_CREATED;
 
-    LOG(conn, 3, "\n@@@ Transmission => \n%s", mprGetBufStart(buf));
+    mprLog(conn, 3, "\n@@@ Transmission => \n%s", mprGetBufStart(buf));
 }
 
 

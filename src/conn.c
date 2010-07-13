@@ -84,7 +84,7 @@ void httpCloseConn(HttpConn *conn)
         }
     }
     if (conn->sock) {
-        LOG(conn, 4, "Closing connection");
+        mprLog(conn, 4, "Closing connection");
         if (conn->waitHandler.fd >= 0) {
             mprRemoveWaitHandler(&conn->waitHandler);
         }
@@ -641,9 +641,9 @@ static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
         conn->status = status;
         httpFormatErrorV(conn, status, fmt, args);
         if (rec == 0) {
-            LOG(conn, 2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
+            mprLog(conn, 2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
         } else {
-            LOG(conn, 2, "Error: \"%s\", status %d for URI \"%s\": %s.",
+            mprLog(conn, 2, "Error: \"%s\", status %d for URI \"%s\": %s.",
                 httpLookupStatus(conn->http, status), status, rec->uri ? rec->uri : "", conn->errorMsg);
         }
         httpOmitBody(conn);

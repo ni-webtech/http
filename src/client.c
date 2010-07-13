@@ -66,13 +66,13 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
         if (conn->keepAliveCount < 0 || port != conn->port || strcmp(ip, conn->ip) != 0) {
             httpCloseConn(conn);
         } else {
-            LOG(http, 4, "Http: reusing keep-alive socket on: %s:%d", ip, port);
+            mprLog(http, 4, "Http: reusing keep-alive socket on: %s:%d", ip, port);
         }
     }
     if (conn->sock) {
         return conn;
     }
-    LOG(conn, 3, "Http: Opening socket on: %s:%d", ip, port);
+    mprLog(conn, 3, "Http: Opening socket on: %s:%d", ip, port);
     if ((sp = mprCreateSocket(conn, (uri->secure) ? MPR_SECURE_CLIENT: NULL)) == 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
         mprFree(sp);
@@ -126,7 +126,7 @@ static HttpPacket *createHeaderPacket(HttpConn *conn)
         char    a1Buf[256], a2Buf[256], digestBuf[256];
         char    *ha1, *ha2, *digest, *qop;
         if (http->secret == 0 && httpCreateSecret(http) < 0) {
-            LOG(trans, MPR_ERROR, "Http: Can't create secret for digest authentication");
+            mprLog(trans, MPR_ERROR, "Http: Can't create secret for digest authentication");
             mprFree(trans);
             conn->transmitter = 0;
             return 0;
@@ -220,7 +220,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     if (conn->server) {
         return MPR_ERR_BAD_STATE;
     }
-    LOG(conn, 4, "Http: client request: %s %s", method, url);
+    mprLog(conn, 4, "Http: client request: %s %s", method, url);
 
     if (conn->sock) {
         /* 

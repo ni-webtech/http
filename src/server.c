@@ -69,7 +69,7 @@ int httpStartServer(HttpServer *server)
     } else {
         mprSetSocketBlockingMode(server->sock, 1);
     }
-    LOG(server, MPR_CONFIG, "Started %s server on %s:%d", proto, ip, server->port);
+    mprLog(server, MPR_CONFIG, "Started %s server on %s:%d", proto, ip, server->port);
     return 0;
 }
 
@@ -98,7 +98,7 @@ static HttpConn *acceptConn(HttpServer *server)
     if (sock == 0) {
         return 0;
     }
-    LOG(server, 4, "New connection from %s:%d for %s:%d %s",
+    mprLog(server, 4, "New connection from %s:%d for %s:%d %s",
         sock->ip, sock->port, sock->acceptIp, sock->acceptPort, server->sock->sslSocket ? "(secure)" : "");
 
     if ((conn = httpCreateConn(server->http, server)) == 0) {

@@ -166,7 +166,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 #if UNUSED
     if (isprint((int) (uchar) *start)) {
         *end = '\0'; 
-        LOG(conn, 3, "\n@@@ Incoming =>\n%s\n", start); 
+        mprLog(conn, 3, "\n@@@ Incoming =>\n%s\n", start); 
         *end = '\r';
     }
 #endif
@@ -205,7 +205,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     char                *method, *uri, *protocol;
     int                 methodFlags, mask, len;
 
-    LOG(conn, 4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
+    mprLog(conn, 4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
 
     rec = conn->receiver;
     trans = conn->transmitter;
@@ -305,7 +305,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
             httpTraceContent(conn, packet, len, 0, mask);
         }
     } else {
-        LOG(rec, 2, "%s %s %s", method, uri, protocol);
+        mprLog(rec, 2, "%s %s %s", method, uri, protocol);
     }
 }
 
@@ -326,7 +326,7 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     rec = conn->receiver;
     trans = conn->transmitter;
 
-    LOG(rec, 4, "Response from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
+    mprLog(rec, 4, "Response from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
     protocol = getToken(conn, " ");
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         conn->keepAliveCount = 0;
@@ -1000,7 +1000,7 @@ static bool processCompletion(HttpConn *conn)
     trans = conn->transmitter;
     mpr = mprGetMpr(conn);
 
-    LOG(rec, 4, "Request complete used %,d K, mpr usage %,d K, page usage %,d K",
+    mprLog(rec, 4, "Request complete used %,d K, mpr usage %,d K, page usage %,d K",
         rec->arena->allocBytes / 1024, mpr->heap.allocBytes / 1024, mpr->pageHeap.allocBytes / 1024);
 
     packet = conn->input;

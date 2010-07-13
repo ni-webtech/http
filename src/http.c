@@ -207,9 +207,9 @@ static int httpTimer(Http *http, MprEvent *event)
         if (diff < 0 && !mprGetDebugMode(http)) {
             conn->keepAliveCount = 0;
             if (conn->receiver) {
-                LOG(http, 4, "Request timed out %s", conn->receiver->uri);
+                mprLog(http, 4, "Request timed out %s", conn->receiver->uri);
             } else {
-                LOG(http, 4, "Idle connection timed out");
+                mprLog(http, 4, "Idle connection timed out");
             }
             httpRemoveConn(http, conn);
             if (conn->sock) {
