@@ -30,3 +30,4 @@ bin/*.def
 releases
 staging
 bin/angel*
+projects/MACOSX/*/build

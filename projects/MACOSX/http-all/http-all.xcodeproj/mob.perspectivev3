@@ -400,7 +400,7 @@
 										<key>_historyCapacity</key>
 										<integer>0</integer>
 										<key>bookmark</key>
-										<string>C9D4539E11ECEF0B00F029C8</string>
+										<string>C9D453B311ECF03C00F029C8</string>
 										<key>history</key>
 										<array>
 											<string>C9513E5D10E98EC900F9E006</string>
@@ -588,8 +588,6 @@
 			<key>Layout</key>
 			<array>
 				<dict>
-					<key>BecomeActive</key>
-					<true/>
 					<key>ContentConfiguration</key>
 					<dict>
 						<key>PBXProjectModuleGUID</key>
@@ -728,7 +726,7 @@
 	<key>StatusbarIsVisible</key>
 	<true/>
 	<key>TimeStamp</key>
-	<real>300740363.88764</real>
+	<real>300740668.430453</real>
 	<key>ToolbarConfigUserDefaultsMinorVersion</key>
 	<string>2</string>
 	<key>ToolbarDisplayMode</key>
@@ -745,7 +743,6 @@
 	<integer>5</integer>
 	<key>WindowOrderList</key>
 	<array>
-		<string>C9D4539F11ECEF0B00F029C8</string>
 		<string>C9D4533111ECE0D200F029C8</string>
 		<string>C9D4533211ECE0D200F029C8</string>
 		<string>/Users/mob/git/http/projects/MACOSX/http-all/http-all.xcodeproj</string>

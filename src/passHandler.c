@@ -16,17 +16,6 @@
 static void openPass(HttpQueue *q)
 {
     /* Called only for the send queue */
-#if UNUSED || 1
-#if 0
-    //  MOB -- should not need to do this here
-    q->max = conn->limits->maxStageBuffer;
-    q->max = conn->limits->maxStageBuffer;
-    q->low = q->max / 100 *  5;
-#else
-    q->max = q->conn->limits->maxTransmissionBody;
-    q->packetSize = q->conn->limits->maxTransmissionBody;
-#endif
-#endif
     if (q->pair) {
         q->pair->max = q->max;
         q->pair->packetSize = q->packetSize;
