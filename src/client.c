@@ -301,19 +301,30 @@ void httpEnableUpload(HttpConn *conn)
 static int blockingFileCopy(HttpConn *conn, cchar *path)
 {
     MprFile     *file;
+    MprTime     start;
+    MprPath     info;
     char        buf[MPR_BUFSIZE];
-    int         bytes;
+    int         bytes, written, size, rate, elapsed;
 
     file = mprOpen(conn, path, O_RDONLY | O_BINARY, 0);
     if (file == 0) {
         mprError(conn, "Can't open %s", path);
         return MPR_ERR_CANT_OPEN;
     }
+    written = 0;
+    mprGetPathInfo(conn, path, &info);
+    start = mprGetTime(conn);
+    size = info.size;
     while ((bytes = mprRead(file, buf, sizeof(buf))) > 0) {
         if (httpWriteBlock(conn->writeq, buf, bytes, 1) != bytes) {
             mprFree(file);
             return MPR_ERR_CANT_WRITE;
         }
+        elapsed = (mprGetTime(conn) - start) / 1000;
+        elapsed = max(elapsed, 1);
+        rate = written / 1024 / elapsed;
+        LOG(conn, 6, "Written %d of %d, rate %d K/Sec ", bytes, size, rate);
+        written += bytes;
     }
     mprFree(file);
     return 0;

@@ -1271,6 +1271,7 @@ int httpWait(HttpConn *conn, int state, int timeout)
     expire = http->now + timeout;
     remainingTime = timeout;
     while (conn->state < state && conn->sock && !mprIsSocketEof(conn->sock) && remainingTime >= 0) {
+MprTime before = mprGetTime(conn);
         fd = conn->sock->fd;
         if (!trans->writeComplete) {
             events = mprWaitForSingleIO(conn, fd, MPR_WRITABLE, remainingTime);
@@ -1281,6 +1282,7 @@ int httpWait(HttpConn *conn, int state, int timeout)
                 events = mprWaitForSingleIO(conn, fd, MPR_READABLE, remainingTime);
             }
         }
+LOG(conn, 6, "Waited for %d, got %d", mprGetTime(conn) - before, events);
         if (events) {
             httpCallEvent(conn, events);
         }

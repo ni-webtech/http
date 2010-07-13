@@ -631,6 +631,7 @@ static int doRequest(HttpConn *conn, cchar *url)
 
         if (httpWait(conn, HTTP_STATE_PARSED, conn->timeout) == 0) {
             mprAssert(conn->state >= HTTP_STATE_PARSED);
+LOG(conn, 0, "Wait complete state %d, status %d", conn->state, (conn->receiver) ? conn->receiver->status : -2);
             if (httpNeedRetry(conn, &redirect)) {
                 if (redirect) {
                     url = resolveUrl(conn, redirect);
@@ -801,6 +802,7 @@ static int writeBody(HttpConn *conn)
                     return MPR_ERR_CANT_OPEN;
                 }
                 if (verbose) {
+                    //  MOB - should this be to stdout or stderr?
                     mprPrintf(conn, "uploading: %s\n", path);
                 }
                 while ((bytes = mprRead(file, buf, sizeof(buf))) > 0) {

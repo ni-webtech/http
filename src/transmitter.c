@@ -32,9 +32,6 @@ HttpTransmitter *httpCreateTransmitter(HttpConn *conn, MprHashTable *headers)
     conn->transmitter = trans;
     trans->conn = conn;
     trans->status = HTTP_CODE_OK;
-#if UNUSED
-    trans->mimeType = "text/html";
-#endif
     trans->length = -1;
     trans->entityLength = -1;
     trans->traceMethods = HTTP_STAGE_ALL;
