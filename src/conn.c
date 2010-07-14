@@ -40,6 +40,11 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
     conn->expire = conn->time + http->keepAliveTimeout;
     conn->callback = (HttpCallback) httpEvent;
     conn->callbackArg = conn;
+
+    conn->traceMask = HTTP_TRACE_TRANSMIT | HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS;
+    conn->traceLevel = HTTP_TRACE_LEVEL;
+    conn->traceMaxLength = INT_MAX;
+
     httpInitSchedulerQueue(&conn->serviceq);
     if (server) {
         conn->dispatcher = server->dispatcher;

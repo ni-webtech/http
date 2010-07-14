@@ -1538,7 +1538,7 @@ static void traceBuf(HttpConn *conn, cchar *buf, int len, int mask)
         *dp = '\0';
         mprRawLog(conn, level, "%s", data);
     }
-    mprRawLog(conn, level, "<<<<<<<<<< %s packet end, conn %d\n\n", tag, conn->seqno);
+    mprRawLog(conn, level, "<<<<<<<<<< %s packet, conn %d\n\n", tag, conn->seqno);
 }
 
 

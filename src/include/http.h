@@ -106,6 +106,7 @@ struct MaDir;
 #define HTTP_TIMER_PERIOD         1000              /**< Timer checks ever 1 second */
 
 #define HTTP_DATE_FORMAT          "%a, %d %b %Y %T GMT"
+#define HTTP_TRACE_LEVEL          3                 /**< Trace level at which requests are traced */
 
 /*  
     Hash sizes (primes work best)

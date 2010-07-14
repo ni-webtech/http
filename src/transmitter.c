@@ -470,7 +470,6 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             (handlerFlags & HTTP_STAGE_DELETE) ? ",DELETE" : "");
         trans->length = 0;
     }
-
     httpAddSimpleHeader(conn, "Date", conn->http->currentDate);
 
     if (trans->flags & HTTP_TRANS_DONT_CACHE) {
@@ -489,7 +488,6 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     } else if (trans->length > 0) {
         httpSetHeader(conn, "Content-Length", "%d", trans->length);
     }
-
     if (rec->ranges) {
         if (rec->ranges->next == 0) {
             range = rec->ranges;
@@ -517,7 +515,6 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             httpAddSimpleHeader(conn, "Content-Type", mimeType);
         }
     }
-
 #if BLD_DEBUG && UNUSED
     //  TODO - finish this
     if (strncmp(trans->mimeType, "image/", 6) == 0 || strcmp(trans->mimeType, "text/css") == 0) {
@@ -634,8 +631,9 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     trans->headerSize = mprGetBufLength(buf);
     trans->flags |= HTTP_TRANS_HEADERS_CREATED;
-
+#if UNUSED
     mprLog(conn, 3, "\n@@@ Transmission => \n%s", mprGetBufStart(buf));
+#endif
 }
 
 

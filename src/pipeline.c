@@ -84,8 +84,10 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
     }
 
     setEnvironment(conn);
+
     conn->writeq = conn->transmitter->queue[HTTP_QUEUE_TRANS].nextQ;
     conn->readq = conn->transmitter->queue[HTTP_QUEUE_RECEIVE].prevQ;
+
     httpPutForService(conn->writeq, httpCreateHeaderPacket(conn->writeq), 0);
 
     /*  
