@@ -66,7 +66,6 @@ HttpStatusCode HttpStatusCodes[] = {
 /****************************** Forward Declarations **************************/
 
 static int httpTimer(Http *http, MprEvent *event);
-static void initLimits(Http *http);
 static void updateCurrentDate(Http *http);
 
 /*********************************** Code *************************************/
@@ -75,72 +74,97 @@ Http *httpCreate(MprCtx ctx)
 {
     Http            *http;
     HttpStatusCode  *code;
-    HttpLocation    *location;
 
     http = mprAllocObjZeroed(ctx, Http);
     if (http == 0) {
         return 0;
     }
+    http->mutex = mprCreateLock(http);
     http->connections = mprCreateList(http);
     http->stages = mprCreateHash(http, 31);
-    http->keepAliveTimeout = HTTP_KEEP_TIMEOUT;
-    http->maxKeepAlive = HTTP_MAX_KEEP_ALIVE;
-    http->timeout = HTTP_SERVER_TIMEOUT;
 
-    initLimits(http);
-    httpCreateSecret(http);
-    httpInitAuth(http);
-
+    updateCurrentDate(http);
     http->statusCodes = mprCreateHash(http, 41);
     for (code = HttpStatusCodes; code->code; code++) {
         mprAddHash(http->statusCodes, code->codeString, code);
     }
-    http->mutex = mprCreateLock(http);
-    updateCurrentDate(http);
+    httpCreateSecret(http);
+    httpInitAuth(http);
     httpOpenNetConnector(http);
+    httpOpenSendConnector(http);
     httpOpenAuthFilter(http);
     httpOpenRangeFilter(http);
     httpOpenChunkFilter(http);
     httpOpenUploadFilter(http);
     httpOpenPassHandler(http);
 
-    //  MOB -- this needs to be controllable via the HttpServer API in ejs
-    //  MOB -- test that memory allocation errors are correctly handled
-
-    http->location = location = httpCreateLocation(http);
-    httpAddFilter(location, http->authFilter->name, NULL, HTTP_STAGE_OUTGOING);
-    httpAddFilter(location, http->rangeFilter->name, NULL, HTTP_STAGE_OUTGOING);
-    httpAddFilter(location, http->chunkFilter->name, NULL, HTTP_STAGE_OUTGOING);
-
-    httpAddFilter(location, http->uploadFilter->name, NULL, HTTP_STAGE_INCOMING);
-    httpAddFilter(location, http->chunkFilter->name, NULL, HTTP_STAGE_INCOMING);
-
-    location->connector = http->netConnector;
+    http->clientLimits = httpInitLimits(http, 0);
+    http->serverLimits = httpInitLimits(http, 1);
+    http->clientLocation = httpInitLocation(http, http, 0);
     return http;
 }
 
 
-static void initLimits(Http *http)
+HttpLocation *httpInitLocation(Http *http, MprCtx ctx, int serverSide)
+{
+    HttpLocation    *location;
+
+    /*
+        Create default incoming and outgoing pipelines. Order matters.
+     */
+    location = httpCreateLocation(http);
+    httpAddFilter(location, http->authFilter->name, NULL, HTTP_STAGE_OUTGOING);
+    httpAddFilter(location, http->rangeFilter->name, NULL, HTTP_STAGE_OUTGOING);
+    httpAddFilter(location, http->chunkFilter->name, NULL, HTTP_STAGE_OUTGOING);
+
+    httpAddFilter(location, http->chunkFilter->name, NULL, HTTP_STAGE_INCOMING);
+    httpAddFilter(location, http->uploadFilter->name, NULL, HTTP_STAGE_INCOMING);
+    location->connector = http->netConnector;
+    return location;
+}
+
+
+HttpLimits *httpInitLimits(MprCtx ctx, int serverSide)
 {
     HttpLimits  *limits;
 
-    limits = http->limits = mprAllocObj(http, HttpLimits);;
-    limits->maxReceiveBody = HTTP_MAX_RECEIVE_BODY;
-    limits->maxChunkSize = HTTP_MAX_CHUNK;
-    limits->maxRequests = HTTP_MAX_REQUESTS;
-    limits->maxTransmissionBody = HTTP_MAX_TRANSMISSION_BODY;
-    limits->maxStageBuffer = HTTP_MAX_STAGE_BUFFER;
-    limits->maxNumHeaders = HTTP_MAX_NUM_HEADERS;
-    limits->maxHeader = HTTP_MAX_HEADERS;
-    limits->maxUri = MPR_MAX_URL;
-    limits->maxUploadSize = HTTP_MAX_UPLOAD;
-    limits->maxThreads = HTTP_DEFAULT_MAX_THREADS;
-    limits->minThreads = 0;
+    limits = mprAllocObjZeroed(ctx, HttpLimits);
+    limits->chunkSize = HTTP_MAX_CHUNK;
+    limits->headerCount = HTTP_MAX_NUM_HEADERS;
+    limits->headerSize = HTTP_MAX_HEADERS;
+    limits->receiveBodySize = HTTP_MAX_RECEIVE_BODY;
+    limits->requestCount = HTTP_MAX_REQUESTS;
+    limits->stageBufferSize = HTTP_MAX_STAGE_BUFFER;
+    limits->transmissionBodySize = HTTP_MAX_TRANSMISSION_BODY;
+    limits->uploadSize = HTTP_MAX_UPLOAD;
+    limits->uriSize = MPR_MAX_URL;
 
-    /* 
-       Zero means use O/S defaults. TODO OPT - we should modify this to be smaller!
-     */
-    limits->threadStackSize = 0;
+    limits->inactivityTimeout = HTTP_INACTIVITY_TIMEOUT;
+    limits->requestTimeout = 0;
+    limits->sessionTimeout = HTTP_SESSION_TIMEOUT;
+
+    limits->clientCount = HTTP_MAX_CLIENTS;
+    limits->keepAliveCount = HTTP_MAX_KEEP_ALIVE;
+    limits->requestCount = HTTP_MAX_REQUESTS;
+    limits->sessionCount = HTTP_MAX_SESSIONS;
+
+#if FUTURE
+    mprSetMaxSocketClients(server, atoi(value));
+
+    if (mprStrcmpAnyCase(key, "LimitClients") == 0) {
+        mprSetMaxSocketClients(server, atoi(value));
+        return 1;
+    }
+    if (mprStrcmpAnyCase(key, "LimitMemoryMax") == 0) {
+        mprSetAllocLimits(server, -1, atoi(value));
+        return 1;
+    }
+    if (mprStrcmpAnyCase(key, "LimitMemoryRedline") == 0) {
+        mprSetAllocLimits(server, atoi(value), -1);
+        return 1;
+    }
+#endif
+    return limits;
 }
 
 
@@ -188,26 +212,42 @@ static void startTimer(Http *http)
  */
 static int httpTimer(Http *http, MprEvent *event)
 {
-    HttpConn      *conn;
-    int         next, connCount;
+    HttpConn    *conn;
+    int64       diff;
+    int         next, connCount, inactivity, requestTimeout, inactivityTimeout;
 
     mprAssert(event);
     
     updateCurrentDate(http);
+    if (mprGetDebugMode(http)) {
+        return 0;
+    }
 
     /* 
-       Check for any expired connections. Locking ensures connections won't be deleted.
+       Check for any inactive connections. Locking ensures connections won't be deleted.
      */
     lock(http);
     for (connCount = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; connCount++) {
+        requestTimeout = conn->requestTimeout ? conn->requestTimeout : INT_MAX;
+        inactivityTimeout = conn->inactivityTimeout ? conn->inactivityTimeout : INT_MAX;
         /* 
             Workaround for a GCC bug when comparing two 64bit numerics directly. Need a temporary.
          */
-        int64 diff = conn->expire - http->now;
-        if (diff < 0 && !mprGetDebugMode(http)) {
+        diff = (conn->started + inactivityTimeout) - http->now;
+        inactivity = 1;
+        if (diff > 0 && conn->receiver) {
+            diff = (conn->started + requestTimeout) - http->now;
+            inactivity = 0;
+        }
+        if (diff < 0) {
             conn->keepAliveCount = 0;
             if (conn->receiver) {
-                mprLog(http, 4, "Request timed out %s", conn->receiver->uri);
+                if (inactivity) {
+                    mprLog(http, 4, "Inactive request timed out %s, exceeded inactivity timeout %d", 
+                        conn->receiver->uri, inactivityTimeout);
+                } else {
+                    mprLog(http, 4, "Request timed out %s, exceeded timeout %d", conn->receiver->uri, requestTimeout);
+                }
             } else {
                 mprLog(http, 4, "Idle connection timed out");
             }
@@ -282,9 +322,9 @@ int httpCreateSecret(Http *http)
 }
 
 
-void httpEnableTraceMethod(Http *http, bool on)
+void httpEnableTraceMethod(HttpLimits *limits, bool on)
 {
-    http->enableTraceMethod = on;
+    limits->enableTraceMethod = on;
 }
 
 
@@ -324,6 +364,23 @@ int httpGetDefaultPort(Http *http)
 cchar *httpGetDefaultHost(Http *http)
 {
     return http->defaultHost;
+}
+
+
+int httpLoadSsl(Http *http)
+{
+#if BLD_FEATURE_SSL
+    if (!http->sslLoaded) {
+        if (!mprLoadSsl(http, 0)) {
+            mprError(http, "Can't load SSL provider");
+            return MPR_ERR_CANT_LOAD;
+        }
+        http->sslLoaded = 1;
+    }
+#else
+    mprError(http, "SSL communications support not included in build");
+#endif
+    return 0;
 }
 
 

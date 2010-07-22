@@ -51,7 +51,7 @@ static void openChunk(HttpQueue *q)
     conn = q->conn;
     rec = conn->receiver;
 
-    q->packetSize = min(conn->limits->maxChunkSize, q->max);
+    q->packetSize = min(conn->limits->chunkSize, q->max);
     rec->chunkState = HTTP_CHUNK_START;
 }
 
@@ -188,16 +188,16 @@ static void outgoingChunkService(HttpQueue *q)
             }
         } else {
             if (trans->chunkSize < 0) {
-                trans->chunkSize = min(conn->limits->maxChunkSize, q->max);
+                trans->chunkSize = min(conn->limits->chunkSize, q->max);
             }
         }
     }
-
     if (trans->chunkSize <= 0) {
         httpDefaultOutgoingServiceStage(q);
     } else {
         for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
             if (!(packet->flags & HTTP_PACKET_HEADER)) {
+                httpJoinPackets(q, trans->chunkSize);
                 if (httpGetPacketLength(packet) > trans->chunkSize) {
                     httpResizePacket(q, packet, trans->chunkSize);
                 }

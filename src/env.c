@@ -19,12 +19,14 @@ void httpCreateEnvVars(HttpConn *conn)
     MprHashTable    *vars;
     MprHash         *hp;
     HttpUploadFile  *up;
+    HttpServer      *server;
     char            port[16], size[16];
     int             index;
 
     rec = conn->receiver;
     trans = conn->transmitter;
     vars = rec->formVars;
+    server = conn->server;
 
     //  TODO - Vars for COOKIEs
     
@@ -51,13 +53,13 @@ void httpCreateEnvVars(HttpConn *conn)
     
     sock = conn->sock;
     mprAddHash(vars, "SERVER_ADDR", sock->acceptIp);
-    mprAddHash(vars, "SERVER_NAME", conn->server->name);
+    mprAddHash(vars, "SERVER_NAME", server->name);
     mprItoa(port, sizeof(port) - 1, sock->acceptPort, 10);
     mprAddHash(vars, "SERVER_PORT", mprStrdup(rec, port));
 
     /*  HTTP/1.0 or HTTP/1.1 */
     mprAddHash(vars, "SERVER_PROTOCOL", conn->protocol);
-    mprAddHash(vars, "SERVER_SOFTWARE", HTTP_NAME);
+    mprAddHash(vars, "SERVER_SOFTWARE", server->software);
 
     /*  This is the complete URI before decoding */ 
     mprAddHash(vars, "REQUEST_URI", rec->uri);
@@ -73,7 +75,7 @@ void httpCreateEnvVars(HttpConn *conn)
     }
     //  MOB -- how do these relate to MVC apps and non-mvc apps
     mprAddHash(vars, "DOCUMENT_ROOT", conn->documentRoot);
-    mprAddHash(vars, "SERVER_ROOT", conn->server->serverRoot);
+    mprAddHash(vars, "SERVER_ROOT", server->serverRoot);
 
     if (rec->files) {
         for (index = 0, hp = 0; (hp = mprGetNextHash(conn->receiver->files, hp)) != 0; index++) {
@@ -129,7 +131,7 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
             oldValue = mprLookupHash(vars, keyword);
             if (oldValue != 0 && *oldValue) {
                 if (*value) {
-                    newValue = mprStrcat(vars, conn->limits->maxHeader, oldValue, " ", value, NULL);
+                    newValue = mprStrcat(vars, conn->limits->headerSize, oldValue, " ", value, NULL);
                     mprAddHash(vars, keyword, newValue);
                     mprFree(newValue);
                 }

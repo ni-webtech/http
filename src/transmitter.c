@@ -190,10 +190,9 @@ void httpFinalize(HttpConn *conn)
     HttpTransmitter   *trans;
 
     trans = conn->transmitter;
-    if (trans->finalized) {
+    if (trans->finalized || conn->state < HTTP_STATE_STARTED) {
         return;
     }
-    mprAssert(conn->state >= HTTP_STATE_STARTED);
     trans->finalized = 1;
     httpPutForService(conn->writeq, httpCreateEndPacket(trans), 1);
     httpServiceQueues(conn);
@@ -206,10 +205,12 @@ int httpIsFinalized(HttpConn *conn)
 }
 
 
-//  MOB -- who uses this?
+/*
+    Flush the write queue
+ */
 void httpFlush(HttpConn *conn)
 {
-    httpDrainQueue(conn->writeq, !conn->async);
+    httpFlushQueue(conn->writeq, !conn->async);
 }
 
 
@@ -328,9 +329,9 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
     mprAssert(trans->altBody == 0);
     msg = httpLookupStatus(conn->http, status);
     trans->altBody = mprAsprintf(trans, -1,
-        "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\r\n"
+        "<!DOCTYPE html>\r\n"
         "<html><head><title>%s</title></head>\r\n"
-        "<body><h1>%s</h1>\r\n</H1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p>\r\n"
+        "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p>\r\n"
         "<address>%s at %s Port %d</address></body>\r\n</html>\r\n",
         msg, msg, targetUri, HTTP_NAME, conn->server->name, prev->port);
     httpOmitBody(conn);
@@ -425,7 +426,7 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
 static void setDefaultHeaders(HttpConn *conn)
 {
     if (conn->server) {
-        httpAddSimpleHeader(conn, "Server", conn->server->name);
+        httpAddSimpleHeader(conn, "Server", conn->server->software);
     } else {
         httpAddSimpleHeader(conn, "User-Agent", HTTP_NAME);
     }
@@ -453,7 +454,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     buf = packet->content;
 
     if (rec->flags & HTTP_TRACE) {
-        if (!http->enableTraceMethod) {
+        if (!conn->limits->enableTraceMethod) {
             trans->status = HTTP_CODE_NOT_ACCEPTABLE;
             httpFormatBody(conn, "Trace Request Denied", "<p>The TRACE method is disabled on this server.</p>");
         } else {
@@ -462,7 +463,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     } else if (rec->flags & HTTP_OPTIONS) {
         handlerFlags = trans->traceMethods;
         httpSetHeader(conn, "Allow", "OPTIONS%s%s%s%s%s%s",
-            (http->enableTraceMethod) ? ",TRACE" : "",
+            (conn->limits->enableTraceMethod) ? ",TRACE" : "",
             (handlerFlags & HTTP_STAGE_GET) ? ",GET" : "",
             (handlerFlags & HTTP_STAGE_HEAD) ? ",HEAD" : "",
             (handlerFlags & HTTP_STAGE_POST) ? ",POST" : "",
@@ -500,31 +501,16 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             httpSetHeader(conn, "Content-Type", "multipart/byteranges; boundary=%s", trans->rangeBoundary);
         }
         httpAddHeader(conn, "Accept-Ranges", "bytes");
-#if UNUSED
-    } else if (trans->status != HTTP_CODE_MOVED_TEMPORARILY && trans->mimeType[0]) {
-        httpAddSimpleHeader(conn, "Content-Type", trans->mimeType);
-#endif
     }
-#if FUTURE
-    if (mimeType = (char*) maLookupMimeType(http, trans->extension)) == 0) {
-        httpAddSimpleHeader(conn, "Content-Type", mimeType);
-    }
-#endif
     if (trans->extension) {
         if ((mimeType = (char*) mprLookupMimeType(http, trans->extension)) != 0) {
             httpAddSimpleHeader(conn, "Content-Type", mimeType);
         }
     }
-#if BLD_DEBUG && UNUSED
-    //  TODO - finish this
-    if (strncmp(trans->mimeType, "image/", 6) == 0 || strcmp(trans->mimeType, "text/css") == 0) {
-        httpAddSimpleHeader(conn, "Expires", http->expiresDate);
-    }
-#endif
     if (conn->server) {
         if (--conn->keepAliveCount > 0) {
             httpSetSimpleHeader(conn, "Connection", "keep-alive");
-            httpSetHeader(conn, "Keep-Alive", "timeout=%d, max=%d", http->keepAliveTimeout / 1000, conn->keepAliveCount);
+            httpSetHeader(conn, "Keep-Alive", "timeout=%d, max=%d", conn->inactivityTimeout / 1000, conn->keepAliveCount);
         } else {
             httpSetSimpleHeader(conn, "Connection", "close");
         }

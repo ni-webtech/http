@@ -12,6 +12,7 @@
 static void createRangeBoundary(HttpConn *conn);
 static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range);
 static HttpPacket *createFinalRangePacket(HttpConn *conn);
+static void incomingRangeData(HttpQueue *q, HttpPacket *packet);
 static void outgoingRangeService(HttpQueue *q);
 static bool fixRangeLength(HttpConn *conn);
 static bool matchRange(HttpConn *conn, HttpStage *handler);
@@ -31,6 +32,7 @@ int httpOpenRangeFilter(Http *http)
     http->rangeService = rangeService;
     filter->match = matchRange; 
     filter->outgoingService = outgoingRangeService; 
+    filter->incomingData = incomingRangeData; 
     return 0;
 }
 
@@ -41,7 +43,17 @@ static bool matchRange(HttpConn *conn, HttpStage *handler)
 }
 
 
-/*  Apply ranges to outgoing data. 
+/*
+    The RangeFilter does nothing for incoming data. The receiver understands range headers
+ */
+static void incomingRangeData(HttpQueue *q, HttpPacket *packet)
+{
+    httpSendPacketToNext(q, packet);
+}
+
+
+/*  
+    Apply ranges to outgoing data. 
  */
 static void rangeService(HttpQueue *q, HttpRangeProc fill)
 {

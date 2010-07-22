@@ -221,6 +221,17 @@ int httpAddFilter(HttpLocation *location, cchar *name, cchar *extensions, int di
 }
 
 
+void httpClearStages(HttpLocation *location, int direction)
+{
+    if (direction & HTTP_STAGE_INCOMING) {
+        location->inputStages = mprCreateList(location);
+    }
+    if (direction & HTTP_STAGE_OUTGOING) {
+        location->outputStages = mprCreateList(location);
+    }
+}
+
+
 /* 
    Set the network connector
  */

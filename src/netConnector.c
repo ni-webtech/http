@@ -51,6 +51,19 @@ static void netOutgoingService(HttpQueue *q)
     if (trans->flags & HTTP_TRANS_NO_BODY) {
         httpDiscardData(q, 1);
     }
+    if (trans->flags & HTTP_TRANS_SENDFILE) {
+        /* Relay via the send connector */
+        if (trans->file == 0) {
+            if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
+                trans->flags &= ~HTTP_TRANS_SENDFILE;
+            } else {
+                httpSendOpen(q);
+            }
+        }
+        if (trans->file) {
+            return httpSendOutgoingService(q);
+        }
+    }
     while (q->first || q->ioIndex) {
         written = 0;
         if (q->ioIndex == 0 && buildNetVec(q) <= 0) {
@@ -280,6 +293,8 @@ static void adjustNetVec(HttpQueue *q, int written)
         q->ioIndex = j;
     }
 }
+
+
 /*
     @copy   default
 

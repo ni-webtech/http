@@ -437,9 +437,8 @@ static int writeToFile(HttpQueue *q, char *data, int len)
     up = q->queueData;
     file = up->currentFile;
 
-    if ((file->size + len) > limits->maxUploadSize) {
-        httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE, 
-            "Uploaded file %s exceeds maximum %d", up->tmpPath, limits->maxUploadSize);
+    if ((file->size + len) > limits->uploadSize) {
+        httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Uploaded file %s exceeds maximum %d", up->tmpPath, limits->uploadSize);
         return MPR_ERR_CANT_WRITE;
     }
     if (len > 0) {

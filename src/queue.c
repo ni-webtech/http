@@ -53,8 +53,8 @@ void httpInitQueue(HttpConn *conn, HttpQueue *q, cchar *name)
     q->nextQ = q;
     q->prevQ = q;
     q->owner = name;
-    q->packetSize = conn->limits->maxStageBuffer;
-    q->max = conn->limits->maxStageBuffer;
+    q->packetSize = conn->limits->stageBufferSize;
+    q->max = conn->limits->stageBufferSize;
     q->low = q->max / 100 *  5;    
 }
 
@@ -115,20 +115,25 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
 
 
 /*  
-    Drain a service queue by scheduling the queue and servicing all queues. Return true if there is room for more data.
-    WARNING: Be very careful when using block == true. Should only be used by end applications and not by middleware.
+    Flush queue data by scheduling the queue and servicing all scheduled queues. Return true if there is room for more data.
+    If blocking is requested, the call will block until the queue count falls below the queue max.
+    WARNING: Be very careful when using blocking == true. Should only be used by end applications and not by middleware.
  */
-bool httpDrainQueue(HttpQueue *q, bool block)
+bool httpFlushQueue(HttpQueue *q, bool blocking)
 {
     HttpConn      *conn;
     HttpQueue     *next;
     int         oldMode;
 
-    LOG(q, 6, "httpDrainQueue block %d", block);
+    LOG(q, 6, "httpFlushQueue blocking %d", blocking);
 
+    mprAssert(!(q->flags & HTTP_QUEUE_DISABLED));
+    if (q->flags & HTTP_QUEUE_DISABLED) {
+        return 0;
+    }
     conn = q->conn;
     do {
-        oldMode = mprSetSocketBlockingMode(conn->sock, block);
+        oldMode = mprSetSocketBlockingMode(conn->sock, blocking);
         httpScheduleQueue(q);
         next = q->nextQ;
         if (next->count >= next->max) {
@@ -136,7 +141,7 @@ bool httpDrainQueue(HttpQueue *q, bool block)
         }
         httpServiceQueues(conn);
         mprSetSocketBlockingMode(conn->sock, oldMode);
-    } while (block && q->count >= q->max);
+    } while (blocking && q->count >= q->max);
     
     return (q->count < q->max) ? 1 : 0;
 }
@@ -239,7 +244,7 @@ int httpRead(HttpConn *conn, char *buf, int size)
     HttpQueue       *q;
     HttpReceiver    *rec;
     MprBuf          *content;
-    int             nbytes, len, events;
+    int             nbytes, len, events, inactivityTimeout;
 
     q = conn->readq;
     rec = conn->receiver;
@@ -249,7 +254,8 @@ int httpRead(HttpConn *conn, char *buf, int size)
         if (q->count == 0) {
             events = MPR_READABLE;
             if (!mprIsSocketEof(conn->sock) && !mprSocketHasPendingData(conn->sock)) {
-                events = mprWaitForSingleIO(conn, conn->sock->fd, MPR_READABLE, conn->timeout);
+                inactivityTimeout = conn->inactivityTimeout ? conn->inactivityTimeout : INT_MAX;
+                events = mprWaitForSingleIO(conn, conn->sock->fd, MPR_READABLE, inactivityTimeout);
             }
             if (events) {
                 httpCallEvent(conn, MPR_READABLE);
@@ -348,7 +354,7 @@ void httpScheduleQueue(HttpQueue *q)
     mprAssert(q->conn);
     head = &q->conn->serviceq;
     
-    if (q->scheduleNext == q) {
+    if (q->scheduleNext == q && !(q->flags & HTTP_QUEUE_DISABLED)) {
         q->scheduleNext = head;
         q->schedulePrev = head->schedulePrev;
         head->schedulePrev->scheduleNext = q;
@@ -383,8 +389,12 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
     conn = q->conn;
     next = q->nextQ;
 
+#if OLD
     size = httpGetPacketLength(packet);
-    if (size <= next->packetSize && (size + next->count) <= next->max) {
+#else
+    size = packet->content ? mprGetBufLength(packet->content) : 0;
+#endif
+    if (size == 0 || (size <= next->packetSize && (size + next->count) <= next->max)) {
         return 1;
     }
     if (httpResizePacket(q, packet, 0) < 0) {
@@ -409,38 +419,24 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
 
 
 /*  
-    Write a block of data. This is the lowest level write routine for dynamic data. If block is true, this routine will 
-    block until all the block is written. If block is false, then it may return without having written all the data.
-    WARNING: Be very careful using block. Should only ever be used in end applications and not middleware.
+    Write a block of data. This is the lowest level write routine for data. This will buffer the data and 
  */
-int httpWriteBlock(HttpQueue *q, cchar *buf, int size, bool block)
+int httpWriteBlock(HttpQueue *q, cchar *buf, int size)
 {
     HttpPacket          *packet;
     HttpConn            *conn;
+    HttpTransmitter     *trans;
     int                 bytes, written, packetSize;
 
     mprAssert(q == q->conn->writeq);
                
     conn = q->conn;
-    if (conn->transmitter->finalized) {
+    trans = conn->transmitter;
+    if (trans->finalized) {
         return MPR_ERR_CANT_WRITE;
-    }
-    packetSize = (conn->transmitter->chunkSize > 0) ? conn->transmitter->chunkSize : q->max;
-    packetSize = min(packetSize, size);
-    
-    if ((q->flags & HTTP_QUEUE_DISABLED) || (q->count > 0 && (q->count + size) >= q->max)) {
-        if (!httpDrainQueue(q, block)) {
-            return 0;
-        }
-    }
-    if (q->flags & HTTP_QUEUE_DISABLED) {
-        return 0;
     }
     for (written = 0; size > 0; ) {
         LOG(q, 6, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);
-        if (q->count >= q->max && !httpDrainQueue(q, block)) {
-            break;
-        }
         if (conn->state >= HTTP_STATE_COMPLETE) {
             return MPR_ERR_CANT_WRITE;
         }
@@ -451,8 +447,9 @@ int httpWriteBlock(HttpQueue *q, cchar *buf, int size, bool block)
             packet = 0;
         }
         if (packet == 0 || mprGetBufSpace(packet->content) == 0) {
+            packetSize = (trans->chunkSize > 0) ? trans->chunkSize : q->packetSize;
             if ((packet = httpCreateDataPacket(q, packetSize)) != 0) {
-                httpPutForService(q, packet, 1);
+                httpPutForService(q, packet, 0);
             }
         }
         bytes = mprPutBlockToBuf(packet->content, buf, size);
@@ -461,13 +458,16 @@ int httpWriteBlock(HttpQueue *q, cchar *buf, int size, bool block)
         q->count += bytes;
         written += bytes;
     }
+    if (q->count >= q->max) {
+        httpFlushQueue(q, 0);
+    }
     return written;
 }
 
 
 int httpWriteString(HttpQueue *q, cchar *s)
 {
-    return httpWriteBlock(q, s, (int) strlen(s), 1);
+    return httpWriteBlock(q, s, (int) strlen(s));
 }
 
 

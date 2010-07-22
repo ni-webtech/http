@@ -168,10 +168,10 @@ public function startService(script: String, address: String, url: String): Void
         let pid = System.daemon(App.exePath + " " + script + " "  + address)
         Path(PIDFILE).write(pid)
     }
-    let url = "http://" + address + url
+    let url = address + url
     for (i in 10) {
         http = new Http
-        try { http.get(url); } catch {}
+        try { http.get(url); } catch (e) { print(e) }
         if (http.status == 200) {
             break
         }

@@ -88,7 +88,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     conn->ip = mprStrdup(conn, ip);
     conn->port = port;
     conn->secure = uri->secure;
-    conn->keepAliveCount = (http->maxKeepAlive) ? http->maxKeepAlive : -1;
+    conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
     return conn;
 }
 
@@ -290,8 +290,12 @@ bool httpNeedRetry(HttpConn *conn, char **url)
         }
     } else if (HTTP_CODE_MOVED_PERMANENTLY <= rec->status && rec->status <= HTTP_CODE_MOVED_TEMPORARILY && 
             conn->followRedirects) {
-        *url = rec->redirect;
-        return 1;
+        if (rec->redirect) {
+            *url = rec->redirect;
+            return 1;
+        }
+        httpFormatError(conn, rec->status, "Missing location header");
+        return -1;
     }
     return 0;
 }
@@ -320,7 +324,7 @@ static int blockingFileCopy(HttpConn *conn, cchar *path)
         return MPR_ERR_CANT_OPEN;
     }
     while ((bytes = mprRead(file, buf, sizeof(buf))) > 0) {
-        if (httpWriteBlock(conn->writeq, buf, bytes, 1) != bytes) {
+        if (httpWriteBlock(conn->writeq, buf, bytes) != bytes) {
             mprFree(file);
             return MPR_ERR_CANT_WRITE;
         }

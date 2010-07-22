@@ -28,20 +28,25 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
     }
     conn->http = http;
     conn->canProceed = 1;
-    conn->keepAliveCount = (http->maxKeepAlive) ? http->maxKeepAlive : -1;
-    conn->limits = http->limits;
+    conn->limits = (server) ? server->limits : http->clientLimits;
+    conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
     conn->waitHandler.fd = -1;
+
+    //  MOB -- should this come from http?
     conn->protocol = "HTTP/1.1";
     conn->port = -1;
     conn->retries = HTTP_RETRIES;
-    conn->timeout = http->timeout;
     conn->server = server;
     conn->time = mprGetTime(conn);
-    conn->expire = conn->time + http->keepAliveTimeout;
+    conn->lastActivity = conn->time;
+    conn->requestTimeout = conn->limits->requestTimeout;
+    conn->inactivityTimeout = conn->limits->inactivityTimeout;
     conn->callback = (HttpCallback) httpEvent;
     conn->callbackArg = conn;
 
     conn->traceMask = HTTP_TRACE_TRANSMIT | HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS;
+    //  MOB -- temp
+    conn->traceMask |= HTTP_TRACE_BODY;
     conn->traceLevel = HTTP_TRACE_LEVEL;
     conn->traceMaxLength = INT_MAX;
 
@@ -113,7 +118,6 @@ void httpPrepServerConn(HttpConn *conn)
         conn->transmitter = 0;
         conn->error = 0;
         conn->flags = 0;
-        conn->expire = conn->time + conn->http->keepAliveTimeout;
         conn->errorMsg = 0;
         conn->state = 0;
         conn->traceMask = 0;
@@ -127,13 +131,14 @@ void httpConsumeLastRequest(HttpConn *conn)
 {
     MprTime     mark;
     char        junk[4096];
-    int         rc;
+    int         requestTimeout, rc;
 
     if (!conn->sock || conn->state < HTTP_STATE_WAIT) {
         return;
     }
     mark = mprGetTime(conn);
-    while (!httpIsEof(conn) && mprGetRemainingTime(conn, mark, conn->timeout) > 0) {
+    requestTimeout = conn->requestTimeout ? conn->requestTimeout : INT_MAX;
+    while (!httpIsEof(conn) && mprGetRemainingTime(conn, mark, requestTimeout) > 0) {
         if ((rc = httpRead(conn, junk, sizeof(junk))) <= 0) {
             break;
         }
@@ -163,12 +168,7 @@ void httpPrepClientConn(HttpConn *conn, int retry)
         conn->canProceed = 1;
         conn->error = 0;
         conn->flags = 0;
-        conn->expire = conn->time + conn->http->keepAliveTimeout;
         conn->errorMsg = 0;
-#if UNUSED
-        //  MOB -- is this right?
-        conn->input = NULL;
-#endif
         conn->state = 0;
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
@@ -203,7 +203,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
 {
     LOG(conn, 7, "httpEvent for fd %d, mask %d\n", conn->sock->fd, event->mask);
 
-    conn->time = event->timestamp;
+    conn->lastActivity = conn->time = event->timestamp;
     mprAssert(conn->time);
 
     if (event->mask & MPR_WRITABLE) {
@@ -281,13 +281,13 @@ void httpEnableConnEvents(HttpConn *conn)
     int                 eventMask;
 
     if (!conn->async) {
-        conn->expire = conn->time + conn->http->timeout;
         return;
     }
     trans = conn->transmitter;
     eventMask = 0;
+    conn->lastActivity = conn->time;
 
-    if (conn->state < HTTP_STATE_COMPLETE && !mprIsSocketEof(conn->sock)) {
+    if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
         if (trans) {
             if (trans->queue[HTTP_QUEUE_TRANS].prevQ->count > 0) {
                 eventMask |= MPR_WRITABLE;
@@ -302,10 +302,8 @@ void httpEnableConnEvents(HttpConn *conn)
             if (q->count < q->max) {
                 eventMask |= MPR_READABLE;
             }
-            conn->expire = conn->time + conn->http->timeout;
         } else {
             eventMask |= MPR_READABLE;
-            conn->expire = conn->time + conn->http->keepAliveTimeout;
         }
         if (conn->startingThread) {
             conn->startingThread = 0;
@@ -382,7 +380,7 @@ static inline HttpPacket *getPacket(HttpConn *conn, int *bytesToRead)
         } else {
             //  MOB -- but this logic is not in the oter "then" case above.
             /* Still reading the headers */
-            if (mprGetBufLength(content) >= conn->limits->maxHeader) {
+            if (mprGetBufLength(content) >= conn->limits->headerSize) {
                 httpConnError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
                 return 0;
             }
@@ -605,9 +603,14 @@ void httpSetState(HttpConn *conn, int state)
 }
 
 
-void httpSetTimeout(HttpConn *conn, int timeout)
+void httpSetTimeout(HttpConn *conn, int requestTimeout, int inactivityTimeout)
 {
-    conn->timeout = timeout;
+    if (requestTimeout >= 0) {
+        conn->requestTimeout = requestTimeout * MPR_TICKS_PER_SEC;
+    }
+    if (inactivityTimeout >= 0) {
+        conn->inactivityTimeout = inactivityTimeout * MPR_TICKS_PER_SEC;
+    }
 }
 
 

@@ -61,6 +61,7 @@ static void incomingData(HttpQueue *q, HttpPacket *packet)
         } else {
             /* Zero length packet means eof */
             httpPutForService(q, packet, 0);
+            HTTP_NOTIFY(q->conn, 0, HTTP_NOTIFY_READABLE);
         }
     }
 }

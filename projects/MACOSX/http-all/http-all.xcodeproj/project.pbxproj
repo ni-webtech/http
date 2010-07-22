@@ -67,6 +67,7 @@
 		C95E4F5A10EBFCEF00982610 /* libmprssl.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C9513E4F10E98E7200F9E006 /* libmprssl.dylib */; };
 		C9723C2211138578002B2B3B /* authFile.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2011138578002B2B3B /* authFile.c */; };
 		C9723C2311138578002B2B3B /* authPam.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2111138578002B2B3B /* authPam.c */; };
+		C9BE003711F367770013B994 /* sendConnector.c in Sources */ = {isa = PBXBuildFile; fileRef = C9BE003611F367770013B994 /* sendConnector.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -186,6 +187,7 @@
 		C95E4F5510EBFCD600982610 /* mprSsl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mprSsl.c; path = ../../../src/deps/mpr/mprSsl.c; sourceTree = SOURCE_ROOT; };
 		C9723C2011138578002B2B3B /* authFile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authFile.c; path = ../../../src/authFile.c; sourceTree = SOURCE_ROOT; };
 		C9723C2111138578002B2B3B /* authPam.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authPam.c; path = ../../../src/authPam.c; sourceTree = SOURCE_ROOT; };
+		C9BE003611F367770013B994 /* sendConnector.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = sendConnector.c; path = ../../../src/sendConnector.c; sourceTree = SOURCE_ROOT; };
 		C9F8E4B6102B659C00492AB2 /* libmatrixsslstatic.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmatrixsslstatic.a; path = ../../../lib/libmatrixsslstatic.a; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -264,6 +266,7 @@
 		C90A19E60FD6DC6C006A9E86 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				C9BE003611F367770013B994 /* sendConnector.c */,
 				C9723C2011138578002B2B3B /* authFile.c */,
 				C9723C2111138578002B2B3B /* authPam.c */,
 				C923DFBB1112560600A2422E /* location.c */,
@@ -516,6 +519,7 @@
 				C923DFBE1112560600A2422E /* passHandler.c in Sources */,
 				C9723C2211138578002B2B3B /* authFile.c in Sources */,
 				C9723C2311138578002B2B3B /* authPam.c in Sources */,
+				C9BE003711F367770013B994 /* sendConnector.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -28,7 +28,8 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
     http = conn->http;
     rec = conn->receiver;
     trans = conn->transmitter;
-    location = (location) ? location : http->location;
+
+    location = (location) ? location : http->clientLocation;
 
     trans->outputPipeline = mprCreateList(trans);
     trans->handler = proposedHandler ? proposedHandler : http->passHandler;
@@ -46,6 +47,17 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
     if (trans->connector == 0) {
         trans->connector = location->connector;
     }
+#if FUTURE
+    if (trans->connector == 0) {
+        if (location && location->connector) {
+            trans->connector = location->connector;
+        } else if (trans->handler == http->fileHandler && !rec->ranges && !conn->secure && trans->chunkSize <= 0 && !conn->traceMask) {
+            trans->connector = http->sendConnector;
+        } else {
+            trans->connector = http->netConnector;
+        }
+    }
+#endif
     mprAddItem(trans->outputPipeline, trans->connector);
 
     /*  
@@ -130,9 +142,45 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
 }
 
 
+#if UNUSED
+void httpSetPipeConnector(HttpConn *conn)
+{
+    HttpTransmitter     *trans;
+
+    trans = conn->trans;
+    //  MOB -- must check no output has been sent
+    if (trans->connector) {
+        if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
+            q->flags |= HTTP_QUEUE_OPEN;
+            httpOpenQueue(q, conn->transmitter->chunkSize);
+        }
+    }
+}
+#endif
+
+
 void httpSetPipeHandler(HttpConn *conn, HttpStage *handler)
 {
     conn->transmitter->handler = (handler) ? handler : conn->http->passHandler;
+}
+
+
+void httpSetSendConnector(HttpConn *conn, cchar *path)
+{
+    HttpTransmitter     *trans;
+    HttpQueue           *q, *qhead;
+    int                 max;
+
+    trans = conn->transmitter;
+    trans->flags |= HTTP_TRANS_SENDFILE;
+    trans->filename = mprStrdup(trans, path);
+    max = conn->limits->transmissionBodySize;
+
+    qhead = &trans->queue[HTTP_QUEUE_TRANS];
+    for (q = conn->writeq; q != qhead; q = q->nextQ) {
+        q->max = max;
+        q->packetSize = max;
+    }
 }
 
 

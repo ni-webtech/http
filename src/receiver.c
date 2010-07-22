@@ -51,7 +51,6 @@ HttpReceiver *httpCreateReceiver(HttpConn *conn)
     rec->ifModified = 1;
     rec->remainingContent = 0;
     rec->method = 0;
-    rec->hostName = (conn->server) ? conn->server->name: NULL;
     rec->pathInfo = mprStrdup(rec, "/");
     rec->scriptName = mprStrdup(rec, "");
     rec->status = 0;
@@ -139,6 +138,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 {
     HttpReceiver    *rec;
     HttpTransmitter *trans;
+    HttpLocation    *location;
     char            *start, *end;
     int             len;
 
@@ -159,17 +159,10 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     len = end - start;
     mprAddNullToBuf(packet->content);
 
-    if (len >= conn->limits->maxHeader) {
+    if (len >= conn->limits->headerSize) {
         httpConnError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
         return 0;
     }
-#if UNUSED
-    if (isprint((int) (uchar) *start)) {
-        *end = '\0'; 
-        mprLog(conn, 3, "\n@@@ Incoming =>\n%s\n", start); 
-        *end = '\r';
-    }
-#endif
     if (conn->server) {
         parseRequestLine(conn, packet);
     } else {
@@ -179,7 +172,9 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 
     if (conn->server) {
         httpSetState(conn, HTTP_STATE_PARSED);        
+        location = (rec->location) ? rec->location : conn->server->location;
         httpCreatePipeline(conn, rec->location, trans->handler);
+        //  MOB -- TODO
         if (0 && trans->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
             threadRequest(conn);
             return 0;
@@ -217,10 +212,6 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     case 'D':
         if (strcmp(method, "DELETE") == 0) {
             methodFlags = HTTP_DELETE;
-#if UNUSED
-            //  MOB -- why?
-            rec->needInputPipeline = 1;
-#endif
         }
         break;
 
@@ -269,7 +260,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     uri = getToken(conn, " ");
     if (*uri == '\0') {
         httpConnError(conn, HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Bad URI");
-    } else if ((int) strlen(uri) >= conn->limits->maxUri) {
+    } else if ((int) strlen(uri) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad request. URI too long");
     }
 
@@ -343,7 +334,7 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     rec->status = atoi(status);
     rec->statusMessage = getToken(conn, "\r\n");
 
-    if ((int) strlen(rec->statusMessage) >= conn->limits->maxUri) {
+    if ((int) strlen(rec->statusMessage) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
     }
     if (httpShouldTrace(conn, HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS)) {
@@ -378,7 +369,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     keepAlive = 0;
 
     for (count = 0; content->start[0] != '\r' && !conn->error; count++) {
-        if (count >= limits->maxNumHeaders) {
+        if (count >= limits->headerCount) {
             httpConnError(conn, HTTP_CODE_BAD_REQUEST, "Too many headers");
             break;
         }
@@ -432,9 +423,9 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     httpConnError(conn, HTTP_CODE_BAD_REQUEST, "Bad content length");
                     break;
                 }
-                if (rec->length >= conn->limits->maxReceiveBody) {
+                if (rec->length >= conn->limits->receiveBodySize) {
                     httpConnError(conn, HTTP_CODE_REQUEST_TOO_LARGE,
-                        "Request content length %d is too big. Limit %d", rec->length, conn->limits->maxReceiveBody);
+                        "Request content length %d is too big. Limit %d", rec->length, conn->limits->receiveBodySize);
                     break;
                 }
                 rec->contentLength = value;
@@ -617,8 +608,8 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 trans->chunkSize = atoi(value);
                 if (trans->chunkSize <= 0) {
                     trans->chunkSize = 0;
-                } else if (trans->chunkSize > conn->limits->maxChunkSize) {
-                    trans->chunkSize = conn->limits->maxChunkSize;
+                } else if (trans->chunkSize > conn->limits->chunkSize) {
+                    trans->chunkSize = conn->limits->chunkSize;
                 }
             }
             break;
@@ -903,10 +894,10 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         rec->remainingContent -= nbytes;
         rec->receivedContent += nbytes;
 
-        if (rec->receivedContent >= conn->limits->maxReceiveBody) {
+        if (rec->receivedContent >= conn->limits->receiveBodySize) {
             httpConnError(conn, HTTP_CODE_REQUEST_TOO_LARGE,
                 "Request content body is too big %d vs limit %d",
-                rec->receivedContent, conn->limits->maxReceiveBody);
+                rec->receivedContent, conn->limits->receiveBodySize);
             return 1;
         }
         if (packet == rec->headerPacket) {
@@ -1259,9 +1250,9 @@ int httpWait(HttpConn *conn, int state, int inactivityTimeout)
     trans = conn->transmitter;
 
     if (inactivityTimeout < 0) {
-        inactivityTimeout = conn->timeout;
+        inactivityTimeout = conn->inactivityTimeout;
     }
-    if (inactivityTimeout < 0) {
+    if (inactivityTimeout <= 0) {
         inactivityTimeout = MAXINT;
     }
     if (conn->state <= HTTP_STATE_BEGIN) {

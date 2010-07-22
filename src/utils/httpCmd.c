@@ -155,7 +155,7 @@ static void initSettings(Mpr *mpr)
     protocol = "HTTP/1.1";
     retries = HTTP_RETRIES;
     success = 1;
-    timeout = (60 * 1000);
+    timeout = 60;
     workers = 1;            
     headers = mprCreateList(mpr);
     mutex = mprCreateLock(mpr);
@@ -213,7 +213,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
                 mprPutStringToBuf(bodyData, argv[++nextArg]);
             }
 
-        } else if (strcmp(argp, "--debug") == 0) {
+        } else if (strcmp(argp, "--debugger") == 0 || strcmp(argp, "-D") == 0) {
             mprSetDebugMode(mpr, 1);
             retries = 0;
             timeout = -1;
@@ -337,7 +337,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
         } else if (strcmp(argp, "--sequence") == 0) {
             sequence++;
 
-        } else if (strcmp(argp, "--showHeaders") == 0) {
+        } else if (strcmp(argp, "--showHeaders") == 0 || strcmp(argp, "--show") == 0) {
             showHeaders++;
 
         } else if (strcmp(argp, "--showStatus") == 0 || strcmp(argp, "--showCode") == 0) {
@@ -357,7 +357,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
             if (nextArg >= argc) {
                 return 0;
             } else {
-                timeout = atoi(argv[++nextArg]) * 1000;
+                timeout = atoi(argv[++nextArg]);
             }
 
         } else if (strcmp(argp, "--upload") == 0 || strcmp(argp, "-u") == 0) {
@@ -387,6 +387,13 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
                 workers = atoi(argv[++nextArg]);
             }
             setWorkers++;
+
+        } else if (strcmp(argp, "--") == 0) {
+            nextArg++;
+            break;
+
+        } else if (strcmp(argp, "-") == 0) {
+            break;
 
         } else {
             return 0;
@@ -435,7 +442,7 @@ static void showUsage(Mpr *mpr)
         "  --continue            # Continue on errors.\n"
         "  --cookie CookieString # Define a cookie header. Multiple uses okay.\n"
         "  --data                # Body data to send with PUT or POST.\n"
-        "  --debug               # Run in debug mode. No timeouts.\n"
+        "  --debugger            # Disable timeouts to make running in a debugger easier.\n"
         "  --delete              # Use the DELETE method. Shortcut for --method DELETE..\n"
         "  --form string         # Form data. Must already be form-www-urlencoded.\n"
         "  --header 'key: value' # Add a custom request header.\n"
@@ -515,7 +522,7 @@ static int processThread(HttpConn *conn, MprEvent *event)
     int         next;
 
     httpFollowRedirects(conn, !nofollow);
-    httpSetTimeout(conn, timeout);
+    httpSetTimeout(conn, timeout, timeout);
 
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         httpSetKeepAliveCount(conn, 0);
@@ -587,7 +594,7 @@ static int doRequest(HttpConn *conn, cchar *url)
     mprLog(conn, MPR_DEBUG, "fetch: %s %s", method, url);
     mark = mprGetTime(mpr);
     httpSetRetries(conn, retries);
-    httpSetTimeout(conn, timeout);
+    httpSetTimeout(conn, timeout, timeout);
 
     success = redirectCount = 0;
     count = 0;
@@ -629,7 +636,7 @@ static int doRequest(HttpConn *conn, cchar *url)
         }
         httpFinalize(conn);
 
-        if (httpWait(conn, HTTP_STATE_PARSED, conn->timeout) == 0) {
+        if (httpWait(conn, HTTP_STATE_PARSED, conn->requestTimeout) == 0) {
             mprAssert(conn->state >= HTTP_STATE_PARSED);
             if (httpNeedRetry(conn, &redirect)) {
                 if (redirect) {
@@ -661,7 +668,7 @@ static int doRequest(HttpConn *conn, cchar *url)
     if (mprIsExiting(conn)) {
         return MPR_ERR_BAD_STATE;
     }
-    if (!success) {
+    if (!success || conn->errorMsg) {
         msg = (conn->errorMsg) ? conn->errorMsg : "";
         mprError(conn, "http: failed \"%s\" request for %s after %d attempt(s).\n%s.", method, url, count, msg);
     } else {
@@ -672,7 +679,7 @@ static int doRequest(HttpConn *conn, cchar *url)
             }
             //  MOB -- Need proper flow control
             conn->canProceed = 1;
-        } while (conn->state < HTTP_STATE_COMPLETE && mprGetElapsedTime(conn, mark) <= conn->timeout);
+        } while (conn->state < HTTP_STATE_COMPLETE && mprGetElapsedTime(conn, mark) <= conn->requestTimeout);
     }
     
     status = httpGetStatus(conn);
@@ -689,7 +696,7 @@ static int doRequest(HttpConn *conn, cchar *url)
         if (showHeaders) {
             responseHeaders = httpGetHeaders(conn);
             rec = conn->receiver;
-            mprPrintfError(conn, "%s %d %s\n", conn->protocol, rec->status, rec->statusMessage);
+            mprPrintfError(conn, "\nHeaders\n-------\n%s %d %s\n", conn->protocol, rec->status, rec->statusMessage);
             if (responseHeaders) {
                 mprPrintfError(conn, "%s\n", responseHeaders);
                 mprFree(responseHeaders);
@@ -740,11 +747,13 @@ static int setContentLength(HttpConn *conn)
         return 0;
     }
     for (next = 0; (path = mprGetNextItem(files, &next)) != 0; ) {
-        if (mprGetPathInfo(http, path, &info) < 0) {
-            mprError(http, "Can't access file %s", path);
-            return MPR_ERR_CANT_ACCESS;
+        if (strcmp(path, "-") != 0) {
+            if (mprGetPathInfo(http, path, &info) < 0) {
+                mprError(http, "Can't access file %s", path);
+                return MPR_ERR_CANT_ACCESS;
+            }
+            len += (int) info.size;
         }
-        len += (int) info.size;
     }
     if (formData) {
         count = mprGetListCount(formData);
@@ -795,7 +804,11 @@ static int writeBody(HttpConn *conn)
         if (files) {
             mprAssert(mprGetListCount(files) == 1);
             for (rc = next = 0; !rc && (path = mprGetNextItem(files, &next)) != 0; ) {
-                file = mprOpen(conn, path, O_RDONLY | O_BINARY, 0);
+                if (strcmp(path, "-") == 0) {
+                    file = mprAttachFd(conn, 0, "stdin", O_RDONLY | O_BINARY);
+                } else {
+                    file = mprOpen(conn, path, O_RDONLY | O_BINARY, 0);
+                }
                 if (file == 0) {
                     mprError(conn, "Can't open \"%s\"", path);
                     return MPR_ERR_CANT_OPEN;
@@ -805,7 +818,7 @@ static int writeBody(HttpConn *conn)
                     mprPrintf(conn, "uploading: %s\n", path);
                 }
                 while ((bytes = mprRead(file, buf, sizeof(buf))) > 0) {
-                    if (httpWriteBlock(conn->writeq, buf, bytes, 0) != bytes) {
+                    if (httpWriteBlock(conn->writeq, buf, bytes) != bytes) {
                         mprFree(file);
                         return MPR_ERR_CANT_WRITE;
                     }
@@ -817,7 +830,7 @@ static int writeBody(HttpConn *conn)
             mprAddNullToBuf(bodyData);
             len = strlen(bodyData->start);
             len = mprGetBufLength(bodyData);
-            if (httpWriteBlock(conn->writeq, mprGetBufStart(bodyData), len, 0) != len) {
+            if (httpWriteBlock(conn->writeq, mprGetBufStart(bodyData), len) != len) {
                 return MPR_ERR_CANT_WRITE;
             }
         }

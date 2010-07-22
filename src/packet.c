@@ -220,6 +220,29 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 }
 
 
+/*
+    Join queue packets up to the maximum of the given size and the downstream queue packet size.
+ */
+void httpJoinPackets(HttpQueue *q, int size)
+{
+    HttpPacket  *first, *next;
+    int         maxPacketSize;
+
+    if ((first = q->first) != 0 && first->next) {
+        maxPacketSize = min(q->nextQ->packetSize, size);
+        while (first->next != 0) {
+            if ((httpGetPacketLength(first) + httpGetPacketLength(next)) < maxPacketSize) {
+                next = httpGetPacket(q);
+                httpJoinPacket(first, next);
+                httpFreePacket(q, next);
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+
 /*  
     Put the packet back at the front of the queue
  */
