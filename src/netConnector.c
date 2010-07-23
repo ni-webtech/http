@@ -69,6 +69,17 @@ static void netOutgoingService(HttpQueue *q)
         if (q->ioIndex == 0 && buildNetVec(q) <= 0) {
             break;
         }
+        if ((trans->bytesWritten + q->ioCount) > conn->limits->transmissionBodySize) {
+            httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, 
+                "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
+#if UNUSED
+            conn->error = 1;
+            httpCompleteWriting(conn);
+            mprDisconnectSocket(conn->sock);
+#endif
+            break;
+        }
+
         /*  
             Issue a single I/O request to write all the blocks in the I/O vector
          */
@@ -83,10 +94,14 @@ static void netOutgoingService(HttpQueue *q)
             if (errCode != EPIPE && errCode != ECONNRESET) {
                 LOG(conn, 5, "netOutgoingService write failed, error %d", errCode);
             }
+#if OLD
+            httpFormatError(conn, HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
             conn->error = 1;
-            /* This forces a read event so the socket can be closed */
+            httpCompleteWriting(conn);
             mprDisconnectSocket(conn->sock);
-            freeNetPackets(q, MAXINT);
+#else
+            httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
+#endif
             break;
 
         } else if (written == 0) {

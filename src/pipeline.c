@@ -269,10 +269,10 @@ bool httpServiceQueues(HttpConn *conn)
 }
 
 
-void httpDiscardPipeData(HttpConn *conn)
+void httpDiscardTransmitData(HttpConn *conn)
 {
-    HttpTransmitter   *trans;
-    HttpQueue   *q, *qhead;
+    HttpTransmitter     *trans;
+    HttpQueue           *q, *qhead;
 
     trans = conn->transmitter;
     if (trans == 0) {
@@ -282,10 +282,12 @@ void httpDiscardPipeData(HttpConn *conn)
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         httpDiscardData(q, 0);
     }
+#if UNUSED
     qhead = &trans->queue[HTTP_QUEUE_RECEIVE];
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         httpDiscardData(q, 0);
     }
+#endif
 }
 
 

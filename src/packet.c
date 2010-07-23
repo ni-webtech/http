@@ -230,10 +230,10 @@ void httpJoinPackets(HttpQueue *q, int size)
 
     if ((first = q->first) != 0 && first->next) {
         maxPacketSize = min(q->nextQ->packetSize, size);
-        while (first->next != 0) {
-            if ((httpGetPacketLength(first) + httpGetPacketLength(next)) < maxPacketSize) {
-                next = httpGetPacket(q);
+        while ((next = first->next) != 0) {
+            if (next->content && (httpGetPacketLength(first) + httpGetPacketLength(next)) < maxPacketSize) {
                 httpJoinPacket(first, next);
+                first->next = next->next;
                 httpFreePacket(q, next);
             } else {
                 break;

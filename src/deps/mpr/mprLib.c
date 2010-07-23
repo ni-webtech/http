@@ -10509,7 +10509,7 @@ int mprSearchForModule(MprCtx ctx, cchar *name, char **path)
         Search for path directly
      */
     if (probe(ctx, name, path)) {
-        mprLog(ctx, 5, "Found native module %s at %s", name, *path);
+        mprLog(ctx, 6, "Found native module %s at %s", name, *path);
         return 0;
     }
 
@@ -10524,7 +10524,7 @@ int mprSearchForModule(MprCtx ctx, cchar *name, char **path)
         fileName = mprJoinPath(ctx, dir, name);
         if (probe(ctx, fileName, path)) {
             mprFree(fileName);
-            mprLog(ctx, 5, "Found native module %s at %s", name, *path);
+            mprLog(ctx, 6, "Found native module %s at %s", name, *path);
             return 0;
         }
         mprFree(fileName);
@@ -14356,6 +14356,7 @@ MprSocket *mprCreateSocket(MprCtx ctx, struct MprSsl *ssl)
         return 0;
 #endif
         if (ss->secureProvider == NULL || ss->secureProvider->createSocket == NULL) {
+            mprError(ctx, "Missing socket service provider");
             return 0;
         }
         sp = ss->secureProvider->createSocket(ctx, ssl);
@@ -14820,6 +14821,10 @@ static MprSocket *acceptSocket(MprSocket *listen)
     if (nsp->flags & MPR_SOCKET_NODELAY) {
         mprSetSocketNoDelay(nsp, 1);
     }
+
+    /*
+        Get the remote client address
+     */
     if (getSocketIpAddr(ss, addr, addrlen, ip, sizeof(ip), &port) != 0) {
         mprAssert(0);
         mprFree(nsp);
@@ -14828,6 +14833,9 @@ static MprSocket *acceptSocket(MprSocket *listen)
     nsp->ip = mprStrdup(nsp, ip);
     nsp->port = port;
 
+    /*
+        Get the server interface address accepting the connection
+     */
     saddr = (struct sockaddr*) &saddrStorage;
     saddrlen = sizeof(saddrStorage);
     getsockname(fd, saddr, &saddrlen);
@@ -20847,7 +20855,7 @@ MprModule *mprLoadModule(MprCtx ctx, cchar *name, cchar *fun, void *data)
     if (mprSearchForModule(ctx, moduleName, &path) < 0) {
         mprError(ctx, "Can't find module \"%s\" in search path \"%s\"", name, mprGetModuleSearchPath(ctx));
     } else {
-        mprLog(ctx, 5, "Loading native module %s from %s", moduleName, path);
+        mprLog(ctx, 6, "Loading native module %s from %s", moduleName, path);
         if ((handle = dlopen(path, RTLD_LAZY | RTLD_GLOBAL)) == 0) {
             mprError(ctx, "Can't load module %s\nReason: \"%s\"",  path, dlerror());
         } else if (fun) {

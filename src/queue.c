@@ -127,7 +127,6 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
 
     LOG(q, 6, "httpFlushQueue blocking %d", blocking);
 
-    mprAssert(!(q->flags & HTTP_QUEUE_DISABLED));
     if (q->flags & HTTP_QUEUE_DISABLED) {
         return 0;
     }
@@ -142,7 +141,6 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
         httpServiceQueues(conn);
         mprSetSocketBlockingMode(conn->sock, oldMode);
     } while (blocking && q->count >= q->max);
-    
     return (q->count < q->max) ? 1 : 0;
 }
 
@@ -460,6 +458,9 @@ int httpWriteBlock(HttpQueue *q, cchar *buf, int size)
     }
     if (q->count >= q->max) {
         httpFlushQueue(q, 0);
+    }
+    if (conn->error) {
+        return MPR_ERR_CANT_WRITE;
     }
     return written;
 }

@@ -22,6 +22,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     if (server == 0) {
         return 0;
     }
+    server->clients = mprCreateHash(server, HTTP_CLIENTS_HASH);
     server->async = 1;
     server->http = http;
     server->port = port;
@@ -80,6 +81,48 @@ void httpStopServer(HttpServer *server)
 }
 
 
+int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
+{
+    HttpLimits      *limits;
+    int             count;
+
+    limits = server->limits;
+
+    switch (event) {
+    case HTTP_EVENT_OPEN_REQUEST:
+        if (server->requestCount >= limits->requestCount) {
+            mprLog(server, 0, "Too many concurrent requests %d/%d", server->requestCount, limits->requestCount);
+            return 0;
+        }
+        if (server->clientCount >= limits->clientCount) {
+            mprLog(server, 0, "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
+            return 0;
+        }
+        server->requestCount++;
+        count = (int) PTOL(mprLookupHash(server->clients, conn->ip));
+        mprAddHash(server->clients, conn->ip, ITOP(count + 1));
+        server->clientCount = mprGetHashCount(server->clients);
+        break;
+
+    case HTTP_EVENT_CLOSE_REQUEST:
+        server->requestCount--;
+        mprAssert(server->requestCount >= 0);
+        count = (int) PTOL(mprLookupHash(server->clients, conn->ip));
+        if (count > 1) {
+            mprAddHash(server->clients, conn->ip, ITOP(count - 1));
+        } else {
+            mprRemoveHash(server->clients, conn->ip);
+        }
+        server->clientCount = mprGetHashCount(server->clients);
+        mprLog(server, 4, "Close request. Active requests %d, active clients %d", server->requestCount, server->clientCount);
+        break;
+    }
+    mprLog(server, 5, "Validate request. Counts: requests: %d/%d, clients %d/%d", 
+        server->requestCount, limits->requestCount, server->clientCount, limits->clientCount);
+    return 1;
+}
+
+
 /*  
     Accept a new client connection on a new socket. If multithreaded, this will come in on a worker thread 
     dedicated to this connection. This is called from the listen wait handler.
@@ -118,6 +161,10 @@ HttpConn *httpAcceptConn(HttpServer *server)
     conn->ip = mprStrdup(conn, sock->ip);
     conn->secure = mprIsSocketSecure(sock);
 
+    if (!httpValidateLimits(server, HTTP_EVENT_OPEN_REQUEST, conn)) {
+        mprFree(conn);
+        return 0;
+    }
     httpSetState(conn, HTTP_STATE_STARTED);
 
     e.mask = MPR_READABLE;

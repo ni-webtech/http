@@ -252,12 +252,17 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
     mprAssert(msg && msg);
     trans = conn->transmitter;
 
+    if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
+        mprError(conn, "Can't set response body if headers have already been created");
+    } else {
+        httpDiscardTransmitData(conn);
+        httpOmitBody(conn);
+    }
     trans->status = status;
     if (trans->altBody == 0) {
         statusMsg = httpLookupStatus(conn->http, status);
         emsg = mprEscapeHtml(trans, msg);
         httpFormatBody(conn, statusMsg, "<h2>Access Error: %d -- %s</h2>\r\n<p>%s</p>\r\n", status, statusMsg, emsg);
-        httpOmitBody(conn);
     }
 }
 
@@ -617,9 +622,6 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     trans->headerSize = mprGetBufLength(buf);
     trans->flags |= HTTP_TRANS_HEADERS_CREATED;
-#if UNUSED
-    mprLog(conn, 3, "\n@@@ Transmission => \n%s", mprGetBufStart(buf));
-#endif
 }
 
 

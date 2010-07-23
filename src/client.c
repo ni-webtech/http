@@ -64,7 +64,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     }
     if (conn && conn->sock) {
         if (conn->keepAliveCount < 0 || port != conn->port || strcmp(ip, conn->ip) != 0) {
-            httpCloseConn(conn);
+            httpCloseClientConn(conn);
         } else {
             mprLog(http, 4, "Http: reusing keep-alive socket on: %s:%d", ip, port);
         }

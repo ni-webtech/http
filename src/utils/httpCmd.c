@@ -584,7 +584,7 @@ static int doRequest(HttpConn *conn, cchar *url)
     MprKeyValue     *header;
     MprFile         *file;
     MprTime         mark;
-    cchar           *msg;
+    cchar           *msg, *sep;
     char            buf[HTTP_BUFSIZE], seqBuf[16], *responseHeaders, *redirect;
     int             status, contentLen, elapsed, next, bytes, redirectCount, success, count;
 
@@ -670,7 +670,8 @@ static int doRequest(HttpConn *conn, cchar *url)
     }
     if (!success || conn->errorMsg) {
         msg = (conn->errorMsg) ? conn->errorMsg : "";
-        mprError(conn, "http: failed \"%s\" request for %s after %d attempt(s).\n%s.", method, url, count, msg);
+        sep = (msg && *msg) ? "\n" : "";
+        mprError(conn, "http: failed \"%s\" request for %s after %d attempt(s).%s%s", method, url, count, sep, msg);
     } else {
         do {
             httpWait(conn, HTTP_STATE_COMPLETE, 10);
@@ -689,7 +690,7 @@ static int doRequest(HttpConn *conn, cchar *url)
     elapsed = (int) (mprGetTime(mpr) - mark);
     mprLog(http, 6, "Response status %d, content len %d, elapsed %d", status, contentLen, elapsed);
 
-    if (conn->receiver) {
+    if (conn->receiver && success) {
         if (showStatus) {
             mprPrintf(http, "%d\n", status);
         }

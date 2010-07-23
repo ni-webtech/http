@@ -4,20 +4,21 @@
 
 require ejs.unix
 
-public class Test {
+enumerable public class Test {
     public var bin: Path
     public var config: Object
     public var depth: Number
     public var dir: Path
     public var lib: Path
     public var multithread: Boolean
+    public var phase: String
     public var threads: Number
     public var top: Path
     public var os: Path
     public var hostOs: Path
     public var verbosity: Number = false
 
-    let out = App.outputStream
+    var out = App.outputStream
 
     public function log(level: Number, name: String, ...items) {
         if (verbosity >= level) {
@@ -92,7 +93,7 @@ public function cleanDir(path) {
  */
 public function sh(args): String {
     test.log(2, "[Run]", "Run: " + args)
-    return Cmd.sh(env() + args)
+    return Cmd.sh(args)
 }
 
 
@@ -103,7 +104,7 @@ public function testCmdNoCapture(args): Boolean {
     test.log(2, "[Test]", "Run test: " + args)
     try {
         args = args.toString().toJSON().trim('"')
-        Cmd.runx(("/bin/sh -c \"" + env() + args + "\"").trim('\n'), data)
+        Cmd.runx(("/bin/sh -c \"" + args + "\"").trim('\n'), data)
         assert(true)
         return true
     } catch (e) {
@@ -117,28 +118,13 @@ public function testCmd(args): Boolean {
     test.log(2, "[Test]", "Run test: " + args)
     try {
         args = args.toString().toJSON().trim('"')
-        Cmd.run(("/bin/sh -c \"" + env() + args + "\"").trim('\n'), data)
+        Cmd.run(("/bin/sh -c \"" + args + "\"").trim('\n'), data)
         assert(true)
         return true
     } catch (e) {
         assert(false)
         return false
     }
-}
-
-
-//  TODO - remove
-public function env(): String {
-/*
-    if (test.os  == "LINUX") {
-        return "LD_LIBRARY_PATH=" + test.lib + " " 
-    } else if (test.os  == "MACOSX") {
-        return "DYLD_LIBRARY_PATH=" + test.lib + " " 
-    } else if (test.os  == "WIN") {
-        // return "PATH=" + test.bin + " " 
-    }
-*/
-    return ""
 }
 
 
@@ -157,21 +143,20 @@ public function stopService() {
     if (Path(PIDFILE).exists) {
         pid = Path(PIDFILE).readString()
         Path(PIDFILE).remove()
-        try { kill(pid); } catch (e) { print("CATCH " + e) }
+        try { kill(pid); } catch (e) { }
     }
 }
 
 
-public function startService(script: String, address: String, url: String): Void {
+public function startService(cmd: String, url: String): Void {
     stopService()
     if (!App.getenv("NOSERVER")) {
-        let pid = System.daemon(App.exePath + " " + script + " "  + address)
+        let pid = System.daemon(App.exePath + " " + cmd)
         Path(PIDFILE).write(pid)
     }
-    let url = address + url
     for (i in 10) {
         http = new Http
-        try { http.get(url); } catch (e) { print(e) }
+        try { http.get(url); } catch (e) { }
         if (http.status == 200) {
             break
         }
@@ -181,5 +166,13 @@ public function startService(script: String, address: String, url: String): Void
     if (http.status != 200) {
         throw "Can't start web server"
     }
-    share("http", address)
+}
+
+public function httpService(cmd: String): Void {
+    if (test.phase == "init") {
+        let url = ":" + App.config.test.http_port + "/index.html"
+        startService(cmd, url)
+    } else {
+        stopService()
+    }
 }

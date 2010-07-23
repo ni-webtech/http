@@ -45,8 +45,6 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
     conn->callbackArg = conn;
 
     conn->traceMask = HTTP_TRACE_TRANSMIT | HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS;
-    //  MOB -- temp
-    conn->traceMask |= HTTP_TRACE_BODY;
     conn->traceLevel = HTTP_TRACE_LEVEL;
     conn->traceMaxLength = INT_MAX;
 
@@ -68,11 +66,21 @@ static int connectionDestructor(HttpConn *conn)
 {
     mprAssert(conn);
 
+    if (conn->server) {
+        httpValidateLimits(conn->server, HTTP_EVENT_CLOSE_REQUEST, conn);
+    }
+    HTTP_NOTIFY(conn, HTTP_STATE_FREE_CONN, 0);
     httpRemoveConn(conn->http, conn);
     if (conn->sock) {
         httpCloseConn(conn);
     }
     return 0;
+}
+
+
+void httpCloseClientConn(HttpConn *conn)
+{
+    httpCloseConn(conn);
 }
 
 
@@ -86,13 +94,17 @@ void httpCloseConn(HttpConn *conn)
 {
     mprAssert(conn);
 
+#if UNUSED
     conn->keepAliveCount = -1;
+#endif
+#if UNUSED
     if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
         if (conn->transmitter) {
-            httpDiscardPipeData(conn);
+            httpDiscardTransmitData(conn);
             httpCompleteRequest(conn);
         }
     }
+#endif
     if (conn->sock) {
         mprLog(conn, 4, "Closing connection");
         if (conn->waitHandler.fd >= 0) {
@@ -256,6 +268,10 @@ static void readEvent(HttpConn *conn)
             }
             break;
         }
+        if (conn->connError) {
+            break;
+        }
+        //  MOB -- why break if state < begin?
         if (conn->state < HTTP_STATE_BEGIN || conn->state >= HTTP_STATE_PROCESS || conn->startingThread) {
             break;
         }
@@ -381,7 +397,7 @@ static inline HttpPacket *getPacket(HttpConn *conn, int *bytesToRead)
             //  MOB -- but this logic is not in the oter "then" case above.
             /* Still reading the headers */
             if (mprGetBufLength(content) >= conn->limits->headerSize) {
-                httpConnError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
+                httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
                 return 0;
             }
             if (mprGetBufSpace(content) < HTTP_BUFSIZE) {
@@ -583,8 +599,8 @@ void httpSetState(HttpConn *conn, int state)
         /* Prevent regressions */
         return;
     }
+    //  MOB -- generalize
     if (conn->state < HTTP_STATE_PARSED && (HTTP_STATE_PARSED < state && state <= HTTP_STATE_COMPLETE)) {
-        //  MOB -- refactor this away. Outer code should ensure this.
         if (!conn->connError && conn->receiver) {
             /* Go through the parsed state so a response can be returned to the user */
             conn->state = HTTP_STATE_PARSED;
@@ -614,6 +630,17 @@ void httpSetTimeout(HttpConn *conn, int requestTimeout, int inactivityTimeout)
 }
 
 
+HttpLimits *httpSetUniqueConnLimits(HttpConn *conn)
+{
+    HttpLimits      *limits;
+
+    limits = mprAllocObj(conn, HttpLimits);
+    *limits = *conn->limits;
+    conn->limits = limits;
+    return limits;
+}
+
+
 void httpWritable(HttpConn *conn)
 {
     HTTP_NOTIFY(conn, 0, HTTP_NOTIFY_WRITABLE);
@@ -624,9 +651,13 @@ void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
     mprFree(conn->errorMsg);
     conn->errorMsg = mprVasprintf(conn, HTTP_BUFSIZE, fmt, args);
+    conn->status = status;
 }
 
 
+/*
+    Just format conn->errorMsg and set status - nothing more
+ */
 void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...)
 {
     va_list     args;
@@ -637,16 +668,54 @@ void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...)
 }
 
 
+/*
+    Cases:
+
+    Always:
+        - Abort normal output and send a formatted error message. If output has already begun, this will be ignored.
+
+    1. Can't write to client - connection lost
+        Close connection immediately. 
+    2. Can write to client, but must not continue with request. 
+        If headers have gone, MUST close connection. If headers have not gone, could keep connection alive.
+
+    - Client messed up
+        - Bad protocol
+        - Too big, exceed limits
+    - Connection lots
+    - Server messed up
+
+    How to know if started writing: (trans->flags & HTTP_TRANS_HEADERS_CREATED)
+
+    httpError
+        - Send error to client
+        - If headers gone, and not already error - must close connection (relay to httpCloseError)
+        - Discard read data
+    httpConnError
+        - Connection error
+        - Force connection close
+        - Try to first send response 
+
+    How can request
+        - Force a connection closure?
+ */
+/*
+    The current request has an error and cannot complete as normal. This call sets the Http response status and 
+    overrides the normal output with an alternate error message. If the output has alread started (headers sent), then
+    the connection MUST be closed so the client can get some indication the request failed.
+ */
 static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
     HttpReceiver    *rec;
+    HttpTransmitter *trans;
 
     mprAssert(fmt);
 
     rec = conn->receiver;
+    trans = conn->transmitter;
+
     if (!conn->error) {
         conn->error = 1;
-        conn->status = status;
         httpFormatErrorV(conn, status, fmt, args);
         if (rec == 0) {
             mprLog(conn, 2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
@@ -654,12 +723,26 @@ static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
             mprLog(conn, 2, "Error: \"%s\", status %d for URI \"%s\": %s.",
                 httpLookupStatus(conn->http, status), status, rec->uri ? rec->uri : "", conn->errorMsg);
         }
-        httpOmitBody(conn);
-        if (conn->server && conn->transmitter) {
-            httpSetResponseBody(conn, status, conn->errorMsg);
-        }
-        if (conn->state > HTTP_STATE_PARSED) {
+        if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
+            if (conn->server) {
+                /* Headers and status have been sent, so must let the client know the request has failed */
+                mprDisconnectSocket(conn->sock);
+            } else {
+                httpCloseConn(conn);
+            }
             httpSetState(conn, HTTP_STATE_ERROR);
+            httpSetState(conn, HTTP_STATE_COMPLETE);
+        } else {
+            if (conn->server && conn->transmitter) {
+                httpSetResponseBody(conn, status, conn->errorMsg);
+            }
+            /* 
+               If remaining content, dont' change state so any receive body data can be consumed and the 
+               connection be kept alive 
+             */
+            if (rec->remainingContent <= 0) {
+                httpSetState(conn, HTTP_STATE_ERROR);
+            }
         }
     }
 }
@@ -675,9 +758,42 @@ void httpError(HttpConn *conn, int status, cchar *fmt, ...)
 }
 
 
-/*  
-    Stop all requests on the current connection. Fail the current request and the processing pipeline.
-    Force a connection closure as the client has disconnected or is seriously messed up.
+void httpLimitError(HttpConn *conn, int status, cchar *fmt, ...)
+{
+    va_list     args;
+
+    va_start(args, fmt);
+    httpErrorV(conn, status, fmt, args);
+    va_end(args);
+}
+
+
+/*
+    A HTTP protocol error has occurred. For servers: best to stop future requests on the current connection, but 
+    try to send a meaningful response back to the client. For clients, just close the connection.
+ */
+void httpProtocolError(HttpConn *conn, int status, cchar *fmt, ...)
+{
+    va_list     args;
+
+    if (!conn->connError) { 
+        conn->connError = 1;
+        va_start(args, fmt);
+        httpErrorV(conn, status, fmt, args);
+        va_end(args);
+        if (conn->server) {
+            httpCompleteRequest(conn);
+            conn->keepAliveCount = -1;
+        } else {
+            /* Handlers must not call CloseConn as it disables wait events */
+            httpCloseConn(conn);
+        }
+    }
+}
+
+
+/*
+    The connection has been broken. Fail the current request and the processing pipeline. Close the connection.
  */
 void httpConnError(HttpConn *conn, int status, cchar *fmt, ...)
 {
@@ -689,7 +805,13 @@ void httpConnError(HttpConn *conn, int status, cchar *fmt, ...)
         va_start(args, fmt);
         httpErrorV(conn, status, fmt, args);
         va_end(args);
-        if (!conn->server) {
+        if (conn->server) {
+            mprDisconnectSocket(conn->sock);
+#if UNUSED
+            httpCompleteRequest(conn);
+#endif
+        } else {
+            /* Handlers must not call CloseConn as it disables wait events */
             httpCloseConn(conn);
         }
     }

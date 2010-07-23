@@ -5598,8 +5598,8 @@ typedef struct MprSocket {
     int             error;              /**< Last error */
     MprDispatcher   *dispatcher;        /**< Event dispatcher for I/O events */
     MprWaitHandler  *handler;           /**< Wait handler */
-    char            *acceptIp;          /**< Server ip addresss doing the listening */
-    char            *ip;                /**< Server listen address, client connect, or remote accept */
+    char            *acceptIp;          /**< Server addresss that accepted a new connection (actual interface) */
+    char            *ip;                /**< Server listen address or remote client address */
     int             acceptPort;         /**< Server port doing the listening */
     int             port;               /**< Port to listen or connect on */
     int             fd;                 /**< Actual socket file handle */
@@ -5907,6 +5907,18 @@ extern int mprParseIp(MprCtx ctx, cchar *ipSpec, char **ip, int *port, int defau
     Here so users who want SSL don't have to include mprSsl.h and thus pull in ssl headers.
  */
 
+/*
+    SSL protocols
+ */
+#define MPR_PROTO_SSLV2    0x1
+#define MPR_PROTO_SSLV3    0x2
+#define MPR_PROTO_TLSV1    0x4
+#define MPR_PROTO_ALL      0x7
+
+/*
+    Default SSL configuration
+ */
+#define MPR_DEFAULT_CIPHER_SUITE        "ALL:!ADH:!EXPORT56:RC4+RSA:+HIGH:+MEDIUM:+LOW:+SSLv2:+EXP:+eNULL"
 /**
     Load the SSL module.
     @param ctx Any memory allocation context created by MprAlloc
@@ -5919,6 +5931,16 @@ extern MprModule *mprLoadSsl(MprCtx ctx, bool lazy);
     @param ssl MprSsl configuration
  */
 extern void mprConfigureSsl(struct MprSsl *ssl);
+
+extern MprModule *mprSslInit(MprCtx ctx, cchar *path);
+extern struct MprSsl *mprCreateSsl(MprCtx ctx);
+extern void mprSetSslCiphers(struct MprSsl *ssl, cchar *ciphers);
+extern void mprSetSslKeyFile(struct MprSsl *ssl, cchar *keyFile);
+extern void mprSetSslCertFile(struct MprSsl *ssl, cchar *certFile);
+extern void mprSetSslCaFile(struct MprSsl *ssl, cchar *caFile);
+extern void mprSetSslCaPath(struct MprSsl *ssl, cchar *caPath);
+extern void mprSetSslProtocols(struct MprSsl *ssl, int protocols);
+extern void mprVerifySslClients(struct MprSsl *ssl, bool on);
 
 
 typedef struct MprWorkerStats {
