@@ -12482,10 +12482,10 @@ void __mprDummyPollWait() {}
 
 /**
     mprPrintf.c - Printf routines safe for embedded programming
- *
+
     This module provides safe replacements for the standard printf formatting routines. Most routines in this file 
     are not thread-safe. It is the callers responsibility to perform all thread synchronization.
- *
+
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
@@ -12516,7 +12516,7 @@ void __mprDummyPollWait() {}
 
 /*
     Format:         %[modifier][width][precision][bits][type]
- *
+
     [-+ #,]         Modifiers
     [hlL]           Length bits
  */

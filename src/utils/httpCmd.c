@@ -637,8 +637,9 @@ static int retryRequest(HttpConn *conn, cchar *url)
     httpSetRetries(conn, retries);
     httpSetTimeout(conn, timeout, timeout);
 
-    for (redirectCount = count = 0; count <= conn->retries && redirectCount < 16 && !mprIsExiting(conn); ) {
+    for (redirectCount = count = 0; count <= conn->retries && redirectCount < 16 && !mprIsExiting(conn); count++) {
         if (count > 0) {
+            mprLog(conn, MPR_DEBUG, "retry %d of %d for: %s %s", count, conn->retries, method, url);
             httpSetKeepAliveCount(conn, -1);
             httpPrepClientConn(conn, HTTP_RETRY_REQUEST);
         }
@@ -648,7 +649,6 @@ static int retryRequest(HttpConn *conn, cchar *url)
         if (sendRequest(conn, method, url) < 0) {
             return MPR_ERR_CANT_WRITE;
         }
-        count++;
         if (httpWait(conn, HTTP_STATE_PARSED, conn->limits->requestTimeout) == 0) {
             if (httpNeedRetry(conn, &redirect)) {
                 if (redirect) {

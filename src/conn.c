@@ -66,6 +66,9 @@ static int connectionDestructor(HttpConn *conn)
     if (conn->server) {
         httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_CONN, conn);
     }
+    if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
+        HTTP_NOTIFY(conn, HTTP_STATE_COMPLETE, 0);
+    }
     HTTP_NOTIFY(conn, -1, 0);
     httpRemoveConn(conn->http, conn);
     if (conn->sock) {
@@ -140,6 +143,7 @@ void httpPrepClientConn(HttpConn *conn, int retry)
     headers = 0;
     if (conn->state != HTTP_STATE_BEGIN) {
         if (conn->keepAliveCount >= 0) {
+            /* Eat remaining input incase last request did not consume all data */
             httpConsumeLastRequest(conn);
         }
         if (retry && (trans = conn->transmitter) != 0) {
@@ -260,7 +264,7 @@ static void readEvent(HttpConn *conn)
             } else if (conn->state > HTTP_STATE_WAIT && conn->state < HTTP_STATE_COMPLETE) {
                 httpAdvanceReceiver(conn, packet);
                 if (!conn->error && conn->state < HTTP_STATE_COMPLETE) {
-                    httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Communications read error. State %d", conn->state);
+                    httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Connection lost");
                     break;
                 }
             }

@@ -1320,6 +1320,8 @@ int httpWait(HttpConn *conn, int state, int inactivityTimeout)
         return MPR_ERR_CONNECTION;
     }
     if (conn->state < state) {
+        httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
+            "Inactive request timed out, exceeded inactivity timeout %d", inactivityTimeout);
         return MPR_ERR_TIMEOUT;
     }
     return 0;

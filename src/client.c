@@ -92,7 +92,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     conn->traceMask = httpSetupTrace(conn, 0);
     if (conn->traceMask) {
         if (httpShouldTrace(conn, HTTP_TRACE_RECEIVE | HTTP_TRACE_CONN)) {
-            mprLog(conn, conn->traceLevel, "\n### New Connection from %s:%d to %s:%d", 
+            mprLog(conn, conn->traceLevel, "### New Connection from %s:%d to %s:%d", 
                 conn->ip, conn->port, conn->sock->ip, conn->sock->port);
         }
     }

@@ -245,9 +245,9 @@ static int httpTimer(Http *http, MprEvent *event)
             if (conn->receiver) {
                 if (inactivity) {
                     mprLog(http, 4, "Inactive request timed out %s, exceeded inactivity timeout %d", 
-                        conn->receiver->uri, inactivityTimeout);
+                        conn->receiver->uri, inactivityTimeout / 1000);
                 } else {
-                    mprLog(http, 4, "Request timed out %s, exceeded timeout %d", conn->receiver->uri, requestTimeout);
+                    mprLog(http, 4, "Request timed out %s, exceeded timeout %d", conn->receiver->uri, requestTimeout / 1000);
                 }
             } else {
                 mprLog(http, 4, "Idle connection timed out");
@@ -264,10 +264,10 @@ static int httpTimer(Http *http, MprEvent *event)
             if (conn->receiver) {
                 if (inactivity) {
                     httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
-                        "Inactive request timed out, exceeded inactivity timeout %d", inactivityTimeout);
+                        "Inactive request timed out, exceeded inactivity timeout %d sec", inactivityTimeout / 1000);
                 } else {
                     httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT, 
-                        "Request timed out, exceeded timeout %d", requestTimeout);
+                        "Request timed out, exceeded timeout %d sec", requestTimeout / 1000);
                 }
             } else {
                 mprLog(http, 4, "Idle connection timed out");
