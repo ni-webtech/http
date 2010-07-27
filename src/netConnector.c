@@ -17,7 +17,6 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet);
 static void adjustNetVec(HttpQueue *q, int written);
 static int  buildNetVec(HttpQueue *q);
 static void freeNetPackets(HttpQueue *q, int written);
-static void netIncomingService(HttpQueue *q);
 static void netOutgoingService(HttpQueue *q);
 
 /*********************************** Code *************************************/
@@ -33,7 +32,6 @@ int httpOpenNetConnector(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     stage->outgoingService = netOutgoingService;
-    stage->incomingService = netIncomingService;
     http->netConnector = stage;
     return 0;
 }
@@ -47,9 +45,20 @@ static void netOutgoingService(HttpQueue *q)
 
     conn = q->conn;
     trans = conn->transmitter;
+    conn->lastActivity = conn->http->now;
     
-    if (trans->flags & HTTP_TRANS_NO_BODY) {
+    if (trans->flags & HTTP_TRANS_NO_BODY || conn->writeComplete) {
         httpDiscardData(q, 1);
+    }
+    if ((trans->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
+        httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, 
+            "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
+        if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
+            /* Must disconnect as the client must be notified somehow */
+            mprDisconnectSocket(conn->sock);
+            httpCompleteWriting(conn);
+            return;
+        }
     }
     if (trans->flags & HTTP_TRANS_SENDFILE) {
         /* Relay via the send connector */
@@ -69,16 +78,6 @@ static void netOutgoingService(HttpQueue *q)
         if (q->ioIndex == 0 && buildNetVec(q) <= 0) {
             break;
         }
-        if ((trans->bytesWritten + q->ioCount) > conn->limits->transmissionBodySize) {
-            httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, 
-                "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
-#if UNUSED
-            conn->error = 1;
-            httpCompleteWriting(conn);
-            mprDisconnectSocket(conn->sock);
-#endif
-            break;
-        }
 
         /*  
             Issue a single I/O request to write all the blocks in the I/O vector
@@ -94,14 +93,8 @@ static void netOutgoingService(HttpQueue *q)
             if (errCode != EPIPE && errCode != ECONNRESET) {
                 LOG(conn, 5, "netOutgoingService write failed, error %d", errCode);
             }
-#if OLD
-            httpFormatError(conn, HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
-            conn->error = 1;
-            httpCompleteWriting(conn);
-            mprDisconnectSocket(conn->sock);
-#else
             httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
-#endif
+            httpCompleteWriting(conn);
             break;
 
         } else if (written == 0) {
@@ -124,15 +117,6 @@ static void netOutgoingService(HttpQueue *q)
             httpWritable(conn);
         }
     }
-}
-
-
-//  MOB -- remove this function
-static void netIncomingService(HttpQueue *q)
-{
-    mprAssert(0);
-    //  MOB -- is this right?
-    httpEnableConnEvents(q->conn);
 }
 
 

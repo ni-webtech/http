@@ -25,7 +25,11 @@ HttpTransmitter *httpCreateTransmitter(HttpConn *conn, MprHashTable *headers)
     /*  
         Use the receivers arena so that freeing the receiver will also free the transmitter 
      */
+#if FUTURE
     trans = mprAllocObjWithDestructorZeroed(conn->receiver->arena, HttpTransmitter, destroyTransmitter);
+#else
+    trans = mprAllocObjWithDestructorZeroed(conn->receiver, HttpTransmitter, destroyTransmitter);
+#endif
     if (trans == 0) {
         return 0;
     }
@@ -190,7 +194,7 @@ void httpFinalize(HttpConn *conn)
     HttpTransmitter   *trans;
 
     trans = conn->transmitter;
-    if (trans->finalized || conn->state < HTTP_STATE_STARTED) {
+    if (trans->finalized || conn->state < HTTP_STATE_STARTED || conn->writeq == 0) {
         return;
     }
     trans->finalized = 1;
@@ -254,9 +258,9 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
 
     if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
         mprError(conn, "Can't set response body if headers have already been created");
+        /* Connectors will detect this also and disconnect */
     } else {
         httpDiscardTransmitData(conn);
-        httpOmitBody(conn);
     }
     trans->status = status;
     if (trans->altBody == 0) {
@@ -298,13 +302,12 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
 
     mprAssert(targetUri);
 
+    mprLog(conn, 3, "redirect %d %s", status, targetUri);
+
     rec = conn->receiver;
     trans = conn->transmitter;
     uri = 0;
     trans->status = status;
-
-    mprLog(conn, 3, "redirect %d %s", status, targetUri);
-
     prev = rec->parsedUri;
     target = httpCreateUri(trans, targetUri, 0);
 
@@ -329,7 +332,6 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         }
         targetUri = uri;
     }
-
     httpSetHeader(conn, "Location", "%s", targetUri);
     mprAssert(trans->altBody == 0);
     msg = httpLookupStatus(conn->http, status);
@@ -341,7 +343,6 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         msg, msg, targetUri, HTTP_NAME, conn->server->name, prev->port);
     httpOmitBody(conn);
     mprFree(uri);
-    httpSetState(conn, HTTP_STATE_PROCESS);
 }
 
 
@@ -515,7 +516,8 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     if (conn->server) {
         if (--conn->keepAliveCount > 0) {
             httpSetSimpleHeader(conn, "Connection", "keep-alive");
-            httpSetHeader(conn, "Keep-Alive", "timeout=%d, max=%d", conn->inactivityTimeout / 1000, conn->keepAliveCount);
+            httpSetHeader(conn, "Keep-Alive", "timeout=%d, max=%d", conn->limits->inactivityTimeout / 1000, 
+                conn->keepAliveCount);
         } else {
             httpSetSimpleHeader(conn, "Connection", "close");
         }
@@ -537,7 +539,7 @@ void httpSetEntityLength(HttpConn *conn, int len)
 }
 
 
-void httpSetStatus(HttpConn *conn, int status)
+void httpSetTransStatus(HttpConn *conn, int status)
 {
     conn->transmitter->status = status;
 }

@@ -46,6 +46,7 @@ HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
         if ((packet = rec->freePackets) != NULL && size <= packet->content->buflen) {
             rec->freePackets = packet->next; 
             packet->next = 0;
+            mprStealBlock(conn, packet);
             return packet;
         }
     }
@@ -55,6 +56,7 @@ HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
 
 void httpFreePacket(HttpQueue *q, HttpPacket *packet)
 {
+#if FUTURE
     HttpConn        *conn;
     HttpReceiver    *rec;
 
@@ -83,6 +85,9 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
     packet->flags = 0;
     packet->next = rec->freePackets;
     rec->freePackets = packet;
+#else
+    mprFree(packet);
+#endif
 } 
 
 
@@ -320,6 +325,33 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, int size)
     }
     httpPutBackPacket(q, tail);
     return 0;
+}
+
+
+HttpPacket *httpDupPacket(MprCtx ctx, HttpPacket *orig)
+{
+    HttpPacket  *packet;
+    int         count, size;
+
+    count = httpGetPacketLength(orig);
+    size = max(count, HTTP_BUFSIZE);
+    size = HTTP_PACKET_ALIGN(size);
+
+    if ((packet = httpCreatePacket(ctx, 0)) == 0) {
+        return 0;
+    }
+    if (orig->content) {
+        packet->content = mprDupBuf(packet, orig->content);
+    }
+    if (orig->prefix) {
+        packet->prefix = mprDupBuf(packet, orig->prefix);
+    }
+    if (orig->suffix) {
+        packet->suffix = mprDupBuf(packet, orig->suffix);
+    }
+    packet->flags = orig->flags;
+    packet->entityLength = orig->entityLength;
+    return packet;
 }
 
 

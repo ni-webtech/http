@@ -142,23 +142,6 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
 }
 
 
-#if UNUSED
-void httpSetPipeConnector(HttpConn *conn)
-{
-    HttpTransmitter     *trans;
-
-    trans = conn->trans;
-    //  MOB -- must check no output has been sent
-    if (trans->connector) {
-        if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
-            q->flags |= HTTP_QUEUE_OPEN;
-            httpOpenQueue(q, conn->transmitter->chunkSize);
-        }
-    }
-}
-#endif
-
-
 void httpSetPipeHandler(HttpConn *conn, HttpStage *handler)
 {
     conn->transmitter->handler = (handler) ? handler : conn->http->passHandler;
@@ -262,8 +245,10 @@ bool httpServiceQueues(HttpConn *conn)
 
     workDone = 0;
     while (conn->state < HTTP_STATE_COMPLETE && (q = httpGetNextQueueForService(&conn->serviceq)) != NULL) {
-        httpServiceQueue(q);
-        workDone = 1;
+        if (!q->servicing) {
+            httpServiceQueue(q);
+            workDone = 1;
+        }
     }
     return workDone;
 }
@@ -280,14 +265,8 @@ void httpDiscardTransmitData(HttpConn *conn)
     }
     qhead = &trans->queue[HTTP_QUEUE_TRANS];
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
-        httpDiscardData(q, 0);
+        httpDiscardData(q, 1);
     }
-#if UNUSED
-    qhead = &trans->queue[HTTP_QUEUE_RECEIVE];
-    for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
-        httpDiscardData(q, 0);
-    }
-#endif
 }
 
 

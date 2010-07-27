@@ -79,6 +79,7 @@ Http *httpCreate(MprCtx ctx)
     if (http == 0) {
         return 0;
     }
+    http->protocol = "HTTP/1.1";
     http->mutex = mprCreateLock(http);
     http->connections = mprCreateList(http);
     http->stages = mprCreateHash(http, 31);
@@ -224,22 +225,23 @@ static int httpTimer(Http *http, MprEvent *event)
     }
 
     /* 
-       Check for any inactive connections. Locking ensures connections won't be deleted.
+       Check for any inactive connections
      */
     lock(http);
     for (connCount = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; connCount++) {
-        requestTimeout = conn->requestTimeout ? conn->requestTimeout : INT_MAX;
-        inactivityTimeout = conn->inactivityTimeout ? conn->inactivityTimeout : INT_MAX;
+        requestTimeout = conn->limits->requestTimeout ? conn->limits->requestTimeout : INT_MAX;
+        inactivityTimeout = conn->limits->inactivityTimeout ? conn->limits->inactivityTimeout : INT_MAX;
         /* 
             Workaround for a GCC bug when comparing two 64bit numerics directly. Need a temporary.
          */
-        diff = (conn->started + inactivityTimeout) - http->now;
+        diff = (conn->lastActivity + inactivityTimeout) - http->now;
         inactivity = 1;
         if (diff > 0 && conn->receiver) {
-            diff = (conn->started + requestTimeout) - http->now;
+            diff = (conn->lastActivity + requestTimeout) - http->now;
             inactivity = 0;
         }
         if (diff < 0) {
+#if UNUSED
             if (conn->receiver) {
                 if (inactivity) {
                     mprLog(http, 4, "Inactive request timed out %s, exceeded inactivity timeout %d", 
@@ -251,11 +253,26 @@ static int httpTimer(Http *http, MprEvent *event)
                 mprLog(http, 4, "Idle connection timed out");
             }
             conn->error = 1;
+            conn->connError = 1;
             httpRemoveConn(http, conn);
             if (conn->sock) {
                 /* This will force an EOF read event */
                 mprDisconnectSocket(conn->sock);
             }
+#else
+            httpRemoveConn(http, conn);
+            if (conn->receiver) {
+                if (inactivity) {
+                    httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
+                        "Inactive request timed out, exceeded inactivity timeout %d", inactivityTimeout);
+                } else {
+                    httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT, 
+                        "Request timed out, exceeded timeout %d", requestTimeout);
+                }
+            } else {
+                mprLog(http, 4, "Idle connection timed out");
+            }
+#endif
         }
     }
     if (connCount == 0) {

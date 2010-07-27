@@ -1902,6 +1902,7 @@ typedef struct MprBuf {
     @ingroup MprBuf
  */
 extern MprBuf *mprCreateBuf(MprCtx ctx, int initialSize, int maxSize);
+extern MprBuf *mprDupBuf(MprCtx ctx, MprBuf *orig);
 
 /**
     Set the maximum buffer size

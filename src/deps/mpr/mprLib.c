@@ -1190,6 +1190,9 @@ int mprStealBlock(MprCtx ctx, cvoid *ptr)
     mprAssert(VALID_CTX(ctx));
     mprAssert(VALID_CTX(ptr));
     bp = GET_BLK(ptr);
+    if (bp->parent == ctx) {
+        return 0;
+    }
 
 #if BLD_FEATURE_MEMORY_VERIFY
     /*
@@ -2743,6 +2746,23 @@ MprBuf *mprCreateBuf(MprCtx ctx, int initialSize, int maxSize)
     }
     bp->growBy = MPR_BUFSIZE;
     mprSetBufSize(bp, initialSize, maxSize);
+    return bp;
+}
+
+
+MprBuf *mprDupBuf(MprCtx ctx, MprBuf *orig)
+{
+    MprBuf      *bp;
+    int         len;
+
+    if ((bp = mprCreateBuf(ctx, orig->growBy, orig->maxsize)) == 0) {
+        return 0;
+    }
+    bp->refillProc = orig->refillProc;
+    bp->refillArg = orig->refillArg;
+    if ((len = mprGetBufLength(orig)) > 0) {
+        memcpy(bp->data, orig->data, len);
+    }
     return bp;
 }
 
@@ -14848,8 +14868,7 @@ static MprSocket *acceptSocket(MprSocket *listen)
 
 
 /*  
-    Read data. Return zero for EOF or no data if in non-blocking mode. Return -1 for errors. On success,
-    return the number of bytes read. Use getEof to tell if we are EOF or just no data (in non-blocking mode).
+    Read data. Return -1 for EOF and errors. On success, return the number of bytes read
  */
 int mprReadSocket(MprSocket *sp, void *buf, int bufsize)
 {
@@ -14891,7 +14910,6 @@ again:
     } else {
         bytes = recv(sp->fd, buf, bufsize, MSG_NOSIGNAL);
     }
-
     if (bytes < 0) {
         errCode = mprGetSocketError(sp);
         if (errCode == EINTR) {
@@ -23460,8 +23478,7 @@ static int scanFor(MprXml *xp, char *pattern)
 static int getNextChar(MprXml *xp)
 {
     MprBuf  *inBuf;
-    char    c;
-    int     l;
+    int     l, c;
 
     inBuf = xp->inBuf;
     if (mprGetBufLength(inBuf) <= 0) {
@@ -23476,7 +23493,6 @@ static int getNextChar(MprXml *xp)
         mprAdjustBufEnd(inBuf, l);
     }
     c = mprGetCharFromBuf(inBuf);
-
     if (c == '\n') {
         xp->lineNumber++;
     }

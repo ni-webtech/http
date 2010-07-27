@@ -192,7 +192,7 @@ static void outgoingChunkService(HttpQueue *q)
             }
         }
     }
-    if (trans->chunkSize <= 0) {
+    if (trans->chunkSize <= 0 || trans->altBody) {
         httpDefaultOutgoingServiceStage(q);
     } else {
         for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {

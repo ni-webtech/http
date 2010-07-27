@@ -72,7 +72,6 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     if (conn->sock) {
         return conn;
     }
-    mprLog(conn, 3, "Http: Opening socket on: %s:%d", ip, port);
     if ((sp = mprCreateSocket(conn, (uri->secure) ? MPR_SECURE_CLIENT: NULL)) == 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
         mprFree(sp);
@@ -89,6 +88,14 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     conn->port = port;
     conn->secure = uri->secure;
     conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
+
+    conn->traceMask = httpSetupTrace(conn, 0);
+    if (conn->traceMask) {
+        if (httpShouldTrace(conn, HTTP_TRACE_RECEIVE | HTTP_TRACE_CONN)) {
+            mprLog(conn, conn->traceLevel, "\n### New Connection from %s:%d to %s:%d", 
+                conn->ip, conn->port, conn->sock->ip, conn->sock->port);
+        }
+    }
     return conn;
 }
 
@@ -213,16 +220,16 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
 {
     Http                *http;
     HttpTransmitter     *trans;
-#if UNUSED
-    HttpPacket          *headers;
-#endif
     mprAssert(conn);
     mprAssert(method && *method);
     mprAssert(url && *url);
 
     if (conn->server) {
+        httpError(conn, HTTP_CODE_BAD_GATEWAY, "Can't call connect in a server");
+#if UNUSED
         httpSetState(conn, HTTP_STATE_ERROR);
         httpSetState(conn, HTTP_STATE_COMPLETE);
+#endif
         return MPR_ERR_BAD_STATE;
     }
     mprLog(conn, 4, "Http: client request: %s %s", method, url);
@@ -235,6 +242,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     }
     http = conn->http;
     trans = conn->transmitter;
+    mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_STARTED);
     conn->sentCredentials = 0;
 
@@ -245,19 +253,19 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     trans->parsedUri = httpCreateUri(trans, url, 0);
 
     if (openConnection(conn, url) == 0) {
+#if UNUSED
         httpSetState(conn, HTTP_STATE_ERROR);
         httpSetState(conn, HTTP_STATE_COMPLETE);
+#endif
         return MPR_ERR_CANT_OPEN;
     }
     if (setClientHeaders(conn) < 0) {
+#if UNUSED
         httpSetState(conn, HTTP_STATE_ERROR);
         httpSetState(conn, HTTP_STATE_COMPLETE);
+#endif
         return MPR_ERR_CANT_INITIALIZE;
     }
-#if UNUSED
-    mprAssert(conn->writeq);
-    httpPutForService(conn->writeq, headers, 0);
-#endif
     return 0;
 }
 

@@ -247,17 +247,18 @@ int httpRead(HttpConn *conn, char *buf, int size)
     q = conn->readq;
     rec = conn->receiver;
     
-    while (q->count == 0 && !conn->async && (conn->state <= HTTP_STATE_CONTENT)) {
+    while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
-        if (q->count == 0) {
-            events = MPR_READABLE;
-            if (!mprIsSocketEof(conn->sock) && !mprSocketHasPendingData(conn->sock)) {
-                inactivityTimeout = conn->inactivityTimeout ? conn->inactivityTimeout : INT_MAX;
-                events = mprWaitForSingleIO(conn, conn->sock->fd, MPR_READABLE, inactivityTimeout);
+        events = MPR_READABLE;
+        if (conn->sock && !mprSocketHasPendingData(conn->sock)) {
+            if (mprIsSocketEof(conn->sock)) {
+                break;
             }
-            if (events) {
-                httpCallEvent(conn, MPR_READABLE);
-            }
+            inactivityTimeout = conn->limits->inactivityTimeout ? conn->limits->inactivityTimeout : INT_MAX;
+            events = mprWaitForSingleIO(conn, conn->sock->fd, MPR_READABLE, inactivityTimeout);
+        }
+        if (events) {
+            httpCallEvent(conn, MPR_READABLE);
         }
     }
     for (nbytes = 0; size > 0 && q->count > 0; ) {
@@ -363,14 +364,18 @@ void httpScheduleQueue(HttpQueue *q)
 
 void httpServiceQueue(HttpQueue *q)
 {
-    /*  
-        Since we are servicing the queue, remove it from the service queue if it is at the front of the queue.
-     */
-    if (q->conn->serviceq.scheduleNext == q) {
-        httpGetNextQueueForService(&q->conn->serviceq);
+    if (!q->servicing) {
+        q->servicing = 1;
+        /*  
+            Since we are servicing this "q" now, we can remove from the schedule queue if it is already queued.
+         */
+        if (q->conn->serviceq.scheduleNext == q) {
+            httpGetNextQueueForService(&q->conn->serviceq);
+        }
+        q->service(q);
+        q->flags |= HTTP_QUEUE_SERVICED;
+        q->servicing = 0;
     }
-    q->service(q);
-    q->flags |= HTTP_QUEUE_SERVICED;
 }
 
 

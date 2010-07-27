@@ -87,26 +87,21 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     int             count;
 
     limits = server->limits;
+    mprAssert(conn->server == server);
 
     switch (event) {
-    case HTTP_EVENT_OPEN_REQUEST:
-        if (server->requestCount >= limits->requestCount) {
-            mprLog(server, 0, "Too many concurrent requests %d/%d", server->requestCount, limits->requestCount);
-            return 0;
-        }
+    case HTTP_VALIDATE_OPEN_CONN:
         if (server->clientCount >= limits->clientCount) {
-            mprLog(server, 0, "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
+            httpConnError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, 
+                "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
             return 0;
         }
-        server->requestCount++;
         count = (int) PTOL(mprLookupHash(server->clients, conn->ip));
         mprAddHash(server->clients, conn->ip, ITOP(count + 1));
         server->clientCount = mprGetHashCount(server->clients);
         break;
 
-    case HTTP_EVENT_CLOSE_REQUEST:
-        server->requestCount--;
-        mprAssert(server->requestCount >= 0);
+    case HTTP_VALIDATE_CLOSE_CONN:
         count = (int) PTOL(mprLookupHash(server->clients, conn->ip));
         if (count > 1) {
             mprAddHash(server->clients, conn->ip, ITOP(count - 1));
@@ -114,10 +109,26 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
             mprRemoveHash(server->clients, conn->ip);
         }
         server->clientCount = mprGetHashCount(server->clients);
+        mprLog(server, 4, "Close connection. Active requests %d, active clients %d", 
+            server->requestCount, server->clientCount);
+        break;
+    
+    case HTTP_VALIDATE_OPEN_REQUEST:
+        if (server->requestCount >= limits->requestCount) {
+            httpConnError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, 
+                "Too many concurrent requests %d/%d", server->requestCount, limits->requestCount);
+            return 0;
+        }
+        server->requestCount++;
+        break;
+
+    case HTTP_VALIDATE_CLOSE_REQUEST:
+        server->requestCount--;
+        mprAssert(server->requestCount >= 0);
         mprLog(server, 4, "Close request. Active requests %d, active clients %d", server->requestCount, server->clientCount);
         break;
     }
-    mprLog(server, 5, "Validate request. Counts: requests: %d/%d, clients %d/%d", 
+    mprLog(server, 6, "Validate request. Counts: requests: %d/%d, clients %d/%d", 
         server->requestCount, limits->requestCount, server->clientCount, limits->clientCount);
     return 1;
 }
@@ -145,7 +156,7 @@ HttpConn *httpAcceptConn(HttpServer *server)
     if (sock == 0) {
         return 0;
     }
-    mprLog(server, 4, "New connection from %s:%d for %s:%d %s",
+    mprLog(server, 4, "New connection from %s:%d to %s:%d %s",
         sock->ip, sock->port, sock->acceptIp, sock->acceptPort, server->sock->sslSocket ? "(secure)" : "");
 
     if ((conn = httpCreateConn(server->http, server)) == 0) {
@@ -161,12 +172,20 @@ HttpConn *httpAcceptConn(HttpServer *server)
     conn->ip = mprStrdup(conn, sock->ip);
     conn->secure = mprIsSocketSecure(sock);
 
-    if (!httpValidateLimits(server, HTTP_EVENT_OPEN_REQUEST, conn)) {
+    if (!httpValidateLimits(server, HTTP_VALIDATE_OPEN_CONN, conn)) {
         mprFree(conn);
         return 0;
     }
+    mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_STARTED);
 
+    conn->traceMask = httpSetupTrace(conn, 0);
+    if (conn->traceMask) {
+        if (httpShouldTrace(conn, HTTP_TRACE_RECEIVE | HTTP_TRACE_CONN)) {
+            mprLog(conn, conn->traceLevel, "\n### New Connection from %s:%d to %s:%d", 
+                conn->ip, conn->port, conn->sock->ip, conn->sock->port);
+        }
+    }
     e.mask = MPR_READABLE;
     e.timestamp = mprGetTime(server);
     (conn->callback)(conn->callbackArg, &e);

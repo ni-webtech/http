@@ -576,120 +576,127 @@ static int processThread(HttpConn *conn, MprEvent *event)
 }
 
 
-//  TODO - functionalize
+static int prepRequest(HttpConn *conn)
+{
+    MprKeyValue     *header;
+    char            seqBuf[16];
+    int             next;
 
-static int doRequest(HttpConn *conn, cchar *url)
+    for (next = 0; (header = mprGetNextItem(headers, &next)) != 0; ) {
+        httpAppendHeader(conn, header->key, header->value);
+    }
+    if (sequence) {
+        static int next = 0;
+        mprItoa(seqBuf, sizeof(seqBuf), next++, 10);
+        httpSetHeader(conn, "X-Http-Seq", seqBuf);
+    }
+    if (ranges) {
+        httpSetHeader(conn, "Range", ranges);
+    }
+    if (formData) {
+        httpSetHeader(conn, "Content-Type", "application/x-www-form-urlencoded");
+    }
+    if (chunkSize > 0) {
+        httpSetChunkSize(conn, chunkSize);
+    }
+    if (setContentLength(conn) < 0) {
+        return MPR_ERR_CANT_OPEN;
+    }
+    return 0;
+}
+
+
+static int sendRequest(HttpConn *conn, cchar *method, cchar *url)
+{
+    if (httpConnect(conn, method, url) < 0) {
+        mprError(conn, "Can't process request for \"%s\". %s.", url, httpGetError(conn));
+        return MPR_ERR_CANT_OPEN;
+    }
+    /*  
+        This program does not do full-duplex writes with reads. ie. if you have a request that sends and receives
+        data in parallel -- http will do the writes first then read the response.
+     */
+    if (bodyData || formData || files) {
+        if (writeBody(conn) < 0) {
+            mprError(conn, "Can't write body data to \"%s\". %s", url, httpGetError(conn));
+            return MPR_ERR_CANT_WRITE;
+        }
+    }
+    httpFinalize(conn);
+    return 0;
+}
+
+
+static int retryRequest(HttpConn *conn, cchar *url) 
 {
     HttpReceiver    *rec;
-    MprKeyValue     *header;
-    MprFile         *file;
-    MprTime         mark;
+    char            *redirect;
     cchar           *msg, *sep;
-    char            buf[HTTP_BUFSIZE], seqBuf[16], *responseHeaders, *redirect;
-    int             status, contentLen, elapsed, next, bytes, redirectCount, success, count;
+    int             count, redirectCount;
 
-    file = 0;
-    mprAssert(url && *url);
-
-    mprLog(conn, MPR_DEBUG, "fetch: %s %s", method, url);
-    mark = mprGetTime(mpr);
     httpSetRetries(conn, retries);
     httpSetTimeout(conn, timeout, timeout);
 
-    success = redirectCount = 0;
-    count = 0;
-    while (count <= conn->retries && redirectCount < 16 && !mprIsExiting(conn)) {
-        for (next = 0; (header = mprGetNextItem(headers, &next)) != 0; ) {
-            httpAppendHeader(conn, header->key, header->value);
+    for (redirectCount = count = 0; count <= conn->retries && redirectCount < 16 && !mprIsExiting(conn); ) {
+        if (count > 0) {
+            httpSetKeepAliveCount(conn, -1);
+            httpPrepClientConn(conn, HTTP_RETRY_REQUEST);
         }
-        if (sequence) {
-            static int next = 0;
-            mprItoa(seqBuf, sizeof(seqBuf), next++, 10);
-            httpSetHeader(conn, "X-Http-Seq", seqBuf);
-        }
-        if (ranges) {
-            httpSetHeader(conn, "Range", ranges);
-        }
-        if (formData) {
-            httpSetHeader(conn, "Content-Type", "application/x-www-form-urlencoded");
-        }
-        if (chunkSize > 0) {
-            httpSetChunkSize(conn, chunkSize);
-        }
-        if (setContentLength(conn) < 0) {
+        if (prepRequest(conn) < 0) {
             return MPR_ERR_CANT_OPEN;
         }
-        if (httpConnect(conn, method, url) < 0) {
-            mprError(conn, "Can't process request for \"%s\". %s.", url, httpGetError(conn));
-            return MPR_ERR_CANT_OPEN;
+        if (sendRequest(conn, method, url) < 0) {
+            return MPR_ERR_CANT_WRITE;
         }
         count++;
-        /*  
-            This program does not do full-duplex writes with reads. ie. if you have a request that sends and receives
-            data in parallel -- http will do the writes first then read the response.
-         */
-        if (bodyData || formData || files) {
-            if (writeBody(conn) < 0) {
-                mprError(conn, "Can't write body data to \"%s\". %s", url, httpGetError(conn));
-                return MPR_ERR_CANT_WRITE;
-            }
-        }
-        httpFinalize(conn);
-
-        if (httpWait(conn, HTTP_STATE_PARSED, conn->requestTimeout) == 0) {
-            mprAssert(conn->state >= HTTP_STATE_PARSED);
+        if (httpWait(conn, HTTP_STATE_PARSED, conn->limits->requestTimeout) == 0) {
             if (httpNeedRetry(conn, &redirect)) {
                 if (redirect) {
                     url = resolveUrl(conn, redirect);
                     httpPrepClientConn(conn, HTTP_NEW_REQUEST);
                 }
-                count--; 
+                /* Count redirects and auth retries */
                 redirectCount++;
+                count--; 
             } else {
-                success = 1;
                 break;
             }
         }
-        if (conn->status == HTTP_CODE_REQUEST_TOO_LARGE || conn->status == HTTP_CODE_REQUEST_URL_TOO_LARGE) {
-            /* No point retrying */
-            break;
-        }
-        if (conn->receiver->status == HTTP_CODE_UNAUTHORIZED) {
-            if (conn->authUser == 0) {
+        if ((rec = conn->receiver) != 0) {
+            if (rec->status == HTTP_CODE_REQUEST_TOO_LARGE || rec->status == HTTP_CODE_REQUEST_URL_TOO_LARGE ||
+                (rec->status == HTTP_CODE_UNAUTHORIZED && conn->authUser == 0)) {
+                /* No point retrying */
                 break;
             }
         }
-        /* Force a new connection */
-        if (conn->receiver == 0 || conn->receiver->status != HTTP_CODE_UNAUTHORIZED) {
-            httpSetKeepAliveCount(conn, -1);
-        }
-        httpPrepClientConn(conn, HTTP_RETRY_REQUEST);
     }
-    if (mprIsExiting(conn)) {
-        return MPR_ERR_BAD_STATE;
-    }
-    if (!success || conn->errorMsg) {
+    if (conn->error || conn->errorMsg) {
         msg = (conn->errorMsg) ? conn->errorMsg : "";
         sep = (msg && *msg) ? "\n" : "";
         mprError(conn, "http: failed \"%s\" request for %s after %d attempt(s).%s%s", method, url, count, sep, msg);
-    } else {
-        do {
-            httpWait(conn, HTTP_STATE_COMPLETE, 10);
-            while ((bytes = httpRead(conn, buf, sizeof(buf))) > 0) {
-                showOutput(conn, buf, bytes);
-            }
-            //  MOB -- Need proper flow control
-            conn->canProceed = 1;
-        } while (conn->state < HTTP_STATE_COMPLETE && mprGetElapsedTime(conn, mark) <= conn->requestTimeout);
+        return MPR_ERR_CANT_CONNECT;
     }
-    
+    return 0;
+}
+
+
+static int reportResponse(HttpConn *conn, cchar *url)
+{
+    HttpReceiver    *rec;
+    cchar           *msg;
+    char            *responseHeaders;
+    int             status, contentLen;
+
+    if (mprIsExiting(conn)) {
+        return 0;
+    }
     status = httpGetStatus(conn);
     contentLen = httpGetContentLength(conn);
     msg = httpGetStatusMessage(conn);
 
-    elapsed = (int) (mprGetTime(mpr) - mark);
-    mprLog(http, 6, "Response status %d, content len %d, elapsed %d", status, contentLen, elapsed);
-
+    if (conn->error) {
+        success = 0;
+    }
     if (conn->receiver && success) {
         if (showStatus) {
             mprPrintf(http, "%d\n", status);
@@ -704,12 +711,7 @@ static int doRequest(HttpConn *conn, cchar *url)
             }
         }
     }
-
-    if (!success) {
-        /* Retries failed */
-        return MPR_ERR_TOO_MANY;
-
-    } else if (status < 0) {
+    if (status < 0) {
         mprError(conn, "Can't process request for \"%s\" %s", url, httpGetError(conn));
         httpDestroyReceiver(conn);
         return MPR_ERR_CANT_READ;
@@ -734,6 +736,42 @@ static int doRequest(HttpConn *conn, cchar *url)
     return 0;
 }
 
+
+static void readBody(HttpConn *conn)
+{
+    char    buf[HTTP_BUFSIZE];
+    int     bytes;
+
+    while (!conn->error && conn->sock && (bytes = httpRead(conn, buf, sizeof(buf))) > 0) {
+        showOutput(conn, buf, bytes);
+    }
+}
+
+static int doRequest(HttpConn *conn, cchar *url)
+{
+    MprTime         mark;
+    MprFile         *file;
+    HttpLimits      *limits;
+
+    mprAssert(url && *url);
+    file = 0;
+    limits = conn->limits;
+
+    mprLog(conn, MPR_DEBUG, "fetch: %s %s", method, url);
+    mark = mprGetTime(mpr);
+
+    if (retryRequest(conn, url) < 0) {
+        return MPR_ERR_CANT_CONNECT;
+    }
+    while (!conn->error && conn->state < HTTP_STATE_COMPLETE && mprGetElapsedTime(conn, mark) <= limits->requestTimeout) {
+        httpWait(conn, HTTP_STATE_COMPLETE, 10);
+        readBody(conn);
+    }
+    readBody(conn);
+    mprLog(http, 6, "Response status %d, elapsed %d", httpGetStatus(conn), ((int) mprGetTime(mpr)) - mark);
+    reportResponse(conn, url);
+    return 0;
+}
 
 static int setContentLength(HttpConn *conn)
 {
