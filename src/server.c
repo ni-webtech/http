@@ -177,7 +177,7 @@ HttpConn *httpAcceptConn(HttpServer *server)
         return 0;
     }
     mprAssert(conn->state == HTTP_STATE_BEGIN);
-    httpSetState(conn, HTTP_STATE_STARTED);
+    httpSetState(conn, HTTP_STATE_CONNECTED);
 
     conn->traceMask = httpSetupTrace(conn, 0);
     if (conn->traceMask) {
@@ -189,13 +189,6 @@ HttpConn *httpAcceptConn(HttpServer *server)
     e.mask = MPR_READABLE;
     e.timestamp = mprGetTime(server);
     (conn->callback)(conn->callbackArg, &e);
-
-#if UNUSED
-    if (!conn->async && httpWait(conn, HTTP_STATE_PARSED, -1) < 0) {
-        mprError(server, "Timeout while accepting.");
-        return 0;
-    }
-#endif
     return conn;
 }
 

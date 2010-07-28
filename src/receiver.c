@@ -109,8 +109,7 @@ void httpAdvanceReceiver(HttpConn *conn, HttpPacket *packet)
 
         switch (conn->state) {
         case HTTP_STATE_BEGIN:
-        case HTTP_STATE_STARTED:
-        case HTTP_STATE_WAIT:
+        case HTTP_STATE_CONNECTED:
             conn->canProceed = parseIncoming(conn, packet);
             break;
 
@@ -305,11 +304,9 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
             len = (endp) ? (endp - mprGetBufStart(content) + 4) : 0;
             httpTraceContent(conn, packet, len, 0, mask);
         }
-#if UNUSED
     } else {
         mprLog(rec, 6, "Request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
-        mprLog(rec, 2, "%s %s %s", method, uri, protocol);
-#endif
+        mprLog(rec, conn->traceLevel, "%s %s %s", method, uri, protocol);
     }
 }
 
@@ -356,10 +353,6 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
         httpTraceContent(conn, packet, len, 0, HTTP_TRACE_RECEIVE | HTTP_TRACE_HEADERS);
     } else if (httpShouldTrace(conn, HTTP_TRACE_RECEIVE | HTTP_TRACE_FIRST)) {
         mprLog(rec, conn->traceLevel, "%s %d %s", protocol, rec->status, rec->statusMessage);
-#if UNUSED
-    } else {
-        mprLog(rec, 6, "Response from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
-#endif
     }
 }
 
@@ -932,13 +925,6 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             mprFree(packet);
         }
         conn->input = 0;
-#if UNUSED
-        if (rec->remainingContent > 0 && !conn->http10) {
-            httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Insufficient content data sent with request");
-        } else {
-            conn->canProceed = 0;
-        }
-#endif
     }
     return 1;
 }

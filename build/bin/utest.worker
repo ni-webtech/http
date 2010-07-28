@@ -70,7 +70,7 @@ enumerable public class Test {
 /*
     Global functions
  */
-public function assert(cond: Boolean, message: String = null): Void {
+function assert(cond: Boolean, message: String = null): Void {
     if (cond) {
         postMessage({ passed: true })
     } else {
@@ -81,6 +81,11 @@ public function assert(cond: Boolean, message: String = null): Void {
         }
     }
 }
+/* 
+    Redefine the Global.assert function 
+*/
+Object.defineProperty(global, "assert", { writable: true, value: assert})
+
 
 public function cleanDir(path) {
     rmdir(path, true)
@@ -148,23 +153,25 @@ public function stopService() {
 }
 
 
-public function startService(cmd: String, url: String): Void {
+public function startService(cmd: String): Void {
     stopService()
     if (!App.getenv("NOSERVER")) {
         let pid = System.daemon(App.exePath + " " + cmd)
         Path(PIDFILE).write(pid)
     }
+    let url = ":" + App.config.test.http_port + "/ready.ready"
     for (i in 10) {
         http = new Http
         try { http.get(url); 
-            if (http.status == 200) {
+            /* Expect to get a not-found response */
+            if (http.status == 404) {
                 break
             }
         } catch (e) { }
         App.sleep(100)
         http.close()
     }
-    if (http.status != 200) {
+    if (http.status != 404) {
         throw "Can't start web server"
     }
     http.close()
@@ -172,8 +179,7 @@ public function startService(cmd: String, url: String): Void {
 
 public function httpService(cmd: String): Void {
     if (test.phase == "init") {
-        let url = ":" + App.config.test.http_port + "/index.html"
-        startService(cmd, url)
+        startService(cmd)
     } else {
         stopService()
     }

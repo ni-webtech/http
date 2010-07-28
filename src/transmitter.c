@@ -193,7 +193,7 @@ void httpFinalize(HttpConn *conn)
     HttpTransmitter   *trans;
 
     trans = conn->transmitter;
-    if (trans->finalized || conn->state < HTTP_STATE_STARTED || conn->writeq == 0 || conn->sock == 0) {
+    if (trans->finalized || conn->state < HTTP_STATE_CONNECTED || conn->writeq == 0 || conn->sock == 0) {
         return;
     }
     trans->finalized = 1;

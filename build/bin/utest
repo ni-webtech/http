@@ -379,7 +379,7 @@ enumerable class Test {
             }
         }
         w.onclose = function (e) {
-            if (test.testCount == test.priorCount) {
+            if (test.testCount == priorCount) {
                 /*
                     Test did not invoke assert. At least it did not crash, so count it as passed.
                  */

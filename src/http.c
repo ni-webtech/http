@@ -241,25 +241,6 @@ static int httpTimer(Http *http, MprEvent *event)
             inactivity = 0;
         }
         if (diff < 0) {
-#if UNUSED
-            if (conn->receiver) {
-                if (inactivity) {
-                    mprLog(http, 4, "Inactive request timed out %s, exceeded inactivity timeout %d", 
-                        conn->receiver->uri, inactivityTimeout / 1000);
-                } else {
-                    mprLog(http, 4, "Request timed out %s, exceeded timeout %d", conn->receiver->uri, requestTimeout / 1000);
-                }
-            } else {
-                mprLog(http, 4, "Idle connection timed out");
-            }
-            conn->error = 1;
-            conn->connError = 1;
-            httpRemoveConn(http, conn);
-            if (conn->sock) {
-                /* This will force an EOF read event */
-                mprDisconnectSocket(conn->sock);
-            }
-#else
             httpRemoveConn(http, conn);
             if (conn->receiver) {
                 if (inactivity) {
@@ -272,7 +253,6 @@ static int httpTimer(Http *http, MprEvent *event)
             } else {
                 mprLog(http, 4, "Idle connection timed out");
             }
-#endif
         }
     }
     if (connCount == 0) {

@@ -1227,19 +1227,12 @@ extern void httpSendOutgoingService(HttpQueue *q);
  */
 //  MOB - make origin zero
 #define HTTP_STATE_BEGIN            1       /**< Ready for a new request */
-#define HTTP_STATE_STARTED          2       /**< A new request has started */
-#define HTTP_STATE_WAIT             3       /**< Waiting for the response */
-#define HTTP_STATE_FIRST            4       /**< First request line has been parsed */
-#define HTTP_STATE_PARSED           5       /**< Headers have been parsed, handler can start */
-#define HTTP_STATE_CONTENT          6       /**< Reading posted content */
-#if UNUSED
-#define HTTP_STATE_PROCESS          7       /**< Content received, handler can process */
-#endif
-#define HTTP_STATE_RUNNING          7       /**< Handler running */
-#if UNUSED
-#define HTTP_STATE_ERROR            9       /**< Request in error */
-#endif
-#define HTTP_STATE_COMPLETE         8       /**< Request complete */
+#define HTTP_STATE_CONNECTED        2       /**< Connection received or made */
+#define HTTP_STATE_FIRST            3       /**< First request line has been parsed */
+#define HTTP_STATE_PARSED           4       /**< Headers have been parsed, handler can start */
+#define HTTP_STATE_CONTENT          5       /**< Reading posted content */
+#define HTTP_STATE_RUNNING          6       /**< Handler running */
+#define HTTP_STATE_COMPLETE         7       /**< Request complete */
 
 
 /*
@@ -1327,10 +1320,6 @@ typedef struct HttpConn {
     int             async;                  /**< Connection is in async mode (non-blocking) */
     int             canProceed;             /**< State machine should continue to process the request */
     int             followRedirects;        /**< Follow redirects for client requests */
-#if UNUSED
-    int             inactivityTimeout;      /**< Connection inactivity timeout period in msec */
-    int             requestTimeout;         /**< Request timeout period in msec */
-#endif
     int             keepAliveCount;         /**< Count of remaining keep alive requests for this connection */
     int             http10;                 /**< Using legacy HTTP/1.0 */
     int             startingThread;         /**< Need to allocate worker thread */
@@ -1338,9 +1327,6 @@ typedef struct HttpConn {
     int             retries;                /**< Client request retries */
     int             secure;                 /**< Using https */
     int             seqno;                  /**< Unique connection sequence number */
-#if UNUSED
-    int             status;                 /**< Request status */
-#endif
     int             writeBlocked;           /**< Transmission writing is blocked */
 
     int             traceLevel;             /**< Trace activation level */

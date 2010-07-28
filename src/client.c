@@ -107,9 +107,6 @@ static int setClientHeaders(HttpConn *conn)
 {
     Http                *http;
     HttpTransmitter     *trans;
-#if UNUSED
-    HttpPacket          *packet;
-#endif
     HttpUri             *parsedUri;
     char                *encoded;
     int                 len, rc;
@@ -120,9 +117,6 @@ static int setClientHeaders(HttpConn *conn)
     http = conn->http;
     trans = conn->transmitter;
     parsedUri = trans->parsedUri;
-#if UNUSED
-    packet = httpCreateHeaderPacket(trans);
-#endif
     if (conn->authType && strcmp(conn->authType, "basic") == 0) {
         char    abuf[MPR_MAX_STRING];
         mprSprintf(conn, abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
@@ -193,19 +187,6 @@ static int setClientHeaders(HttpConn *conn)
         } else {
             httpSetSimpleHeader(conn, "Connection", "close");
         }
-#if UNUSED
-        /*
-            This code assumes the chunkFilter is always in the outgoing pipeline
-         */
-        if ((trans->length <= 0) && (strcmp(trans->method, "POST") == 0 || strcmp(trans->method, "PUT") == 0)) {
-            if (conn->chunked != 0) {
-                httpSetSimpleHeader(conn, "Transfer-Encoding", "chunked");
-                conn->chunked = 1;
-            }
-        } else {
-            conn->chunked = 0;
-        }
-#endif
 
     } else {
         /* Set to zero to let the client initiate the close */
@@ -226,10 +207,6 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
 
     if (conn->server) {
         httpError(conn, HTTP_CODE_BAD_GATEWAY, "Can't call connect in a server");
-#if UNUSED
-        httpSetState(conn, HTTP_STATE_ERROR);
-        httpSetState(conn, HTTP_STATE_COMPLETE);
-#endif
         return MPR_ERR_BAD_STATE;
     }
     mprLog(conn, 4, "Http: client request: %s %s", method, url);
@@ -243,7 +220,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     http = conn->http;
     trans = conn->transmitter;
     mprAssert(conn->state == HTTP_STATE_BEGIN);
-    httpSetState(conn, HTTP_STATE_STARTED);
+    httpSetState(conn, HTTP_STATE_CONNECTED);
     conn->sentCredentials = 0;
 
     mprFree(trans->method);
@@ -253,17 +230,9 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     trans->parsedUri = httpCreateUri(trans, url, 0);
 
     if (openConnection(conn, url) == 0) {
-#if UNUSED
-        httpSetState(conn, HTTP_STATE_ERROR);
-        httpSetState(conn, HTTP_STATE_COMPLETE);
-#endif
         return MPR_ERR_CANT_OPEN;
     }
     if (setClientHeaders(conn) < 0) {
-#if UNUSED
-        httpSetState(conn, HTTP_STATE_ERROR);
-        httpSetState(conn, HTTP_STATE_COMPLETE);
-#endif
         return MPR_ERR_CANT_INITIALIZE;
     }
     return 0;
@@ -279,13 +248,12 @@ bool httpNeedRetry(HttpConn *conn, char **url)
     HttpTransmitter *trans;
 
     mprAssert(conn->receiver);
-    mprAssert(conn->state > HTTP_STATE_WAIT);
 
+    *url = 0;
     rec = conn->receiver;
     trans = conn->transmitter;
-    *url = 0;
 
-    if (conn->state < HTTP_STATE_WAIT) {
+    if (conn->state < HTTP_STATE_FIRST) {
         return 0;
     }
     if (rec->status == HTTP_CODE_UNAUTHORIZED) {

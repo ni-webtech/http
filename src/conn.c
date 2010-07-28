@@ -41,7 +41,7 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
     conn->callback = (HttpCallback) httpEvent;
     conn->callbackArg = conn;
 
-    conn->traceMask = HTTP_TRACE_TRANSMIT | HTTP_TRACE_RECEIVE | HTTP_TRACE_CONN | HTTP_TRACE_FIRST;
+    conn->traceMask = HTTP_TRACE_TRANSMIT | HTTP_TRACE_RECEIVE | HTTP_TRACE_CONN | HTTP_TRACE_FIRST | HTTP_TRACE_HEADERS;
     conn->traceLevel = HTTP_TRACE_LEVEL;
     conn->traceMaxLength = INT_MAX;
 
@@ -179,7 +179,7 @@ void httpConsumeLastRequest(HttpConn *conn)
     char        junk[4096];
     int         requestTimeout, rc;
 
-    if (!conn->sock || conn->state < HTTP_STATE_WAIT) {
+    if (!conn->sock || conn->state < HTTP_STATE_FIRST) {
         return;
     }
     mark = mprGetTime(conn);
@@ -189,7 +189,7 @@ void httpConsumeLastRequest(HttpConn *conn)
             break;
         }
     }
-    if (HTTP_STATE_STARTED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
+    if (HTTP_STATE_CONNECTED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
         conn->keepAliveCount = -1;
     }
 }
@@ -258,10 +258,10 @@ static void readEvent(HttpConn *conn)
             httpAdvanceReceiver(conn, packet);
 
         } else if (nbytes < 0) {
-            if (conn->state <= HTTP_STATE_WAIT) {
+            if (conn->state <= HTTP_STATE_CONNECTED) {
                 conn->connError = conn->error = 1;
                 break;
-            } else if (conn->state > HTTP_STATE_WAIT && conn->state < HTTP_STATE_COMPLETE) {
+            } else if (conn->state < HTTP_STATE_COMPLETE) {
                 httpAdvanceReceiver(conn, packet);
                 if (!conn->error && conn->state < HTTP_STATE_COMPLETE) {
                     httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Connection lost");
@@ -459,7 +459,7 @@ cchar *httpGetError(HttpConn *conn)
 {
     if (conn->errorMsg) {
         return conn->errorMsg;
-    } else if (conn->state > HTTP_STATE_WAIT) {
+    } else if (conn->state >= HTTP_STATE_FIRST) {
         return httpLookupStatus(conn->http, conn->receiver->status);
     } else {
         return "";
@@ -558,11 +558,11 @@ void httpSetConnHost(HttpConn *conn, void *host)
 
 
 /*  
-    Protocol must be persistent 
+    Set the protocol to use for outbound requests. Protocol must be persistent .
  */
 void httpSetProtocol(HttpConn *conn, cchar *protocol)
 {
-    if (conn->state < HTTP_STATE_WAIT) {
+    if (conn->state < HTTP_STATE_CONNECTED) {
         conn->protocol = protocol;
         if (strcmp(protocol, "HTTP/1.0") == 0) {
             conn->keepAliveCount = -1;
@@ -578,13 +578,12 @@ void httpSetRetries(HttpConn *conn, int count)
 
 
 static char *notifyState[] = {
-    "IO_EVENT", "BEGIN", "STARTED", "WAIT", "FIRST", "PARSED", "CONTENT", "PROCESS", "RUNNING", "ERROR", "COMPLETE",
+    "IO_EVENT", "BEGIN", "STARTED", "FIRST", "PARSED", "CONTENT", "RUNNING", "COMPLETE",
 };
 
 
 void httpSetState(HttpConn *conn, int state)
 {
-    mprAssert(state != HTTP_STATE_WAIT);
     if (state == conn->state) {
         return;
     }
@@ -674,25 +673,6 @@ static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
             mprLog(conn, 2, "Error: \"%s\", status %d for URI \"%s\": %s.",
                 httpLookupStatus(conn->http, status), status, rec->uri ? rec->uri : "", conn->errorMsg);
         }
-#if OLD && UNUSED
-        if (trans && trans->flags & HTTP_TRANS_HEADERS_CREATED) {
-            if (conn->server) {
-                /* Headers and status have been sent, so must let the client know the request has failed */
-                mprDisconnectSocket(conn->sock);
-            } else {
-                httpCloseConn(conn);
-            }
-        } else {
-            if (conn->server) {
-                if (trans) {
-                    httpSetResponseBody(conn, status, conn->errorMsg);
-                    httpFinalize(conn);
-                }
-            } else {
-                //  MOB -- should this do a httpCloseConn(conn)
-            }
-        }
-#endif
         trans = conn->transmitter;
         if (trans) {
             if (conn->server) {
