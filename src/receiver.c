@@ -932,9 +932,13 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             mprFree(packet);
         }
         conn->input = 0;
+#if UNUSED
         if (rec->remainingContent > 0 && !conn->http10) {
-            httpProtocolError(conn, HTTP_CODE_COMMS_ERROR, "Insufficient content data sent with request");
+            httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Insufficient content data sent with request");
+        } else {
+            conn->canProceed = 0;
         }
+#endif
     }
     return 1;
 }
@@ -947,8 +951,6 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     HttpReceiver    *rec;
     HttpQueue       *q;
 
-    mprAssert(packet);
-
     rec = conn->receiver;
     q = &conn->transmitter->queue[HTTP_QUEUE_RECEIVE];
 
@@ -956,6 +958,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         httpSetState(conn, HTTP_STATE_RUNNING);
         return 1;
     }
+    mprAssert(packet);
     if (!analyseContent(conn, packet)) {
         if (conn->connError) {
             httpSetState(conn, HTTP_STATE_RUNNING);

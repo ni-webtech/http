@@ -57,7 +57,6 @@ HttpTransmitter *httpCreateTransmitter(HttpConn *conn, MprHashTable *headers)
 
 static int destroyTransmitter(HttpTransmitter *trans)
 {
-    LOG(trans, 5, "destroyTrans");
     httpDestroyPipeline(trans->conn);
     trans->conn->transmitter = 0;
     return 0;
@@ -194,7 +193,7 @@ void httpFinalize(HttpConn *conn)
     HttpTransmitter   *trans;
 
     trans = conn->transmitter;
-    if (trans->finalized || conn->state < HTTP_STATE_STARTED || conn->writeq == 0) {
+    if (trans->finalized || conn->state < HTTP_STATE_STARTED || conn->writeq == 0 || conn->sock == 0) {
         return;
     }
     trans->finalized = 1;

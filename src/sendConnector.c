@@ -82,6 +82,10 @@ void httpSendOutgoingService(HttpQueue *q)
     trans = conn->transmitter;
     conn->lastActivity = conn->http->now;
 
+    //  MOB -- just for safety
+    if (conn->sock == 0) {
+        return;
+    }
     if (trans->flags & HTTP_TRANS_NO_BODY || conn->writeComplete) {
         httpDiscardData(q, 1);
     }
