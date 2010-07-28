@@ -156,16 +156,18 @@ public function startService(cmd: String, url: String): Void {
     }
     for (i in 10) {
         http = new Http
-        try { http.get(url); } catch (e) { }
-        if (http.status == 200) {
-            break
-        }
+        try { http.get(url); 
+            if (http.status == 200) {
+                break
+            }
+        } catch (e) { }
         App.sleep(100)
         http.close()
     }
     if (http.status != 200) {
         throw "Can't start web server"
     }
+    http.close()
 }
 
 public function httpService(cmd: String): Void {

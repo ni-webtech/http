@@ -368,10 +368,11 @@ enumerable class Test {
             test.failedCount++
             if (e.stack) {
                 test.testCount++
-                // let where = e.stack.replace(/.*\[00\] .*\n/m, "")
+                let stack = e.formatStack()
+                // let where = stack.replace(/.*\[00\] .*\n/m, "")
                 if (!test.continueOnErrors) {
                     test.finish = true
-                    test.out.write("Test Failed: \"" + test.fullName + "\". " + e.message + " At:\n" + e.stack + "\n")
+                    test.out.write("Test Failed: \"" + test.fullName + "\". " + e.message + " At:\n" + stack + "\n")
                 }
             } else {
                 test.out.write("Test Failed: " + e.message + "\n")
