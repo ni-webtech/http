@@ -33,7 +33,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
         server->name = server->ip;
     }
     server->software = HTTP_NAME;
-    server->limits = httpInitLimits(server, 1);
+    server->limits = httpCreateLimits(server, 1);
     server->location = httpInitLocation(http, server, 1);
     return server;
 }

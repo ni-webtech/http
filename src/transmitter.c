@@ -120,6 +120,9 @@ void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 }
 
 
+/*
+    Add a simple (non-formatted) header if not already defined
+ */
 void httpAddSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
 {
     HttpTransmitter      *trans;
@@ -538,7 +541,10 @@ void httpSetEntityLength(HttpConn *conn, int len)
 }
 
 
-void httpSetTransStatus(HttpConn *conn, int status)
+/*
+    Set the transmitter status.
+ */
+void httpSetStatus(HttpConn *conn, int status)
 {
     conn->transmitter->status = status;
 }

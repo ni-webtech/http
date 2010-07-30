@@ -99,8 +99,8 @@ Http *httpCreate(MprCtx ctx)
     httpOpenUploadFilter(http);
     httpOpenPassHandler(http);
 
-    http->clientLimits = httpInitLimits(http, 0);
-    http->serverLimits = httpInitLimits(http, 1);
+    http->clientLimits = httpCreateLimits(http, 0);
+    http->serverLimits = httpCreateLimits(http, 1);
     http->clientLocation = httpInitLocation(http, http, 0);
     return http;
 }
@@ -125,11 +125,8 @@ HttpLocation *httpInitLocation(Http *http, MprCtx ctx, int serverSide)
 }
 
 
-HttpLimits *httpInitLimits(MprCtx ctx, int serverSide)
+void httpInitLimits(HttpLimits *limits, int serverSide)
 {
-    HttpLimits  *limits;
-
-    limits = mprAllocObjZeroed(ctx, HttpLimits);
     limits->chunkSize = HTTP_MAX_CHUNK;
     limits->headerCount = HTTP_MAX_NUM_HEADERS;
     limits->headerSize = HTTP_MAX_HEADERS;
@@ -165,6 +162,16 @@ HttpLimits *httpInitLimits(MprCtx ctx, int serverSide)
         return 1;
     }
 #endif
+}
+
+
+HttpLimits *httpCreateLimits(MprCtx ctx, int serverSide)
+{
+    HttpLimits  *limits;
+
+    if ((limits = mprAllocObjZeroed(ctx, HttpLimits)) != 0) {
+        httpInitLimits(limits, serverSide);
+    }
     return limits;
 }
 

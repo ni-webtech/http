@@ -661,6 +661,9 @@ static int retryRequest(HttpConn *conn, cchar *url)
             } else {
                 break;
             }
+        } else if (!conn->error) {
+            httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
+                "Inactive request timed out, exceeded request timeout %d", timeout);
         }
         if ((rec = conn->receiver) != 0) {
             if (rec->status == HTTP_CODE_REQUEST_TOO_LARGE || rec->status == HTTP_CODE_REQUEST_URL_TOO_LARGE ||
@@ -767,7 +770,12 @@ static int doRequest(HttpConn *conn, cchar *url)
         httpWait(conn, HTTP_STATE_COMPLETE, 10);
         readBody(conn);
     }
-    readBody(conn);
+    if (conn->state < HTTP_STATE_COMPLETE && !conn->error) {
+        httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
+            "Inactive request timed out, exceeded request timeout %d", timeout);
+    } else {
+        readBody(conn);
+    }
     mprLog(http, 6, "Response status %d, elapsed %d", httpGetStatus(conn), ((int) mprGetTime(mpr)) - mark);
     reportResponse(conn, url);
     return 0;

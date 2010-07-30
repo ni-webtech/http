@@ -350,7 +350,8 @@ typedef struct HttpLimits {
     int     enableTraceMethod;      /**< Trace method enabled */
 } HttpLimits;
 
-extern HttpLimits *httpInitLimits(MprCtx ctx, int serverSide);
+extern void httpInitLimits(HttpLimits *limits, int serverSide);
+extern HttpLimits *httpCreateLimits(MprCtx ctx, int serverSide);
 
 /************************************* URI Services ***************************/
 /** 
@@ -2496,7 +2497,7 @@ extern void httpSetResponseBody(HttpConn *conn, int status, cchar *msg);
     @param status Http status code.
     @ingroup HttpTransmitter
  */
-extern void httpSetTransStatus(HttpConn *conn, int status);
+extern void httpSetStatus(HttpConn *conn, int status);
 
 /** 
     Set the transmission (response)  mime type

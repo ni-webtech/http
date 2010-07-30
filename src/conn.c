@@ -270,7 +270,7 @@ static void readEvent(HttpConn *conn)
             }
             break;
         }
-        if (conn->connError || conn->state >= HTTP_STATE_RUNNING || conn->startingThread) {
+        if (nbytes == 0 || conn->connError || conn->state >= HTTP_STATE_RUNNING || conn->startingThread) {
             break;
         }
     }
