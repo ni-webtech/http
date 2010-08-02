@@ -537,6 +537,13 @@ void httpSetCallback(HttpConn *conn, HttpCallback callback, void *arg)
 }
 
 
+void httpSetFillHeaders(HttpConn *conn, HttpFillHeadersProc fn, void *arg)
+{
+    conn->fillHeaders = fn;
+    conn->fillHeadersArg = arg;
+}
+
+
 void httpSetChunkSize(HttpConn *conn, int size)
 {
     if (conn->transmitter) {

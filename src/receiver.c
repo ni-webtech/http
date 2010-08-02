@@ -1258,33 +1258,38 @@ int httpSetUri(HttpConn *conn, cchar *uri)
 
 
 /*  
-    Wait for the Http object to achieve a given state.
-    NOTE: timeout is an inactivity timeout
+    Wait for the Http object to achieve a given state. Timeout is total wait time in msec. If <= 0, then dont wait.
  */
-int httpWait(HttpConn *conn, int state, int inactivityTimeout)
+int httpWait(HttpConn *conn, int state, int timeout)
 {
     Http            *http;
     HttpTransmitter *trans;
     MprTime         expire;
-    int             events, remainingTime, fd;
+    int             events, fd, remainingTime;
 
     http = conn->http;
     trans = conn->transmitter;
 
-    if (inactivityTimeout < 0) {
-        inactivityTimeout = conn->limits->inactivityTimeout;
+#if UNUSED
+    if (timeout < 0) {
+        timeout = conn->limits->requestTimeout;
     }
-    if (inactivityTimeout <= 0) {
-        inactivityTimeout = MAXINT;
+    if (timeout <= 0) {
+        timeout = MAXINT;
     }
+#else
+    if (timeout <= 0) {
+        timeout = 0;
+    }
+#endif
     if (conn->state <= HTTP_STATE_BEGIN) {
         mprAssert(conn->state >= HTTP_STATE_BEGIN);
         return MPR_ERR_BAD_STATE;
     } 
     http->now = mprGetTime(conn);
-    expire = http->now + inactivityTimeout;
-    remainingTime = inactivityTimeout;
-    while (conn->state < state && conn->sock && !mprIsSocketEof(conn->sock) && remainingTime >= 0) {
+    expire = http->now + timeout;
+    remainingTime = timeout;
+    while (conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
         fd = conn->sock->fd;
         if (!conn->writeComplete) {
             events = mprWaitForSingleIO(conn, fd, MPR_WRITABLE, remainingTime);
@@ -1296,23 +1301,21 @@ int httpWait(HttpConn *conn, int state, int inactivityTimeout)
             }
         }
         http->now = mprGetTime(conn);
-        remainingTime = (int) (expire - http->now);
         if (events) {
-            expire = http->now + inactivityTimeout;
             httpCallEvent(conn, events);
         }
         if (conn->error) {
             return MPR_ERR_BAD_STATE;
+        }
+        remainingTime = (int) (expire - http->now);
+        if (remainingTime <= 0) {
+            break;
         }
     }
     if (conn->sock == 0 || conn->error) {
         return MPR_ERR_CONNECTION;
     }
     if (conn->state < state) {
-#if UNUSED
-        httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
-            "Inactive request timed out, exceeded inactivity timeout %d", inactivityTimeout);
-#endif
         return MPR_ERR_TIMEOUT;
     }
     return 0;
