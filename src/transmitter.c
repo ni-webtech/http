@@ -67,6 +67,9 @@ static int destroyTransmitter(HttpTransmitter *trans)
 */
 static void addHeader(HttpConn *conn, cchar *key, cchar *value)
 {
+    mprAssert(key && *key);
+    mprAssert(value && *value);
+
     if (mprStrcmpAnyCase(key, "content-length") == 0) {
         conn->transmitter->length = (int) mprAtoi(value, 10);
     }
@@ -77,6 +80,8 @@ static void addHeader(HttpConn *conn, cchar *key, cchar *value)
 int httpRemoveHeader(HttpConn *conn, cchar *key)
 {
     HttpTransmitter      *trans;
+
+    mprAssert(key && *key);
 
     trans = conn->transmitter;
     if (trans) {
@@ -94,6 +99,9 @@ void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     HttpTransmitter *trans;
     char            *value;
     va_list         vargs;
+
+    mprAssert(key && *key);
+    mprAssert(fmt && *fmt);
 
     trans = conn->transmitter;
     va_start(vargs, fmt);
@@ -113,6 +121,9 @@ void httpAddSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
 {
     HttpTransmitter      *trans;
 
+    mprAssert(key && *key);
+    mprAssert(value && *value);
+
     trans = conn->transmitter;
     if (!mprLookupHash(trans->headers, key)) {
         addHeader(conn, key, value);
@@ -130,6 +141,9 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     va_list         vargs;
     char            *value;
     cchar           *oldValue;
+
+    mprAssert(key && *key);
+    mprAssert(fmt && *fmt);
 
     trans = conn->transmitter;
     va_start(vargs, fmt);
@@ -154,6 +168,9 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     char                *value;
     va_list             vargs;
 
+    mprAssert(key && *key);
+    mprAssert(fmt && *fmt);
+
     trans = conn->transmitter;
     va_start(vargs, fmt);
     value = mprVasprintf(trans, HTTP_MAX_HEADERS, fmt, vargs);
@@ -165,6 +182,9 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 void httpSetSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
 {
     HttpTransmitter      *trans;
+
+    mprAssert(key && *key);
+    mprAssert(value && *value);
 
     trans = conn->transmitter;
     addHeader(conn, key, mprStrdup(trans, value));

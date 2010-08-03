@@ -1092,9 +1092,10 @@ static int getChunkPacketSize(HttpConn *conn, MprBuf *buf)
 
 bool httpContentNotModified(HttpConn *conn)
 {
-    HttpReceiver    *rec;
-    HttpTransmitter       *trans;
-    bool            same;
+    HttpReceiver        *rec;
+    HttpTransmitter     *trans;
+    MprTime             modified;
+    bool                same;
 
     rec = conn->receiver;
     trans = conn->transmitter;
@@ -1104,7 +1105,8 @@ bool httpContentNotModified(HttpConn *conn)
             If both checks, the last modification time and etag, claim that the request doesn't need to be
             performed, skip the transfer. TODO - need to check if fileInfo is actually set.
          */
-        same = httpMatchModified(conn, trans->fileInfo.mtime) && httpMatchEtag(conn, trans->etag);
+        modified = (MprTime) trans->fileInfo.mtime * MPR_TICKS_PER_SEC;
+        same = httpMatchModified(conn, modified) && httpMatchEtag(conn, trans->etag);
         if (rec->ranges && !same) {
             /*
                 Need to transfer the entire resource

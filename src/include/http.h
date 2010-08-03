@@ -1896,10 +1896,9 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
 typedef struct HttpReceiver {
 
     char            *method;                /**< Request method */
-    char            *uri;                   /**< Original URI (not decoded) */
+    char            *uri;                   /**< Original URI (alias for parsedUri->uri) (not decoded) */
     char            *scriptName;            /**< ScriptName portion of the url (Decoded) */
-    char            *pathInfo;              /**< Extra path information (Decoded) */
-    char            *pathTranslated;        /**< Mapped pathInfo to storage (Decoded) */
+    char            *pathInfo;              /**< Path information after the scriptName (Decoded and normalized) */
 
 #if FUTURE
     MprHeap         *arena;                 /**< Memory arena */
@@ -1907,7 +1906,7 @@ typedef struct HttpReceiver {
     HttpConn        *conn;                  /**< Connection object */
     HttpPacket      *freePackets;           /**< Free list of packets */
     HttpPacket      *headerPacket;          /**< HTTP headers */
-    HttpUri         *parsedUri;             /**< Parsed request url */
+    HttpUri         *parsedUri;             /**< Parsed request uri */
     HttpLocation    *location;              /**< Location block */
     MprList         *inputPipeline;         /**< Input processing */
     MprHashTable    *headers;               /**< Header variables */
@@ -1944,6 +1943,9 @@ typedef struct HttpReceiver {
     char            *connection;            /**< Connection header */
     char            *contentLength;         /**< Content length string value */
     char            *hostName;              /**< Client supplied host name */
+
+    //  MOB -- is this needed if Transmitter.filename is pathInfo => storage */ 
+    char            *pathTranslated;        /**< Mapped pathInfo to storage. Set by handlers if required. (Decoded) */
     char            *pragma;                /**< Pragma header */
     char            *mimeType;              /**< Mime type of the request payload (ENV: CONTENT_TYPE) */
     char            *redirect;              /**< Redirect location header */
@@ -2238,7 +2240,7 @@ typedef struct HttpTransmitter {
     /* File information for file based handlers */
     MprFile         *file;                  /**< File to be served */
     MprPath         fileInfo;               /**< File information if there is a real file to serve */
-    char            *filename;              /**< Name of a real file being served */
+    char            *filename;              /**< Name of a real file being served (typically pathInfo mapped) */
     cchar           *extension;             /**< Filename extension */
     int             entityLength;           /**< Original content length before range subsetting */
     int             bytesWritten;           /**< Bytes written including headers */
