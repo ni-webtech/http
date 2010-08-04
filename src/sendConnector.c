@@ -43,11 +43,11 @@ int httpOpenSendConnector(Http *http)
  */
 void httpSendOpen(HttpQueue *q)
 {
-    HttpConn            *conn;
-    HttpTransmitter     *trans;
+    HttpConn    *conn;
+    HttpTx      *trans;
 
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
 
     /*  
         To write an entire file, reset the maximum and packet size to the maximum response body size (LimitResponseBody)
@@ -57,7 +57,7 @@ void httpSendOpen(HttpQueue *q)
     q->max = conn->limits->transmissionBodySize;
     q->packetSize = conn->limits->transmissionBodySize;
 
-    if (!(trans->flags & HTTP_TRANS_NO_BODY)) {
+    if (!(trans->flags & HTTP_TX_NO_BODY)) {
         trans->file = mprOpen(q, trans->filename, O_RDONLY | O_BINARY, 0);
         if (trans->file == 0) {
             httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", trans->filename);
@@ -74,25 +74,25 @@ static void sendIncomingService(HttpQueue *q)
 
 void httpSendOutgoingService(HttpQueue *q)
 {
-    HttpConn        *conn;
-    HttpTransmitter *trans;
-    int             written, ioCount, errCode;
+    HttpConn    *conn;
+    HttpTx      *trans;
+    int         written, ioCount, errCode;
 
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
     conn->lastActivity = conn->http->now;
 
     //  MOB -- just for safety
     if (conn->sock == 0) {
         return;
     }
-    if (trans->flags & HTTP_TRANS_NO_BODY || conn->writeComplete) {
+    if (trans->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
         httpDiscardData(q, 1);
     }
     if ((trans->bytesWritten + q->ioCount) > conn->limits->transmissionBodySize) {
         httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE,
             "Http transmission aborted. Exceeded max body of %d bytes", conn->limits->transmissionBodySize);
-       if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
+       if (trans->flags & HTTP_TX_HEADERS_CREATED) {
             httpCompleteWriting(conn);
             /* Must disconnect as the client must be notified somehow */
             mprDisconnectSocket(conn->sock);
@@ -157,12 +157,12 @@ void httpSendOutgoingService(HttpQueue *q)
  */
 static int buildSendVec(HttpQueue *q)
 {
-    HttpConn        *conn;
-    HttpTransmitter *trans;
-    HttpPacket      *packet;
+    HttpConn    *conn;
+    HttpTx      *trans;
+    HttpPacket  *packet;
 
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
 
     mprAssert(q->ioIndex == 0);
     q->ioCount = 0;
@@ -213,13 +213,13 @@ static void addToSendVector(HttpQueue *q, char *ptr, int bytes)
  */
 static void addPacketForSend(HttpQueue *q, HttpPacket *packet)
 {
-    HttpTransmitter *trans;
-    HttpConn        *conn;
-    MprIOVec        *iovec;
-    int             item;
+    HttpTx      *trans;
+    HttpConn    *conn;
+    MprIOVec    *iovec;
+    int         item;
 
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
     iovec = q->iovec;
     
     mprAssert(q->count >= 0);
@@ -305,11 +305,11 @@ static void freeSentPackets(HttpQueue *q, int bytes)
  */
 static void adjustSendVec(HttpQueue *q, int written)
 {
-    HttpTransmitter *trans;
-    MprIOVec        *iovec;
-    int             i, j, len;
+    HttpTx      *trans;
+    MprIOVec    *iovec;
+    int         i, j, len;
 
-    trans = q->conn->transmitter;
+    trans = q->conn->tx;
 
     /*  
         Cleanup the IO vector

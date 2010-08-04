@@ -53,19 +53,19 @@ int httpOpenAuthFilter(Http *http)
 
 static bool matchAuth(HttpConn *conn, HttpStage *handler)
 {
-    Http            *http;
-    HttpReceiver    *rec;
-    HttpTransmitter *trans;
-    HttpAuth        *auth;
-    AuthData        *ad;
-    MprTime         when;
-    cchar           *requiredPassword;
-    char            *msg, *requiredDigest;
-    cchar           *secret, *etag, *realm;
-    int             actualAuthType;
+    Http        *http;
+    HttpRx      *rec;
+    HttpTx      *trans;
+    HttpAuth    *auth;
+    AuthData    *ad;
+    MprTime     when;
+    cchar       *requiredPassword;
+    char        *msg, *requiredDigest;
+    cchar       *secret, *etag, *realm;
+    int         actualAuthType;
 
-    rec = conn->receiver;
-    trans = conn->transmitter;
+    rec = conn->rx;
+    trans = conn->tx;
     http = conn->http;
     auth = rec->auth;
 
@@ -154,10 +154,10 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
  */
 static void decodeBasicAuth(HttpConn *conn, AuthData *ad)
 {
-    HttpReceiver    *rec;
+    HttpRx    *rec;
     char            *decoded, *cp;
 
-    rec = conn->receiver;
+    rec = conn->rx;
     if ((decoded = mprDecode64(conn, rec->authDetails)) == 0) {
         return;
     }
@@ -182,11 +182,11 @@ static void decodeBasicAuth(HttpConn *conn, AuthData *ad)
  */
 static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
 {
-    HttpReceiver    *rec;
+    HttpRx    *rec;
     char            *authDetails, *value, *tok, *key, *dp, *sp;
     int             seenComma;
 
-    rec = conn->receiver;
+    rec = conn->rx;
     key = authDetails = mprStrdup(rec, rec->authDetails);
 
     while (*key) {
@@ -330,12 +330,12 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
  */
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg)
 {
-    HttpReceiver    *rec;
-    HttpTransmitter *trans;
-    char            *qopClass, *nonce, *etag;
+    HttpRx  *rec;
+    HttpTx  *trans;
+    char    *qopClass, *nonce, *etag;
 
-    rec = conn->receiver;
-    trans = conn->transmitter;
+    rec = conn->rx;
+    trans = conn->tx;
     if (logMsg == 0) {
         logMsg = msg;
     }

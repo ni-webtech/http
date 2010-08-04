@@ -18,8 +18,8 @@ HttpConn *httpCreateClient(Http *http, MprDispatcher *dispatcher)
         dispatcher = mprGetDispatcher(http);
     }
     conn->dispatcher = dispatcher;
-    conn->receiver = httpCreateReceiver(conn);
-    conn->transmitter = httpCreateTransmitter(conn, NULL);
+    conn->rx = httpCreateRx(conn);
+    conn->tx = httpCreateTx(conn, NULL);
     httpCreatePipeline(conn, NULL, NULL);
     return conn;
 }
@@ -102,17 +102,17 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
  */
 static int setClientHeaders(HttpConn *conn)
 {
-    Http                *http;
-    HttpTransmitter     *trans;
-    HttpUri             *parsedUri;
-    char                *encoded;
-    int                 len, rc;
+    Http        *http;
+    HttpTx      *trans;
+    HttpUri     *parsedUri;
+    char        *encoded;
+    int         len, rc;
 
     mprAssert(conn);
 
     rc = 0;
     http = conn->http;
-    trans = conn->transmitter;
+    trans = conn->tx;
     parsedUri = trans->parsedUri;
     if (conn->authType && strcmp(conn->authType, "basic") == 0) {
         char    abuf[MPR_MAX_STRING];
@@ -128,7 +128,7 @@ static int setClientHeaders(HttpConn *conn)
         if (http->secret == 0 && httpCreateSecret(http) < 0) {
             mprLog(trans, MPR_ERROR, "Http: Can't create secret for digest authentication");
             mprFree(trans);
-            conn->transmitter = 0;
+            conn->tx = 0;
             return MPR_ERR_CANT_CREATE;
         }
         mprFree(conn->authCnonce);
@@ -196,8 +196,9 @@ static int setClientHeaders(HttpConn *conn)
 
 int httpConnect(HttpConn *conn, cchar *method, cchar *url)
 {
-    Http                *http;
-    HttpTransmitter     *trans;
+    Http        *http;
+    HttpTx      *trans;
+
     mprAssert(conn);
     mprAssert(method && *method);
     mprAssert(url && *url);
@@ -215,7 +216,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
         httpPrepClientConn(conn, HTTP_NEW_REQUEST);
     }
     http = conn->http;
-    trans = conn->transmitter;
+    trans = conn->tx;
     mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_CONNECTED);
     conn->sentCredentials = 0;
@@ -241,14 +242,14 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
  */
 bool httpNeedRetry(HttpConn *conn, char **url)
 {
-    HttpReceiver    *rec;
-    HttpTransmitter *trans;
+    HttpRx      *rec;
+    HttpTx      *trans;
 
-    mprAssert(conn->receiver);
+    mprAssert(conn->rx);
 
     *url = 0;
-    rec = conn->receiver;
-    trans = conn->transmitter;
+    rec = conn->rx;
+    trans = conn->tx;
 
     if (conn->state < HTTP_STATE_FIRST) {
         return 0;
@@ -312,8 +313,8 @@ static int blockingFileCopy(HttpConn *conn, cchar *path)
  */
 int httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
 {
-    char        *path, *pair, *key, *value, *name;
-    int         next, rc;
+    char    *path, *pair, *key, *value, *name;
+    int     next, rc;
 
     rc = 0;
 

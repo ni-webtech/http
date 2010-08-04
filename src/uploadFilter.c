@@ -68,15 +68,15 @@ int httpOpenUploadFilter(Http *http)
  */
 static bool matchUpload(HttpConn *conn, HttpStage *filter)
 {
-    HttpReceiver    *rec;
-    char            *pat;
-    int             len;
+    HttpRx  *rec;
+    char    *pat;
+    int     len;
     
-    rec = conn->receiver;
+    rec = conn->rx;
     if (!(rec->flags & HTTP_POST) || rec->remainingContent <= 0) {
         return 0;
     }
-    if (rec->location && rec->location->uploadDir == NULL) {
+    if (rec->loc && rec->loc->uploadDir == NULL) {
         return 0;
     }
     pat = "multipart/form-data";
@@ -95,15 +95,15 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
  */
 static void openUpload(HttpQueue *q)
 {
-    HttpConn        *conn;
-    HttpTransmitter *trans;
-    HttpReceiver    *rec;
-    Upload          *up;
-    char            *boundary;
+    HttpConn    *conn;
+    HttpTx      *trans;
+    HttpRx      *rec;
+    Upload      *up;
+    char        *boundary;
 
     conn = q->conn;
-    trans = conn->transmitter;
-    rec = conn->receiver;
+    trans = conn->tx;
+    rec = conn->rx;
 
     up = mprAllocObjZeroed(trans, Upload);
     if (up == 0) {
@@ -138,10 +138,10 @@ static void openUpload(HttpQueue *q)
 static void closeUpload(HttpQueue *q)
 {
     HttpUploadFile  *file;
-    HttpReceiver    *rec;
+    HttpRx          *rec;
     Upload          *up;
 
-    rec = q->conn->receiver;
+    rec = q->conn->rx;
     up = q->queueData;
     
     if (up->currentFile) {
@@ -162,8 +162,8 @@ static void closeUpload(HttpQueue *q)
  */
 static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
 {
-    HttpConn      *conn;
-    HttpReceiver   *rec;
+    HttpConn    *conn;
+    HttpRx      *rec;
     MprBuf      *content;
     Upload      *up;
     char        *line, *nextTok;
@@ -172,7 +172,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
     mprAssert(packet);
     
     conn = q->conn;
-    rec = conn->receiver;
+    rec = conn->rx;
     up = q->queueData;
     
     if (httpGetPacketLength(packet) == 0) {
@@ -268,7 +268,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
  */
 static int processContentBoundary(HttpQueue *q, char *line)
 {
-    HttpConn      *conn;
+    HttpConn    *conn;
     Upload      *up;
 
     conn = q->conn;
@@ -297,14 +297,14 @@ static int processContentBoundary(HttpQueue *q, char *line)
  */
 static int processContentHeader(HttpQueue *q, char *line)
 {
-    HttpConn          *conn;
-    HttpReceiver       *rec;
-    HttpUploadFile    *file;
+    HttpConn        *conn;
+    HttpRx          *rec;
+    HttpUploadFile  *file;
     Upload          *up;
     char            *key, *headerTok, *rest, *nextPair, *value;
 
     conn = q->conn;
-    rec = conn->receiver;
+    rec = conn->rx;
     up = q->queueData;
     
     if (line[0] == '\0') {
@@ -393,12 +393,12 @@ static int processContentHeader(HttpQueue *q, char *line)
 
 static void defineFileFields(HttpQueue *q, Upload *up)
 {
-    HttpConn          *conn;
-    HttpUploadFile    *file;
+    HttpConn        *conn;
+    HttpUploadFile  *file;
     char            *key;
 
     conn = q->conn;
-    if (conn->transmitter->handler == conn->http->ejsHandler) {
+    if (conn->tx->handler == conn->http->ejsHandler) {
         /*  
             Ejscript manages this for itself
          */

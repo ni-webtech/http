@@ -39,17 +39,17 @@ int httpOpenChunkFilter(Http *http)
 
 static bool matchChunk(HttpConn *conn, HttpStage *handler)
 {
-    return (conn->transmitter->length <= 0) ? 1 : 0;
+    return (conn->tx->length <= 0) ? 1 : 0;
 }
 
 
 static void openChunk(HttpQueue *q)
 {
     HttpConn        *conn;
-    HttpReceiver    *rec;
+    HttpRx    *rec;
 
     conn = q->conn;
-    rec = conn->receiver;
+    rec = conn->rx;
 
     q->packetSize = min(conn->limits->chunkSize, q->max);
     rec->chunkState = HTTP_CHUNK_START;
@@ -68,14 +68,14 @@ static void openChunk(HttpQueue *q)
  */
 static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
 {
-    HttpConn        *conn;
-    HttpReceiver    *rec;
-    MprBuf          *buf;
-    char            *start, *cp;
-    int             bad;
+    HttpConn    *conn;
+    HttpRx      *rec;
+    MprBuf      *buf;
+    char        *start, *cp;
+    int         bad;
 
     conn = q->conn;
-    rec = conn->receiver;
+    rec = conn->rx;
 
     if (!(rec->flags & HTTP_REC_CHUNKED)) {
         httpSendPacketToNext(q, packet);
@@ -166,12 +166,12 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
  */
 static void outgoingChunkService(HttpQueue *q)
 {
-    HttpConn        *conn;
-    HttpPacket      *packet;
-    HttpTransmitter *trans;
+    HttpConn    *conn;
+    HttpPacket  *packet;
+    HttpTx      *trans;
 
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
 
     if (!(q->flags & HTTP_QUEUE_SERVICED)) {
         /*  

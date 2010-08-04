@@ -39,12 +39,12 @@ int httpOpenRangeFilter(Http *http)
 
 static bool matchRange(HttpConn *conn, HttpStage *handler)
 {
-    return (conn->receiver->ranges) ? 1 : 0;;
+    return (conn->rx->ranges) ? 1 : 0;;
 }
 
 
 /*
-    The RangeFilter does nothing for incoming data. The receiver understands range headers
+    The RangeFilter does nothing for incoming data. The rx understands range headers
  */
 static void incomingRangeData(HttpQueue *q, HttpPacket *packet)
 {
@@ -57,16 +57,16 @@ static void incomingRangeData(HttpQueue *q, HttpPacket *packet)
  */
 static void rangeService(HttpQueue *q, HttpRangeProc fill)
 {
-    HttpPacket    *packet;
-    HttpRange     *range;
-    HttpConn      *conn;
-    HttpReceiver   *rec;
-    HttpTransmitter  *trans;
+    HttpPacket  *packet;
+    HttpRange   *range;
+    HttpConn    *conn;
+    HttpRx      *rec;
+    HttpTx      *trans;
     int         bytes, count, endpos;
 
     conn = q->conn;
-    rec = conn->receiver;
-    trans = conn->transmitter;
+    rec = conn->rx;
+    trans = conn->tx;
     range = trans->currentRange;
 
     if (!(q->flags & HTTP_QUEUE_SERVICED)) {
@@ -175,11 +175,11 @@ static void outgoingRangeService(HttpQueue *q)
  */
 static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
 {
-    HttpPacket      *packet;
-    HttpTransmitter *trans;
-    char            lenBuf[16];
+    HttpPacket  *packet;
+    HttpTx      *trans;
+    char        lenBuf[16];
 
-    trans = conn->transmitter;
+    trans = conn->tx;
 
     if (trans->entityLength >= 0) {
         mprItoa(lenBuf, sizeof(lenBuf), trans->entityLength, 10);
@@ -201,10 +201,10 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
  */
 static HttpPacket *createFinalRangePacket(HttpConn *conn)
 {
-    HttpPacket      *packet;
-    HttpTransmitter *trans;
+    HttpPacket  *packet;
+    HttpTx      *trans;
 
-    trans = conn->transmitter;
+    trans = conn->tx;
 
     packet = httpCreatePacket(trans, HTTP_RANGE_BUFSIZE);
     packet->flags |= HTTP_PACKET_RANGE;
@@ -217,9 +217,9 @@ static HttpPacket *createFinalRangePacket(HttpConn *conn)
  */
 static void createRangeBoundary(HttpConn *conn)
 {
-    HttpTransmitter     *trans;
+    HttpTx      *trans;
 
-    trans = conn->transmitter;
+    trans = conn->tx;
     mprAssert(trans->rangeBoundary == 0);
     trans->rangeBoundary = mprAsprintf(trans, -1, "%08X%08X", PTOI(trans) + PTOI(conn) * (int) conn->time, (int) conn->time);
 }
@@ -229,13 +229,13 @@ static void createRangeBoundary(HttpConn *conn)
  */
 static bool fixRangeLength(HttpConn *conn)
 {
-    HttpReceiver    *rec;
-    HttpTransmitter *trans;
-    HttpRange       *range;
-    int             length;
+    HttpRx      *rec;
+    HttpTx      *trans;
+    HttpRange   *range;
+    int         length;
 
-    rec = conn->receiver;
-    trans = conn->transmitter;
+    rec = conn->rx;
+    trans = conn->tx;
     length = trans->entityLength;
 
     for (range = rec->ranges; range; range = range->next) {

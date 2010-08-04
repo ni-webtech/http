@@ -72,7 +72,7 @@ static int connectionDestructor(HttpConn *conn)
         httpCloseConn(conn);
     }
     conn->input = 0;
-    httpDestroyReceiver(conn);
+    httpDestroyRx(conn);
     return 0;
 }
 
@@ -120,9 +120,9 @@ void httpPrepServerConn(HttpConn *conn)
         conn->error = 0;
         conn->errorMsg = 0;
         conn->flags = 0;
-        conn->receiver = 0;
+        conn->rx = 0;
         conn->state = 0;
-        conn->transmitter = 0;
+        conn->tx = 0;
         conn->writeComplete = 0;
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
@@ -133,7 +133,7 @@ void httpPrepServerConn(HttpConn *conn)
 void httpPrepClientConn(HttpConn *conn, int retry)
 {
     MprHashTable    *headers;
-    HttpTransmitter *trans;
+    HttpTx          *trans;
 
     mprAssert(conn);
 
@@ -143,7 +143,7 @@ void httpPrepClientConn(HttpConn *conn, int retry)
             /* Eat remaining input incase last request did not consume all data */
             httpConsumeLastRequest(conn);
         }
-        if (retry && (trans = conn->transmitter) != 0) {
+        if (retry && (trans = conn->tx) != 0) {
             headers = trans->headers;
             mprStealBlock(conn, headers);
         }
@@ -158,11 +158,11 @@ void httpPrepClientConn(HttpConn *conn, int retry)
         conn->writeComplete = 0;
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
-        mprFree(conn->transmitter);
-        mprFree(conn->receiver);
+        mprFree(conn->tx);
+        mprFree(conn->rx);
 
-        conn->receiver = httpCreateReceiver(conn);
-        conn->transmitter = httpCreateTransmitter(conn, headers);
+        conn->rx = httpCreateRx(conn);
+        conn->tx = httpCreateTx(conn, headers);
         httpCreatePipeline(conn, NULL, NULL);
 
         mprAssert(conn->input == 0 || mprIsValid(conn->input));
@@ -224,7 +224,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
         readEvent(conn);
     }
     if (conn->server) {
-        if (conn->connError || mprIsSocketEof(conn->sock) || (!conn->receiver && conn->keepAliveCount < 0)) {
+        if (conn->connError || mprIsSocketEof(conn->sock) || (!conn->rx && conn->keepAliveCount < 0)) {
             /*  
                 NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
                 It should respond to the "Connection: close" and thus initiate a client-led close. 
@@ -252,14 +252,14 @@ static void readEvent(HttpConn *conn)
        
         if (nbytes > 0) {
             mprAdjustBufEnd(packet->content, nbytes);
-            httpAdvanceReceiver(conn, packet);
+            httpAdvanceRx(conn, packet);
 
         } else if (nbytes < 0) {
             if (conn->state <= HTTP_STATE_CONNECTED) {
                 conn->connError = conn->error = 1;
                 break;
             } else if (conn->state < HTTP_STATE_COMPLETE) {
-                httpAdvanceReceiver(conn, packet);
+                httpAdvanceRx(conn, packet);
                 if (!conn->error && conn->state < HTTP_STATE_COMPLETE) {
                     httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Connection lost");
                     break;
@@ -277,9 +277,10 @@ static void readEvent(HttpConn *conn)
 static void writeEvent(HttpConn *conn)
 {
     LOG(conn, 6, "httpProcessWriteEvent, state %d", conn->state);
+
     conn->writeBlocked = 0;
-    if (conn->transmitter) {
-        httpEnableQueue(conn->transmitter->queue[HTTP_QUEUE_TRANS].prevQ);
+    if (conn->tx) {
+        httpEnableQueue(conn->tx->queue[HTTP_QUEUE_TRANS].prevQ);
         httpServiceQueues(conn);
     }
 }
@@ -287,14 +288,14 @@ static void writeEvent(HttpConn *conn)
 
 void httpEnableConnEvents(HttpConn *conn)
 {
-    HttpTransmitter     *trans;
-    HttpQueue           *q;
-    int                 eventMask;
+    HttpTx      *trans;
+    HttpQueue   *q;
+    int         eventMask;
 
     if (!conn->async) {
         return;
     }
-    trans = conn->transmitter;
+    trans = conn->tx;
     eventMask = 0;
     conn->lastActivity = conn->time;
 
@@ -353,12 +354,12 @@ void httpFollowRedirects(HttpConn *conn, bool follow)
  */
 static inline HttpPacket *getPacket(HttpConn *conn, int *bytesToRead)
 {
-    HttpPacket    *packet;
+    HttpPacket  *packet;
     MprBuf      *content;
-    HttpReceiver   *req;
+    HttpRx      *req;
     int         len;
 
-    req = conn->receiver;
+    req = conn->rx;
     len = HTTP_BUFSIZE;
 
     //  MOB -- simplify. Okay to lose some optimization for chunked data?
@@ -433,8 +434,8 @@ int httpGetAsync(HttpConn *conn)
 
 int httpGetChunkSize(HttpConn *conn)
 {
-    if (conn->transmitter) {
-        return conn->transmitter->chunkSize;
+    if (conn->tx) {
+        return conn->tx->chunkSize;
     }
     return 0;
 }
@@ -457,7 +458,7 @@ cchar *httpGetError(HttpConn *conn)
     if (conn->errorMsg) {
         return conn->errorMsg;
     } else if (conn->state >= HTTP_STATE_FIRST) {
-        return httpLookupStatus(conn->http, conn->receiver->status);
+        return httpLookupStatus(conn->http, conn->rx->status);
     } else {
         return "";
     }
@@ -543,8 +544,8 @@ void httpSetFillHeaders(HttpConn *conn, HttpFillHeadersProc fn, void *arg)
 
 void httpSetChunkSize(HttpConn *conn, int size)
 {
-    if (conn->transmitter) {
-        conn->transmitter->chunkSize = size;
+    if (conn->tx) {
+        conn->tx->chunkSize = size;
     }
 }
 
@@ -638,10 +639,10 @@ void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
     mprFree(conn->errorMsg);
     conn->errorMsg = mprVasprintf(conn, HTTP_BUFSIZE, fmt, args);
     if (status) {
-        if (conn->server && conn->transmitter) {
-            conn->transmitter->status = status;
-        } else if (conn->receiver) {
-            conn->receiver->status = status;
+        if (conn->server && conn->tx) {
+            conn->tx->status = status;
+        } else if (conn->rx) {
+            conn->rx->status = status;
         }
     }
     mprUnlock(conn->http->mutex);
@@ -668,12 +669,12 @@ void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...)
  */
 static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
-    HttpReceiver    *rec;
-    HttpTransmitter *trans;
+    HttpRx      *rec;
+    HttpTx      *trans;
 
     mprAssert(fmt);
 
-    rec = conn->receiver;
+    rec = conn->rx;
 
     if (!conn->error) {
         conn->error = 1;
@@ -684,10 +685,10 @@ static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
             mprLog(conn, 2, "Error: \"%s\", status %d for URI \"%s\": %s.",
                 httpLookupStatus(conn->http, status), status, rec->uri ? rec->uri : "", conn->errorMsg);
         }
-        trans = conn->transmitter;
+        trans = conn->tx;
         if (trans) {
             if (conn->server) {
-                if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
+                if (trans->flags & HTTP_TX_HEADERS_CREATED) {
                     /* Headers and status have been sent, so must let the client know the request has failed */
                     mprDisconnectSocket(conn->sock);
                 } else {
@@ -695,7 +696,7 @@ static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
                     httpFinalize(conn);
                 }
             } else {
-                if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
+                if (trans->flags & HTTP_TX_HEADERS_CREATED) {
                     httpCloseConn(conn);
                 }
             }

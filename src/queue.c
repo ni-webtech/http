@@ -13,9 +13,9 @@
  */
 HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, HttpQueue *prev)
 {
-    HttpQueue           *q;
+    HttpQueue   *q;
 
-    q = mprAllocObjZeroed(conn->transmitter, HttpQueue);
+    q = mprAllocObjZeroed(conn->tx, HttpQueue);
     if (q == 0) {
         return 0;
     }
@@ -101,7 +101,7 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
                 continue;
             } else {
                 len = httpGetPacketLength(packet);
-                q->conn->transmitter->length -= len;
+                q->conn->tx->length -= len;
                 q->count -= len;
                 mprAssert(q->count >= 0);
                 if (packet->content) {
@@ -121,8 +121,8 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
  */
 bool httpFlushQueue(HttpQueue *q, bool blocking)
 {
-    HttpConn      *conn;
-    HttpQueue     *next;
+    HttpConn    *conn;
+    HttpQueue   *next;
     int         oldMode;
 
     LOG(q, 6, "httpFlushQueue blocking %d", blocking);
@@ -238,14 +238,14 @@ void httpOpenQueue(HttpQueue *q, int chunkSize)
  */
 int httpRead(HttpConn *conn, char *buf, int size)
 {
-    HttpPacket      *packet;
-    HttpQueue       *q;
-    HttpReceiver    *rec;
-    MprBuf          *content;
-    int             nbytes, len, events, inactivityTimeout;
+    HttpPacket  *packet;
+    HttpQueue   *q;
+    HttpRx      *rec;
+    MprBuf      *content;
+    int         nbytes, len, events, inactivityTimeout;
 
     q = conn->readq;
-    rec = conn->receiver;
+    rec = conn->rx;
     
     while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
@@ -286,33 +286,17 @@ int httpRead(HttpConn *conn, char *buf, int size)
 
 int httpIsEof(HttpConn *conn) 
 {
-    HttpReceiver    *rec;
-
-    rec = conn->receiver;
-    return rec == 0 || rec->readComplete;
-#if UNUSED
-    if (rec == 0) {
-        return 1;
-    }
-    if (rec->length >= 0) {
-        return rec->readContent >= rec->length;
-    } else if (rec->remainingContent == 0) {
-        if (rec->flags & HTTP_REC_CHUNKED && rec->chunkState == HTTP_CHUNK_EOF) {
-            return 1;
-        }
-    }
-    return 0;
-#endif
+    return conn->rx == 0 || conn->rx->readComplete;
 }
 
 
 char *httpReadString(HttpConn *conn)
 {
-    HttpReceiver    *rec;
+    HttpRx    *rec;
     char            *content;
     int             remaining, sofar, nbytes;
 
-    rec = conn->receiver;
+    rec = conn->rx;
 
     if (rec->length > 0) {
         content = mprAlloc(rec, rec->length + 1);
@@ -392,18 +376,14 @@ void httpServiceQueue(HttpQueue *q)
  */
 bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
 {
-    HttpConn      *conn;
-    HttpQueue     *next;
+    HttpConn    *conn;
+    HttpQueue   *next;
     int         size;
 
     conn = q->conn;
     next = q->nextQ;
 
-#if OLD
-    size = httpGetPacketLength(packet);
-#else
     size = packet->content ? mprGetBufLength(packet->content) : 0;
-#endif
     if (size == 0 || (size <= next->packetSize && (size + next->count) <= next->max)) {
         return 1;
     }
@@ -433,15 +413,15 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
  */
 int httpWriteBlock(HttpQueue *q, cchar *buf, int size)
 {
-    HttpPacket          *packet;
-    HttpConn            *conn;
-    HttpTransmitter     *trans;
-    int                 bytes, written, packetSize;
+    HttpPacket  *packet;
+    HttpConn    *conn;
+    HttpTx      *trans;
+    int         bytes, written, packetSize;
 
     mprAssert(q == q->conn->writeq);
                
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
     if (trans->finalized) {
         return MPR_ERR_CANT_WRITE;
     }

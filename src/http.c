@@ -106,22 +106,22 @@ Http *httpCreate(MprCtx ctx)
 }
 
 
-HttpLocation *httpInitLocation(Http *http, MprCtx ctx, int serverSide)
+HttpLoc *httpInitLocation(Http *http, MprCtx ctx, int serverSide)
 {
-    HttpLocation    *location;
+    HttpLoc     *loc;
 
     /*
         Create default incoming and outgoing pipelines. Order matters.
      */
-    location = httpCreateLocation(http);
-    httpAddFilter(location, http->authFilter->name, NULL, HTTP_STAGE_OUTGOING);
-    httpAddFilter(location, http->rangeFilter->name, NULL, HTTP_STAGE_OUTGOING);
-    httpAddFilter(location, http->chunkFilter->name, NULL, HTTP_STAGE_OUTGOING);
+    loc = httpCreateLocation(http);
+    httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_OUTGOING);
+    httpAddFilter(loc, http->rangeFilter->name, NULL, HTTP_STAGE_OUTGOING);
+    httpAddFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_OUTGOING);
 
-    httpAddFilter(location, http->chunkFilter->name, NULL, HTTP_STAGE_INCOMING);
-    httpAddFilter(location, http->uploadFilter->name, NULL, HTTP_STAGE_INCOMING);
-    location->connector = http->netConnector;
-    return location;
+    httpAddFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_INCOMING);
+    httpAddFilter(loc, http->uploadFilter->name, NULL, HTTP_STAGE_INCOMING);
+    loc->connector = http->netConnector;
+    return loc;
 }
 
 
@@ -243,13 +243,13 @@ static int httpTimer(Http *http, MprEvent *event)
          */
         diff = (conn->lastActivity + inactivityTimeout) - http->now;
         inactivity = 1;
-        if (diff > 0 && conn->receiver) {
+        if (diff > 0 && conn->rx) {
             diff = (conn->lastActivity + requestTimeout) - http->now;
             inactivity = 0;
         }
         if (diff < 0) {
             httpRemoveConn(http, conn);
-            if (conn->receiver) {
+            if (conn->rx) {
                 if (inactivity) {
                     httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
                         "Inactive request timed out, exceeded inactivity timeout %d sec", inactivityTimeout / 1000);

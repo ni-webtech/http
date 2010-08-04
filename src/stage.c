@@ -15,9 +15,9 @@
 
 static void defaultOpen(HttpQueue *q)
 {
-    HttpTransmitter      *trans;
+    HttpTx      *trans;
 
-    trans = q->conn->transmitter;
+    trans = q->conn->tx;
     q->packetSize = (trans->chunkSize > 0) ? min(q->max, trans->chunkSize): q->max;
 }
 

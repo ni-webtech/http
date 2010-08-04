@@ -35,13 +35,13 @@ HttpPacket *httpCreatePacket(MprCtx ctx, int size)
  */
 HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
 {
-    HttpPacket      *packet;
-    HttpReceiver    *rec;
+    HttpPacket  *packet;
+    HttpRx      *rec;
 
     if (conn->state >= HTTP_STATE_COMPLETE) {
         return httpCreatePacket((MprCtx) conn, size);
     }
-    rec = conn->receiver;
+    rec = conn->rx;
     if (rec) {
         if ((packet = rec->freePackets) != NULL && size <= packet->content->buflen) {
             rec->freePackets = packet->next; 
@@ -50,18 +50,18 @@ HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
             return packet;
         }
     }
-    return httpCreatePacket(conn->receiver ? (MprCtx) conn->receiver: (MprCtx) conn, size);
+    return httpCreatePacket(conn->rx ? (MprCtx) conn->rx: (MprCtx) conn, size);
 }
 
 
 void httpFreePacket(HttpQueue *q, HttpPacket *packet)
 {
 #if FUTURE
-    HttpConn        *conn;
-    HttpReceiver    *rec;
+    HttpConn    *conn;
+    HttpRx      *rec;
 
     conn = q->conn;
-    rec = conn->receiver;
+    rec = conn->rx;
 
     if (rec == 0 || packet->content == 0 || packet->content->buflen < HTTP_BUFSIZE || mprGetParent(packet) == conn) {
         /* 
@@ -297,7 +297,7 @@ void httpPutForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
  */
 int httpResizePacket(HttpQueue *q, HttpPacket *packet, int size)
 {
-    HttpPacket    *tail;
+    HttpPacket  *tail;
     int         len;
     
     if (size <= 0) {
@@ -395,7 +395,7 @@ void httpSendPackets(HttpQueue *q)
  */
 HttpPacket *httpSplitPacket(MprCtx ctx, HttpPacket *orig, int offset)
 {
-    HttpPacket    *packet;
+    HttpPacket  *packet;
     int         count, size;
 
     if (offset >= httpGetPacketLength(orig)) {

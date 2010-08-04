@@ -39,36 +39,36 @@ int httpOpenNetConnector(Http *http)
 
 static void netOutgoingService(HttpQueue *q)
 {
-    HttpConn            *conn;
-    HttpTransmitter     *trans;
-    int                 written, errCode;
+    HttpConn    *conn;
+    HttpTx      *trans;
+    int         written, errCode;
 
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
     conn->lastActivity = conn->http->now;
     
     //  MOB -- just for safety
     if (conn->sock == 0) {
         return;
     }
-    if (trans->flags & HTTP_TRANS_NO_BODY || conn->writeComplete) {
+    if (trans->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
         httpDiscardData(q, 1);
     }
     if ((trans->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
         httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, 
             "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
-        if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
+        if (trans->flags & HTTP_TX_HEADERS_CREATED) {
             /* Must disconnect as the client must be notified somehow */
             mprDisconnectSocket(conn->sock);
             httpCompleteWriting(conn);
             return;
         }
     }
-    if (trans->flags & HTTP_TRANS_SENDFILE) {
+    if (trans->flags & HTTP_TX_SENDFILE) {
         /* Relay via the send connector */
         if (trans->file == 0) {
-            if (trans->flags & HTTP_TRANS_HEADERS_CREATED) {
-                trans->flags &= ~HTTP_TRANS_SENDFILE;
+            if (trans->flags & HTTP_TX_HEADERS_CREATED) {
+                trans->flags &= ~HTTP_TX_SENDFILE;
             } else {
                 httpSendOpen(q);
             }
@@ -129,12 +129,12 @@ static void netOutgoingService(HttpQueue *q)
  */
 static int buildNetVec(HttpQueue *q)
 {
-    HttpConn            *conn;
-    HttpTransmitter     *trans;
-    HttpPacket          *packet;
+    HttpConn    *conn;
+    HttpTx      *trans;
+    HttpPacket  *packet;
 
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
 
     /*
         Examine each packet and accumulate as many packets into the I/O vector as possible. Leave the packets on the queue 
@@ -183,13 +183,13 @@ static void addToNetVector(HttpQueue *q, char *ptr, int bytes)
  */
 static void addPacketForNet(HttpQueue *q, HttpPacket *packet)
 {
-    HttpTransmitter     *trans;
-    HttpConn            *conn;
-    MprIOVec            *iovec;
-    int                 index, item;
+    HttpTx      *trans;
+    HttpConn    *conn;
+    MprIOVec    *iovec;
+    int         index, item;
 
     conn = q->conn;
-    trans = conn->transmitter;
+    trans = conn->tx;
     iovec = q->iovec;
     index = q->ioIndex;
 

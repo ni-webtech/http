@@ -12,110 +12,110 @@
 
 /************************************ Code ************************************/
 
-HttpLocation *httpCreateLocation(Http *http)
+HttpLoc *httpCreateLocation(Http *http)
 {
-    HttpLocation  *location;
+    HttpLoc  *loc;
 
-    location = mprAllocObjZeroed(http, HttpLocation);
-    if (location == 0) {
+    loc = mprAllocObjZeroed(http, HttpLoc);
+    if (loc == 0) {
         return 0;
     }
-    location->http = http;
-    location->errorDocuments = mprCreateHash(location, HTTP_SMALL_HASH_SIZE);
-    location->handlers = mprCreateList(location);
-    location->extensions = mprCreateHash(location, HTTP_SMALL_HASH_SIZE);
-    location->inputStages = mprCreateList(location);
-    location->outputStages = mprCreateList(location);
-    location->prefix = mprStrdup(location, "");
-    location->prefixLen = (int) strlen(location->prefix);
-    location->auth = httpCreateAuth(location, 0);
-    return location;
+    loc->http = http;
+    loc->errorDocuments = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE);
+    loc->handlers = mprCreateList(loc);
+    loc->extensions = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE);
+    loc->inputStages = mprCreateList(loc);
+    loc->outputStages = mprCreateList(loc);
+    loc->prefix = mprStrdup(loc, "");
+    loc->prefixLen = (int) strlen(loc->prefix);
+    loc->auth = httpCreateAuth(loc, 0);
+    return loc;
 }
 
 
 /*  
     Create a new location block. Inherit from the parent. We use a copy-on-write scheme if these are modified later.
  */
-HttpLocation *httpCreateInheritedLocation(Http *http, HttpLocation *parent)
+HttpLoc *httpCreateInheritedLocation(Http *http, HttpLoc *parent)
 {
-    HttpLocation  *location;
+    HttpLoc  *loc;
 
     if (parent == 0) {
         return httpCreateLocation(http);
     }
-    location = mprAllocObjZeroed(http, HttpLocation);
-    if (location == 0) {
+    loc = mprAllocObjZeroed(http, HttpLoc);
+    if (loc == 0) {
         return 0;
     }
-    location->http = http;
-    location->prefix = mprStrdup(location, parent->prefix);
-    location->parent = parent;
-    location->prefixLen = parent->prefixLen;
-    location->flags = parent->flags;
-    location->inputStages = parent->inputStages;
-    location->outputStages = parent->outputStages;
-    location->handlers = parent->handlers;
-    location->extensions = parent->extensions;
-    location->connector = parent->connector;
-    location->errorDocuments = parent->errorDocuments;
-    location->sessionTimeout = parent->sessionTimeout;
-    location->auth = httpCreateAuth(location, parent->auth);
-    location->uploadDir = parent->uploadDir;
-    location->autoDelete = parent->autoDelete;
-    location->script = parent->script;
-    location->searchPath = parent->searchPath;
-    location->ssl = parent->ssl;
-    return location;
+    loc->http = http;
+    loc->prefix = mprStrdup(loc, parent->prefix);
+    loc->parent = parent;
+    loc->prefixLen = parent->prefixLen;
+    loc->flags = parent->flags;
+    loc->inputStages = parent->inputStages;
+    loc->outputStages = parent->outputStages;
+    loc->handlers = parent->handlers;
+    loc->extensions = parent->extensions;
+    loc->connector = parent->connector;
+    loc->errorDocuments = parent->errorDocuments;
+    loc->sessionTimeout = parent->sessionTimeout;
+    loc->auth = httpCreateAuth(loc, parent->auth);
+    loc->uploadDir = parent->uploadDir;
+    loc->autoDelete = parent->autoDelete;
+    loc->script = parent->script;
+    loc->searchPath = parent->searchPath;
+    loc->ssl = parent->ssl;
+    return loc;
 }
 
 
-void httpFinalizeLocation(HttpLocation *location)
+void httpFinalizeLocation(HttpLoc *loc)
 {
 #if BLD_FEATURE_SSL
-    if (location->ssl) {
-        mprConfigureSsl(location->ssl);
+    if (loc->ssl) {
+        mprConfigureSsl(loc->ssl);
     }
 #endif
 }
 
 
-void httpSetLocationAuth(HttpLocation *location, HttpAuth *auth)
+void httpSetLocationAuth(HttpLoc *loc, HttpAuth *auth)
 {
-    location->auth = auth;
+    loc->auth = auth;
 }
 
 
 /*  
     Add a handler. This adds a handler to the set of possible handlers for a set of file extensions.
  */
-int httpAddHandler(HttpLocation *location, cchar *name, cchar *extensions)
+int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
 {
     Http        *http;
     HttpStage   *handler;
     char        *extlist, *word, *tok;
 
-    mprAssert(location);
+    mprAssert(loc);
 
-    http = location->http;
-    if (mprGetParent(location->handlers) == location->parent) {
-        location->extensions = mprCopyHash(location, location->parent->extensions);
-        location->handlers = mprDupList(location, location->parent->handlers);
+    http = loc->http;
+    if (mprGetParent(loc->handlers) == loc->parent) {
+        loc->extensions = mprCopyHash(loc, loc->parent->extensions);
+        loc->handlers = mprDupList(loc, loc->parent->handlers);
     }
     handler = httpLookupStage(http, name);
     if (handler == 0) {
-        mprError(location, "Can't find stage %s", name); 
+        mprError(loc, "Can't find stage %s", name); 
         return MPR_ERR_NOT_FOUND;
     }
     if (extensions && *extensions) {
-        mprLog(location, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, extensions);
+        mprLog(loc, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, extensions);
     } else {
-        mprLog(location, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, location->prefix);
+        mprLog(loc, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, loc->prefix);
     }
     if (extensions && *extensions) {
         /*
             Add to the handler extension hash. Skip over "*." and "."
          */ 
-        extlist = mprStrdup(location, extensions);
+        extlist = mprStrdup(loc, extensions);
         word = mprStrTok(extlist, " \t\r\n", &tok);
         while (word) {
             if (*word == '*' && word[1] == '.') {
@@ -125,7 +125,7 @@ int httpAddHandler(HttpLocation *location, cchar *name, cchar *extensions)
             } else if (*word == '\"' && word[1] == '\"') {
                 word = "";
             }
-            mprAddHash(location->extensions, word, handler);
+            mprAddHash(loc->extensions, word, handler);
             word = mprStrTok(0, " \t\r\n", &tok);
         }
         mprFree(extlist);
@@ -135,9 +135,9 @@ int httpAddHandler(HttpLocation *location, cchar *name, cchar *extensions)
             /*
                 If a handler provides a custom match() routine, then don't match by extension.
              */
-            mprAddHash(location->extensions, "", handler);
+            mprAddHash(loc->extensions, "", handler);
         }
-        mprAddItem(location->handlers, handler);
+        mprAddItem(loc->handlers, handler);
     }
     return 0;
 }
@@ -146,22 +146,22 @@ int httpAddHandler(HttpLocation *location, cchar *name, cchar *extensions)
 /*  
     Set a handler to universally apply to requests in this location block.
  */
-int httpSetHandler(HttpLocation *location, cchar *name)
+int httpSetHandler(HttpLoc *loc, cchar *name)
 {
     HttpStage     *handler;
 
-    mprAssert(location);
+    mprAssert(loc);
     
-    if (mprGetParent(location->handlers) == location->parent) {
-        location->extensions = mprCopyHash(location, location->parent->extensions);
-        location->handlers = mprDupList(location, location->parent->handlers);
+    if (mprGetParent(loc->handlers) == loc->parent) {
+        loc->extensions = mprCopyHash(loc, loc->parent->extensions);
+        loc->handlers = mprDupList(loc, loc->parent->handlers);
     }
-    handler = httpLookupStage(location->http, name);
+    handler = httpLookupStage(loc->http, name);
     if (handler == 0) {
-        mprError(location, "Can't find handler %s", name); 
+        mprError(loc, "Can't find handler %s", name); 
         return MPR_ERR_NOT_FOUND;
     }
-    location->handler = handler;
+    loc->handler = handler;
     return 0;
 }
 
@@ -169,27 +169,27 @@ int httpSetHandler(HttpLocation *location, cchar *name)
 /*  
     Add a filter. Direction defines what direction the stage filter be defined.
  */
-int httpAddFilter(HttpLocation *location, cchar *name, cchar *extensions, int direction)
+int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
 {
     HttpStage   *stage;
     HttpStage   *filter;
     char        *extlist, *word, *tok;
 
-    mprAssert(location);
+    mprAssert(loc);
     
-    stage = httpLookupStage(location->http, name);
+    stage = httpLookupStage(loc->http, name);
     if (stage == 0) {
-        mprError(location, "Can't find filter %s", name); 
+        mprError(loc, "Can't find filter %s", name); 
         return MPR_ERR_NOT_FOUND;
     }
     /*
         Clone an existing stage because each filter stores its own set of extensions to match against
      */
-    filter = httpCloneStage(location->http, stage);
+    filter = httpCloneStage(loc->http, stage);
 
     if (extensions && *extensions) {
         filter->extensions = mprCreateHash(filter, 0);
-        extlist = mprStrdup(location, extensions);
+        extlist = mprStrdup(loc, extensions);
         word = mprStrTok(extlist, " \t\r\n", &tok);
         while (word) {
             if (*word == '*' && word[1] == '.') {
@@ -206,28 +206,28 @@ int httpAddFilter(HttpLocation *location, cchar *name, cchar *extensions, int di
     }
 
     if (direction & HTTP_STAGE_INCOMING) {
-        if (mprGetParent(location->inputStages) == location->parent) {
-            location->inputStages = mprDupList(location, location->parent->inputStages);
+        if (mprGetParent(loc->inputStages) == loc->parent) {
+            loc->inputStages = mprDupList(loc, loc->parent->inputStages);
         }
-        mprAddItem(location->inputStages, filter);
+        mprAddItem(loc->inputStages, filter);
     }
     if (direction & HTTP_STAGE_OUTGOING) {
-        if (mprGetParent(location->outputStages) == location->parent) {
-            location->outputStages = mprDupList(location, location->parent->outputStages);
+        if (mprGetParent(loc->outputStages) == loc->parent) {
+            loc->outputStages = mprDupList(loc, loc->parent->outputStages);
         }
-        mprAddItem(location->outputStages, filter);
+        mprAddItem(loc->outputStages, filter);
     }
     return 0;
 }
 
 
-void httpClearStages(HttpLocation *location, int direction)
+void httpClearStages(HttpLoc *loc, int direction)
 {
     if (direction & HTTP_STAGE_INCOMING) {
-        location->inputStages = mprCreateList(location);
+        loc->inputStages = mprCreateList(loc);
     }
     if (direction & HTTP_STAGE_OUTGOING) {
-        location->outputStages = mprCreateList(location);
+        loc->outputStages = mprCreateList(loc);
     }
 }
 
@@ -235,107 +235,107 @@ void httpClearStages(HttpLocation *location, int direction)
 /* 
    Set the network connector
  */
-int httpSetConnector(HttpLocation *location, cchar *name)
+int httpSetConnector(HttpLoc *loc, cchar *name)
 {
     HttpStage     *stage;
 
-    mprAssert(location);
+    mprAssert(loc);
     
-    stage = httpLookupStage(location->http, name);
+    stage = httpLookupStage(loc->http, name);
     if (stage == 0) {
-        mprError(location, "Can't find connector %s", name); 
+        mprError(loc, "Can't find connector %s", name); 
         return MPR_ERR_NOT_FOUND;
     }
-    location->connector = stage;
-    mprLog(location, MPR_CONFIG, "Set connector \"%s\"", name);
+    loc->connector = stage;
+    mprLog(loc, MPR_CONFIG, "Set connector \"%s\"", name);
     return 0;
 }
 
 
-void httpResetPipeline(HttpLocation *location)
+void httpResetPipeline(HttpLoc *loc)
 {
-    if (mprGetParent(location->extensions) == location) {
-        mprFree(location->extensions);
+    if (mprGetParent(loc->extensions) == loc) {
+        mprFree(loc->extensions);
     }
-    location->extensions = mprCreateHash(location, 0);
+    loc->extensions = mprCreateHash(loc, 0);
     
-    if (mprGetParent(location->handlers) == location) {
-        mprFree(location->handlers);
+    if (mprGetParent(loc->handlers) == loc) {
+        mprFree(loc->handlers);
     }
-    location->handlers = mprCreateList(location);
+    loc->handlers = mprCreateList(loc);
     
-    if (mprGetParent(location->inputStages) == location) {
-        mprFree(location->inputStages);
+    if (mprGetParent(loc->inputStages) == loc) {
+        mprFree(loc->inputStages);
     }
-    location->inputStages = mprCreateList(location);
+    loc->inputStages = mprCreateList(loc);
     
-    if (mprGetParent(location->outputStages) == location) {
-        mprFree(location->outputStages);
+    if (mprGetParent(loc->outputStages) == loc) {
+        mprFree(loc->outputStages);
     }
-    location->outputStages = mprCreateList(location);
+    loc->outputStages = mprCreateList(loc);
 }
 
 
-HttpStage *httpGetHandlerByExtension(HttpLocation *location, cchar *ext)
+HttpStage *httpGetHandlerByExtension(HttpLoc *loc, cchar *ext)
 {
-    return (HttpStage*) mprLookupHash(location->extensions, ext);
+    return (HttpStage*) mprLookupHash(loc->extensions, ext);
 }
 
 
-void httpSetLocationPrefix(HttpLocation *location, cchar *uri)
+void httpSetLocationPrefix(HttpLoc *loc, cchar *uri)
 {
-    mprAssert(location);
+    mprAssert(loc);
 
-    mprFree(location->prefix);
-    location->prefix = mprStrdup(location, uri);
-    location->prefixLen = (int) strlen(location->prefix);
+    mprFree(loc->prefix);
+    loc->prefix = mprStrdup(loc, uri);
+    loc->prefixLen = (int) strlen(loc->prefix);
 
     /*
         Always strip trailing "/". Note this is a Uri and not a path.
      */
-    if (location->prefixLen > 0 && location->prefix[location->prefixLen - 1] == '/') {
-        location->prefix[--location->prefixLen] = '\0';
+    if (loc->prefixLen > 0 && loc->prefix[loc->prefixLen - 1] == '/') {
+        loc->prefix[--loc->prefixLen] = '\0';
     }
 }
 
 
-void httpSetLocationFlags(HttpLocation *location, int flags)
+void httpSetLocationFlags(HttpLoc *loc, int flags)
 {
-    location->flags = flags;
+    loc->flags = flags;
 }
 
 
-void httpSetLocationAutoDelete(HttpLocation *location, int enable)
+void httpSetLocationAutoDelete(HttpLoc *loc, int enable)
 {
-    location->autoDelete = enable;
+    loc->autoDelete = enable;
 }
 
 
-void httpSetLocationScript(HttpLocation *location, cchar *script)
+void httpSetLocationScript(HttpLoc *loc, cchar *script)
 {
-    mprFree(location->script);
-    location->script = mprStrdup(location, script);
+    mprFree(loc->script);
+    loc->script = mprStrdup(loc, script);
 }
 
 
-void httpAddErrorDocument(HttpLocation *location, cchar *code, cchar *url)
+void httpAddErrorDocument(HttpLoc *loc, cchar *code, cchar *url)
 {
-    if (mprGetParent(location->errorDocuments) == location->parent) {
-        location->errorDocuments = mprCopyHash(location, location->parent->errorDocuments);
+    if (mprGetParent(loc->errorDocuments) == loc->parent) {
+        loc->errorDocuments = mprCopyHash(loc, loc->parent->errorDocuments);
     }
-    mprAddHash(location->errorDocuments, code, mprStrdup(location, url));
+    mprAddHash(loc->errorDocuments, code, mprStrdup(loc, url));
 }
 
 
-cchar *httpLookupErrorDocument(HttpLocation *location, int code)
+cchar *httpLookupErrorDocument(HttpLoc *loc, int code)
 {
     char        numBuf[16];
 
-    if (location->errorDocuments == 0) {
+    if (loc->errorDocuments == 0) {
         return 0;
     }
     mprItoa(numBuf, sizeof(numBuf), code, 10);
-    return (cchar*) mprLookupHash(location->errorDocuments, numBuf);
+    return (cchar*) mprLookupHash(loc->errorDocuments, numBuf);
 }
 
 

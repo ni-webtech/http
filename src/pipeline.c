@@ -16,20 +16,20 @@ static void setEnvironment(HttpConn *conn);
 /*  
     Create processing pipeline
  */
-void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *proposedHandler)
+void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler)
 {
-    Http                *http;
-    HttpTransmitter     *trans;
-    HttpReceiver        *rec;
-    HttpQueue           *q, *qhead, *rq, *rqhead;
-    HttpStage           *stage, *filter;
-    int                 next;
+    Http        *http;
+    HttpTx      *trans;
+    HttpRx      *rec;
+    HttpQueue   *q, *qhead, *rq, *rqhead;
+    HttpStage   *stage, *filter;
+    int         next;
 
     http = conn->http;
-    rec = conn->receiver;
-    trans = conn->transmitter;
+    rec = conn->rx;
+    trans = conn->tx;
 
-    location = (location) ? location : http->clientLocation;
+    loc = (loc) ? loc : http->clientLocation;
 
     trans->outputPipeline = mprCreateList(trans);
     trans->handler = proposedHandler ? proposedHandler : http->passHandler;
@@ -37,20 +37,20 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
     if (trans->handler) {
         mprAddItem(trans->outputPipeline, trans->handler);
     }
-    if (location->outputStages) {
-        for (next = 0; (filter = mprGetNextItem(location->outputStages, &next)) != 0; ) {
+    if (loc->outputStages) {
+        for (next = 0; (filter = mprGetNextItem(loc->outputStages, &next)) != 0; ) {
             if (matchFilter(conn, filter)) {
                 mprAddItem(trans->outputPipeline, filter);
             }
         }
     }
     if (trans->connector == 0) {
-        trans->connector = location->connector;
+        trans->connector = loc->connector;
     }
 #if FUTURE
     if (trans->connector == 0) {
-        if (location && location->connector) {
-            trans->connector = location->connector;
+        if (loc && loc->connector) {
+            trans->connector = loc->connector;
         } else if (trans->handler == http->fileHandler && !rec->ranges && !conn->secure && 
                 trans->chunkSize <= 0 && !conn->traceMask) {
             trans->connector = http->sendConnector;
@@ -67,8 +67,8 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
     if (rec->needInputPipeline) {
         rec->inputPipeline = mprCreateList(trans);
         mprAddItem(rec->inputPipeline, http->netConnector);
-        if (location) {
-            for (next = 0; (filter = mprGetNextItem(location->inputStages, &next)) != 0; ) {
+        if (loc) {
+            for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
                 if (!matchFilter(conn, filter)) {
                     continue;
                 }
@@ -98,8 +98,8 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
 
     setEnvironment(conn);
 
-    conn->writeq = conn->transmitter->queue[HTTP_QUEUE_TRANS].nextQ;
-    conn->readq = conn->transmitter->queue[HTTP_QUEUE_RECEIVE].prevQ;
+    conn->writeq = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
+    conn->readq = conn->tx->queue[HTTP_QUEUE_RECEIVE].prevQ;
 
     httpPutForService(conn->writeq, httpCreateHeaderPacket(conn->writeq), 0);
 
@@ -124,7 +124,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
             q->flags |= HTTP_QUEUE_OPEN;
-            httpOpenQueue(q, conn->transmitter->chunkSize);
+            httpOpenQueue(q, conn->tx->chunkSize);
         }
     }
 
@@ -134,7 +134,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
             if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
                     q->flags |= HTTP_QUEUE_OPEN;
-                    httpOpenQueue(q, conn->transmitter->chunkSize);
+                    httpOpenQueue(q, conn->tx->chunkSize);
                 }
             }
         }
@@ -145,18 +145,18 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
 
 void httpSetPipeHandler(HttpConn *conn, HttpStage *handler)
 {
-    conn->transmitter->handler = (handler) ? handler : conn->http->passHandler;
+    conn->tx->handler = (handler) ? handler : conn->http->passHandler;
 }
 
 
 void httpSetSendConnector(HttpConn *conn, cchar *path)
 {
-    HttpTransmitter     *trans;
-    HttpQueue           *q, *qhead;
-    int                 max;
+    HttpTx      *trans;
+    HttpQueue   *q, *qhead;
+    int         max;
 
-    trans = conn->transmitter;
-    trans->flags |= HTTP_TRANS_SENDFILE;
+    trans = conn->tx;
+    trans->flags |= HTTP_TX_SENDFILE;
     trans->filename = mprStrdup(trans, path);
     max = conn->limits->transmissionBodySize;
 
@@ -170,12 +170,12 @@ void httpSetSendConnector(HttpConn *conn, cchar *path)
 
 void httpDestroyPipeline(HttpConn *conn)
 {
-    HttpTransmitter *trans;
-    HttpQueue       *q, *qhead;
-    int             i;
+    HttpTx      *trans;
+    HttpQueue   *q, *qhead;
+    int         i;
 
-    if (conn->flags & HTTP_CONN_PIPE_CREATED && conn->transmitter) {
-        trans = conn->transmitter;
+    if (conn->flags & HTTP_CONN_PIPE_CREATED && conn->tx) {
+        trans = conn->tx;
         for (i = 0; i < HTTP_MAX_QUEUE; i++) {
             qhead = &trans->queue[i];
             for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
@@ -192,17 +192,17 @@ void httpDestroyPipeline(HttpConn *conn)
 
 void httpStartPipeline(HttpConn *conn)
 {
-    HttpQueue       *qhead, *q;
-    HttpTransmitter *trans;
+    HttpQueue   *qhead, *q;
+    HttpTx      *trans;
     
 #if OLD
     //  MOB -- should this run all the start entry points in the pipeline?
-    q = conn->transmitter->queue[HTTP_QUEUE_TRANS].nextQ;
+    q = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
     if (q->stage->start) {
         q->stage->start(q);
     }
 #endif
-    trans = conn->transmitter;
+    trans = conn->tx;
     qhead = &trans->queue[HTTP_QUEUE_TRANS];
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
@@ -211,7 +211,7 @@ void httpStartPipeline(HttpConn *conn)
         }
     }
 
-    if (conn->receiver->needInputPipeline) {
+    if (conn->rx->needInputPipeline) {
         qhead = &trans->queue[HTTP_QUEUE_RECEIVE];
         for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
             if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
@@ -227,9 +227,9 @@ void httpStartPipeline(HttpConn *conn)
 
 void httpProcessPipeline(HttpConn *conn)
 {
-    HttpQueue           *q;
+    HttpQueue   *q;
     
-    q = conn->transmitter->queue[HTTP_QUEUE_TRANS].nextQ;
+    q = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
     if (q->stage->process) {
         q->stage->process(q);
     }
@@ -257,10 +257,10 @@ bool httpServiceQueues(HttpConn *conn)
 
 void httpDiscardTransmitData(HttpConn *conn)
 {
-    HttpTransmitter     *trans;
-    HttpQueue           *q, *qhead;
+    HttpTx      *trans;
+    HttpQueue   *q, *qhead;
 
-    trans = conn->transmitter;
+    trans = conn->tx;
     if (trans == 0) {
         return;
     }
@@ -276,11 +276,11 @@ void httpDiscardTransmitData(HttpConn *conn)
  */
 static void setEnvironment(HttpConn *conn)
 {
-    HttpReceiver    *rec;
-    HttpTransmitter *trans;
+    HttpRx      *rec;
+    HttpTx      *trans;
 
-    rec = conn->receiver;
-    trans = conn->transmitter;
+    rec = conn->rx;
+    trans = conn->tx;
 
     if (trans->handler->flags & (HTTP_STAGE_VARS | HTTP_STAGE_ENV_VARS)) {
         rec->formVars = mprCreateHash(rec, HTTP_MED_HASH_SIZE);
@@ -299,11 +299,11 @@ static void setEnvironment(HttpConn *conn)
  */
 static bool matchFilter(HttpConn *conn, HttpStage *filter)
 {
-    HttpReceiver    *rec;
-    HttpTransmitter *trans;
+    HttpRx      *rec;
+    HttpTx      *trans;
 
-    rec = conn->receiver;
-    trans = conn->transmitter;
+    rec = conn->rx;
+    trans = conn->tx;
     if (filter->match) {
         return filter->match(conn, filter);
     }

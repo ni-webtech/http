@@ -7,6 +7,10 @@
 
 #include    "http.h"
 
+/********************************** Forwards **********************************/
+
+static int destroyServer(HttpServer *server);
+
 /************************************ Code ************************************/
 /*
     Create a server listening on ip:port. NOTE: ip may be empty which means bind to all addresses.
@@ -18,7 +22,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     mprAssert(ip);
     mprAssert(port > 0);
 
-    server = mprAllocObjZeroed(http, HttpServer);
+    server = mprAllocObjWithDestructorZeroed(http, HttpServer, destroyServer);
     if (server == 0) {
         return 0;
     }
@@ -34,8 +38,18 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     }
     server->software = HTTP_NAME;
     server->limits = httpCreateLimits(server, 1);
-    server->location = httpInitLocation(http, server, 1);
+    server->loc = httpInitLocation(http, server, 1);
     return server;
+}
+
+
+static int destroyServer(HttpServer *server)
+{
+    if (server->waitHandler.fd >= 0) {
+        mprRemoveWaitHandler(&server->waitHandler);
+    }
+    mprFree(server->sock);
+    return 0;
 }
 
 
@@ -249,10 +263,10 @@ void httpSetServerContext(HttpServer *server, void *context)
 }
 
 
-void httpSetServerLocation(HttpServer *server, HttpLocation *location)
+void httpSetServerLocation(HttpServer *server, HttpLoc *loc)
 {
-    mprFree(location);
-    server->location = location;
+    mprFree(loc);
+    server->loc = loc;
 }
 
 
