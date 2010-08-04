@@ -20,7 +20,7 @@ static void writeEvent(HttpConn *conn);
  */
 HttpConn *httpCreateConn(Http *http, HttpServer *server)
 {
-    HttpConn        *conn;
+    HttpConn    *conn;
 
     conn = mprAllocObjWithDestructorZeroed(http, HttpConn, connectionDestructor);
     if (conn == 0) {
@@ -41,10 +41,7 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
     conn->callback = (HttpCallback) httpEvent;
     conn->callbackArg = conn;
 
-    conn->traceMask = HTTP_TRACE_TRANSMIT | HTTP_TRACE_RECEIVE | HTTP_TRACE_CONN | HTTP_TRACE_FIRST | HTTP_TRACE_HEADERS;
-    conn->traceLevel = HTTP_TRACE_LEVEL;
-    conn->traceMaxLength = INT_MAX;
-
+    httpInitTrace(conn->trace);
     httpInitSchedulerQueue(&conn->serviceq);
     if (server) {
         conn->dispatcher = server->dispatcher;
@@ -227,7 +224,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
         readEvent(conn);
     }
     if (conn->server) {
-        if (mprIsSocketEof(conn->sock) || (!conn->receiver && conn->keepAliveCount < 0)) {
+        if (conn->connError || mprIsSocketEof(conn->sock) || (!conn->receiver && conn->keepAliveCount < 0)) {
             /*  
                 NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
                 It should respond to the "Connection: close" and thus initiate a client-led close. 
@@ -634,13 +631,20 @@ void httpWritable(HttpConn *conn)
 
 void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
+    /*
+        Lock as this may be called by httpTimer
+     */
+    mprLock(conn->http->mutex);
     mprFree(conn->errorMsg);
     conn->errorMsg = mprVasprintf(conn, HTTP_BUFSIZE, fmt, args);
-    if (conn->server && conn->transmitter) {
-        conn->transmitter->status = status;
-    } else if (conn->receiver) {
-        conn->receiver->status = status;
+    if (status) {
+        if (conn->server && conn->transmitter) {
+            conn->transmitter->status = status;
+        } else if (conn->receiver) {
+            conn->receiver->status = status;
+        }
     }
+    mprUnlock(conn->http->mutex);
 }
 
 
@@ -710,6 +714,10 @@ void httpError(HttpConn *conn, int status, cchar *fmt, ...)
 }
 
 
+/*
+    A resource limit error has occurred. For servers: best to stop future requests on the current connection, but 
+    try to send a meaningful response back to the client. For clients, just close the connection.
+ */
 void httpLimitError(HttpConn *conn, int status, cchar *fmt, ...)
 {
     va_list     args;
@@ -717,6 +725,12 @@ void httpLimitError(HttpConn *conn, int status, cchar *fmt, ...)
     va_start(args, fmt);
     httpErrorV(conn, status, fmt, args);
     va_end(args);
+    conn->complete = 1;
+    conn->connError = 1;
+    if (!conn->server) {
+        /* Handlers must not call CloseConn as it disables wait events */
+        httpCloseConn(conn);
+    }
 }
 
 
@@ -765,24 +779,6 @@ void httpConnError(HttpConn *conn, int status, cchar *fmt, ...)
         }
     }
 }
-
-
-int httpSetupTrace(HttpConn *conn, cchar *ext)
-{
-    if (conn->traceLevel > mprGetLogLevel(conn)) {
-        return 0;
-    }
-    if (ext) {
-        if (conn->traceInclude && !mprLookupHash(conn->traceInclude, ext)) {
-            return 0;
-        }
-        if (conn->traceExclude && mprLookupHash(conn->traceExclude, ext)) {
-            return 0;
-        }
-    }
-    return conn->traceMask;
-}
-
 
 /*
     @copy   default

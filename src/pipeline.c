@@ -51,7 +51,8 @@ void httpCreatePipeline(HttpConn *conn, HttpLocation *location, HttpStage *propo
     if (trans->connector == 0) {
         if (location && location->connector) {
             trans->connector = location->connector;
-        } else if (trans->handler == http->fileHandler && !rec->ranges && !conn->secure && trans->chunkSize <= 0 && !conn->traceMask) {
+        } else if (trans->handler == http->fileHandler && !rec->ranges && !conn->secure && 
+                trans->chunkSize <= 0 && !conn->traceMask) {
             trans->connector = http->sendConnector;
         } else {
             trans->connector = http->netConnector;

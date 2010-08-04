@@ -113,7 +113,10 @@ struct MaDir;
 #define HTTP_SESSION_TIMEOUT      (3600 * 1000)     /**< One hour */
 
 #define HTTP_DATE_FORMAT          "%a, %d %b %Y %T GMT"
+
+#if UNUSED
 #define HTTP_TRACE_LEVEL          2                 /**< Trace level at which requests are traced */
+#endif
 
 /*  
     Hash sizes (primes work best)
@@ -1237,14 +1240,28 @@ extern void httpSendOutgoingService(HttpQueue *q);
 #define HTTP_VALIDATE_CLOSE_REQUEST 4       /**< Close a request */
 
 /*
-    Request tracing
+    Trace directions
  */
-#define HTTP_TRACE_TRANSMIT         0x1     /**< Trace transmission */
-#define HTTP_TRACE_RECEIVE          0x2     /**< Trace reception */
-#define HTTP_TRACE_CONN             0x4     /**< Trace new connections */
-#define HTTP_TRACE_FIRST            0x8     /**< Trace first line of transmit / reception */
-#define HTTP_TRACE_HEADERS          0x10    /**< Trace headers */
-#define HTTP_TRACE_BODY             0x20    /**< Trace body */
+#define HTTP_TRACE_RX               0       /**< Trace reception */
+#define HTTP_TRACE_TX               1       /**< Trace transmission */
+#define HTTP_TRACE_MAX_DIR          2       /**< Trace transmission */
+
+/*
+    Trace items
+ */
+#define HTTP_TRACE_CONN             0       /**< New connections */
+#define HTTP_TRACE_FIRST            1       /**< First line of header only */
+#define HTTP_TRACE_HEADER           2       /**< Header */
+#define HTTP_TRACE_BODY             3       /**< Body content */
+#define HTTP_TRACE_MAX_ITEM         4
+
+typedef struct HttpTrace {
+    int             disable;                     /**< If tracing is disabled for this request */
+    int             levels[HTTP_TRACE_MAX_ITEM]; /**< Level at which to trace this item */
+    int             size;                        /**< Maximum size at which to trace body content */
+    MprHashTable    *include;                    /**< Extensions to include in trace */
+    MprHashTable    *exclude;                    /**< Extensions to exclude from trace */
+} HttpTrace;
 
 /** 
     Notifier and event callbacks.
@@ -1273,7 +1290,8 @@ typedef struct HttpConn {
     int             state;                  /**< Connection state */
     int             flags;                  /**< Connection flags */
     int             abortPipeline;          /**< Connection errors (not proto errors) abort the pipeline */
-    int             complete;               /**< The current request is now complete */
+    int             advancing;              /**< In httpAdvanceReceiver (mutex) */
+    int             complete;               /**< Request is complete and should step through all remaining states */
     int             writeComplete;          /**< All write data has been sent for the current request */
     int             error;                  /**< A request error has occurred */
     int             connError;              /**< A connection error has occurred */
@@ -1326,11 +1344,14 @@ typedef struct HttpConn {
     int             seqno;                  /**< Unique connection sequence number */
     int             writeBlocked;           /**< Transmission writing is blocked */
 
+    HttpTrace       trace[2];               /**< Tracing for [rx|tx] */
+#if OLD && UNUSED
     int             traceLevel;             /**< Trace activation level */
     int             traceMaxLength;         /**< Maximum trace file length (if known) */
     int             traceMask;              /**< Request/response trace mask */
     MprHashTable    *traceInclude;          /**< Extensions to include in trace */
     MprHashTable    *traceExclude;          /**< Extensions to exclude from trace */
+#endif
 
     /*  
         Authentication for client requests
@@ -1634,9 +1655,9 @@ extern HttpPacket *httpGetConnPacket(HttpConn *conn);
 extern void httpSetPipeHandler(HttpConn *conn, HttpStage *handler);
 extern void httpSetSendConnector(HttpConn *conn, cchar *path);
 
-#define httpShouldTrace(conn, mask) ((conn->traceMask & (mask)) == (mask))
-extern int httpSetupTrace(HttpConn *conn, cchar *ext);
-extern void httpTraceContent(HttpConn *conn, HttpPacket *packet, int size, int offset, int mask);
+extern void httpInitTrace(HttpTrace *trace);
+extern int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext);
+extern void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, int len, int total);
 extern HttpLimits *httpSetUniqueConnLimits(HttpConn *conn);
 
 /********************************** HttpAuth *********************************/
@@ -1922,7 +1943,7 @@ typedef struct HttpReceiver {
     int             remainingContent;       /**< Remaining content data to read (in next chunk if chunked) */
     int             receivedContent;        /**< Length of content actually received */
     int             readContent;            /**< Length of content read by user */
-    int             readComplete;           /**< All read data has been received */
+    int             readComplete;           /**< All read data has been received (eof) */
 
     bool            ifModified;             /**< If-Modified processing requested */
     bool            ifMatch;                /**< If-Match processing requested */

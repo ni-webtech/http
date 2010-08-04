@@ -143,6 +143,7 @@ HttpConn *httpAcceptConn(HttpServer *server)
     HttpConn        *conn;
     MprSocket       *sock;
     MprEvent        e;
+    int             level;
 
     mprAssert(server);
 
@@ -179,12 +180,9 @@ HttpConn *httpAcceptConn(HttpServer *server)
     mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_CONNECTED);
 
-    conn->traceMask = httpSetupTrace(conn, 0);
-    if (conn->traceMask) {
-        if (httpShouldTrace(conn, HTTP_TRACE_RECEIVE | HTTP_TRACE_CONN)) {
-            mprLog(conn, conn->traceLevel, "### New Connection from %s:%d to %s:%d", 
-                conn->ip, conn->port, conn->sock->ip, conn->sock->port);
-        }
+    if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_CONN, NULL)) >= 0) {
+        mprLog(conn, level, "### New Connection from %s:%d to %s:%d", 
+            conn->ip, conn->port, conn->sock->ip, conn->sock->port);
     }
     e.mask = MPR_READABLE;
     e.timestamp = mprGetTime(server);

@@ -289,13 +289,20 @@ int httpIsEof(HttpConn *conn)
     HttpReceiver    *rec;
 
     rec = conn->receiver;
+    return rec == 0 || rec->readComplete;
+#if UNUSED
     if (rec == 0) {
         return 1;
     }
     if (rec->length >= 0) {
         return rec->readContent >= rec->length;
+    } else if (rec->remainingContent == 0) {
+        if (rec->flags & HTTP_REC_CHUNKED && rec->chunkState == HTTP_CHUNK_EOF) {
+            return 1;
+        }
     }
     return 0;
+#endif
 }
 
 

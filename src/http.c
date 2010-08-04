@@ -232,7 +232,7 @@ static int httpTimer(Http *http, MprEvent *event)
     }
 
     /* 
-       Check for any inactive connections
+       Check for any inactive or expired connections (inactivityTimeout and requestTimeout)
      */
     lock(http);
     for (connCount = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; connCount++) {

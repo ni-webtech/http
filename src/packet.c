@@ -13,7 +13,7 @@
  */
 HttpPacket *httpCreatePacket(MprCtx ctx, int size)
 {
-    HttpPacket    *packet;
+    HttpPacket  *packet;
 
     packet = mprAllocObjZeroed(ctx, HttpPacket);
     if (packet == 0) {

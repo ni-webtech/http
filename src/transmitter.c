@@ -211,7 +211,7 @@ void httpDontCache(HttpConn *conn)
 
 void httpFinalize(HttpConn *conn)
 {
-    HttpTransmitter   *trans;
+    HttpTransmitter     *trans;
 
     trans = conn->transmitter;
     if (trans->finalized || conn->state < HTTP_STATE_CONNECTED || conn->writeq == 0 || conn->sock == 0) {
@@ -220,6 +220,9 @@ void httpFinalize(HttpConn *conn)
     trans->finalized = 1;
     httpPutForService(conn->writeq, httpCreateEndPacket(trans), 1);
     httpServiceQueues(conn);
+    if (conn->state == HTTP_STATE_RUNNING && conn->writeComplete && !conn->advancing) {
+        httpAdvanceReceiver(conn, NULL);
+    }
 }
 
 
