@@ -90,7 +90,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
 
     if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_CONN, NULL)) >= 0) {
-        mprLog(conn, level, "### New Connection from %s:%d to %s:%d", 
+        mprLog(conn, level, "### Outgoing connection from %s:%d to %s:%d", 
             conn->ip, conn->port, conn->sock->ip, conn->sock->port);
     }
     return conn;

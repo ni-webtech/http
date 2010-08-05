@@ -39,6 +39,9 @@
 		C93A68C110FD8311006B6C41 /* rangeFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BC10FD8311006B6C41 /* rangeFilter.c */; };
 		C93A68C210FD8311006B6C41 /* uploadFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BD10FD8311006B6C41 /* uploadFilter.c */; };
 		C93A68C610FD833D006B6C41 /* env.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68C510FD833D006B6C41 /* env.c */; };
+		C949ABC2120B68FB00398DC6 /* rx.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC0120B68FB00398DC6 /* rx.c */; };
+		C949ABC3120B68FB00398DC6 /* tx.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC1120B68FB00398DC6 /* tx.c */; };
+		C949ABC7120B691100398DC6 /* trace.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC6120B691100398DC6 /* trace.c */; };
 		C9513DC410E98C2E00F9E006 /* client.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DB810E98C2E00F9E006 /* client.c */; };
 		C9513DC510E98C2E00F9E006 /* conn.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DB910E98C2E00F9E006 /* conn.c */; };
 		C9513DC610E98C2E00F9E006 /* http.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBA10E98C2E00F9E006 /* http.c */; };
@@ -46,10 +49,8 @@
 		C9513DC810E98C2E00F9E006 /* packet.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBC10E98C2E00F9E006 /* packet.c */; };
 		C9513DC910E98C2E00F9E006 /* pipeline.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBD10E98C2E00F9E006 /* pipeline.c */; };
 		C9513DCA10E98C2E00F9E006 /* queue.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBE10E98C2E00F9E006 /* queue.c */; };
-		C9513DCB10E98C2E00F9E006 /* receiver.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBF10E98C2E00F9E006 /* receiver.c */; };
 		C9513DCC10E98C2E00F9E006 /* server.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DC010E98C2E00F9E006 /* server.c */; };
 		C9513DCD10E98C2E00F9E006 /* stage.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DC110E98C2E00F9E006 /* stage.c */; };
-		C9513DCE10E98C2E00F9E006 /* transmitter.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DC210E98C2E00F9E006 /* transmitter.c */; };
 		C9513DCF10E98C2E00F9E006 /* uri.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DC310E98C2E00F9E006 /* uri.c */; };
 		C9513DF010E98CE200F9E006 /* http.h in Headers */ = {isa = PBXBuildFile; fileRef = C9513DEF10E98CE200F9E006 /* http.h */; };
 		C9513E3A10E98DA900F9E006 /* libmpr.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C9513DE510E98C7E00F9E006 /* libmpr.dylib */; };
@@ -166,6 +167,9 @@
 		C93A68BC10FD8311006B6C41 /* rangeFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = rangeFilter.c; path = ../../../src/rangeFilter.c; sourceTree = SOURCE_ROOT; };
 		C93A68BD10FD8311006B6C41 /* uploadFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = uploadFilter.c; path = ../../../src/uploadFilter.c; sourceTree = SOURCE_ROOT; };
 		C93A68C510FD833D006B6C41 /* env.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = env.c; path = ../../../src/env.c; sourceTree = SOURCE_ROOT; };
+		C949ABC0120B68FB00398DC6 /* rx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = rx.c; path = ../../../src/rx.c; sourceTree = SOURCE_ROOT; };
+		C949ABC1120B68FB00398DC6 /* tx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = tx.c; path = ../../../src/tx.c; sourceTree = SOURCE_ROOT; };
+		C949ABC6120B691100398DC6 /* trace.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = trace.c; path = ../../../src/trace.c; sourceTree = SOURCE_ROOT; };
 		C9513DB810E98C2E00F9E006 /* client.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = client.c; path = ../../../src/client.c; sourceTree = SOURCE_ROOT; };
 		C9513DB910E98C2E00F9E006 /* conn.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = conn.c; path = ../../../src/conn.c; sourceTree = SOURCE_ROOT; };
 		C9513DBA10E98C2E00F9E006 /* http.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = http.c; path = ../../../src/http.c; sourceTree = SOURCE_ROOT; };
@@ -173,10 +177,8 @@
 		C9513DBC10E98C2E00F9E006 /* packet.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = packet.c; path = ../../../src/packet.c; sourceTree = SOURCE_ROOT; };
 		C9513DBD10E98C2E00F9E006 /* pipeline.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pipeline.c; path = ../../../src/pipeline.c; sourceTree = SOURCE_ROOT; };
 		C9513DBE10E98C2E00F9E006 /* queue.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = queue.c; path = ../../../src/queue.c; sourceTree = SOURCE_ROOT; };
-		C9513DBF10E98C2E00F9E006 /* receiver.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = receiver.c; path = ../../../src/receiver.c; sourceTree = SOURCE_ROOT; };
 		C9513DC010E98C2E00F9E006 /* server.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = server.c; path = ../../../src/server.c; sourceTree = SOURCE_ROOT; };
 		C9513DC110E98C2E00F9E006 /* stage.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = stage.c; path = ../../../src/stage.c; sourceTree = SOURCE_ROOT; };
-		C9513DC210E98C2E00F9E006 /* transmitter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = transmitter.c; path = ../../../src/transmitter.c; sourceTree = SOURCE_ROOT; };
 		C9513DC310E98C2E00F9E006 /* uri.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = uri.c; path = ../../../src/uri.c; sourceTree = SOURCE_ROOT; };
 		C9513DE510E98C7E00F9E006 /* libmpr.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libmpr.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9513DEF10E98CE200F9E006 /* http.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = http.h; path = ../../../src/include/http.h; sourceTree = SOURCE_ROOT; };
@@ -266,6 +268,9 @@
 		C90A19E60FD6DC6C006A9E86 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				C949ABC6120B691100398DC6 /* trace.c */,
+				C949ABC0120B68FB00398DC6 /* rx.c */,
+				C949ABC1120B68FB00398DC6 /* tx.c */,
 				C9BE003611F367770013B994 /* sendConnector.c */,
 				C9723C2011138578002B2B3B /* authFile.c */,
 				C9723C2111138578002B2B3B /* authPam.c */,
@@ -284,10 +289,8 @@
 				C9513DBC10E98C2E00F9E006 /* packet.c */,
 				C9513DBD10E98C2E00F9E006 /* pipeline.c */,
 				C9513DBE10E98C2E00F9E006 /* queue.c */,
-				C9513DBF10E98C2E00F9E006 /* receiver.c */,
 				C9513DC010E98C2E00F9E006 /* server.c */,
 				C9513DC110E98C2E00F9E006 /* stage.c */,
-				C9513DC210E98C2E00F9E006 /* transmitter.c */,
 				C9513DC310E98C2E00F9E006 /* uri.c */,
 				C90A1A8D0FD6DF58006A9E86 /* utils */,
 				C90A1A8C0FD6DF51006A9E86 /* test */,
@@ -504,10 +507,8 @@
 				C9513DC810E98C2E00F9E006 /* packet.c in Sources */,
 				C9513DC910E98C2E00F9E006 /* pipeline.c in Sources */,
 				C9513DCA10E98C2E00F9E006 /* queue.c in Sources */,
-				C9513DCB10E98C2E00F9E006 /* receiver.c in Sources */,
 				C9513DCC10E98C2E00F9E006 /* server.c in Sources */,
 				C9513DCD10E98C2E00F9E006 /* stage.c in Sources */,
-				C9513DCE10E98C2E00F9E006 /* transmitter.c in Sources */,
 				C9513DCF10E98C2E00F9E006 /* uri.c in Sources */,
 				C93A68BE10FD8311006B6C41 /* auth.c in Sources */,
 				C93A68BF10FD8311006B6C41 /* authFilter.c in Sources */,
@@ -520,6 +521,9 @@
 				C9723C2211138578002B2B3B /* authFile.c in Sources */,
 				C9723C2311138578002B2B3B /* authPam.c in Sources */,
 				C9BE003711F367770013B994 /* sendConnector.c in Sources */,
+				C949ABC2120B68FB00398DC6 /* rx.c in Sources */,
+				C949ABC3120B68FB00398DC6 /* tx.c in Sources */,
+				C949ABC7120B691100398DC6 /* trace.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
