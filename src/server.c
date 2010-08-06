@@ -10,6 +10,7 @@
 /********************************** Forwards **********************************/
 
 static int destroyServer(HttpServer *server);
+static int destroyServerConnections(HttpServer *server);
 
 /************************************ Code ************************************/
 /*
@@ -45,10 +46,33 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
 
 static int destroyServer(HttpServer *server)
 {
+    mprLog(server, 4, "Destroy server %s", server->name);
     if (server->waitHandler.fd >= 0) {
         mprRemoveWaitHandler(&server->waitHandler);
     }
+    destroyServerConnections(server);
     mprFree(server->sock);
+    return 0;
+}
+
+
+static int destroyServerConnections(HttpServer *server)
+{
+    HttpConn    *conn;
+    Http        *http;
+    int         next;
+
+    http = server->http;
+    lock(http);
+
+    for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
+        if (conn->server == server) {
+            httpRemoveConn(http, conn);
+            conn->server = 0;
+            mprFree(conn);
+        }
+    }
+    unlock(http);
     return 0;
 }
 
