@@ -247,8 +247,10 @@ static int httpTimer(Http *http, MprEvent *event)
             diff = (conn->lastActivity + requestTimeout) - http->now;
             inactivity = 0;
         }
-        if (diff < 0) {
+        if (diff < 0 && !conn->complete) {
+#if UNUSED
             httpRemoveConn(http, conn);
+#endif
             if (conn->rx) {
                 if (inactivity) {
                     httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
@@ -259,6 +261,8 @@ static int httpTimer(Http *http, MprEvent *event)
                 }
             } else {
                 mprLog(http, 4, "Idle connection timed out");
+                conn->complete = 1;
+                mprDisconnectSocket(conn->sock);
             }
         }
     }
