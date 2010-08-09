@@ -422,6 +422,9 @@ void httpCompleteRequest(HttpConn *conn)
 void httpCompleteWriting(HttpConn *conn)
 {
     conn->writeComplete = 1;
+    if (conn->tx) {
+        conn->tx->finalized = 1;
+    }
     httpDiscardTransmitData(conn);
 }
 

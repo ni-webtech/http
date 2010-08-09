@@ -95,6 +95,9 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
                 } else {
                     q->first = next;
                 }
+                if (packet == q->last) {
+                    q->last = prev;
+                }
                 q->count -= httpGetPacketLength(packet);
                 mprAssert(q->count >= 0);
                 httpFreePacket(q, packet);
