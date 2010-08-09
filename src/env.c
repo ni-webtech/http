@@ -13,8 +13,8 @@
  */
 void httpCreateEnvVars(HttpConn *conn)
 {
-    HttpRx          *rec;
-    HttpTx          *trans;
+    HttpRx          *rx;
+    HttpTx          *tx;
     MprSocket       *sock;
     MprHashTable    *vars;
     MprHash         *hp;
@@ -23,22 +23,22 @@ void httpCreateEnvVars(HttpConn *conn)
     char            port[16], size[16];
     int             index;
 
-    rec = conn->rx;
-    trans = conn->tx;
-    vars = rec->formVars;
+    rx = conn->rx;
+    tx = conn->tx;
+    vars = rx->formVars;
     server = conn->server;
 
     //  TODO - Vars for COOKIEs
     
     /*  Alias for REMOTE_USER. Define both for broader compatibility with CGI */
-    mprAddHash(vars, "AUTH_TYPE", rec->authType);
+    mprAddHash(vars, "AUTH_TYPE", rx->authType);
     mprAddHash(vars, "AUTH_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
     mprAddHash(vars, "AUTH_GROUP", conn->authGroup);
     mprAddHash(vars, "AUTH_ACL", "");
-    mprAddHash(vars, "CONTENT_LENGTH", rec->contentLength);
-    mprAddHash(vars, "CONTENT_TYPE", rec->mimeType);
+    mprAddHash(vars, "CONTENT_LENGTH", rx->contentLength);
+    mprAddHash(vars, "CONTENT_TYPE", rx->mimeType);
     mprAddHash(vars, "GATEWAY_INTERFACE", "CGI/1.1");
-    mprAddHash(vars, "QUERY_STRING", rec->parsedUri->query);
+    mprAddHash(vars, "QUERY_STRING", rx->parsedUri->query);
 
     if (conn->sock) {
         mprAddHash(vars, "REMOTE_ADDR", conn->ip);
@@ -48,36 +48,36 @@ void httpCreateEnvVars(HttpConn *conn)
 
     /*  Same as AUTH_USER (yes this is right) */
     mprAddHash(vars, "REMOTE_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
-    mprAddHash(vars, "REQUEST_METHOD", rec->method);
+    mprAddHash(vars, "REQUEST_METHOD", rx->method);
     mprAddHash(vars, "REQUEST_TRANSPORT", (char*) ((conn->secure) ? "https" : "http"));
     
     sock = conn->sock;
     mprAddHash(vars, "SERVER_ADDR", sock->acceptIp);
     mprAddHash(vars, "SERVER_NAME", server->name);
     mprItoa(port, sizeof(port) - 1, sock->acceptPort, 10);
-    mprAddHash(vars, "SERVER_PORT", mprStrdup(rec, port));
+    mprAddHash(vars, "SERVER_PORT", mprStrdup(rx, port));
 
     /*  HTTP/1.0 or HTTP/1.1 */
     mprAddHash(vars, "SERVER_PROTOCOL", conn->protocol);
     mprAddHash(vars, "SERVER_SOFTWARE", server->software);
 
     /*  This is the complete URI before decoding */ 
-    mprAddHash(vars, "REQUEST_URI", rec->uri);
+    mprAddHash(vars, "REQUEST_URI", rx->uri);
 
     /*  URLs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} */
-    mprAddHash(vars, "PATH_INFO", rec->pathInfo);
-    mprAddHash(vars, "SCRIPT_NAME", rec->scriptName);
-    mprAddHash(vars, "SCRIPT_FILENAME", trans->filename);
+    mprAddHash(vars, "PATH_INFO", rx->pathInfo);
+    mprAddHash(vars, "SCRIPT_NAME", rx->scriptName);
+    mprAddHash(vars, "SCRIPT_FILENAME", tx->filename);
 
-    if (rec->pathTranslated) {
+    if (rx->pathTranslated) {
         /*  Only set PATH_TRANSLATED if PATH_INFO is set (CGI spec) */
-        mprAddHash(vars, "PATH_TRANSLATED", rec->pathTranslated);
+        mprAddHash(vars, "PATH_TRANSLATED", rx->pathTranslated);
     }
     //  MOB -- how do these relate to MVC apps and non-mvc apps
     mprAddHash(vars, "DOCUMENT_ROOT", conn->documentRoot);
     mprAddHash(vars, "SERVER_ROOT", server->serverRoot);
 
-    if (rec->files) {
+    if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextHash(conn->rx->files, hp)) != 0; index++) {
             up = (HttpUploadFile*) hp->data;
             mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_FILENAME", index), up->filename);
@@ -98,19 +98,19 @@ void httpCreateEnvVars(HttpConn *conn)
  */
 void httpAddVars(HttpConn *conn, cchar *buf, int len)
 {
-    HttpTx          *trans;
-    HttpRx          *rec;
+    HttpTx          *tx;
+    HttpRx          *rx;
     MprHashTable    *vars;
     cchar           *oldValue;
     char            *newValue, *decoded, *keyword, *value, *tok;
 
-    trans = conn->tx;
-    rec = conn->rx;
-    vars = rec->formVars;
+    tx = conn->tx;
+    rx = conn->rx;
+    vars = rx->formVars;
     if (vars == 0) {
         return;
     }
-    decoded = (char*) mprAlloc(trans, len + 1);
+    decoded = (char*) mprAlloc(tx, len + 1);
     decoded[len] = '\0';
     memcpy(decoded, buf, len);
 
@@ -118,11 +118,11 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
     while (keyword != 0) {
         if ((value = strchr(keyword, '=')) != 0) {
             *value++ = '\0';
-            value = mprUriDecode(rec, value);
+            value = mprUriDecode(rx, value);
         } else {
             value = "";
         }
-        keyword = mprUriDecode(rec, keyword);
+        keyword = mprUriDecode(rx, keyword);
 
         if (*keyword) {
             /*  
@@ -246,24 +246,24 @@ int httpCompareFormVar(HttpConn *conn, cchar *var, cchar *value)
 
 void httpAddUploadFile(HttpConn *conn, cchar *id, HttpUploadFile *upfile)
 {
-    HttpRx   *rec;
+    HttpRx   *rx;
 
-    rec = conn->rx;
-    if (rec->files == 0) {
-        rec->files = mprCreateHash(rec, -1);
+    rx = conn->rx;
+    if (rx->files == 0) {
+        rx->files = mprCreateHash(rx, -1);
     }
-    mprAddHash(rec->files, id, upfile);
+    mprAddHash(rx->files, id, upfile);
 }
 
 
 void httpRemoveUploadFile(HttpConn *conn, cchar *id)
 {
-    HttpRx    *rec;
+    HttpRx    *rx;
     HttpUploadFile  *upfile;
 
-    rec = conn->rx;
+    rx = conn->rx;
 
-    upfile = (HttpUploadFile*) mprLookupHash(rec->files, id);
+    upfile = (HttpUploadFile*) mprLookupHash(rx->files, id);
     if (upfile) {
         mprDeletePath(conn, upfile->filename);
         upfile->filename = 0;
@@ -273,13 +273,13 @@ void httpRemoveUploadFile(HttpConn *conn, cchar *id)
 
 void httpRemoveAllUploadedFiles(HttpConn *conn)
 {
-    HttpRx    *rec;
+    HttpRx          *rx;
     HttpUploadFile  *upfile;
-    MprHash        *hp;
+    MprHash         *hp;
 
-    rec = conn->rx;
+    rx = conn->rx;
 
-    for (hp = 0; rec->files && (hp = mprGetNextHash(rec->files, hp)) != 0; ) {
+    for (hp = 0; rx->files && (hp = mprGetNextHash(rx->files, hp)) != 0; ) {
         upfile = (HttpUploadFile*) hp->data;
         if (upfile->filename) {
             mprDeletePath(conn, upfile->filename);

@@ -243,12 +243,12 @@ int httpRead(HttpConn *conn, char *buf, int size)
 {
     HttpPacket  *packet;
     HttpQueue   *q;
-    HttpRx      *rec;
+    HttpRx      *rx;
     MprBuf      *content;
     int         nbytes, len, events, inactivityTimeout;
 
     q = conn->readq;
-    rec = conn->rx;
+    rx = conn->rx;
     
     while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
@@ -274,7 +274,7 @@ int httpRead(HttpConn *conn, char *buf, int size)
         if (len > 0) {
             len = mprGetBlockFromBuf(content, buf, len);
         }
-        rec->readContent += len;
+        rx->readContent += len;
         buf += len;
         size -= len;
         q->count -= len;
@@ -295,15 +295,15 @@ int httpIsEof(HttpConn *conn)
 
 char *httpReadString(HttpConn *conn)
 {
-    HttpRx    *rec;
-    char            *content;
-    int             remaining, sofar, nbytes;
+    HttpRx      *rx;
+    char        *content;
+    int         remaining, sofar, nbytes;
 
-    rec = conn->rx;
+    rx = conn->rx;
 
-    if (rec->length > 0) {
-        content = mprAlloc(rec, rec->length + 1);
-        remaining = rec->length;
+    if (rx->length > 0) {
+        content = mprAlloc(rx, rx->length + 1);
+        remaining = rx->length;
         sofar = 0;
         while (remaining > 0) {
             nbytes = httpRead(conn, &content[sofar], remaining);
@@ -314,7 +314,7 @@ char *httpReadString(HttpConn *conn)
             remaining -= nbytes;
         }
     } else {
-        content = mprAlloc(rec, HTTP_BUFSIZE);
+        content = mprAlloc(rx, HTTP_BUFSIZE);
         sofar = 0;
         while (1) {
             nbytes = httpRead(conn, &content[sofar], HTTP_BUFSIZE);
@@ -418,14 +418,14 @@ int httpWriteBlock(HttpQueue *q, cchar *buf, int size)
 {
     HttpPacket  *packet;
     HttpConn    *conn;
-    HttpTx      *trans;
+    HttpTx      *tx;
     int         bytes, written, packetSize;
 
     mprAssert(q == q->conn->writeq);
                
     conn = q->conn;
-    trans = conn->tx;
-    if (trans->finalized) {
+    tx = conn->tx;
+    if (tx->finalized) {
         return MPR_ERR_CANT_WRITE;
     }
     for (written = 0; size > 0; ) {
@@ -440,7 +440,7 @@ int httpWriteBlock(HttpQueue *q, cchar *buf, int size)
             packet = 0;
         }
         if (packet == 0 || mprGetBufSpace(packet->content) == 0) {
-            packetSize = (trans->chunkSize > 0) ? trans->chunkSize : q->packetSize;
+            packetSize = (tx->chunkSize > 0) ? tx->chunkSize : q->packetSize;
             if ((packet = httpCreateDataPacket(q, packetSize)) != 0) {
                 httpPutForService(q, packet, 0);
             }

@@ -40,39 +40,39 @@ int httpOpenNetConnector(Http *http)
 static void netOutgoingService(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpTx      *trans;
+    HttpTx      *tx;
     int         written, errCode;
 
     conn = q->conn;
-    trans = conn->tx;
+    tx = conn->tx;
     conn->lastActivity = conn->http->now;
     
     if (conn->sock == 0 || conn->writeComplete) {
         return;
     }
-    if (trans->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
+    if (tx->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
         httpDiscardData(q, 1);
     }
-    if ((trans->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
+    if ((tx->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
         httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, 
             "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
-        if (trans->flags & HTTP_TX_HEADERS_CREATED) {
+        if (tx->flags & HTTP_TX_HEADERS_CREATED) {
             /* Must disconnect as the client must be notified somehow */
             mprDisconnectSocket(conn->sock);
             httpCompleteWriting(conn);
             return;
         }
     }
-    if (trans->flags & HTTP_TX_SENDFILE) {
+    if (tx->flags & HTTP_TX_SENDFILE) {
         /* Relay via the send connector */
-        if (trans->file == 0) {
-            if (trans->flags & HTTP_TX_HEADERS_CREATED) {
-                trans->flags &= ~HTTP_TX_SENDFILE;
+        if (tx->file == 0) {
+            if (tx->flags & HTTP_TX_HEADERS_CREATED) {
+                tx->flags &= ~HTTP_TX_SENDFILE;
             } else {
                 httpSendOpen(q);
             }
         }
-        if (trans->file) {
+        if (tx->file) {
             return httpSendOutgoingService(q);
         }
     }
@@ -108,7 +108,7 @@ static void netOutgoingService(HttpQueue *q)
             break;
 
         } else if (written > 0) {
-            trans->bytesWritten += written;
+            tx->bytesWritten += written;
             freeNetPackets(q, written);
             adjustNetVec(q, written);
         }
@@ -129,11 +129,11 @@ static void netOutgoingService(HttpQueue *q)
 static int buildNetVec(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpTx      *trans;
+    HttpTx      *tx;
     HttpPacket  *packet;
 
     conn = q->conn;
-    trans = conn->tx;
+    tx = conn->tx;
 
     /*
         Examine each packet and accumulate as many packets into the I/O vector as possible. Leave the packets on the queue 
@@ -141,7 +141,7 @@ static int buildNetVec(HttpQueue *q)
      */
     for (packet = q->first; packet; packet = packet->next) {
         if (packet->flags & HTTP_PACKET_HEADER) {
-            if (trans->chunkSize <= 0 && q->count > 0 && trans->length < 0) {
+            if (tx->chunkSize <= 0 && q->count > 0 && tx->length < 0) {
                 /* Incase no chunking filter and we've not seen all the data yet */
                 conn->keepAliveCount = 0;
             }
@@ -182,13 +182,13 @@ static void addToNetVector(HttpQueue *q, char *ptr, int bytes)
  */
 static void addPacketForNet(HttpQueue *q, HttpPacket *packet)
 {
-    HttpTx      *trans;
+    HttpTx      *tx;
     HttpConn    *conn;
     MprIOVec    *iovec;
     int         index, item;
 
     conn = q->conn;
-    trans = conn->tx;
+    tx = conn->tx;
     iovec = q->iovec;
     index = q->ioIndex;
 
@@ -203,7 +203,7 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet)
     }
     item = (packet->flags & HTTP_PACKET_HEADER) ? HTTP_TRACE_HEADER : HTTP_TRACE_BODY;
     if (httpShouldTrace(conn, HTTP_TRACE_TX, item, NULL) >= 0) {
-        httpTraceContent(conn, HTTP_TRACE_TX, item, packet, 0, trans->bytesWritten);
+        httpTraceContent(conn, HTTP_TRACE_TX, item, packet, 0, tx->bytesWritten);
     }
 }
 

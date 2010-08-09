@@ -36,15 +36,15 @@ HttpPacket *httpCreatePacket(MprCtx ctx, int size)
 HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
 {
     HttpPacket  *packet;
-    HttpRx      *rec;
+    HttpRx      *rx;
 
     if (conn->state >= HTTP_STATE_COMPLETE) {
         return httpCreatePacket((MprCtx) conn, size);
     }
-    rec = conn->rx;
-    if (rec) {
-        if ((packet = rec->freePackets) != NULL && size <= packet->content->buflen) {
-            rec->freePackets = packet->next; 
+    rx = conn->rx;
+    if (rx) {
+        if ((packet = rx->freePackets) != NULL && size <= packet->content->buflen) {
+            rx->freePackets = packet->next; 
             packet->next = 0;
             mprStealBlock(conn, packet);
             return packet;
@@ -58,12 +58,12 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
 {
 #if FUTURE
     HttpConn    *conn;
-    HttpRx      *rec;
+    HttpRx      *rx;
 
     conn = q->conn;
-    rec = conn->rx;
+    rx = conn->rx;
 
-    if (rec == 0 || packet->content == 0 || packet->content->buflen < HTTP_BUFSIZE || mprGetParent(packet) == conn) {
+    if (rx == 0 || packet->content == 0 || packet->content->buflen < HTTP_BUFSIZE || mprGetParent(packet) == conn) {
         /* 
             Don't bother recycling non-content, small packets or packets owned by the connection
             We only store packets owned by the request and not by the connection on the free list.
@@ -83,8 +83,8 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
     packet->suffix = 0;
     packet->entityLength = 0;
     packet->flags = 0;
-    packet->next = rec->freePackets;
-    rec->freePackets = packet;
+    packet->next = rx->freePackets;
+    rx->freePackets = packet;
 #else
     mprFree(packet);
 #endif

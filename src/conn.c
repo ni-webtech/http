@@ -133,7 +133,7 @@ void httpPrepServerConn(HttpConn *conn)
 void httpPrepClientConn(HttpConn *conn, int retry)
 {
     MprHashTable    *headers;
-    HttpTx          *trans;
+    HttpTx          *tx;
 
     mprAssert(conn);
 
@@ -143,8 +143,8 @@ void httpPrepClientConn(HttpConn *conn, int retry)
             /* Eat remaining input incase last request did not consume all data */
             httpConsumeLastRequest(conn);
         }
-        if (retry && (trans = conn->tx) != 0) {
-            headers = trans->headers;
+        if (retry && (tx = conn->tx) != 0) {
+            headers = tx->headers;
             mprStealBlock(conn, headers);
         }
         conn->abortPipeline = 0;
@@ -204,11 +204,9 @@ void httpCallEvent(HttpConn *conn, int mask)
 
 /*  
     IO event handler. This is invoked by the wait subsystem in response to I/O events. It is also invoked via relay
-    when an accept event is received by the server.
-
-    Initially the conn->dispatcher will be set to the server->dispatcher and the first I/O event
-    will be handled on the server thread (or main thread). A request handler may create a new conn->dispatcher and
-    transfer execution to a worker thread if required.
+    when an accept event is received by the server. Initially the conn->dispatcher will be set to the server->dispatcher 
+    and the first I/O event will be handled on the server thread (or main thread). A request handler may create a 
+    new conn->dispatcher and transfer execution to a worker thread if required.
  */
 void httpEvent(HttpConn *conn, MprEvent *event)
 {
@@ -288,20 +286,20 @@ static void writeEvent(HttpConn *conn)
 
 void httpEnableConnEvents(HttpConn *conn)
 {
-    HttpTx      *trans;
+    HttpTx      *tx;
     HttpQueue   *q;
     int         eventMask;
 
     if (!conn->async) {
         return;
     }
-    trans = conn->tx;
+    tx = conn->tx;
     eventMask = 0;
     conn->lastActivity = conn->time;
 
     if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
-        if (trans) {
-            if (trans->queue[HTTP_QUEUE_TRANS].prevQ->count > 0) {
+        if (tx) {
+            if (tx->queue[HTTP_QUEUE_TRANS].prevQ->count > 0) {
                 eventMask |= MPR_WRITABLE;
             } else {
                 mprAssert(!conn->writeBlocked);
@@ -310,7 +308,7 @@ void httpEnableConnEvents(HttpConn *conn)
                 Allow read events even if the current request is not complete. The pipelined request will be buffered 
                 and will be ready when the current request completes.
              */
-            q = trans->queue[HTTP_QUEUE_RECEIVE].nextQ;
+            q = tx->queue[HTTP_QUEUE_RECEIVE].nextQ;
             if (q->count < q->max) {
                 eventMask |= MPR_READABLE;
             }
@@ -672,26 +670,26 @@ void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...)
  */
 static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
-    HttpRx      *rec;
-    HttpTx      *trans;
+    HttpRx      *rx;
+    HttpTx      *tx;
 
     mprAssert(fmt);
 
-    rec = conn->rx;
+    rx = conn->rx;
 
     if (!conn->error) {
         conn->error = 1;
         httpFormatErrorV(conn, status, fmt, args);
-        if (rec == 0) {
+        if (rx == 0) {
             mprLog(conn, 2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
         } else {
             mprLog(conn, 2, "Error: \"%s\", status %d for URI \"%s\": %s.",
-                httpLookupStatus(conn->http, status), status, rec->uri ? rec->uri : "", conn->errorMsg);
+                httpLookupStatus(conn->http, status), status, rx->uri ? rx->uri : "", conn->errorMsg);
         }
-        trans = conn->tx;
-        if (trans) {
+        tx = conn->tx;
+        if (tx) {
             if (conn->server) {
-                if (trans->flags & HTTP_TX_HEADERS_CREATED) {
+                if (tx->flags & HTTP_TX_HEADERS_CREATED) {
                     /* Headers and status have been sent, so must let the client know the request has failed */
                     mprDisconnectSocket(conn->sock);
                 } else {
@@ -699,7 +697,7 @@ static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
                     httpFinalize(conn);
                 }
             } else {
-                if (trans->flags & HTTP_TX_HEADERS_CREATED) {
+                if (tx->flags & HTTP_TX_HEADERS_CREATED) {
                     httpCloseConn(conn);
                 }
             }

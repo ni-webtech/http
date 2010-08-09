@@ -15,10 +15,10 @@
 
 static void defaultOpen(HttpQueue *q)
 {
-    HttpTx      *trans;
+    HttpTx      *tx;
 
-    trans = q->conn->tx;
-    q->packetSize = (trans->chunkSize > 0) ? min(q->max, trans->chunkSize): q->max;
+    tx = q->conn->tx;
+    q->packetSize = (tx->chunkSize > 0) ? min(q->max, tx->chunkSize): q->max;
 }
 
 
@@ -40,7 +40,6 @@ static void outgoingData(HttpQueue *q, HttpPacket *packet)
     enableService = !(q->stage->flags & HTTP_STAGE_HANDLER) || (q->conn->state == HTTP_STATE_RUNNING) ? 1 : 0;
     httpPutForService(q, packet, enableService);
 }
-
 
 
 /*  

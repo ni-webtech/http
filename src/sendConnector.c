@@ -44,10 +44,10 @@ int httpOpenSendConnector(Http *http)
 void httpSendOpen(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpTx      *trans;
+    HttpTx      *tx;
 
     conn = q->conn;
-    trans = conn->tx;
+    tx = conn->tx;
 
     /*  
         To write an entire file, reset the maximum and packet size to the maximum response body size (LimitResponseBody)
@@ -57,10 +57,10 @@ void httpSendOpen(HttpQueue *q)
     q->max = conn->limits->transmissionBodySize;
     q->packetSize = conn->limits->transmissionBodySize;
 
-    if (!(trans->flags & HTTP_TX_NO_BODY)) {
-        trans->file = mprOpen(q, trans->filename, O_RDONLY | O_BINARY, 0);
-        if (trans->file == 0) {
-            httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", trans->filename);
+    if (!(tx->flags & HTTP_TX_NO_BODY)) {
+        tx->file = mprOpen(q, tx->filename, O_RDONLY | O_BINARY, 0);
+        if (tx->file == 0) {
+            httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
         }
     }
 }
@@ -75,23 +75,23 @@ static void sendIncomingService(HttpQueue *q)
 void httpSendOutgoingService(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpTx      *trans;
+    HttpTx      *tx;
     int         written, ioCount, errCode;
 
     conn = q->conn;
-    trans = conn->tx;
+    tx = conn->tx;
     conn->lastActivity = conn->http->now;
 
     if (conn->sock == 0 || conn->writeComplete) {
         return;
     }
-    if (trans->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
+    if (tx->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
         httpDiscardData(q, 1);
     }
-    if ((trans->bytesWritten + q->ioCount) > conn->limits->transmissionBodySize) {
+    if ((tx->bytesWritten + q->ioCount) > conn->limits->transmissionBodySize) {
         httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE,
             "Http transmission aborted. Exceeded max body of %d bytes", conn->limits->transmissionBodySize);
-       if (trans->flags & HTTP_TX_HEADERS_CREATED) {
+       if (tx->flags & HTTP_TX_HEADERS_CREATED) {
             httpCompleteWriting(conn);
             /* Must disconnect as the client must be notified somehow */
             mprDisconnectSocket(conn->sock);
@@ -114,7 +114,7 @@ void httpSendOutgoingService(HttpQueue *q)
          */
         ioCount = q->ioIndex - q->ioFileEntry;
         mprAssert(ioCount >= 0);
-        written = (int) mprSendFileToSocket(conn->sock, trans->file, trans->pos, q->ioCount, q->iovec, ioCount, NULL, 0);
+        written = (int) mprSendFileToSocket(conn->sock, tx->file, tx->pos, q->ioCount, q->iovec, ioCount, NULL, 0);
         mprLog(q, 5, "Send connector written %d", written);
         if (written < 0) {
             errCode = mprGetError(q);
@@ -134,7 +134,7 @@ void httpSendOutgoingService(HttpQueue *q)
             break;
 
         } else if (written > 0) {
-            trans->bytesWritten += written;
+            tx->bytesWritten += written;
             freeSentPackets(q, written);
             adjustSendVec(q, written);
         }
@@ -157,11 +157,11 @@ void httpSendOutgoingService(HttpQueue *q)
 static int buildSendVec(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpTx      *trans;
+    HttpTx      *tx;
     HttpPacket  *packet;
 
     conn = q->conn;
-    trans = conn->tx;
+    tx = conn->tx;
 
     mprAssert(q->ioIndex == 0);
     q->ioCount = 0;
@@ -212,13 +212,13 @@ static void addToSendVector(HttpQueue *q, char *ptr, int bytes)
  */
 static void addPacketForSend(HttpQueue *q, HttpPacket *packet)
 {
-    HttpTx      *trans;
+    HttpTx      *tx;
     HttpConn    *conn;
     MprIOVec    *iovec;
     int         item;
 
     conn = q->conn;
-    trans = conn->tx;
+    tx = conn->tx;
     iovec = q->iovec;
     
     mprAssert(q->count >= 0);
@@ -243,7 +243,7 @@ static void addPacketForSend(HttpQueue *q, HttpPacket *packet)
     }
     item = (packet->flags & HTTP_PACKET_HEADER) ? HTTP_TRACE_HEADER : HTTP_TRACE_BODY;
     if (httpShouldTrace(conn, HTTP_TRACE_TX, item, NULL) >= 0) {
-        httpTraceContent(conn, HTTP_TRACE_TX, item, packet, 0, trans->bytesWritten);
+        httpTraceContent(conn, HTTP_TRACE_TX, item, packet, 0, tx->bytesWritten);
     }
 }
 
@@ -304,11 +304,11 @@ static void freeSentPackets(HttpQueue *q, int bytes)
  */
 static void adjustSendVec(HttpQueue *q, int written)
 {
-    HttpTx      *trans;
+    HttpTx      *tx;
     MprIOVec    *iovec;
     int         i, j, len;
 
-    trans = q->conn->tx;
+    tx = q->conn->tx;
 
     /*  
         Cleanup the IO vector
@@ -319,7 +319,7 @@ static void adjustSendVec(HttpQueue *q, int written)
          */
         q->ioIndex = 0;
         q->ioCount = 0;
-        trans->pos = q->ioFileOffset;
+        tx->pos = q->ioFileOffset;
 
     } else {
         /*  
@@ -342,7 +342,7 @@ static void adjustSendVec(HttpQueue *q, int written)
                 /*
                     File data has a null start ptr
                  */
-                trans->pos += written;
+                tx->pos += written;
                 q->ioIndex = 0;
                 q->ioCount = 0;
                 return;

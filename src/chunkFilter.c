@@ -45,14 +45,14 @@ static bool matchChunk(HttpConn *conn, HttpStage *handler)
 
 static void openChunk(HttpQueue *q)
 {
-    HttpConn        *conn;
-    HttpRx    *rec;
+    HttpConn    *conn;
+    HttpRx      *rx;
 
     conn = q->conn;
-    rec = conn->rx;
+    rx = conn->rx;
 
     q->packetSize = min(conn->limits->chunkSize, q->max);
-    rec->chunkState = HTTP_CHUNK_START;
+    rx->chunkState = HTTP_CHUNK_START;
 }
 
 
@@ -69,33 +69,33 @@ static void openChunk(HttpQueue *q)
 static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
 {
     HttpConn    *conn;
-    HttpRx      *rec;
+    HttpRx      *rx;
     MprBuf      *buf;
     char        *start, *cp;
     int         bad;
 
     conn = q->conn;
-    rec = conn->rx;
+    rx = conn->rx;
 
-    if (!(rec->flags & HTTP_REC_CHUNKED)) {
+    if (!(rx->flags & HTTP_REC_CHUNKED)) {
         httpSendPacketToNext(q, packet);
         return;
     }
     buf = packet->content;
 
     if (packet->content == 0) {
-        if (rec->chunkState == HTTP_CHUNK_DATA) {
+        if (rx->chunkState == HTTP_CHUNK_DATA) {
             httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk state");
             return;
         }
-        rec->chunkState = HTTP_CHUNK_EOF;
+        rx->chunkState = HTTP_CHUNK_EOF;
     }
     
     /*  
         NOTE: the request head ensures that packets are correctly sized by packet inspection. The packet will never
         have more data than the chunk state expects.
      */
-    switch (rec->chunkState) {
+    switch (rx->chunkState) {
     case HTTP_CHUNK_START:
         /*  
             Validate:  "\r\nSIZE.*\r\n"
@@ -114,15 +114,15 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
             httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
         }
-        rec->chunkSize = (int) mprAtoi(&start[2], 16);
-        if (!isxdigit((int) start[2]) || rec->chunkSize < 0) {
+        rx->chunkSize = (int) mprAtoi(&start[2], 16);
+        if (!isxdigit((int) start[2]) || rx->chunkSize < 0) {
             httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
         }
         mprAdjustBufStart(buf, cp - start + 1);
-        rec->remainingContent = rec->chunkSize;
-        if (rec->chunkSize == 0) {
-            rec->chunkState = HTTP_CHUNK_EOF;
+        rx->remainingContent = rx->chunkSize;
+        if (rx->chunkSize == 0) {
+            rx->chunkState = HTTP_CHUNK_EOF;
             /*
                 We are lenient if the request does not have a trailing "\r\n" after the last chunk
              */
@@ -131,21 +131,21 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
                 mprAdjustBufStart(buf, 2);
             }
         } else {
-            rec->chunkState = HTTP_CHUNK_DATA;
+            rx->chunkState = HTTP_CHUNK_DATA;
         }
         mprAssert(mprGetBufLength(buf) == 0);
         httpFreePacket(q, packet);
-        mprLog(q, 5, "chunkFilter: start incoming chunk of %d bytes", rec->chunkSize);
+        mprLog(q, 5, "chunkFilter: start incoming chunk of %d bytes", rx->chunkSize);
         break;
 
     case HTTP_CHUNK_DATA:
-        mprAssert(httpGetPacketLength(packet) <= rec->chunkSize);
-        mprLog(q, 5, "chunkFilter: data %d bytes, rec->remainingContent %d", httpGetPacketLength(packet), 
-            rec->remainingContent);
+        mprAssert(httpGetPacketLength(packet) <= rx->chunkSize);
+        mprLog(q, 5, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), 
+            rx->remainingContent);
         httpSendPacketToNext(q, packet);
-        if (rec->remainingContent == 0) {
-            rec->chunkState = HTTP_CHUNK_START;
-            rec->remainingContent = HTTP_BUFSIZE;
+        if (rx->remainingContent == 0) {
+            rx->chunkState = HTTP_CHUNK_START;
+            rx->remainingContent = HTTP_BUFSIZE;
         }
         break;
 
@@ -168,10 +168,10 @@ static void outgoingChunkService(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpPacket  *packet;
-    HttpTx      *trans;
+    HttpTx      *tx;
 
     conn = q->conn;
-    trans = conn->tx;
+    tx = conn->tx;
 
     if (!(q->flags & HTTP_QUEUE_SERVICED)) {
         /*  
@@ -179,27 +179,27 @@ static void outgoingChunkService(HttpQueue *q)
             and can bypass the chunk handler.
          */
         if (q->last->flags & HTTP_PACKET_END) {
-            //  MOB -- but what if a content-length header has been defined but not set trans->length
-            if (trans->chunkSize < 0 && trans->length <= 0) {
+            //  MOB -- but what if a content-length header has been defined but not set tx->length
+            if (tx->chunkSize < 0 && tx->length <= 0) {
                 /*  
                     Set the response content length and thus disable chunking -- not needed as we know the entity length.
                  */
-                trans->length = q->count;
+                tx->length = q->count;
             }
         } else {
-            if (trans->chunkSize < 0) {
-                trans->chunkSize = min(conn->limits->chunkSize, q->max);
+            if (tx->chunkSize < 0) {
+                tx->chunkSize = min(conn->limits->chunkSize, q->max);
             }
         }
     }
-    if (trans->chunkSize <= 0 || trans->altBody) {
+    if (tx->chunkSize <= 0 || tx->altBody) {
         httpDefaultOutgoingServiceStage(q);
     } else {
         for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
             if (!(packet->flags & HTTP_PACKET_HEADER)) {
-                httpJoinPackets(q, trans->chunkSize);
-                if (httpGetPacketLength(packet) > trans->chunkSize) {
-                    httpResizePacket(q, packet, trans->chunkSize);
+                httpJoinPackets(q, tx->chunkSize);
+                if (httpGetPacketLength(packet) > tx->chunkSize) {
+                    httpResizePacket(q, packet, tx->chunkSize);
                 }
             }
             if (!httpWillNextQueueAcceptPacket(q, packet)) {

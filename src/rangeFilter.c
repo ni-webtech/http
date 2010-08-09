@@ -60,36 +60,36 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
     HttpPacket  *packet;
     HttpRange   *range;
     HttpConn    *conn;
-    HttpRx      *rec;
-    HttpTx      *trans;
+    HttpRx      *rx;
+    HttpTx      *tx;
     int         bytes, count, endpos;
 
     conn = q->conn;
-    rec = conn->rx;
-    trans = conn->tx;
-    range = trans->currentRange;
+    rx = conn->rx;
+    tx = conn->tx;
+    range = tx->currentRange;
 
     if (!(q->flags & HTTP_QUEUE_SERVICED)) {
-        if (trans->entityLength < 0 && q->last->flags & HTTP_PACKET_END) {
+        if (tx->entityLength < 0 && q->last->flags & HTTP_PACKET_END) {
 
            /*   Compute an entity length. This allows negative ranges computed from the end of the data.
             */
-           trans->entityLength = q->count;
+           tx->entityLength = q->count;
         }
-        if (trans->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
+        if (tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
             httpSendPackets(q);
             httpRemoveQueue(q);
             return;
         }
-        if (rec->ranges->next) {
+        if (rx->ranges->next) {
             createRangeBoundary(conn);
         }
-        trans->status = HTTP_CODE_PARTIAL;
+        tx->status = HTTP_CODE_PARTIAL;
     }
 
     for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
         if (!(packet->flags & HTTP_PACKET_DATA)) {
-            if (packet->flags & HTTP_PACKET_END && trans->rangeBoundary) {
+            if (packet->flags & HTTP_PACKET_END && tx->rangeBoundary) {
                 httpSendPacketToNext(q, createFinalRangePacket(conn));
             }
             if (!httpWillNextQueueAcceptPacket(q, packet)) {
@@ -105,22 +105,22 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
         bytes = packet->content ? mprGetBufLength(packet->content) : packet->entityLength;
         while (range && bytes > 0) {
 
-            endpos = trans->pos + bytes;
+            endpos = tx->pos + bytes;
             if (endpos < range->start) {
                 /* Packet is before the next range, so discard the entire packet */
-                trans->pos += bytes;
+                tx->pos += bytes;
                 httpFreePacket(q, packet);
                 break;
 
-            } else if (trans->pos > range->end) {
+            } else if (tx->pos > range->end) {
                 /* Missing some output - should not happen */
                 mprAssert(0);
 
-            } else if (trans->pos < range->start) {
+            } else if (tx->pos < range->start) {
                 /*  Packets starts before range with some data in range so skip some data */
-                count = (int) (range->start - trans->pos);
+                count = (int) (range->start - tx->pos);
                 bytes -= count;
-                trans->pos += count;
+                tx->pos += count;
                 if (packet->content == 0) {
                     packet->entityLength -= count;
                 }
@@ -131,8 +131,8 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
 
             } else {
                 /* In range */
-                mprAssert(range->start <= trans->pos && trans->pos < range->end);
-                count = min(bytes, (int) (range->end - trans->pos));
+                mprAssert(range->start <= tx->pos && tx->pos < range->end);
+                count = min(bytes, (int) (range->end - tx->pos));
                 count = min(count, q->nextQ->packetSize);
                 mprAssert(count > 0);
                 if (count < bytes) {
@@ -149,19 +149,19 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
                     }
                 }
                 bytes -= count;
-                trans->pos += count;
-                if (trans->rangeBoundary) {
+                tx->pos += count;
+                if (tx->rangeBoundary) {
                     httpSendPacketToNext(q, createRangePacket(conn, range));
                 }
                 httpSendPacketToNext(q, packet);
-                if (trans->pos >= range->end) {
+                if (tx->pos >= range->end) {
                     range = range->next;
                 }
                 break;
             }
         }
     }
-    trans->currentRange = range;
+    tx->currentRange = range;
 }
 
 
@@ -176,23 +176,23 @@ static void outgoingRangeService(HttpQueue *q)
 static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
 {
     HttpPacket  *packet;
-    HttpTx      *trans;
+    HttpTx      *tx;
     char        lenBuf[16];
 
-    trans = conn->tx;
+    tx = conn->tx;
 
-    if (trans->entityLength >= 0) {
-        mprItoa(lenBuf, sizeof(lenBuf), trans->entityLength, 10);
+    if (tx->entityLength >= 0) {
+        mprItoa(lenBuf, sizeof(lenBuf), tx->entityLength, 10);
     } else {
         lenBuf[0] = '*';
         lenBuf[1] = '\0';
     }
-    packet = httpCreatePacket(trans, HTTP_RANGE_BUFSIZE);
+    packet = httpCreatePacket(tx, HTTP_RANGE_BUFSIZE);
     packet->flags |= HTTP_PACKET_RANGE;
     mprPutFmtToBuf(packet->content, 
         "\r\n--%s\r\n"
         "Content-Range: bytes %d-%d/%s\r\n\r\n",
-        trans->rangeBoundary, range->start, range->end - 1, lenBuf);
+        tx->rangeBoundary, range->start, range->end - 1, lenBuf);
     return packet;
 }
 
@@ -202,13 +202,13 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
 static HttpPacket *createFinalRangePacket(HttpConn *conn)
 {
     HttpPacket  *packet;
-    HttpTx      *trans;
+    HttpTx      *tx;
 
-    trans = conn->tx;
+    tx = conn->tx;
 
-    packet = httpCreatePacket(trans, HTTP_RANGE_BUFSIZE);
+    packet = httpCreatePacket(tx, HTTP_RANGE_BUFSIZE);
     packet->flags |= HTTP_PACKET_RANGE;
-    mprPutFmtToBuf(packet->content, "\r\n--%s--\r\n", trans->rangeBoundary);
+    mprPutFmtToBuf(packet->content, "\r\n--%s--\r\n", tx->rangeBoundary);
     return packet;
 }
 
@@ -217,11 +217,11 @@ static HttpPacket *createFinalRangePacket(HttpConn *conn)
  */
 static void createRangeBoundary(HttpConn *conn)
 {
-    HttpTx      *trans;
+    HttpTx      *tx;
 
-    trans = conn->tx;
-    mprAssert(trans->rangeBoundary == 0);
-    trans->rangeBoundary = mprAsprintf(trans, -1, "%08X%08X", PTOI(trans) + PTOI(conn) * (int) conn->time, (int) conn->time);
+    tx = conn->tx;
+    mprAssert(tx->rangeBoundary == 0);
+    tx->rangeBoundary = mprAsprintf(tx, -1, "%08X%08X", PTOI(tx) + PTOI(conn) * (int) conn->time, (int) conn->time);
 }
 
 
@@ -229,16 +229,16 @@ static void createRangeBoundary(HttpConn *conn)
  */
 static bool fixRangeLength(HttpConn *conn)
 {
-    HttpRx      *rec;
-    HttpTx      *trans;
+    HttpRx      *rx;
+    HttpTx      *tx;
     HttpRange   *range;
     int         length;
 
-    rec = conn->rx;
-    trans = conn->tx;
-    length = trans->entityLength;
+    rx = conn->rx;
+    tx = conn->tx;
+    length = tx->entityLength;
 
-    for (range = rec->ranges; range; range = range->next) {
+    for (range = rx->ranges; range; range = range->next) {
         /*
                 Range: 0-49             first 50 bytes
                 Range: 50-99,200-249    Two 50 byte ranges from 50 and 200

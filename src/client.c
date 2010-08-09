@@ -103,7 +103,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
 static int setClientHeaders(HttpConn *conn)
 {
     Http        *http;
-    HttpTx      *trans;
+    HttpTx      *tx;
     HttpUri     *parsedUri;
     char        *encoded;
     int         len, rc;
@@ -112,8 +112,8 @@ static int setClientHeaders(HttpConn *conn)
 
     rc = 0;
     http = conn->http;
-    trans = conn->tx;
-    parsedUri = trans->parsedUri;
+    tx = conn->tx;
+    parsedUri = tx->parsedUri;
     if (conn->authType && strcmp(conn->authType, "basic") == 0) {
         char    abuf[MPR_MAX_STRING];
         mprSprintf(conn, abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
@@ -126,8 +126,8 @@ static int setClientHeaders(HttpConn *conn)
         char    a1Buf[256], a2Buf[256], digestBuf[256];
         char    *ha1, *ha2, *digest, *qop;
         if (http->secret == 0 && httpCreateSecret(http) < 0) {
-            mprLog(trans, MPR_ERROR, "Http: Can't create secret for digest authentication");
-            mprFree(trans);
+            mprLog(tx, MPR_ERROR, "Http: Can't create secret for digest authentication");
+            mprFree(tx);
             conn->tx = 0;
             return MPR_ERR_CANT_CREATE;
         }
@@ -136,10 +136,10 @@ static int setClientHeaders(HttpConn *conn)
 
         mprSprintf(conn, a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
         len = strlen(a1Buf);
-        ha1 = mprGetMD5Hash(trans, a1Buf, len, NULL);
-        mprSprintf(conn, a2Buf, sizeof(a2Buf), "%s:%s", trans->method, parsedUri->path);
+        ha1 = mprGetMD5Hash(tx, a1Buf, len, NULL);
+        mprSprintf(conn, a2Buf, sizeof(a2Buf), "%s:%s", tx->method, parsedUri->path);
         len = strlen(a2Buf);
-        ha2 = mprGetMD5Hash(trans, a2Buf, len, NULL);
+        ha2 = mprGetMD5Hash(tx, a2Buf, len, NULL);
         qop = (conn->authQop) ? conn->authQop : (char*) "";
 
         conn->authNc++;
@@ -155,7 +155,7 @@ static int setClientHeaders(HttpConn *conn)
         }
         mprFree(ha1);
         mprFree(ha2);
-        digest = mprGetMD5Hash(trans, digestBuf, strlen(digestBuf), NULL);
+        digest = mprGetMD5Hash(tx, digestBuf, strlen(digestBuf), NULL);
 
         if (*qop == '\0') {
             httpAddHeader(conn, "Authorization", "Digest user=\"%s\", realm=\"%s\", nonce=\"%s\", "
@@ -197,7 +197,7 @@ static int setClientHeaders(HttpConn *conn)
 int httpConnect(HttpConn *conn, cchar *method, cchar *url)
 {
     Http        *http;
-    HttpTx      *trans;
+    HttpTx      *tx;
 
     mprAssert(conn);
     mprAssert(method && *method);
@@ -216,16 +216,16 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
         httpPrepClientConn(conn, HTTP_NEW_REQUEST);
     }
     http = conn->http;
-    trans = conn->tx;
+    tx = conn->tx;
     mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_CONNECTED);
     conn->sentCredentials = 0;
 
-    mprFree(trans->method);
-    method = trans->method = mprStrdup(trans, method);
-    mprStrUpper(trans->method);
-    mprFree(trans->parsedUri);
-    trans->parsedUri = httpCreateUri(trans, url, 0);
+    mprFree(tx->method);
+    method = tx->method = mprStrdup(tx, method);
+    mprStrUpper(tx->method);
+    mprFree(tx->parsedUri);
+    tx->parsedUri = httpCreateUri(tx, url, 0);
 
     if (openConnection(conn, url) == 0) {
         return MPR_ERR_CANT_OPEN;
@@ -242,33 +242,33 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
  */
 bool httpNeedRetry(HttpConn *conn, char **url)
 {
-    HttpRx      *rec;
-    HttpTx      *trans;
+    HttpRx      *rx;
+    HttpTx      *tx;
 
     mprAssert(conn->rx);
 
     *url = 0;
-    rec = conn->rx;
-    trans = conn->tx;
+    rx = conn->rx;
+    tx = conn->tx;
 
     if (conn->state < HTTP_STATE_FIRST) {
         return 0;
     }
-    if (rec->status == HTTP_CODE_UNAUTHORIZED) {
+    if (rx->status == HTTP_CODE_UNAUTHORIZED) {
         if (conn->authUser == 0) {
-            httpFormatError(conn, rec->status, "Authentication required");
+            httpFormatError(conn, rx->status, "Authentication required");
         } else if (conn->sentCredentials) {
-            httpFormatError(conn, rec->status, "Authentication failed");
+            httpFormatError(conn, rx->status, "Authentication failed");
         } else {
             return 1;
         }
-    } else if (HTTP_CODE_MOVED_PERMANENTLY <= rec->status && rec->status <= HTTP_CODE_MOVED_TEMPORARILY && 
+    } else if (HTTP_CODE_MOVED_PERMANENTLY <= rx->status && rx->status <= HTTP_CODE_MOVED_TEMPORARILY && 
             conn->followRedirects) {
-        if (rec->redirect) {
-            *url = rec->redirect;
+        if (rx->redirect) {
+            *url = rx->redirect;
             return 1;
         }
-        httpFormatError(conn, rec->status, "Missing location header");
+        httpFormatError(conn, rx->status, "Missing location header");
         return -1;
     }
     return 0;

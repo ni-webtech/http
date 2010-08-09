@@ -54,8 +54,8 @@ int httpOpenAuthFilter(Http *http)
 static bool matchAuth(HttpConn *conn, HttpStage *handler)
 {
     Http        *http;
-    HttpRx      *rec;
-    HttpTx      *trans;
+    HttpRx      *rx;
+    HttpTx      *tx;
     HttpAuth    *auth;
     AuthData    *ad;
     MprTime     when;
@@ -64,15 +64,15 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     cchar       *secret, *etag, *realm;
     int         actualAuthType;
 
-    rec = conn->rx;
-    trans = conn->tx;
+    rx = conn->rx;
+    tx = conn->tx;
     http = conn->http;
-    auth = rec->auth;
+    auth = rx->auth;
 
     if (!conn->server || auth == 0 || auth->type == 0) {
         return 0;
     }
-    if ((ad = mprAllocObjZeroed(rec, AuthData)) == 0) {
+    if ((ad = mprAllocObjZeroed(rx, AuthData)) == 0) {
         return 1;
     }
 #if UNUSED
@@ -85,15 +85,15 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
         return 1;
     }
 #endif
-    if (rec->authDetails == 0) {
+    if (rx->authDetails == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
         return 1;
     }
-    if (mprStrcmpAnyCase(rec->authType, "basic") == 0) {
+    if (mprStrcmpAnyCase(rx->authType, "basic") == 0) {
         decodeBasicAuth(conn, ad);
         actualAuthType = HTTP_AUTH_BASIC;
 
-    } else if (mprStrcmpAnyCase(rec->authType, "digest") == 0) {
+    } else if (mprStrcmpAnyCase(rx->authType, "digest") == 0) {
         if (decodeDigestDetails(conn, ad) < 0) {
             httpError(conn, 400, "Bad authorization header");
             return 1;
@@ -102,7 +102,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     } else {
         actualAuthType = HTTP_AUTH_UNKNOWN;
     }
-    mprLog(conn, 4, "run: type %d, url %s\nDetails %s\n", auth->type, rec->pathInfo, rec->authDetails);
+    mprLog(conn, 4, "run: type %d, url %s\nDetails %s\n", auth->type, rx->pathInfo, rx->authDetails);
 
     if (ad->userName == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing user name", 0);
@@ -127,8 +127,8 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied. Protection quality does not match", 0);
             return 1;
         }
-        calcDigest(rec, &requiredDigest, 0, requiredPassword, ad->realm, rec->pathInfo, ad->nonce, ad->qop, ad->nc, 
-            ad->cnonce, rec->method);
+        calcDigest(rx, &requiredDigest, 0, requiredPassword, ad->realm, rx->pathInfo, ad->nonce, ad->qop, ad->nc, 
+            ad->cnonce, rx->method);
         requiredPassword = requiredDigest;
 
         /*
@@ -136,7 +136,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
          */
         when = 0; secret = 0; etag = 0; realm = 0;
         parseDigestNonce(conn, ad->nonce, &secret, &etag, &realm, &when);
-        if (strcmp(secret, http->secret) != 0 || strcmp(etag, trans->etag) != 0 || strcmp(realm, auth->requiredRealm) != 0) {
+        if (strcmp(secret, http->secret) != 0 || strcmp(etag, tx->etag) != 0 || strcmp(realm, auth->requiredRealm) != 0) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, authentication error", "Nonce mismatch");
         } else if ((when + (5 * 60 * MPR_TICKS_PER_SEC)) < http->now) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, authentication error", "Nonce is stale");
@@ -154,23 +154,23 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
  */
 static void decodeBasicAuth(HttpConn *conn, AuthData *ad)
 {
-    HttpRx    *rec;
-    char            *decoded, *cp;
+    HttpRx  *rx;
+    char    *decoded, *cp;
 
-    rec = conn->rx;
-    if ((decoded = mprDecode64(conn, rec->authDetails)) == 0) {
+    rx = conn->rx;
+    if ((decoded = mprDecode64(conn, rx->authDetails)) == 0) {
         return;
     }
     if ((cp = strchr(decoded, ':')) != 0) {
         *cp++ = '\0';
     }
     if (cp) {
-        ad->userName = mprStrdup(rec, decoded);
-        ad->password = mprStrdup(rec, cp);
+        ad->userName = mprStrdup(rx, decoded);
+        ad->password = mprStrdup(rx, cp);
 
     } else {
-        ad->userName = mprStrdup(rec, "");
-        ad->password = mprStrdup(rec, "");
+        ad->userName = mprStrdup(rx, "");
+        ad->password = mprStrdup(rx, "");
     }
     httpSetAuthUser(conn, ad->userName);
     mprFree(decoded);
@@ -182,12 +182,12 @@ static void decodeBasicAuth(HttpConn *conn, AuthData *ad)
  */
 static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
 {
-    HttpRx    *rec;
-    char            *authDetails, *value, *tok, *key, *dp, *sp;
-    int             seenComma;
+    HttpRx      *rx;
+    char        *authDetails, *value, *tok, *key, *dp, *sp;
+    int         seenComma;
 
-    rec = conn->rx;
-    key = authDetails = mprStrdup(rec, rec->authDetails);
+    rx = conn->rx;
+    key = authDetails = mprStrdup(rx, rx->authDetails);
 
     while (*key) {
         while (*key && isspace((int) *key)) {
@@ -244,7 +244,7 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
 
         case 'c':
             if (mprStrcmpAnyCase(key, "cnonce") == 0) {
-                ad->cnonce = mprStrdup(rec, value);
+                ad->cnonce = mprStrdup(rx, value);
             }
             break;
 
@@ -256,30 +256,30 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
 
         case 'n':
             if (mprStrcmpAnyCase(key, "nc") == 0) {
-                ad->nc = mprStrdup(rec, value);
+                ad->nc = mprStrdup(rx, value);
             } else if (mprStrcmpAnyCase(key, "nonce") == 0) {
-                ad->nonce = mprStrdup(rec, value);
+                ad->nonce = mprStrdup(rx, value);
             }
             break;
 
         case 'o':
             if (mprStrcmpAnyCase(key, "opaque") == 0) {
-                ad->opaque = mprStrdup(rec, value);
+                ad->opaque = mprStrdup(rx, value);
             }
             break;
 
         case 'q':
             if (mprStrcmpAnyCase(key, "qop") == 0) {
-                ad->qop = mprStrdup(rec, value);
+                ad->qop = mprStrdup(rx, value);
             }
             break;
 
         case 'r':
             if (mprStrcmpAnyCase(key, "realm") == 0) {
-                ad->realm = mprStrdup(rec, value);
+                ad->realm = mprStrdup(rx, value);
             } else if (mprStrcmpAnyCase(key, "response") == 0) {
                 /* Store the response digest in the password field */
-                ad->password = mprStrdup(rec, value);
+                ad->password = mprStrdup(rx, value);
             }
             break;
 
@@ -290,9 +290,9 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
         
         case 'u':
             if (mprStrcmpAnyCase(key, "uri") == 0) {
-                ad->uri = mprStrdup(rec, value);
+                ad->uri = mprStrdup(rx, value);
             } else if (mprStrcmpAnyCase(key, "user") == 0) {
-                ad->userName = mprStrdup(rec, value);
+                ad->userName = mprStrdup(rx, value);
             }
             break;
 
@@ -318,7 +318,7 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
         return MPR_ERR_BAD_ARGS;
     }
     if (ad->qop == 0) {
-        ad->qop = mprStrdup(rec, "");
+        ad->qop = mprStrdup(rx, "");
     }
     httpSetAuthUser(conn, ad->userName);
     return 0;
@@ -330,12 +330,12 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
  */
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg)
 {
-    HttpRx  *rec;
-    HttpTx  *trans;
+    HttpRx  *rx;
+    HttpTx  *tx;
     char    *qopClass, *nonce, *etag;
 
-    rec = conn->rx;
-    trans = conn->tx;
+    rx = conn->rx;
+    tx = conn->tx;
     if (logMsg == 0) {
         logMsg = msg;
     }
@@ -346,7 +346,7 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
 
     } else if (auth->type == HTTP_AUTH_DIGEST) {
         qopClass = auth->qop;
-        etag = trans->etag ? trans->etag : "";
+        etag = tx->etag ? tx->etag : "";
         nonce = createDigestNonce(conn, conn->http->secret, etag, auth->requiredRealm);
 
         if (strcmp(qopClass, "auth") == 0) {
