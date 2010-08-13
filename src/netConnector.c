@@ -50,7 +50,7 @@ static void netOutgoingService(HttpQueue *q)
     if (conn->sock == 0 || conn->writeComplete) {
         return;
     }
-    if (tx->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
+    if (tx->flags & HTTP_TX_NO_BODY) {
         httpDiscardData(q, 1);
     }
     if ((tx->bytesWritten + q->count) > conn->limits->transmissionBodySize) {

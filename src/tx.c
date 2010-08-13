@@ -221,7 +221,7 @@ void httpFinalize(HttpConn *conn)
     httpPutForService(conn->writeq, httpCreateEndPacket(tx), 1);
     httpServiceQueues(conn);
     if (conn->state == HTTP_STATE_RUNNING && conn->writeComplete && !conn->advancing) {
-        httpAdvanceRx(conn, NULL);
+        httpProcess(conn, NULL);
     }
 }
 

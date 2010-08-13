@@ -1337,6 +1337,8 @@ struct  MprWorkerService;
 struct  MprXml;
 
 
+#undef UNUSED
+
 //  MOB TODO - make these consistent: CANT vs NOT or NO
 //  MOB SORT 
 
@@ -4185,6 +4187,9 @@ extern int mprWaitForCond(MprCond *cond, int timeout);
     @ingroup MprSynch
  */
 extern void mprSignalCond(MprCond *cond);
+
+extern void mprSignalMultiCond(MprCond *cp);
+extern int mprWaitForMultiCond(MprCond *cp, int timeout);
 
 /**
     Multithreaded Synchronization Services

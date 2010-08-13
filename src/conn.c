@@ -250,14 +250,14 @@ static void readEvent(HttpConn *conn)
        
         if (nbytes > 0) {
             mprAdjustBufEnd(packet->content, nbytes);
-            httpAdvanceRx(conn, packet);
+            httpProcess(conn, packet);
 
         } else if (nbytes < 0) {
             if (conn->state <= HTTP_STATE_CONNECTED) {
                 conn->connError = conn->error = 1;
                 break;
             } else if (conn->state < HTTP_STATE_COMPLETE) {
-                httpAdvanceRx(conn, packet);
+                httpProcess(conn, packet);
                 if (!conn->error && conn->state < HTTP_STATE_COMPLETE) {
                     httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Connection lost");
                     break;
@@ -423,6 +423,7 @@ void httpCompleteWriting(HttpConn *conn)
     if (conn->tx) {
         conn->tx->finalized = 1;
     }
+    //  MOB -- id this necessary?
     httpDiscardTransmitData(conn);
 }
 

@@ -289,7 +289,7 @@ int httpRead(HttpConn *conn, char *buf, int size)
 
 int httpIsEof(HttpConn *conn) 
 {
-    return conn->rx == 0 || conn->rx->readComplete;
+    return conn->rx == 0 || conn->rx->eof;
 }
 
 
@@ -412,7 +412,8 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
 
 
 /*  
-    Write a block of data. This is the lowest level write routine for data. This will buffer the data and 
+    Write a block of data. This is the lowest level write routine for data. This will buffer the data and flush if
+    the queue buffer is full.
  */
 int httpWriteBlock(HttpQueue *q, cchar *buf, int size)
 {

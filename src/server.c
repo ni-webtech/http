@@ -67,9 +67,10 @@ static int destroyServerConnections(HttpServer *server)
 
     for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
         if (conn->server == server) {
-            httpRemoveConn(http, conn);
             conn->server = 0;
             mprFree(conn);
+            /* Free will remove from the list */
+            next--;
         }
     }
     unlock(http);

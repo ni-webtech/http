@@ -11,6 +11,7 @@ dependExtra:
 
 cleanExtra:
 	rm -f *.def *.out *.exe *.lib *.dylib *.a *.so *.mod
+	rm -f *.pdb *.exp *.manifest *.dll
 	rm -f */*.def */*.out */*.exe */*.lib */*.dylib */*.a */*.so */*.mod
 	rm -f $(BLD_BIN_DIR)/*.def
 	rm -f $(BLD_BIN_DIR)/*.out
