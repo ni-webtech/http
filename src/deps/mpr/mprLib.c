@@ -9211,7 +9211,6 @@ int mprRemoveItemAtPos(MprList *lp, int index)
     if (index < 0 || index >= lp->length) {
         return MPR_ERR_NOT_FOUND;
     }
-
     items = lp->items;
     for (i = index; i < (lp->length - 1); i++) {
         items[i] = items[i + 1];
