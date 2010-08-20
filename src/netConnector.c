@@ -73,7 +73,8 @@ static void netOutgoingService(HttpQueue *q)
             }
         }
         if (tx->file) {
-            return httpSendOutgoingService(q);
+            httpSendOutgoingService(q);
+            return;
         }
     }
     while (q->first || q->ioIndex) {

@@ -148,6 +148,9 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     char        *start, *end;
     int         len;
 
+    if (packet == NULL) {
+        return 0;
+    }
     if (conn->server && !httpValidateLimits(conn->server, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
         return 0;
     }
@@ -936,8 +939,9 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     rx = conn->rx;
     q = &conn->tx->queue[HTTP_QUEUE_RECEIVE];
 
-    //  MOB -- clarify what remainingContent is when chunked. Need simple way to tell end of input
-
+    if (packet == NULL) {
+        return 0;
+    }
     if (conn->complete || conn->connError || rx->remainingContent <= 0) {
         httpSetState(conn, HTTP_STATE_RUNNING);
         return 1;
@@ -1031,7 +1035,6 @@ void httpCloseRx(HttpConn *conn)
         conn->connError = 1;
     }
     httpFinalize(conn);
-    conn->abortPipeline = 1;
     if (conn->state < HTTP_STATE_COMPLETE && !conn->advancing) {
         httpProcess(conn, NULL);
     }
@@ -1289,8 +1292,8 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
         mprAssert(conn->state >= HTTP_STATE_BEGIN);
         return MPR_ERR_BAD_STATE;
     } 
+    saveAsync = conn->async;
     if (conn->waitHandler.fd < 0) {
-        saveAsync = conn->async;
         conn->async = 1;
         eventMask = MPR_READABLE;
         if (!conn->writeComplete) {
@@ -1304,25 +1307,6 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
     http->now = mprGetTime(conn);
     expire = http->now + timeout;
     while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
-#if UNUSED
-        fd = conn->sock->fd;
-        if (!conn->writeComplete) {
-            events = mprWaitForSingleIO(conn, fd, MPR_WRITABLE, 0);
-        } else {
-            if (mprSocketHasPendingData(conn->sock)) {
-                events = MPR_READABLE;
-            } else {
-                events = mprWaitForSingleIO(conn, fd, MPR_READABLE, 0);
-            }
-        }
-        http->now = mprGetTime(conn);
-        if (events) {
-            httpCallEvent(conn, events);
-        }
-        if (conn->error) {
-            return MPR_ERR_BAD_STATE;
-        }
-#endif
         remainingTime = (int) (expire - http->now);
         if (remainingTime <= 0) {
             break;
@@ -1330,7 +1314,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
         mprAssert(!mprSocketHasPendingData(conn->sock));
         mprServiceEvents(conn, dispatcher, remainingTime, MPR_SERVICE_ONE_THING);
     }
-    if (addedHandler) {
+    if (addedHandler && conn->waitHandler.fd >= 0) {
         mprRemoveWaitHandler(&conn->waitHandler);
         conn->async = saveAsync;
     }
@@ -1351,7 +1335,7 @@ void httpWriteBlocked(HttpConn *conn)
 {
     mprLog(conn, 7, "Write Blocked");
     conn->canProceed = 0;
-    conn->writeBlocked = 0;
+    conn->writeBlocked = 1;
 }
 
 
