@@ -142,6 +142,9 @@ void httpPrepClientConn(HttpConn *conn, int retry)
         if (conn->keepAliveCount >= 0) {
             /* Eat remaining input incase last request did not consume all data */
             httpConsumeLastRequest(conn);
+        } else {
+            mprFree(conn->input);
+            conn->input = 0;
         }
         if (retry && (tx = conn->tx) != 0) {
             headers = tx->headers;
@@ -280,6 +283,7 @@ static void writeEvent(HttpConn *conn)
     if (conn->tx) {
         httpEnableQueue(conn->tx->queue[HTTP_QUEUE_TRANS].prevQ);
         httpServiceQueues(conn);
+        httpProcess(conn, NULL);
     }
 }
 

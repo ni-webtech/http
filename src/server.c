@@ -148,8 +148,8 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
             mprRemoveHash(server->clients, conn->ip);
         }
         server->clientCount = mprGetHashCount(server->clients);
-        mprLog(server, 4, "Close connection. Active requests %d, active clients %d", 
-            server->requestCount, server->clientCount);
+        mprLog(server, 4, "Close connection %d. Active requests %d, active clients %d", 
+            conn->seqno, server->requestCount, server->clientCount);
         break;
     
     case HTTP_VALIDATE_OPEN_REQUEST:

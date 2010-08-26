@@ -578,15 +578,18 @@ void httpSetMimeType(HttpConn *conn, cchar *mimeType)
 void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
 {
     Http        *http;
+    HttpRx      *rx;
     HttpTx      *tx;
     HttpUri     *parsedUri;
     MprHash     *hp;
     MprBuf      *buf;
+    int         level;
 
     mprAssert(packet->flags == HTTP_PACKET_HEADER);
 
     http = conn->http;
     tx = conn->tx;
+    rx = conn->rx;
     buf = packet->content;
 
     if (tx->flags & HTTP_TX_HEADERS_CREATED) {
@@ -654,6 +657,10 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     tx->headerSize = mprGetBufLength(buf);
     tx->flags |= HTTP_TX_HEADERS_CREATED;
+
+    if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) == mprGetLogLevel(tx)) {
+        mprLog(conn, level, "%s %s %d", rx->method, rx->uri, tx->status);
+    }
 }
 
 

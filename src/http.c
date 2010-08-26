@@ -42,6 +42,7 @@ HttpStatusCode HttpStatusCodes[] = {
     { 409, "409", "Conflict" },
     { 410, "410", "Length Required" },
     { 411, "411", "Length Required" },
+    { 412, "412", "Precondition Failed" },
     { 413, "413", "Request Entity Too Large" },
     { 414, "414", "Request-URI Too Large" },
     { 415, "415", "Unsupported Media Type" },

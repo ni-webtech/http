@@ -451,18 +451,21 @@ HttpUri *httpGetRelativeUri(MprCtx ctx, HttpUri *base, HttpUri *target, int dup)
 }
 
 
-HttpUri *httpJoinUriPath(HttpUri *uri, HttpUri *base, HttpUri *other)
+/*
+    result = base.join(other)
+ */
+HttpUri *httpJoinUriPath(HttpUri *result, HttpUri *base, HttpUri *other)
 {
     char    *sep;
 
     if (other->path[0] == '/') {
-        uri->path = mprStrdup(uri, other->path);
+        result->path = mprStrdup(result, other->path);
     } else {
         sep = ((base->path[0] == '\0' || base->path[strlen(base->path) - 1] == '/') || 
                (other->path[0] == '\0' || other->path[0] == '/'))  ? "" : "/";
-        uri->path = mprStrcat(uri, -1, base->path, sep, other->path, NULL);
+        result->path = mprStrcat(result, -1, base->path, sep, other->path, NULL);
     }
-    return uri;
+    return result;
 }
 
 
