@@ -453,7 +453,8 @@ extern HttpUri *httpJoinUri(MprCtx ctx, HttpUri *uri, int argc, HttpUri **others
 extern HttpUri *httpJoinUriPath(HttpUri *uri, HttpUri *base, HttpUri *other);
 extern HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing);
 extern HttpUri *httpGetRelativeUri(MprCtx ctx, HttpUri *base, HttpUri *target, int dup);
-extern HttpUri *httpResolveUri(MprCtx ctx, HttpUri *base, int argc, HttpUri **others, int relative);
+extern HttpUri *httpResolveUri(MprCtx ctx, HttpUri *base, int argc, HttpUri **others, int local);
+extern HttpUri *httpMakeUriLocal(HttpUri *uri);
 
 /************************************* Range **********************************/
 /** 
@@ -1916,7 +1917,7 @@ typedef struct HttpRx {
 
     char            *method;                /**< Request method */
     char            *uri;                   /**< Original URI (alias for parsedUri->uri) (not decoded) */
-    char            *scriptName;            /**< ScriptName portion of the url (Decoded) */
+    char            *scriptName;            /**< ScriptName portion of the url (Decoded). May be empty or start with "/" */
     char            *pathInfo;              /**< Path information after the scriptName (Decoded and normalized) */
 
 #if FUTURE
