@@ -710,6 +710,7 @@ extern int httpResizePacket(struct HttpQueue *q, HttpPacket *packet, int size);
 #define HTTP_QUEUE_SERVICED       0x10        /**< Queue has been serviced at least once */
 #define HTTP_QUEUE_EOF            0x20        /**< Queue at end of data */
 #define HTTP_QUEUE_STARTED        0x40        /**< Queue started */
+#define HTTP_QUEUE_RESERVICE      0x80        /**< Queue requires reservicing */
 
 /*  
     Queue callback prototypes

@@ -246,7 +246,9 @@ bool httpServiceQueues(HttpConn *conn)
 
     workDone = 0;
     while (conn->state < HTTP_STATE_COMPLETE && (q = httpGetNextQueueForService(&conn->serviceq)) != NULL) {
-        if (!q->servicing) {
+        if (q->servicing) {
+            q->flags |= HTTP_QUEUE_RESERVICE;
+        } else {
             httpServiceQueue(q);
             workDone = 1;
         }

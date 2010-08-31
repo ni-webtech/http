@@ -358,7 +358,9 @@ void httpScheduleQueue(HttpQueue *q)
 
 void httpServiceQueue(HttpQueue *q)
 {
-    if (!q->servicing) {
+    if (q->servicing) {
+        q->flags |= HTTP_QUEUE_RESERVICE;
+    } else {
         q->servicing = 1;
         /*  
             Since we are servicing this "q" now, we can remove from the schedule queue if it is already queued.
@@ -367,6 +369,10 @@ void httpServiceQueue(HttpQueue *q)
             httpGetNextQueueForService(&q->conn->serviceq);
         }
         q->service(q);
+        if (q->flags & HTTP_QUEUE_RESERVICE) {
+            q->flags &= ~HTTP_QUEUE_RESERVICE;
+            httpScheduleQueue(q);
+        }
         q->flags |= HTTP_QUEUE_SERVICED;
         q->servicing = 0;
     }
