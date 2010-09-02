@@ -46,7 +46,7 @@ with --os=wince ld
 with --build --optional doxygen
 with --os=win --build --optional pkg
 
-with mpr regexp
+with mpr
 with --host --optional matrixssl openssl ssl
 
 ###############################################################################
