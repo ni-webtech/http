@@ -532,7 +532,7 @@ char *httpNormalizeUriPath(MprCtx ctx, cchar *pathArg)
     if (pathArg == 0 || *pathArg == '\0') {
         return mprStrdup(ctx, "");
     }
-    len = strlen(pathArg);
+    len = (int) strlen(pathArg);
     if ((dupPath = mprAlloc(ctx, len + 2)) == 0) {
         return NULL;
     }
@@ -551,12 +551,12 @@ char *httpNormalizeUriPath(MprCtx ctx, cchar *pathArg)
                 sp++;
             }
             segments[nseg++] = mark;
-            len += sp - mark;
+            len += (int) (sp - mark);
             mark = sp + 1;
         }
     }
     segments[nseg++] = mark;
-    len += sp - mark;
+    len += (int) (sp - mark);
     for (j = i = 0; i < nseg; i++, j++) {
         sp = segments[i];
         if (sp[0] == '.') {
@@ -586,7 +586,7 @@ char *httpNormalizeUriPath(MprCtx ctx, cchar *pathArg)
     if ((path = mprAlloc(ctx, len + nseg + 1)) != 0) {
         for (i = 0, dp = path; i < nseg; ) {
             strcpy(dp, segments[i]);
-            len = strlen(segments[i]);
+            len = (int) strlen(segments[i]);
             dp += len;
             if (++i < nseg || (nseg == 1 && *segments[0] == '\0' && firstc == '/')) {
                 *dp++ = '/';
@@ -673,7 +673,7 @@ static void trimPathToDirname(HttpUri *uri)
     int         len;
 
     path = uri->path;
-    len = strlen(path);
+    len = (int) strlen(path);
     if (path[len - 1] == '/') {
         if (len > 1) {
             path[len - 1] = '\0';

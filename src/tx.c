@@ -263,7 +263,7 @@ int httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
     mprFree(body);
     httpOmitBody(conn);
     va_end(args);
-    return strlen(tx->altBody);
+    return (int) strlen(tx->altBody);
 }
 
 

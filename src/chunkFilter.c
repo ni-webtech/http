@@ -119,7 +119,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
             httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
         }
-        mprAdjustBufStart(buf, cp - start + 1);
+        mprAdjustBufStart(buf, (int) (cp - start + 1));
         rx->remainingContent = rx->chunkSize;
         if (rx->chunkSize == 0) {
             rx->chunkState = HTTP_CHUNK_EOF;

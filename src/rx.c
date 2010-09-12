@@ -168,7 +168,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     if ((end = mprStrnstr(start, "\r\n\r\n", len)) == 0) {
         return 0;
     }
-    len = end - start;
+    len = (int) (end - start);
     mprAddNullToBuf(packet->content);
 
     if (len >= conn->limits->headerSize) {
@@ -211,7 +211,7 @@ static int traceRequest(HttpConn *conn, HttpPacket *packet)
     if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, conn->tx->extension) >= 0) {
         content = packet->content;
         endp = strstr((char*) content->start, "\r\n\r\n");
-        len = (endp) ? (endp - mprGetBufStart(content) + 4) : 0;
+        len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
         httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
         return 1;
     }
@@ -354,7 +354,7 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, conn->tx->extension) >= 0) {
         content = packet->content;
         endp = strstr((char*) content->start, "\r\n\r\n");
-        len = (endp) ? (endp - mprGetBufStart(content) + 4) : 0;
+        len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
         httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
 
     } else if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, conn->tx->extension)) >= 0) {
@@ -1080,7 +1080,7 @@ static int getChunkPacketSize(HttpConn *conn, MprBuf *buf)
             }
             return 0;
         }
-        need = cp - start + 1;
+        need = (int) (cp - start + 1);
         size = (int) mprAtoi(&start[2], 16);
         if (size == 0 && &cp[2] < buf->end && cp[1] == '\r' && cp[2] == '\n') {
             /*
@@ -1207,7 +1207,7 @@ char *httpGetHeaders(HttpConn *conn)
             }
         }
         headers = mprReallocStrcat(rx, -1, headers, ": ", hp->data, "\n", NULL);
-        len = strlen(headers);
+        len = (int) strlen(headers);
         hp = mprGetNextHash(rx->headers, hp);
     }
     return headers;

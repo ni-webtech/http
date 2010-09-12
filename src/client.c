@@ -135,10 +135,10 @@ static int setClientHeaders(HttpConn *conn)
         conn->authCnonce = mprAsprintf(conn, -1, "%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime(conn)); 
 
         mprSprintf(conn, a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
-        len = strlen(a1Buf);
+        len = (int) strlen(a1Buf);
         ha1 = mprGetMD5Hash(tx, a1Buf, len, NULL);
         mprSprintf(conn, a2Buf, sizeof(a2Buf), "%s:%s", tx->method, parsedUri->path);
-        len = strlen(a2Buf);
+        len = (int) strlen(a2Buf);
         ha2 = mprGetMD5Hash(tx, a2Buf, len, NULL);
         qop = (conn->authQop) ? conn->authQop : (char*) "";
 
@@ -155,7 +155,7 @@ static int setClientHeaders(HttpConn *conn)
         }
         mprFree(ha1);
         mprFree(ha2);
-        digest = mprGetMD5Hash(tx, digestBuf, strlen(digestBuf), NULL);
+        digest = mprGetMD5Hash(tx, digestBuf, (int) strlen(digestBuf), NULL);
 
         if (*qop == '\0') {
             httpAddHeader(conn, "Authorization", "Digest user=\"%s\", realm=\"%s\", nonce=\"%s\", "
