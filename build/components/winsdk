@@ -46,15 +46,6 @@ setWinEnv()
     VSBIN=`dirname "${cc}"`
     VSLIB=`echo $VSBIN | sed 's/Bin/Lib/' | sed 's/x86_amd64/amd64/'`
 
-#   if [ "$KIND" = HOST ] ; then
-#       if [ "$BLD_HOST_CPU" = x86_64 ] ; then
-#           if [ $BLD_CROSS = 1 ] ; then
-#           else
-#           fi
-#       fi
-#   else 
-#   fi
-
     # Lower case for unix style paths
     vs=`cygpath -u "$VS"`
     vsbin=`cygpath -u "$VSBIN"`
@@ -73,7 +64,7 @@ setWinEnv()
     #
     bldPath="$bldPath:$winsdk/bin"
     bldInclude="$bldInclude;$WINSDK/include"
-    if [ "$KIND" = HOST -a "$BLD_HOST_CPU" = x86_64 ] ; then
+    if [ "$BLD_CPU" = x86_64 ] ; then
         bldLib="$WINSDK/LIB/x64;$bldLib"
     else
         bldLib="$WINSDK/LIB;$bldLib"

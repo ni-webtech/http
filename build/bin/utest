@@ -292,7 +292,6 @@ enumerable class Test {
         } finally {
             App.chdir(home)
         }
-        //MOB GC.run()
     }
 
     function initWorker(w: Worker, export: Object) {
