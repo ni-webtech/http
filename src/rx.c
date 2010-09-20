@@ -236,6 +236,8 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     traced = traceRequest(conn, packet);
 
     method = getToken(conn, " ");
+    mprStrUpper(method);
+
     switch (method[0]) {
     case 'D':
         if (strcmp(method, "DELETE") == 0) {
