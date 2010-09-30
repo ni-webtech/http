@@ -92,8 +92,7 @@ HttpStage *httpCreateStage(Http *http, cchar *name, int flags)
     mprAssert(http);
     mprAssert(name && *name);
 
-    stage = mprAllocObjZeroed(http, HttpStage);
-    if (stage == 0) {
+    if ((stage = mprAllocObj(http, HttpStage, NULL)) == 0) {
         return 0;
     }
     stage->flags = flags;
@@ -114,8 +113,7 @@ HttpStage *httpCloneStage(Http *http, HttpStage *stage)
 {
     HttpStage   *clone;
 
-    clone = mprAllocObjZeroed(http, HttpStage);
-    if (clone == 0) {
+    if ((clone = mprAllocObj(http, HttpStage, NULL)) == 0) {
         return 0;
     }
     *clone = *stage;

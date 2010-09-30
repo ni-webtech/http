@@ -29,7 +29,7 @@
 
 
 
-static void memoryFailure(MprCtx ctx, int64 size, int64 total, bool granted);
+static void memoryFailure(MprCtx ctx, size_t size, size_t total, bool granted);
 static int  mprDestructor(Mpr *mpr);
 static void serviceEventsThread(void *data, MprThread *tp);
 
@@ -474,7 +474,7 @@ int mprGetEndian(MprCtx ctx)
 /*
     Default memory handler
  */
-static void memoryFailure(MprCtx ctx, int64 size, int64 total, bool granted)
+static void memoryFailure(MprCtx ctx, size_t size, size_t total, bool granted)
 {
     if (!granted) {
         mprPrintfError(ctx, "Can't allocate memory block of size %d\n", size);
@@ -486,7 +486,7 @@ static void memoryFailure(MprCtx ctx, int64 size, int64 total, bool granted)
 }
 
 
-void mprNop() {}
+void mprNop(void *ptr) {}
 
 /*
     @copy   default
@@ -532,472 +532,233 @@ void mprNop() {}
 /************************************************************************/
 
 /**
-    mprAlloc.c - Memory Allocator. This is a layer above malloc providing memory services including: virtual memory mapping,
-                 slab based and arena based allocations.
+    mprAlloc.c - Memory Allocator. 
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
 
-/*
-    This is a memory "turbo-charger" that sits above malloc. It provides arena and slab based allocations. The goal is
-    to provide a scalable memory allocator that supports hierarchical allocations and performs well in multi-threaded apps.
-    It suports arena-based and slab-based allocations.
-   
-    This module uses several preprocessor directives to control features:
-
-        BLD_FEATURE_MEMORY_DEBUG            Enable checks for block integrity. Fills blocks on allocation and free.
-        BLD_FEATURE_MEMORY_STATS            Enables accumulation of memory stats.
-        BLD_FEATURE_MONITOR_STACK           Monitor stack use
-        BLD_FEATURE_VERIFY                  Adds deep and slow integrity tests.
-        BLD_FEATURE_VMALLOC                 Enable virutal memory allocation regions
-        BLD_CC_MMU                          Enabled if the system has a memory management unit supporting virtual memory.
- */
 
 
-
-#define BLD_FEATURE_VMALLOC 1
-
-/*
-    Convert from user pointers to memory blocks and back again.
- */
 #define GET_BLK(ptr)            ((MprBlk*) (((char*) (ptr)) - MPR_ALLOC_HDR_SIZE))
 #define GET_PTR(bp)             ((char*) (((char*) (bp)) + MPR_ALLOC_HDR_SIZE))
-#define GET_USIZE(bp)           ((bp->size) - MPR_ALLOC_HDR_SIZE)
-#define DESTRUCTOR_PTR(bp)      (((char*) bp) + bp->size - sizeof(MprDestructor))
-#define GET_DESTRUCTOR(bp)      ((bp->flags & MPR_ALLOC_HAS_DESTRUCTOR) ? \
-                                    (MprDestructor) (*(MprDestructor*) (DESTRUCTOR_PTR(bp))) : 0)
-#define SET_DESTRUCTOR(bp, d)   if (d) { bp->flags |= MPR_ALLOC_HAS_DESTRUCTOR; \
-                                    *((MprDestructor*) DESTRUCTOR_PTR(bp)) = d; } else
-#if BLD_FEATURE_MEMORY_DEBUG
-#define VALID_BLK(bp)           ((bp)->magic == MPR_ALLOC_MAGIC)
-#define VALID_CTX(ptr)          (VALID_BLK(GET_BLK(ptr)))
-#define SET_MAGIC(bp)           (bp)->magic = MPR_ALLOC_MAGIC
+#define GET_NEXT(bp)            ((bp)->last) ? NULL : ((MprBlk*) ((char*) bp + bp->size))
+#define GET_USIZE(bp)           (bp->size - MPR_ALLOC_HDR_SIZE - (bp->pad * sizeof(void*)))
+#define INIT_LIST(bp)           if (1) { bp->next = bp->prev = bp; } else
 
 /*
-    Set this address to break when this address is allocated or freed. This is a block address (not a user ptr).
+    Trailing block. This is optional and will look like:
+        Destructor
+        Children
+        Trailer
+ */
+#define PAD_PTR(bp, offset)     (((char*) bp) + bp->size - ((offset) * sizeof(void*)))
+
+#if BLD_MEMORY_DEBUG
+#define TRAILER_SIZE            1
+#define TRAILER_OFFSET          1
+#define HAS_TRAILER(bp)         (bp->pad >= TRAILER_OFFSET)
+#define GET_TRAILER(bp)         (HAS_TRAILER(bp) ? (*((int*) PAD_PTR(bp, TRAILER_OFFSET))) : MPR_ALLOC_MAGIC)
+#define SET_TRAILER(bp, v)      if (1) { *((int*) PAD_PTR(bp, TRAILER_OFFSET)) = v; } else
+#else
+#define TRAILER_SIZE            0
+#define TRAILER_OFFSET          0
+#define GET_TRAILER(bp)         MPR_ALLOC_MAGIC
+#define SET_TRAILER(bp, v)         
+#endif
+
+/*
+    Children take 2 words
+ */
+#define CHILDREN_SIZE           (TRAILER_SIZE + 2)
+#define CHILDREN_OFFSET         (TRAILER_OFFSET + 2)
+#define HAS_CHILDREN(bp)        (bp->pad >= CHILDREN_OFFSET)
+#define GET_CHILDREN(bp)        (HAS_CHILDREN(bp) ? ((MprBlk*) PAD_PTR(bp, CHILDREN_OFFSET)) : NULL)
+
+#define DESTRUCTOR_SIZE         (CHILDREN_SIZE + 1)
+#define DESTRUCTOR_OFFSET       (TRAILER_OFFSET + 3)
+#define HAS_DESTRUCTOR(bp)      (bp->pad >= DESTRUCTOR_OFFSET)
+#define GET_DESTRUCTOR(bp)      (HAS_DESTRUCTOR(bp) ? (*(MprDestructor*) (PAD_PTR(bp, DESTRUCTOR_OFFSET))) : NULL)
+#define SET_DESTRUCTOR(bp, fn)  if (1) { *((MprDestructor*) PAD_PTR(bp, DESTRUCTOR_OFFSET)) = fn; } else
+
+#if BLD_MEMORY_DEBUG
+#define BREAKPOINT(bp)          breakpoint(bp);
+#define CHECK(bp)           check(bp)
+#define CHECK_PTR(ptr)          CHECK(GET_BLK(ptr))
+
+/*
+    WARN: this will reset pad words too.
+ */
+#define RESET_MEM(bp)           if (bp != GET_BLK(MPR)) { \
+                                    memset(GET_PTR(bp), 0xFE, bp->size - MPR_ALLOC_HDR_SIZE); } else
+#define SET_MAGIC(bp)           if (1) { (bp)->magic = MPR_ALLOC_MAGIC; } else
+#define SET_SEQ(bp)             if (1) { (bp)->seqno = heap->nextSeqno++; } else
+#define INIT_BLK(bp, len)       if (1) { SET_MAGIC(bp); SET_SEQ(bp); bp->size = len; bp->pad = 0; } else
+#define VALID_BLK(bp)           validBlk(bp)
+
+/*
+    Set this address to break when this address is allocated or freed
  */
 static MprBlk *stopAlloc;
 static int stopSeqno = -1;
-static int allocCount = 1;
 
 #else
-#define VALID_BLK(bp)           (1)
-#define VALID_CTX(ptr)          (1)
+#define BREAKPOINT(bp)
+#define CHECK(bp)           
+#define CHECK_PTR(bp)           
+#define RESET_MEM(bp)           
 #define SET_MAGIC(bp)
+#define SET_SEQ(bp)           
+#define INIT_BLK(bp, len)       if (1) { bp->size = len; bp->pad = 0; } else
+#define VALID_BLK(bp)           1
 #endif
 
-/*
-    Heaps may be "thread-safe" such that lock and unlock requests on a single heap can come from different threads.
-    The lock and unlock macros will use spin locks because we expect contention to be very low.
- */
-#define lockHeap(heap)          if (unlikely(heap->flags & MPR_ALLOC_THREAD_SAFE)) { mprSpinLock(&heap->spin); }
-#define unlockHeap(heap)        if (unlikely(heap->flags & MPR_ALLOC_THREAD_SAFE)) { mprSpinUnlock(&heap->spin); }
-
-#if BLD_HAS_GLOBAL_MPR || BLD_WIN_LIKE
-/*
- *  Mpr control and root memory context. This is a constant and a permissible global.
- */
-    #if BLD_WIN_LIKE
-        static Mpr  *_globalMpr;
-    #else
-        #undef _globalMpr
-        Mpr  *_globalMpr;
-    #endif
-#endif
-
-
-static void allocException(MprBlk *bp, uint size, bool granted);
-static inline void *allocMemory(uint size);
-static void allocError(MprBlk *parent, uint size);
-static inline void freeBlock(Mpr *mpr, MprHeap *heap, MprBlk *bp);
-static inline void freeMemory(MprBlk *bp);
-static inline void initHeap(MprHeap *heap, cchar *name, bool threadSafe);
-static inline void linkBlock(MprBlk *parent, MprBlk *bp);
-static void sysinit(Mpr *mpr);
-static void inline unlinkBlock(MprBlk *bp);
-
-#if BLD_FEATURE_VMALLOC
-static MprRegion *createRegion(MprCtx ctx, MprHeap *heap, uint size);
-#endif
-#if BLD_FEATURE_MEMORY_STATS
-static inline void incStats(MprHeap *heap, MprBlk *bp);
-static inline void decStats(MprHeap *heap, MprBlk *bp);
+#if BLD_MEMORY_STATS
+#define INC(field)              if (1) { heap->stats.field++; } else 
+#define LOCKED_INC(field)       if (1) { lockHeap(heap); heap->stats.field++; unlockHeap(heap);} else 
 #else
-#define incStats(heap, bp)
-#define decStats(heap, bp)
-#endif
-#if BLD_FEATURE_MONITOR_STACK
-static void monitorStack();
-#endif
-#if BLD_WIN_LIKE
-static int mapProt(int flags);
+#define INC(field)              
+#define LOCKED_INC(field)
 #endif
 
-static MprBlk *mprAllocBlockInternal(MprCtx ctx, MprHeap *heap, MprBlk *parent, uint usize);
+#define lockHeap(heap)          mprSpinLock(&heap->spin);
+#define unlockHeap(heap)        mprSpinUnlock(&heap->spin);
+
+#define percent(a,b) ((int) ((a) * 100 / (b)))
+
+
+Mpr                 *MPR;
+static MprHeap      *heap;
+static int          padding[] = { TRAILER_SIZE, CHILDREN_SIZE, DESTRUCTOR_SIZE, DESTRUCTOR_SIZE };
+
+
+static void allocException(size_t size, bool granted);
+static void deq(MprBlk *bp);
+static void enq(MprBlk *bp); 
+static void freeBlock(MprBlk *bp);
+static void freeChildren(MprBlk *bp);
+static MprBlk *getBlock(size_t usize, int padWords, int flags);
+static int getQueueIndex(size_t size, int roundup);
+static MprBlk *growHeap(size_t size);
+static int initFree();
+static void linkChild(MprBlk *parent, MprBlk *bp);
+static MprBlk *splitBlock(MprBlk *bp, size_t required, int qspare);
+static void getSystemInfo();
+static void unlinkChild(MprBlk *bp);
+static void *virtAlloc(size_t size);
+static void virtFree(MprBlk *bp);
+
+#if BLD_WIN_LIKE
+    static int winPageModes(int flags);
+#endif
+#if BLD_MEMORY_DEBUG
+    static void breakpoint(MprBlk *bp);
+    static void check(MprBlk *bp);
+    static int validBlk(MprBlk *bp);
+#endif
+#if BLD_MEMORY_STATS
+    static MprFreeBlk *getQueue(size_t size);
+    static void printQueueStats();
+#endif
 
 /*
     Initialize the memory subsystem
  */
 Mpr *mprCreateAllocService(MprAllocFailure cback, MprDestructor destructor)
 {
-    Mpr             *mpr;
-    MprBlk          *bp;
-    uint            usize, size;
+    MprHeap     initHeap;
+    MprBlk      *bp, *children, *spare;
+    size_t      usize, size, required, extra;
+    int         padWords;
 
+    heap = &initHeap;
+    memset(heap, 0, sizeof(MprHeap));
+    mprInitSpinLock(heap, &heap->spin);
 
-    /*
-        Hand-craft the first block to optimize subsequent use of mprAlloc. Layout is:
-            HDR
-            Mpr
-                MprHeap
-            Destructor
-     */
-    usize = sizeof(Mpr) + sizeof(MprDestructor);
-    size = MPR_ALLOC_ALIGN(MPR_ALLOC_HDR_SIZE + usize);
-    usize = size - MPR_ALLOC_HDR_SIZE;
+    padWords = DESTRUCTOR_SIZE;
+    usize = sizeof(Mpr) + (padWords * sizeof(void*));
+    required = MPR_ALLOC_ALIGN(MPR_ALLOC_HDR_SIZE + usize);
 
-    bp = (MprBlk*) allocMemory(size);
-    if (bp == 0) {
-        if (cback) {
-            (*cback)(0, sizeof(Mpr), 0, 0);
-        }
+    size = max(required, MPR_REGION_MIN_SIZE);
+    extra = size - required;
+    if ((bp = (MprBlk*) mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
         return 0;
     }
-    memset(bp, 0, size);
-
-    bp->parent = 0;
-    bp->size = size;
+    INIT_BLK(bp, required);
+    bp->pad = padWords;
+    INIT_LIST(bp);
     SET_DESTRUCTOR(bp, destructor);
-    SET_MAGIC(bp);
-    bp->flags |= MPR_ALLOC_IS_HEAP;
-    mpr = (Mpr*) GET_PTR(bp);
+    SET_TRAILER(bp, MPR_ALLOC_MAGIC);
+    children = GET_CHILDREN(bp);
+    INIT_LIST(children);
 
-#if BLD_HAS_GLOBAL_MPR || BLD_WIN_LIKE
-    _globalMpr = mpr;
-#endif
+    spare = (MprBlk*) (((char*) bp) + required);
+    INIT_BLK(spare, extra);
+    spare->last = 1;
+    spare->prior = bp;
 
-    /*
-        Set initial defaults to no memory limit. Redline at 90%.
-     */
-    mpr->alloc.maxMemory = INT_MAX;
-    mpr->alloc.redLine = INT_MAX / 100 * 99;
-    mpr->alloc.bytesAllocated += size;
-    mpr->alloc.peakAllocated = mpr->alloc.bytesAllocated;
-    mpr->alloc.stackStart = (void*) &mpr;
+    MPR = (Mpr*) GET_PTR(bp);
+    heap = &MPR->heap;
+    heap->notifier = cback;
+    heap->notifierCtx = MPR;
+    heap->nextSeqno = 1;
+    heap->chunkSize = MPR_REGION_MIN_SIZE;
+    heap->stats.maxMemory = INT_MAX;
+    heap->stats.redLine = INT_MAX / 100 * 99;
+    heap->stats.bytesAllocated += size;
+    getSystemInfo();
 
-    sysinit(mpr);
-    initHeap(&mpr->pageHeap, "page", 1);
-    mpr->pageHeap.flags = MPR_ALLOC_PAGE_HEAP | MPR_ALLOC_THREAD_SAFE;
-    initHeap(&mpr->heap, "mpr", 1);
-
-    mpr->heap.notifier = cback;
-    mpr->heap.notifierCtx = mpr;
-
-#if BLD_FEATURE_MEMORY_DEBUG
-    stopAlloc = 0;
-    allocCount = 1;
-#endif
-    return mpr;
-}
-
-
-static MprCtx allocHeap(MprCtx ctx, cchar *name, uint heapSize, bool threadSafe, MprDestructor destructor)
-{
-    MprHeap     *pageHeap, *heap;
-    MprRegion   *region;
-    MprBlk      *bp, *parent;
-    Mpr         *mpr;
-    int         headersSize, usize, size;
-
-    mprAssert(ctx);
-    mprAssert(VALID_CTX(ctx));
-
-    mpr = mprGetMpr(ctx);
-
-    /*
-        Allocate the full arena/slab out of one memory allocation. This includes the user object, heap object and 
-        heap memory. Do this because heaps should generally be initially sized to be sufficient for the apps needs 
-        (they are virtual with MMUs)
-   
-        Layout is:
-            HDR
-            MprHeap structure
-            MprRegion structure
-            Heap data (>= heapSize)
-  
-        The MprHeap and MprRegion structures are aligned. This may result in the size allocated being bigger 
-        than the requested heap size.
-     */
-    headersSize = MPR_ALLOC_ALIGN(sizeof(MprHeap) + sizeof(MprRegion));
-    usize = headersSize + heapSize;
-    size = MPR_PAGE_ALIGN(MPR_ALLOC_HDR_SIZE + usize, mpr->alloc.pageSize);
-    usize = (size - MPR_ALLOC_HDR_SIZE);
-    heapSize = usize - headersSize;
-
-    parent = GET_BLK(ctx);
-    mprAssert(parent);
-
-    /*
-        All heaps are allocated from the page heap
-     */
-    pageHeap = &mpr->pageHeap;
-    mprAssert(pageHeap);
-
-    if (unlikely((bp = mprAllocBlockInternal(ctx, pageHeap, NULL, usize)) == 0)) {
-        allocError(parent, usize);
-        unlockHeap(pageHeap);
+    if (initFree() < 0) {
         return 0;
     }
+    enq(spare);
 
-    lockHeap(pageHeap);
-    bp->flags |= MPR_ALLOC_IS_HEAP;
-    linkBlock(parent, bp);
-    incStats(pageHeap, bp);
-    unlockHeap(pageHeap);
-
-    heap = (MprHeap*) GET_PTR(bp);
-    heap->destructor = destructor;
-    initHeap((MprHeap*) heap, name, threadSafe);
-
-    region = (MprRegion*) ((char*) heap + sizeof(MprHeap));
-    region->next = 0;
-    region->memory = (char*) heap + headersSize;
-    region->nextMem = region->memory;
-    region->vmSize = MPR_ALLOC_ALIGN(MPR_ALLOC_HDR_SIZE + usize);
-    region->size = heapSize;
-    heap->region = region;
-    return GET_PTR(bp);
-}
-
-
-/*
-    Create an arena memory context. An arena context is a memory heap which allocates all child requests from a 
-    single (logical) memory block. Allocations are done like simple salami slices. Arenas may be created thread-safe, 
-    and are not thread-safe by default for speed.
- */
-MprHeap *mprAllocArena(MprCtx ctx, cchar *name, uint arenaSize, bool threadSafe, MprDestructor destructor)
-{
-    MprHeap     *heap;
-
-    mprAssert(ctx);
-    mprAssert(VALID_CTX(ctx));
-    mprAssert(arenaSize > 0);
-
-    heap = (MprHeap*) allocHeap(ctx, name, arenaSize, threadSafe, destructor);
-    if (heap == 0) {
+    if ((MPR->ctx = mprAllocCtx(MPR, 0)) == NULL) {
         return 0;
     }
-    heap->flags = MPR_ALLOC_ARENA_HEAP;
-    return heap;
+    return MPR;
 }
 
 
-/*
-    Create standard (malloc) heap. 
- */
-MprHeap *mprAllocHeap(MprCtx ctx, cchar *name, uint arenaSize, bool threadSafe, MprDestructor destructor)
-{
-    MprHeap     *heap;
-
-    mprAssert(ctx);
-    mprAssert(VALID_CTX(ctx));
-    mprAssert(arenaSize > 0);
-
-    heap = (MprHeap*) allocHeap(ctx, name, arenaSize, threadSafe, destructor);
-    if (heap == 0) {
-        return 0;
-    }
-    heap->flags = MPR_ALLOC_MALLOC_HEAP;
-    return heap;
-}
-
-
-/*
-    Create an object slab memory context. An object slab context is a memory heap which allocates constant size objects 
-    from a single (logical) memory block. The object slab keeps a free list of freed blocks. Object slabs may be created 
-    thread-safe, but are thread insensitive by default and will allocate memory without any locking. Hence allocations 
-    will be fast and scalable.
-
-    This call is typically made via the macro mprCreateSlab. ObjSize is the size of objects to create from the slab heap.
-    The count parameter indicates how may objects the slab heap will initially contain. MaxCount is the the maximum the 
-    heap will ever support. If maxCount is greater than count, then the slab is growable.
-
-    NOTE: Currently not being used
- */
-MprHeap *mprAllocSlab(MprCtx ctx, cchar *name, uint objSize, uint count, bool threadSafe, MprDestructor destructor)
-{
-    MprHeap     *heap;
-    uint        size;
-
-    mprAssert(ctx);
-    mprAssert(VALID_CTX(ctx));
-    mprAssert(objSize > 0);
-    mprAssert(count > 0);
-
-    size = MPR_ALLOC_ALIGN(objSize) * count;
-    heap = (MprHeap*) allocHeap(ctx, name, size, threadSafe, destructor);
-    if (heap == 0) {
-        return 0;
-    }
-    heap->flags = MPR_ALLOC_SLAB_HEAP;
-    return heap;
-}
-
-
-/*
-    Allocate a block. Not used to allocate heaps.
- */
-void *mprAllocInternal(MprCtx ctx, uint usize)
+void mprInitBlock(MprCtx ctx, void *ptr, size_t size, int flags)
 {
     MprBlk      *bp, *parent;
-    MprHeap     *heap;
-
-    mprAssert(ctx);
-    mprAssert(usize >= 0);
-    mprAssert(VALID_CTX(ctx));
 
     parent = GET_BLK(ctx);
-    mprAssert(parent);
-    heap = mprGetHeap(parent);
-    mprAssert(heap);
-
-    if (unlikely((bp = mprAllocBlockInternal(ctx, heap, parent, usize)) == 0)) {
-        allocError(parent, usize);
-        return 0;
-    }
-    return GET_PTR(bp);
-}
-
-
-/*
-    Allocate and zero a block
- */
-void *mprAllocZeroedInternal(MprCtx ctx, uint size)
-{
-    void    *newBlock;
-
-    newBlock = mprAllocInternal(ctx, size);
-    mprAssert(newBlock);
-
-    if (newBlock) {
-        memset(newBlock, 0, size);
-    }
-    return newBlock;
-}
-
-
-/*
-    Allocate an object. Typically used via the macro: mprAllocObj
- */
-void *mprAllocWithDestructorInternal(MprCtx ctx, uint size, MprDestructor destructor)
-{
-    MprBlk      *bp;
-    void        *ptr;
-
-    mprAssert(VALID_CTX(ctx));
-    mprAssert(size > 0);
-
-    ptr = mprAllocInternal(ctx, size + sizeof(MprDestructor));
-    mprAssert(ptr);
-    if (ptr == 0) {
-        return 0;
-    }
-    bp = GET_BLK(ptr);
-    SET_DESTRUCTOR(bp, destructor);
-    return ptr;
-}
-
-
-void mprSetDestructor(void *ptr, MprDestructor destructor)
-{
-    MprBlk      *bp;
+    CHECK(parent);
 
     bp = GET_BLK(ptr);
-    SET_DESTRUCTOR(bp, destructor);
-}
+    INIT_BLK(bp, size);
 
-
-#if BLD_DEBUG
-cchar *mprGetName(void *ptr)
-{
-    MprBlk      *bp;
-
-    if (ptr) {
-        bp = GET_BLK(ptr);
-        return bp->name;
-    }
-    return "Null";
-}
-
-
-void *mprSetName(void *ptr, cchar *name)
-{
-    MprBlk      *bp;
-
-    if (ptr) {
-        bp = GET_BLK(ptr);
-        if (bp) {
-            bp->name = (char*) name;
-        }
-    }
-    return ptr;
-}
-
-
-void *mprSetDynamicName(void *ptr, cchar *name)
-{
-    MprBlk      *bp;
-
-    if (ptr) {
-        bp = GET_BLK(ptr);
-        if (bp) {
-            bp->name = malloc(strlen(name) + 1);
-            if (bp->name) {
-                strcpy(bp->name, name);
-            }
-        }
-    }
-    return ptr;
-}
-#else
-#undef mprSetName
-#undef mprSetDynamicName
-#undef mprGetName
-void *mprSetName(void *ptr, cchar *name) { return ptr; }
-void *mprSetDynamicName(void *ptr, cchar *name) { return ptr; }
-cchar *mprGetName(void *ptr) { return ""; }
-#endif
-
-
-void mprInitBlock(MprCtx ctx, void *ptr, uint size)
-{
-    MprBlk      *bp;
-
-    bp = GET_BLK(ptr);
     memset(ptr, 0, size);
-    bp->parent = MPR_GET_BLK(mprGetMpr(ctx));
-    bp->children = 0;
-    bp->next = 0;
-    bp->prev = 0;
-    bp->size = 0;
-    bp->flags = 0;
-    SET_MAGIC(bp);
+    bp->last = 1;
+    bp->prior = NULL;
+    linkChild(parent, bp);
 }
 
 
-/*
-    Allocate and zero a block
- */
-void *mprAllocWithDestructorZeroedInternal(MprCtx ctx, uint size, MprDestructor destructor)
+void *mprAllocBlock(MprCtx ctx, size_t usize, int flags)
 {
-    void    *newBlock;
+    MprBlk      *bp, *parent, *children;
 
-    newBlock = mprAllocWithDestructorInternal(ctx, size, destructor);
-    if (newBlock) {
-        memset(newBlock, 0, size);
+    mprAssert(usize >= 0);
+
+    if (ctx == NULL) {
+        ctx = MPR->ctx;
     }
-    return newBlock;
+    parent = GET_BLK(ctx);
+    CHECK(parent);
+    
+    if ((bp = getBlock(usize, padding[flags & MPR_ALLOC_PAD_MASK], flags)) != 0) {
+        if (flags & MPR_ALLOC_CHILDREN) {
+            children = GET_CHILDREN(bp);
+            mprAssert(children);
+            INIT_LIST(children);
+        }
+        linkChild(parent, bp);
+        return GET_PTR(bp);
+    }
+    return 0;
 }
 
 
@@ -1007,1014 +768,862 @@ void *mprAllocWithDestructorZeroedInternal(MprCtx ctx, uint size, MprDestructor 
  */
 int mprFree(void *ptr)
 {
-    MprHeap     *heap, *hp;
-    MprBlk      *bp, *parent;
-    Mpr         *mpr;
+    MprBlk  *bp;
 
-    if (unlikely(ptr == 0)) {
-        return 0;
-    }
-    mpr = mprGetMpr(ptr);
-    bp = GET_BLK(ptr);
-    mprAssert(VALID_BLK(bp));
-    mprAssert(bp->size > 0);
+    if (likely(ptr)) {
+        bp = GET_BLK(ptr);
+        CHECK(bp);
+        mprAssert(!bp->free);
 
-#if BLD_FEATURE_MEMORY_DEBUG
-    if (bp == stopAlloc || bp->seqno == stopSeqno) {
-        mprBreakpoint();
-    }
-    /*
-        Test if already freed
-     */
-    if (unlikely(bp->parent == 0 && ptr != mpr)) {
-        mprAssert(bp->parent);
-        return 0;
-    }
-#endif
-
-    /*
-        We need to run destructors first if there is a destructor and it isn't a heap
-     */
-    if (unlikely(bp->flags & MPR_ALLOC_HAS_DESTRUCTOR)) {
-        if ((GET_DESTRUCTOR(bp))(ptr) != 0) {
-            /*
-                Destructor aborted the free. Re-parent to the top level.
-             */
-            mprStealBlock(mpr, ptr);
+        if (unlikely(HAS_DESTRUCTOR(bp)) && (GET_DESTRUCTOR(bp))(ptr) != 0) {
+            /* Destructor aborted the free */
             return 1;
         }
-    }
-    
-    mprFreeChildren(ptr);
-    parent = bp->parent;
-
-    if (unlikely(bp->flags & MPR_ALLOC_IS_HEAP)) {
-        hp = (MprHeap*) ptr;
-        if (hp->destructor) {
-            hp->destructor(ptr);
+        if (HAS_CHILDREN(bp)) {
+            freeChildren(bp);
         }
-        heap = &mpr->pageHeap;
-
-    } else {
-        mprAssert(VALID_BLK(parent));
-        heap = mprGetHeap(parent);
-        mprAssert(heap);
-    }
-
-    lockHeap(heap);
-    decStats(heap, bp);
-    unlinkBlock(bp);
-    freeBlock(mpr, heap, bp);
-    if (ptr != mpr) {
-        unlockHeap(heap);
+        unlinkChild(bp);
+        freeBlock(bp);
     }
     return 0;
 }
 
 
-/*
-    Free the children of a block of memory
- */
+static void freeChildren(MprBlk *bp)
+{
+    MprBlk      *children, *child, *next;
+    int         count;
+
+    CHECK(bp);
+    if ((children = GET_CHILDREN(bp)) != NULL) {
+        count = 0;
+        for (child = children->next; child != children; child = next) {
+            next = child->next;
+            if (!HAS_DESTRUCTOR(child) || (GET_DESTRUCTOR(child))(GET_PTR(child)) == 0) {
+                if (HAS_CHILDREN(child)) {
+                    freeChildren(child);
+                }
+                unlinkChild(child);
+                freeBlock(child);
+            }
+            count++;
+        }
+        INIT_LIST(children);
+    }
+}
+
+
 void mprFreeChildren(MprCtx ptr)
 {
-    MprBlk      *bp, *child, *next;
-
-    if (unlikely(ptr == 0)) {
-        return;
-    }
-
-    bp = GET_BLK(ptr);
-    mprAssert(VALID_BLK(bp));
-
-    /*
-        Free the children. They are linked in LIFO order. So free from the start and it will actually free in reverse order.
-        ie. last allocated will be first freed.
-     */
-    if (likely((child = bp->children) != NULL)) {
-        do {
-            mprAssert(VALID_BLK(child));
-            next = child->next;
-            mprFree(GET_PTR(child));
-        } while ((child = next) != 0);
-        bp->children = 0;
+    if (likely(ptr)) {
+        freeChildren(GET_BLK(ptr));
     }
 }
 
 
-/*
-    Rallocate a block
- */
-void *mprReallocInternal(MprCtx ctx, void *ptr, uint usize)
+void *mprRealloc(MprCtx ctx, void *ptr, size_t usize)
 {
-    MprHeap     *heap;
-    MprBlk      *parent, *bp, *newbp, *child;
-    Mpr         *mpr;
-    void        *newPtr;
+    MprBlk      *bp, *newb;
+    void        *newptr;
 
-    mprAssert(VALID_CTX(ctx));
+    CHECK_PTR(ctx);
     mprAssert(usize > 0);
-    mpr = mprGetMpr(ctx);
 
     if (ptr == 0) {
-        return mprAllocInternal(ctx, usize);
+        return mprAllocBlock(ctx, usize, 0);
     }
-
-    mprAssert(VALID_CTX(ptr));
     bp = GET_BLK(ptr);
-    mprAssert(bp);
-    mprAssert(bp->parent);
-
-    if (usize < GET_USIZE(bp)) {
+    if (usize <= GET_USIZE(bp)) {
         return ptr;
     }
-    parent = GET_BLK(ctx);
-    mprAssert(parent);
-
-    newPtr = mprAllocInternal(ctx, usize);
-    if (newPtr == 0) {
+    if ((newb = getBlock(usize, bp->pad, 0)) == 0) {
         return 0;
     }
-
-    newbp = GET_BLK(newPtr);
-    mprAssert(newbp->parent == parent);
-    memcpy(GET_PTR(newbp), GET_PTR(bp), GET_USIZE(bp));
-
-    heap = mprGetHeap(parent);
-    mprAssert(heap);
-    lockHeap(heap);
-
-    /*
-        Remove old block
-     */
-    decStats(heap, bp);
-    unlinkBlock(bp);
-
-    /*
-        Fix the parent pointer of all children
-     */
-    for (child = bp->children; child; child = child->next) {
-        child->parent = newbp;
-    }
-    newbp->children = bp->children;
-    unlockHeap(heap);
-    freeBlock(mpr, heap, bp);
-    return newPtr;
+    newptr = GET_PTR(newb);
+    memcpy(newptr, ptr, bp->size - MPR_ALLOC_HDR_SIZE);
+    unlinkChild(bp);
+    linkChild(GET_BLK(ctx), newb);
+    freeBlock(bp);
+    return newptr;
 }
 
 
-static int getBlockSize(MprBlk *bp) 
+char *mprStrdup(MprCtx ctx, cchar *str)
 {
-    MprBlk      *child;
-    int         size;
-    
-    size = bp->size;
-    for (child = bp->children; child; child = child->next) {
-        size += getBlockSize(child);
-    }
-    return size;
-}
-
-
-/*
-    Steal a block from one context and insert in a new context. Ptr is inserted into the Ctx context.
-    MOB - this can't work to steal across virtual heaps. Should warn.
- */
-int mprStealBlock(MprCtx ctx, cvoid *ptr)
-{
-    MprHeap     *heap, *newHeap;
-    MprBlk      *bp, *parent, *newParent;
-
-    if (ptr == 0) {
-        return 0;
-    }
-    mprAssert(VALID_CTX(ctx));
-    mprAssert(VALID_CTX(ptr));
-    bp = GET_BLK(ptr);
-    if (bp->parent == ctx) {
-        return 0;
-    }
-
-#if BLD_FEATURE_MEMORY_VERIFY
-    /*
-        Ensure bp is not a parent of the nominated context.
-     */
-    for (parent = GET_BLK(ctx); parent; parent = parent->parent) {
-        mprAssert(parent != bp);
-    }
-#endif
-
-    parent = bp->parent;
-    mprAssert(VALID_BLK(parent));
-    heap = mprGetHeap(parent);
-    mprAssert(heap);
-
-    newParent = GET_BLK(ctx);
-    mprAssert(VALID_BLK(newParent));
-    newHeap = mprGetHeap(newParent);
-    mprAssert(newHeap);
-
-    if (heap == newHeap) {
-        lockHeap(heap);
-        unlinkBlock(bp);
-        linkBlock(newParent, bp);
-        unlockHeap(heap);
-    } else {
-        lockHeap(heap);
-#if BLD_FEATURE_MEMORY_STATS
-        {
-        int     total;
-        /* Remove all child blocks from the heap */
-        total = getBlockSize(bp) - bp->size;
-        heap->allocBytes -= total;
-        newHeap->allocBytes += total;
-        }
-#endif
-        decStats(heap, bp);
-        unlinkBlock(bp);
-        unlockHeap(heap);
-
-        lockHeap(newHeap);
-        linkBlock(newParent, bp);
-        incStats(newHeap, bp);
-        unlockHeap(newHeap);
-    }
-    return 0;
-}
-
-
-/*
-    Fast unlocked steal within a single heap. WARNING: no locking!
- */
-void mprReparentBlock(MprCtx ctx, cvoid *ptr)
-{
-    MprBlk      *bp;
-
-    bp = GET_BLK(ptr);
-    unlinkBlock(bp);
-    linkBlock(GET_BLK(ctx), bp);
-}
-
-
-char *mprStrdupInternal(MprCtx ctx, cchar *str)
-{
-    char    *newp;
+    char    *ptr;
     int     len;
 
-    mprAssert(VALID_CTX(ctx));
+    CHECK_PTR(ctx);
 
-    if (str == 0) {
+    if (str == NULL) {
         str = "";
     }
     len = (int) strlen(str) + 1;
-    newp = (char*) mprAllocInternal(ctx, len);
-    if (newp) {
-        memcpy(newp, str, len);
+    if ((ptr = (char*) mprAllocBlock(ctx, len, 0)) != NULL) {
+        memcpy(ptr, str, len);
     }
-    return newp;
+    return ptr;
 }
 
 
-char *mprStrndupInternal(MprCtx ctx, cchar *str, uint usize)
+char *mprStrndup(MprCtx ctx, cchar *str, size_t usize)
 {
-    char    *newp;
-    uint    len;
+    char    *ptr;
+    size_t  len;
 
-    mprAssert(VALID_CTX(ctx));
+    CHECK_PTR(ctx);
 
-    if (str == 0) {
+    if (str == NULL) {
         str = "";
     }
     len = (int) strlen(str) + 1;
     len = min(len, usize);
-    newp = (char*) mprAllocInternal(ctx, len);
-    if (newp) {
-        memcpy(newp, str, len);
+    if ((ptr = (char*) mprAllocBlock(ctx, len, 0)) != 0) {
+        memcpy(ptr, str, len);
     }
-    return newp;
+    return ptr;
 }
 
 
-void *mprMemdupInternal(MprCtx ctx, cvoid *ptr, uint usize)
+void *mprMemdup(MprCtx ctx, cvoid *ptr, size_t usize)
 {
     char    *newp;
 
-    mprAssert(VALID_CTX(ctx));
+    CHECK_PTR(ctx);
 
-    newp = (char*) mprAllocInternal(ctx, usize);
-    if (newp) {
+    if ((newp = (char*) mprAllocBlock(ctx, usize, 0)) != 0) {
         memcpy(newp, ptr, usize);
     }
     return newp;
 }
 
 
-/*
-    Allocate a block from a heap. Must be heap locked when called.
- */
-static MprBlk *mprAllocBlockInternal(MprCtx ctx, MprHeap *heap, MprBlk *parent, uint usize)
+bool mprIsParent(MprCtx ctx, cvoid *ptr)
 {
-    MprBlk      *bp;
-    Mpr         *mpr;
-    uint        size;
-#if BLD_FEATURE_VMALLOC
-    MprRegion   *region;
-#endif
+    MprBlk  *bp, *child, *children;
 
-    mpr = mprGetMpr(ctx);
-    size = MPR_ALLOC_ALIGN(MPR_ALLOC_HDR_SIZE + usize);
-    usize = size - MPR_ALLOC_HDR_SIZE;
-
-    /*
-        Check a memory allocation request against configured maximums and redlines. We do this so that 
-        the application does not need to check the result of every little memory allocation. Rather, an 
-        application-wide memory allocation failure can be invoked proactively when a memory redline is 
-        exceeded. It is the application's responsibility to set the red-line value suitable for the system.
-     */
-    if (parent) {
-        if (size >= MPR_ALLOC_BIGGEST) {
-            return 0;
-
-        } else if ((size + mpr->alloc.bytesAllocated) > mpr->alloc.maxMemory) {
-            /*
-                Prevent allocation as over the maximum memory limit.
-             */
-            return 0;
-
-        } else if ((size + mpr->alloc.bytesAllocated) > mpr->alloc.redLine) {
-            /*
-                Warn if allocation puts us over the red line. Then continue to grant the request.
-             */
-            allocException(parent, size, 1);
-        }
-    }
-
-    lockHeap(heap);
-#if BLD_FEATURE_VMALLOC
-    if (likely(heap->flags & MPR_ALLOC_ARENA_HEAP)) {
-        /*
-            Allocate a block from an arena heap
-         */
-        region = heap->region;
-        if ((region->nextMem + size) > &region->memory[region->size]) {
-            if ((region = createRegion(ctx, heap, size)) == NULL) {
-                unlockHeap(heap);
-                return 0;
-            }
-        }
-        bp = (MprBlk*) region->nextMem;
-        bp->flags = 0;
-        region->nextMem += size;
-
-    } else if (likely(heap->flags & MPR_ALLOC_SLAB_HEAP)) {
-        /*
-            Allocate a block from a slab heap
-         */
-        region = heap->region;
-        if ((bp = heap->freeList) != 0) {
-            heap->freeList = bp->next;
-            heap->reuseCount++;
-        } else {
-            if ((region->nextMem + size) > &region->memory[region->size]) {
-                if ((region = createRegion(ctx, heap, size)) == NULL) {
-                    unlockHeap(heap);
-                    return 0;
-                }
-            }
-            bp = (MprBlk*) region->nextMem;
-            mprAssert(bp);
-            region->nextMem += size;
-        }
-        bp->flags = 0;
-
-    } else if (heap->flags & MPR_ALLOC_PAGE_HEAP) {
-        if ((bp = (MprBlk*) mprMapAlloc(ctx, size, MPR_MAP_READ | MPR_MAP_WRITE)) == 0) {
-            unlockHeap(heap);
-            return 0;
-        }
-        bp->flags = 0;
-
-    } else {
-#endif
-        if ((bp = (MprBlk*) allocMemory(size)) == 0) {
-            unlockHeap(heap);
-            return 0;
-        }
-        bp->flags = MPR_ALLOC_FROM_MALLOC;
-#if BLD_FEATURE_VMALLOC
-    }
-#endif
-
-    bp->children = 0;
-    bp->parent = 0;
-    bp->next = 0;
-    bp->prev = 0;
-    bp->size = size;
-    SET_MAGIC(bp);
-
-    if (parent) {
-        linkBlock(parent, bp);
-        incStats(heap, bp);
-
-        //  TODO OPT - optimize 
-        if (heap != (MprHeap*) mpr) {
-            mprSpinLock(&mpr->heap.spin);
-            mpr->alloc.bytesAllocated += size;
-            if (mpr->alloc.bytesAllocated > mpr->alloc.peakAllocated) {
-                mpr->alloc.peakAllocated = mpr->alloc.bytesAllocated;
-            }
-            mprSpinUnlock(&mpr->heap.spin);
-        } else {
-            mpr->alloc.bytesAllocated += size;
-            if (mpr->alloc.bytesAllocated > mpr->alloc.peakAllocated) {
-                mpr->alloc.peakAllocated = mpr->alloc.bytesAllocated;
-            }
-        }
-    }
-    unlockHeap(heap);
-
-#if BLD_FEATURE_MEMORY_DEBUG
-    /*
-        Catch uninitialized use
-     */
-    if (bp->flags == MPR_ALLOC_FROM_MALLOC) {
-        memset(GET_PTR(bp), 0xf7, usize);
-    }
-    bp->seqno = allocCount++;
-    if (bp == stopAlloc || bp->seqno == stopSeqno) {
-        mprBreakpoint();
-    }
-#endif
-#if BLD_FEATURE_MONITOR_STACK
-    monitorStack();
-#endif
-    return bp;
-}
-
-
-/*
-    Free a block back to a heap
- */
-static inline void freeBlock(Mpr *mpr, MprHeap *heap, MprBlk *bp)
-{
-#if BLD_FEATURE_VMALLOC
-    MprHeap     *hp;
-    MprRegion   *region, *next;
-#endif
-    int         size;
-
-    if (bp->flags & MPR_ALLOC_IS_HEAP && bp != GET_BLK(mpr)) {
-#if BLD_FEATURE_VMALLOC
-        hp = (MprHeap*) GET_PTR(bp);
-        if (hp->depleted) {
-            /*
-                If there are depleted blocks, then the region contained in the heap memory block will be on 
-                the depleted list. Must not free it here. Also, the region pointer for the original heap 
-                block does not point to the start of the memory block to free.
-             */
-            region = hp->depleted;
-            while (region) {
-                next = region->next;
-                if ((char*) region != ((char*) hp + sizeof(MprHeap))) {
-                    /*
-                        Don't free the initial region which is part of the heap (hp) structure
-                     */
-                    mprMapFree(region, region->vmSize);
-                }
-                region = next;
-            }
-            mprMapFree(hp->region, hp->region->vmSize);
-        }
-        mprMapFree(bp, bp->size);
-#else
-        freeMemory(bp);
-#endif
-        return;
-    }
-    size = bp->size;
-
-    //  TODO OPT - optimize 
-    if (heap != (MprHeap*) mpr) {
-        mprSpinLock(&mpr->heap.spin);
-        mpr->alloc.bytesAllocated -= size;
-        mprAssert(mpr->alloc.bytesAllocated >= 0);
-        mprSpinUnlock(&mpr->heap.spin);
-    } else {
-        mpr->alloc.bytesAllocated -= size;
-    }
-
-#if BLD_FEATURE_VMALLOC
-    if (!(bp->flags & MPR_ALLOC_FROM_MALLOC)) {
-        if (heap->flags & MPR_ALLOC_ARENA_HEAP) {
-            /*
-                Just drop the memory. It will be reclaimed when the arena is freed.
-             */
-#if BLD_FEATURE_MEMORY_DEBUG
-            bp->parent = 0;
-            bp->next = 0;
-            bp->prev = 0;
-#endif
-            return;
-
-        } else if (heap->flags & MPR_ALLOC_SLAB_HEAP) {
-            bp->next = heap->freeList;
-            bp->prev = 0;
-            bp->parent = 0;
-            heap->freeList = bp;
-            heap->freeListCount++;
-            if (heap->freeListCount > heap->peakFreeListCount) {
-                heap->peakFreeListCount = heap->freeListCount;
-            }
-            return;
-        }
-    }
-#endif
-    freeMemory(bp);
-}
-
-
-#if BLD_FEATURE_VMALLOC
-/*
-    Create a new region to satify the request if no memory exists in any depleted regions. 
- */
-static MprRegion *createRegion(MprCtx ctx, MprHeap *heap, uint usize)
-{
-    MprRegion   *region;
-    Mpr         *mpr;
-    uint        size, regionSize, regionStructSize;
-
-    /*
-        Scavenge the depleted regions for scraps. We don't expect there to be many of these.
-     */
-    if (usize < 512) {
-        for (region = heap->depleted; region; region = region->next) {
-            if ((region->nextMem + usize) < &region->memory[region->size]) {
-                return region;
-            }
-        }
-    }
-
-    /*
-        Each time we grow the heap, double the size of the next region of memory. Use 30MB so we don't double regions
-        that are just under 32MB.
-     */
-    if (heap->region->size <= (30 * 1024 * 1024)) {
-        regionSize = heap->region->size * 2;
-    } else {
-        regionSize = heap->region->size;
-    }
-
-    regionStructSize = MPR_ALLOC_ALIGN(sizeof(MprRegion));
-    size = max(usize, (regionStructSize + regionSize));
-    mpr = mprGetMpr(ctx);
-    size = MPR_PAGE_ALIGN(size, mpr->alloc.pageSize);
-    usize = size - regionStructSize;
-
-    if ((region = (MprRegion*) mprMapAlloc(ctx, size, MPR_MAP_READ | MPR_MAP_WRITE)) == 0) {
+    if (ptr == 0 || !VALID_BLK(GET_BLK(ptr))) {
         return 0;
     }
-    region->memory = (char*) region + regionStructSize;
-    region->nextMem = region->memory;
-    region->vmSize = size;
-    region->size = usize;
-
-    /*
-        Move old region to depleted and install new region as the current heap region
-     */
-    heap->region->next = heap->depleted;
-    heap->depleted = heap->region;
-    heap->region = region;
-
-    return region;
-}
-#endif
-
-
-static inline void linkBlock(MprBlk *parent, MprBlk *bp)
-{
-#if BLD_FEATURE_MEMORY_VERIFY
-    MprBlk      *sibling;
-
-    /*
-        Test that bp is not already in the list
-     */
-    mprAssert(bp != parent);
-    for (sibling = parent->children; sibling; sibling = sibling->next) {
-        mprAssert(sibling != bp);
-    }
-#endif
-
-    /*
-        Add to the front of the children
-     */
-    bp->parent = parent;
-    if (parent->children) {
-        parent->children->prev = bp;
-    }
-    bp->next = parent->children;
-    parent->children = bp;
-    bp->prev = 0;
-}
-
-
-static inline void unlinkBlock(MprBlk *bp)
-{
-    MprBlk      *parent;
-
-    mprAssert(bp);
-
-    parent = bp->parent;
-    if (parent) {
-        if (bp->prev) {
-            bp->prev->next = bp->next;
-        } else {
-            parent->children = bp->next;
+    bp = GET_BLK(ptr);
+    if ((children = GET_CHILDREN(bp)) != NULL) {
+        for (child = children->next; child != children; child = child->next) {
+            if (child == bp) {
+                return 1;
+            }
         }
-        if (bp->next) {
-            bp->next->prev = bp->prev;
-        }
-        bp->next = 0;
-        bp->prev = 0;
-        bp->parent = 0;
-    }
-}
-
-
-#if BLD_FEATURE_MEMORY_STATS
-static inline void incStats(MprHeap *heap, MprBlk *bp)
-{
-    if (unlikely(bp->flags & MPR_ALLOC_IS_HEAP)) {
-        heap->reservedBytes += bp->size;
-    } else {
-        heap->totalAllocCalls++;
-        heap->allocBlocks++;
-        if (heap->allocBlocks > heap->peakAllocBlocks) {
-            heap->peakAllocBlocks = heap->allocBlocks;
-        }
-        heap->allocBytes += bp->size;
-        if (heap->allocBytes > heap->peakAllocBytes) {
-            heap->peakAllocBytes = heap->allocBytes;
-        }
-    }
-}
-
-
-static inline void decStats(MprHeap *heap, MprBlk *bp)
-{
-    mprAssert(bp);
-
-    if (unlikely(bp->flags & MPR_ALLOC_IS_HEAP)) {
-        heap->reservedBytes += bp->size;
-    } else {
-        heap->allocBytes -= bp->size;
-        heap->allocBlocks--;
-    }
-    mprAssert(heap->allocBytes >= 0);
-}
-#endif
-
-
-#if BLD_FEATURE_MONITOR_STACK
-static void monitorStack()
-{
-    /*
-        Monitor stack usage
-     */
-    int diff = (int) ((char*) mpr->alloc.stackStart - (char*) &diff);
-    if (diff < 0) {
-        mpr->alloc.peakStack -= diff;
-        mpr->alloc.stackStart = (void*) &diff;
-        diff = 0;
-    }
-    if (diff > mpr->alloc.peakStack) {
-        mpr->alloc.peakStack = diff;
-    }
-}
-#endif
-
-
-static inline void initHeap(MprHeap *heap, cchar *name, bool threadSafe)
-{
-    heap->name = name;
-    heap->region = 0;
-    heap->depleted = 0;
-    heap->flags = 0;
-    heap->objSize = 0;
-    heap->freeList = 0;
-    heap->freeListCount = 0;
-    heap->reuseCount = 0;
-
-#if BLD_FEATURE_MEMORY_STATS
-    heap->allocBlocks = 0;
-    heap->peakAllocBlocks = 0;
-    heap->allocBytes = 0;
-    heap->peakAllocBytes = 0;
-    heap->totalAllocCalls = 0;
-    heap->peakFreeListCount = 0;
-#endif
-
-    heap->notifier = 0;
-    heap->notifierCtx = 0;
-
-    if (threadSafe) {
-        mprInitSpinLock(heap, &heap->spin);
-        heap->flags |= MPR_ALLOC_THREAD_SAFE;
-    }
-}
-
-
-/*
-    Find the heap from which a block has been allocated. Chase up the parent chain.
- */
-MprHeap *mprGetHeap(MprBlk *bp)
-{
-    mprAssert(bp);
-    mprAssert(VALID_BLK(bp));
-
-    while (!(bp->flags & MPR_ALLOC_IS_HEAP)) {
-        bp = bp->parent;
-        mprAssert(bp);
-    }
-    return (MprHeap*) GET_PTR(bp);
-}
-
-
-void mprSetAllocCallback(MprCtx ctx, MprAllocFailure cback)
-{
-    MprHeap     *heap;
-
-    heap = mprGetHeap(GET_BLK(ctx));
-    heap->notifier = cback;
-    heap->notifierCtx = ctx;
-}
-
-
-/*
-    Monitor stack usage. Return true if the stack has grown. Uses no locking and thus yields approximate results.
- */
-bool mprStackCheck(MprCtx ptr)
-{
-    Mpr     *mpr;
-    int     size;
-
-    mprAssert(VALID_CTX(ptr));
-    mpr = mprGetMpr(ptr);
-
-    size = (int) ((char*) mpr->alloc.stackStart - (char*) &size);
-    if (size < 0) {
-        mpr->alloc.peakStack -= size;
-        mpr->alloc.stackStart = (void*) &size;
-        size = 0;
-    }
-    if (size > mpr->alloc.peakStack) {
-        mpr->alloc.peakStack = size;
-        return 1;
     }
     return 0;
 }
 
 
+/*
+    Steal a block from one context and insert in a new context.
+ */
+void mprStealBlock(MprCtx ctx, cvoid *ptr)
+{
+    MprBlk      *bp;
+
+    if (ptr) {
+        CHECK_PTR(ctx);
+        CHECK_PTR(ptr);
+        bp = GET_BLK(ptr);
+        unlinkChild(bp);
+        linkChild(GET_BLK(ctx), bp);
+    }
+}
+
+
+//  MOB - temporary until new Ejs GC.
+
+MprBlk *mprGetFirstChild(cvoid *ptr)
+{
+    MprBlk  *bp, *children;
+
+    bp = GET_BLK(ptr);
+    if ((children = GET_CHILDREN(bp)) != NULL && children->next != children) {
+        return children->next;
+    }
+    return NULL;
+}
+
+
+MprBlk *mprGetNextChild(cvoid *ptr)
+{
+    MprBlk  *bp;
+
+    bp = GET_BLK(ptr);
+    return bp->next;
+}
+
+
+MprBlk *mprGetEndChildren(cvoid *ptr)
+{
+    MprBlk  *bp, *children;
+
+    bp = GET_BLK(ptr);
+    if ((children = GET_CHILDREN(bp)) != NULL && children->prev != children) {
+        return children->prev;
+    }
+    return NULL;
+}
+
+
+int mprGetPageSize()
+{
+    return heap->pageSize;
+}
+
+
+int mprGetBlockSize(cvoid *ptr)
+{
+    MprBlk      *bp;
+
+    bp = GET_BLK(ptr);
+    if (ptr == 0 || !VALID_BLK(bp)) {
+        return 0;
+    }
+    return GET_USIZE(bp);
+}
+
+
+void mprSetAllocCallback(MprCtx ctx, MprAllocFailure cback)
+{
+    heap->notifier = cback;
+    heap->notifierCtx = ctx;
+}
+
+
 void mprSetAllocLimits(MprCtx ctx, int redLine, int maxMemory)
 {
-    Mpr     *mpr;
-
-    mpr = mprGetMpr(ctx);
-
     if (redLine > 0) {
-        mpr->alloc.redLine = redLine;
+        heap->stats.redLine = redLine;
     }
     if (maxMemory > 0) {
-        mpr->alloc.maxMemory = maxMemory;
+        heap->stats.maxMemory = maxMemory;
     }
 }
 
 
 void mprSetAllocPolicy(MprCtx ctx, int policy)
 {
-    mprGetMpr(ctx)->allocPolicy = policy;
+    heap->allocPolicy = policy;
 }
 
 
-void *mprGetParent(cvoid *ptr)
+void mprSetAllocError()
 {
-    MprBlk  *bp;
-
-    if (ptr == 0 || !VALID_CTX(ptr)) {
-        return 0;
-    }
-    bp = GET_BLK(ptr);
-    mprAssert(VALID_BLK(bp));
-    mprAssert(bp->parent);
-    return GET_PTR(bp->parent);
+    heap->hasError = 1;
 }
 
 
-MprAlloc *mprGetAllocStats(MprCtx ctx)
+bool mprHasAllocError()
 {
-    Mpr             *mpr = mprGetMpr(ctx);
-#if LINUX
-    struct rusage   rusage;
-    char            buf[1024], *cp;
-    int             fd, len;
-
-    getrusage(RUSAGE_SELF, &rusage);
-    mpr->alloc.rss = rusage.ru_maxrss;
-
-    mpr->alloc.ram = MAXINT64;
-    if ((fd = open("/proc/meminfo", O_RDONLY)) >= 0) {
-        if ((len = read(fd, buf, sizeof(buf) - 1)) > 0) {
-            buf[len] = '\0';
-            if ((cp = strstr(buf, "MemTotal:")) != 0) {
-                for (; *cp && !isdigit((int) *cp); cp++) {}
-                mpr->alloc.ram = ((int64) atoi(cp) * 1024);
-            }
-        }
-        close(fd);
-    }
-#endif
-#if MACOSX || FREEBSD
-    struct rusage   rusage;
-    int64           ram, usermem;
-    size_t          len;
-    int             mib[2];
-
-    getrusage(RUSAGE_SELF, &rusage);
-    mpr->alloc.rss = rusage.ru_maxrss;
-
-    mib[0] = CTL_HW;
-#if FREEBSD
-    mib[1] = HW_MEMSIZE;
-#else
-    mib[1] = HW_PHYSMEM;
-#endif
-    len = sizeof(ram);
-    sysctl(mib, 2, &ram, &len, NULL, 0);
-    mpr->alloc.ram = ram;
-
-    mib[0] = CTL_HW;
-    mib[1] = HW_USERMEM;
-    len = sizeof(usermem);
-    sysctl(mib, 2, &usermem, &len, NULL, 0);
-    mpr->alloc.user = usermem;
-#endif
-    return &mpr->alloc;
+    return heap->hasError;
 }
 
 
-int64 mprGetUsedMemory(MprCtx ctx)
+void mprResetAllocError()
 {
-    return mprGetMpr(ctx)->alloc.bytesAllocated;
+    heap->hasError = 0;
 }
 
 
 int mprIsValid(cvoid *ptr)
 {
-    MprBlk  *bp;
+    return ptr && VALID_BLK(GET_BLK(ptr));
+}
 
+
+static int dummyAllocDestructor() { return 0; }
+
+
+void *mprUpdateDestructor(void *ptr, MprDestructor destructor)
+{
+    MprBlk      *bp;
+
+    bp = GET_BLK(ptr);
+    mprAssert(HAS_DESTRUCTOR(bp));
+    if (!destructor) {
+        destructor = dummyAllocDestructor;
+    }
+    SET_DESTRUCTOR(bp, destructor);
+    return ptr;
+}
+
+
+/*
+    Initialize the free space map and queues.
+
+    The free map is a two dimensional array of free queues. The first dimension is indexed by
+    the most significant bit (MSB) set in the requested block size. The second dimension is the next 
+    MPR_ALLOC_BUCKET_SHIFT (4) bits below the MSB.
+
+    +-------------------------------+
+    |       |MSB|  Bucket   | rest  |
+    +-------------------------------+
+    | 0 | 0 | 1 | 1 | 1 | 1 | X | X |
+    +-------------------------------+
+ */
+static int initFree() 
+{
+    MprFreeBlk  *freeq;
+    
+    heap->freeEnd = &heap->free[MPR_ALLOC_NUM_GROUPS * MPR_ALLOC_NUM_BUCKETS];
+    for (freeq = heap->free; freeq != heap->freeEnd; freeq++) {
+#if BLD_MEMORY_STATS
+        size_t      bit, size, groupBits, bucketBits;
+        int         index, group, bucket;
+        /*
+            NOTE: skip the buckets with MSB == 0 (round up)
+         */
+        index = (freeq - heap->free);
+        group = index / MPR_ALLOC_NUM_BUCKETS;
+        bucket = index % MPR_ALLOC_NUM_BUCKETS;
+
+        bit = (group != 0);
+        groupBits = bit << (group + MPR_ALLOC_BUCKET_SHIFT - 1);
+        bucketBits = ((int64) bucket) << (max(0, group - 1));
+
+        size = groupBits | bucketBits;
+        freeq->size = size << MPR_ALIGN_SHIFT;
+#endif
+        freeq->forw = freeq->back = freeq;
+    }
+    return 0;
+}
+
+
+static int getQueueIndex(size_t size, int roundup)
+{   
+    size_t      usize, asize;
+    int         aligned;
+    
+    mprAssert(MPR_ALLOC_ALIGN(size) == size);
+
+    /*
+        Allocate based on user sizes (sans header). This permits block searches to avoid scanning the next 
+        highest queue for common block sizes: eg. 1K.
+     */
+    usize = (size - MPR_ALLOC_HDR_SIZE);
+    asize = usize >> MPR_ALIGN_SHIFT;
+
+    //  Zero based most significant bit
+    int msb = flsl(asize) - 1;
+
+    int group = max(0, msb - MPR_ALLOC_BUCKET_SHIFT + 1);
+    mprAssert(group < MPR_ALLOC_NUM_GROUPS);
+
+    int bucket = (asize >> max(0, group - 1)) & (MPR_ALLOC_NUM_BUCKETS - 1);
+    mprAssert(bucket < MPR_ALLOC_NUM_BUCKETS);
+
+    int index = (group * MPR_ALLOC_NUM_BUCKETS) + bucket;
+    mprAssert(index < (heap->freeEnd - heap->free));
+    
+#if BLD_MEMORY_STATS
+    mprAssert(heap->free[index].size <= usize && usize < heap->free[index + 1].size);
+#endif
+    
+    if (roundup) {
+        /*
+            Check if the requested size is the smallest possible size in a queue. If not the smallest,
+            must look at the next queue higher up to guarantee a block of sufficient size.
+            This is part of the "good-fit" strategy.
+         */
+        aligned = (asize & ((((size_t) 1) << (group + MPR_ALLOC_BUCKET_SHIFT - 1)) - 1)) == 0;
+        if (!aligned) {
+            index++;
+        }
+    }
+    return index;
+}
+
+
+#if BLD_MEMORY_STATS
+static MprFreeBlk *getQueue(size_t size)
+{   
+    MprFreeBlk  *freeq;
+    int         index;
+    
+    index = getQueueIndex(size, 0);
+    freeq = &heap->free[index];
+    return freeq;
+}
+#endif
+
+
+static MprBlk *searchFree(size_t size)
+{
+    MprFreeBlk  *freeq;
+    MprBlk      *bp;
+    size_t      groupMap, bucketMap;
+    int         bucket, baseGroup, group, index;
+    
+    index = getQueueIndex(size, 1);
+    baseGroup = index / MPR_ALLOC_NUM_BUCKETS;
+    bucket = index % MPR_ALLOC_NUM_BUCKETS;
+
+    lockHeap(heap);
+    
+    /* Mask groups lower than the base group */
+    groupMap = heap->groupMap & ~((((size_t) 1) << baseGroup) - 1);
+    while (groupMap) {
+        group = ffsl(groupMap) - 1;
+        if (groupMap & ((((size_t) 1) << group))) {
+            bucketMap = heap->bucketMap[group];
+            if (baseGroup == group) {
+                bucketMap &= ~((((size_t) 1) << bucket) - 1);
+            }
+            while (bucketMap) {
+                bucket = ffsl(bucketMap) - 1;
+                index = (group * MPR_ALLOC_NUM_BUCKETS) + bucket;
+                freeq = &heap->free[index];
+                if (freeq->forw != freeq) {
+                    bp = (MprBlk*) freeq->forw;
+                    deq(bp);
+                    INC(reuse);
+                    unlockHeap(heap);
+                    CHECK(bp);
+                    return bp;
+                }
+                bucketMap &= ~(((size_t) 1) << bucket);
+                heap->bucketMap[group] &= ~(((size_t) 1) << bucket);
+            }
+            groupMap &= ~(((size_t) 1) << group);
+            heap->groupMap &= ~(((size_t) 1) << group);
+        }
+    }
+    unlockHeap(heap);
+    return NULL;
+}
+
+
+/*
+    Add a block to a free q. Must be called locked.
+ */
+static void enq(MprBlk *bp) 
+{
+    MprFreeBlk  *freeq, *fb;
+    int         index, group, bucket;
+
+    bp->free = 1;
+    bp->pad = 0;
+    
+    index = getQueueIndex(bp->size, 0);
+    group = index / MPR_ALLOC_NUM_BUCKETS;
+    bucket = index % MPR_ALLOC_NUM_BUCKETS;
+    heap->groupMap |= (((size_t) 1) << group);
+    heap->bucketMap[group] |= (((size_t) 1) << bucket);
+
+    freeq = &heap->free[index];
+    fb = (MprFreeBlk*) bp;
+    fb->forw = freeq->forw;
+    fb->back = freeq;
+    freeq->forw->back = fb;
+    freeq->forw = fb;
+#if BLD_MEMORY_STATS
+    freeq->count++;
+#endif
+    heap->stats.bytesFree += bp->size;
+}
+
+
+/*
+    Remove a block from a free q. Must be called locked.
+ */
+static void deq(MprBlk *bp) 
+{
+    MprFreeBlk  *fb;
+
+    fb = (MprFreeBlk*) bp;
+#if BLD_MEMORY_STATS
+    MprFreeBlk *freeq = getQueue(bp->size);
+    freeq->reuse++;
+    freeq->count--;
+    mprAssert(freeq->count >= 0);
+#endif
+    fb->back->forw = fb->forw;
+    fb->forw->back = fb->back;
+#if BLD_MEMORY_DEBUG
+    fb->forw = fb->back = NULL;
+#endif
+    bp->free = 0;
+    heap->stats.bytesFree -= bp->size;
+    mprAssert(heap->stats.bytesFree >= 0);
+}
+
+
+static void linkChild(MprBlk *parent, MprBlk *bp)
+{
+    MprBlk  *children;
+
+    CHECK(bp);
+    mprAssert(bp != parent);
+
+    if (!HAS_CHILDREN(parent)) {
+        mprError(MPR, "Parent is not a context object, use mprAllocObj or mprAllocCtx on parent");
+        return;
+    }
+    children = GET_CHILDREN(parent);
+
+    lockHeap(heap);
+    bp->next = children->next;
+    bp->prev = children;
+    children->next->prev = bp;
+    children->next = bp;
+    unlockHeap(heap);
+}
+
+
+static void unlinkChild(MprBlk *bp)
+{
+    CHECK(bp);
+
+    lockHeap(heap);
+    bp->prev->next = bp->next;
+    bp->next->prev = bp->prev;
+    unlockHeap(heap);
+}
+
+
+/*
+    Get a block off a free queue or allocate if required
+ */
+static MprBlk *getBlock(size_t usize, int padWords, int flags)
+{
+    MprBlk      *bp;
+    int         size;
+
+    mprAssert(usize >= 0);
+    size = MPR_ALLOC_ALIGN(usize + MPR_ALLOC_HDR_SIZE + (padWords * sizeof(void*)));
+    
+    if ((bp = searchFree(size)) == NULL) {
+        if ((bp = growHeap(size)) == NULL) {
+            return NULL;
+        }
+    }
+    BREAKPOINT(bp);
+    mprAssert(bp->size >= size);
+    if (bp->size >= (size + MPR_ALLOC_MIN_SPLIT)) {
+        splitBlock(bp, size, 1);
+    }
+    if (flags & MPR_ALLOC_ZERO) {
+        memset(GET_PTR(bp), 0, usize);
+    }
+    if (padWords) {
+        bp->pad = padWords;
+        memset(PAD_PTR(bp, padWords), 0, padWords * sizeof(void*));
+        SET_TRAILER(bp, MPR_ALLOC_MAGIC);
+    }
+    LOCKED_INC(requests);
+    CHECK(bp);
+    return bp;
+}
+
+
+static void freeBlock(MprBlk *bp)
+{
+    MprBlk  *prev, *next, *after;
+    size_t  size;
+
+    after = next = prev = NULL;
+    
+    BREAKPOINT(bp);
+    RESET_MEM(bp);
+    
+    size = bp->size;
+    bp->pad = 0;
+
+    /*
+        Coalesce with next if it is also free.
+     */
+    lockHeap(heap);
+    next = GET_NEXT(bp);
+    if (next && next->free) {
+        BREAKPOINT(next);
+        deq(next);
+        if ((after = GET_NEXT(next)) != NULL) {
+            mprAssert(after->prior == next);
+            after->prior = bp;
+        } else {
+            bp->last = 1;
+        }
+        size += next->size;
+        bp->size = size;
+        INC(joins);
+    }
+    /*
+        Coalesce with previous if it is also free.
+     */
+    prev = bp->prior;
+    if (prev && prev->free) {
+        BREAKPOINT(prev);
+        deq(prev);
+        if ((after = GET_NEXT(bp)) != NULL) {
+            mprAssert(after->prior == bp);
+            after->prior = prev;
+        } else {
+            prev->last = 1;
+        }
+        size += prev->size;
+        prev->size = size;
+        bp = prev;
+        INC(joins);
+    }
+#if BLD_MEMORY_DEBUG
+    if ((after = GET_NEXT(bp)) != 0) {
+        mprAssert(after->prior == bp);
+    }
+#endif
+#if BLD_CC_MMU
+    if (bp->size >= MPR_ALLOC_RETURN && heap->stats.bytesFree > (MPR_REGION_MIN_SIZE * 4)) {
+        INC(unpins);
+        unlockHeap(heap);
+        virtFree(bp);
+    } else
+#endif
+    {
+        enq(bp);
+        unlockHeap(heap);
+    }
+}
+
+
+/*
+    Split a block. Required specifies the number of bytes needed in the block. If swap, then put bp back on the free
+    queue instead of the second half.
+ */
+static MprBlk *splitBlock(MprBlk *bp, size_t required, int qspare)
+{
+    MprBlk      *spare, *after;
+    size_t      size, extra;
+
+    mprAssert(bp);
+    mprAssert(required > 0);
+
+    CHECK(bp);
+    BREAKPOINT(bp);
+
+    size = bp->size;
+    extra = size - required;
+    mprAssert(extra >= MPR_ALLOC_MIN_SPLIT);
+
+    spare = (MprBlk*) ((char*) bp + required);
+    INIT_BLK(spare, extra);
+    spare->last = bp->last;
+    spare->prior = bp;
+    BREAKPOINT(spare);
+
+    lockHeap(heap);
+    bp->size = required;
+    bp->last = 0;
+    if ((after = GET_NEXT(spare)) != NULL) {
+        after->prior = spare;
+    }
+    INC(splits);
+    if (qspare) {
+        enq(spare);
+    }
+    CHECK(spare);
+    CHECK(bp);
+    unlockHeap(heap);
+    return (qspare) ? NULL : spare;
+}
+
+
+static void virtFree(MprBlk *bp)
+{
+    MprBlk      *spare, *after;
+    size_t      gap;
+
+    /*
+        If block is non-aligned, split the portion off the front sand save
+     */
+    gap = MPR_PAGE_ALIGN(bp, heap->pageSize) - (size_t) bp;
+    if (gap) {
+        if (gap < MPR_ALLOC_MIN_SPLIT) {
+            /* Gap must be useful -- If too small, preserve one extra page with it */
+            gap += heap->pageSize;
+        }
+        spare = splitBlock(bp, gap, 0);
+        bp->last = 1;
+        lockHeap(heap);
+        enq(bp);
+        unlockHeap(heap);
+        bp = spare;
+    }
+
+    /*
+        If non-aligned tail, then split the tail and save
+     */
+    gap = bp->size % heap->pageSize;
+    if (gap) {
+        if (gap < MPR_ALLOC_MIN_SPLIT) {
+            gap += heap->pageSize;
+        }
+        splitBlock(bp, bp->size - gap, 1);
+    }
+
+    lockHeap(heap);
+    if (bp->prior) {
+        bp->prior->last = 1;
+    }
+    if ((after = GET_NEXT(bp)) != NULL) {
+        after->prior = NULL;
+    }
+    heap->stats.bytesAllocated -= bp->size;
+    mprAssert(heap->stats.bytesAllocated >= 0);
+    unlockHeap(heap);
+
+    mprVirtFree((void*) bp, bp->size);
+}
+
+
+/*
+    Allocate virtual memory and check a memory allocation request against configured maximums and redlines. 
+    Do this so that the application does not need to check the result of every little memory allocation. Rather, an 
+    application-wide memory allocation failure can be invoked proactively when a memory redline is exceeded. 
+    It is the application's responsibility to set the red-line value suitable for the system.
+ */
+static void *virtAlloc(size_t size)
+{
+    void        *mem;
+    size_t      used;
+
+    used = mprGetUsedMemory();
+    if ((size + used) > heap->stats.maxMemory) {
+        allocException(size, 0);
+        /* Prevent allocation as over the maximum memory limit.  */
+        return 0;
+
+    } else if ((size + used) > heap->stats.redLine) {
+        /* Warn if allocation puts us over the red line. Then continue to grant the request.  */
+        allocException(size, 1);
+    }
+    if ((mem = mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == 0) {
+        allocException(size, 0);
+        return 0;
+    }
+    lockHeap(heap);
+    INC(allocs);
+    heap->stats.bytesAllocated += size;
+    unlockHeap(heap);
+    return mem;
+}
+
+
+/*
+    Grow the heap and return a block of the required size (unqueued)
+ */
+static MprBlk *growHeap(size_t required)
+{
+    MprBlk      *bp;
+    size_t      size;
+
+    mprAssert(required > 0);
+
+    size = max(required, heap->chunkSize);
+    size = MPR_PAGE_ALIGN(size, heap->pageSize);
+
+    if ((bp = (MprBlk*) virtAlloc(size)) == NULL) {
+        return 0;
+    }
+    INIT_BLK(bp, size);
+    bp->last = 1;
+    CHECK(bp);
+    return bp;
+}
+
+
+static void allocException(size_t size, bool granted)
+{
+    MprHeap     *hp;
+
+    heap->hasError = 1;
+
+    lockHeap(heap);
+    INC(errors);
+    if (heap->stats.inAllocException) {
+        unlockHeap(heap);
+        return;
+    }
+    heap->stats.inAllocException = 1;
+
+    if (hp->notifier) {
+        (hp->notifier)(hp->notifierCtx, size, heap->stats.bytesAllocated, granted);
+    }
+    heap->stats.inAllocException = 0;
+    unlockHeap(heap);
+
+    if (!granted) {
+        switch (heap->allocPolicy) {
+        case MPR_ALLOC_POLICY_EXIT:
+            mprError(MPR, "Application exiting due to memory allocation failure.");
+            mprTerminate(MPR, 0);
+            break;
+        case MPR_ALLOC_POLICY_RESTART:
+            mprError(MPR, "Application restarting due to memory allocation failure.");
+            //  TODO - Other systems
+#if BLD_UNIX_LIKE
+            execv(MPR->argv[0], MPR->argv);
+#endif
+            break;
+        }
+    }
+}
+
+
+void *mprVirtAlloc(size_t size, int mode)
+{
+    void        *ptr;
+
+    if (heap->pageSize) {
+        size = MPR_PAGE_ALIGN(size, heap->pageSize);
+    }
+#if BLD_CC_MMU
+    #if BLD_UNIX_LIKE
+        ptr = mmap(0, size, mode, MAP_PRIVATE | MAP_ANON, -1, 0);
+        if (ptr == (void*) -1) {
+            ptr = 0;
+        }
+    #elif BLD_WIN_LIKE
+        ptr = VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, winPageModes(mode));
+    #else
+        ptr = malloc(size);
+    #endif
+#else
+    ptr = malloc(size);
+#endif
     if (ptr == 0) {
         return 0;
     }
-    bp = GET_BLK(ptr);
-    return (bp && VALID_BLK(bp));
+    return ptr;
 }
 
 
-#if !BLD_HAS_GLOBAL_MPR || BLD_WIN_LIKE
-/*
-    Get the ultimate block parent
- */
-Mpr *mprGetMpr(MprCtx ctx)
+void mprVirtFree(void *ptr, size_t size)
 {
-#if BLD_WIN_LIKE
-    /*  Windows can use globalMpr but must have a function to solve linkage issues */
-    return (Mpr*) _globalMpr;
+#if BLD_CC_MMU
+    #if BLD_UNIX_LIKE
+        if (munmap(ptr, size) != 0) {
+            mprAssert(0);
+        }
+    #elif BLD_WIN_LIKE
+        VirtualFree(ptr, 0, MEM_RELEASE);
+    #else
+        free(ptr);
+    #endif
 #else
-    MprBlk  *bp = GET_BLK(ctx);
-
-    while (bp && bp->parent) {
-        bp = bp->parent;
-    }
-    return (Mpr*) GET_PTR(bp);
+    free(ptr);
 #endif
 }
-#endif
 
 
-bool mprHasAllocError(MprCtx ctx)
+static void getSystemInfo()
 {
-    MprBlk  *bp;
+    MprAllocStats   *ap;
 
-    bp = GET_BLK(ctx);
-    return (bp->flags & MPR_ALLOC_HAS_ERROR) ? 1 : 0;
-}
-
-
-/*
-    Reset the allocation error flag at this block and all parent blocks
- */
-void mprResetAllocError(MprCtx ctx)
-{
-    MprBlk  *bp;
-
-    bp = GET_BLK(ctx);
-    while (bp) {
-        bp->flags &= ~MPR_ALLOC_HAS_ERROR;
-        bp = bp->parent;
-    }
-}
-
-
-
-/*
-    Set the allocation error flag at this block and all parent blocks
- */
-void mprSetAllocError(MprCtx ctx)
-{
-    MprBlk  *bp;
-
-    bp = GET_BLK(ctx);
-    while (bp) {
-        bp->flags |= MPR_ALLOC_HAS_ERROR;
-        bp = bp->parent;
-    }
-}
-
-
-/*
-    Called to invoke the memory failure handler on a memory allocation error
- */
-static void allocException(MprBlk *parent, uint size, bool granted)
-{
-    Mpr         *mpr;
-    MprHeap     *hp;
-
-    mprAssert(VALID_BLK(parent));
-
-    mpr = mprGetMpr(GET_PTR(parent));
-
-    mprSpinLock(&mpr->heap.spin);
-    if (mpr->alloc.inAllocException == 0) {
-        mpr->alloc.inAllocException = 1;
-        mprSpinUnlock(&mpr->heap.spin);
-
-        /*
-            Notify all the heaps up the chain
-         */
-        for (hp = mprGetHeap(parent); hp; hp = mprGetHeap(parent)) {
-            if (hp->notifier) {
-                (hp->notifier)(hp->notifierCtx, size, (int) mpr->alloc.bytesAllocated, granted);
-                break;
-            }
-            parent = parent->parent;
-            if (parent == 0) {
-                break;
-            }
-        }
-        mpr->alloc.inAllocException = 0;
-    } else {
-        mprSpinUnlock(&mpr->heap.spin);
-    }
-    if (!granted) {
-        mpr = mprGetMpr(parent);
-        switch (mpr->allocPolicy) {
-        case MPR_ALLOC_POLICY_EXIT:
-            mprError(parent, "Application exiting due to memory allocation failure.");
-            mprTerminate(parent, 0);
-            break;
-        case MPR_ALLOC_POLICY_RESTART:
-            mprError(parent, "Application restarting due to memory allocation failure.");
-            //  TODO - Other systems
-#if BLD_UNIX_LIKE
-            execv(mpr->argv[0], mpr->argv);
-#endif
-            break;
-        }
-    }
-}
-
-
-/*
-    Handle an allocation error
- */
-static void allocError(MprBlk *parent, uint size)
-{
-    Mpr     *mpr;
-
-    mpr = mprGetMpr(GET_PTR(parent));
-    mpr->alloc.errors++;
-    mprSetAllocError(GET_PTR(parent));
-    allocException(parent, size, 0);
-}
-
-
-/*
-    Get information about the system. Get page size and number of CPUs.
- */
-static void sysinit(Mpr *mpr)
-{
-    MprAlloc    *ap;
-
-    ap = &mpr->alloc;
-
+    ap = &heap->stats;
     ap->numCpu = 1;
 
 #if MACOSX
@@ -2092,10 +1701,6 @@ static void sysinit(Mpr *mpr)
         }
         --ap->numCpu;
         close(fd);
-
-        /*
-            Get page size
-         */
         ap->pageSize = sysconf(_SC_PAGESIZE);
     }
 #else
@@ -2104,80 +1709,12 @@ static void sysinit(Mpr *mpr)
     if (ap->pageSize <= 0 || ap->pageSize >= (16 * 1024)) {
         ap->pageSize = 4096;
     }
-}
-
-
-int mprGetPageSize(MprCtx ctx)
-{
-    return mprGetMpr(ctx)->alloc.pageSize;
-}
-
-
-/*
-    Virtual memory support. Map virutal memory into the address space and commit.
- */
-void *mprMapAlloc(MprCtx ctx, uint size, int mode)
-{
-    Mpr         *mpr;
-    void        *ptr;
-
-    mpr = mprGetMpr(ctx);
-    size = MPR_PAGE_ALIGN(size, mpr->alloc.pageSize);
-
-#if BLD_CC_MMU
-    /*
-        Has virtual memory
-     */
-    #if BLD_UNIX_LIKE
-        ptr = mmap(0, size, mode, MAP_PRIVATE | MAP_ANON, -1, 0);
-        if (ptr == (void*) -1) {
-            ptr = 0;
-        }
-    #elif BLD_WIN_LIKE
-        ptr = VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, mapProt(mode));
-    #else
-        ptr = malloc(size);
-    #endif
-#else
-    /*
-        No MMU
-     */
-    ptr = malloc(size);
-#endif
-
-    if (ptr == 0) {
-        return 0;
-    }
-    return ptr;
-}
-
-
-void mprMapFree(void *ptr, uint size)
-{
-#if BLD_CC_MMU
-    /*
-        Has virtual memory
-     */
-    #if BLD_UNIX_LIKE
-        if (munmap(ptr, size) != 0) {
-            mprAssert(0);
-        }
-    #elif BLD_WIN_LIKE
-        VirtualFree(ptr, 0, MEM_RELEASE);
-    #else
-        free(ptr);
-    #endif
-#else
-    /*
-        Has no MMU
-     */
-    free(ptr);
-#endif
+    heap->pageSize = ap->pageSize;
 }
 
 
 #if BLD_WIN_LIKE
-static int mapProt(int flags)
+static int winPageModes(int flags)
 {
     if (flags & MPR_MAP_EXECUTE) {
         return PAGE_EXECUTE_READWRITE;
@@ -2189,192 +1726,132 @@ static int mapProt(int flags)
 #endif
 
 
-/*
-    Actually allocate memory. Just use ordinary malloc. Arenas and slabs will use MapAlloc instead.
- */
-static inline void *allocMemory(uint size)
+MprAllocStats *mprGetAllocStats()
 {
-    return malloc(size);
-}
+#if LINUX
+    char            buf[1024], *cp;
+    int             fd, len;
 
-
-static inline void freeMemory(MprBlk *bp)
-{
-#if BLD_FEATURE_MEMORY_DEBUG
-    int     size;
-    
-    /*
-        Free with unique signature to catch block-reuse
-     */
-    size = bp->size;
-    memset(bp, 0xF1, size);
-#endif
-    free(bp);
-}
-
-
-void mprValidateBlock(MprCtx ctx)
-{
-#if BLD_FEATURE_MEMORY_DEBUG
-    Mpr         *mpr;
-    MprBlk      *bp, *parent, *sibling, *child;
-
-    mprAssert(VALID_CTX(ctx));
-
-    bp = GET_BLK(ctx);
-    mpr = mprGetMpr(ctx);
-
-    if (bp == GET_BLK(mpr)) {
-        return;
-    }
-
-    mprAssert(bp->parent);
-    mprAssert(VALID_BLK(bp->parent));
-    parent = bp->parent;
-
-    /*
-        Find this block in the parent chain
-     */
-    for (sibling = parent->children; sibling; sibling = sibling->next) {
-        mprAssert(VALID_BLK(sibling));
-        mprAssert(sibling != parent);
-        mprAssert(sibling->parent == parent);
-        if (sibling->children) {
-            mprAssert(VALID_BLK(sibling->children));
-        }
-        if (sibling == bp) {
-            break;
-        }
-    }
-    mprAssert(sibling);
-
-    /*
-        Check the rest of the siblings
-     */
-    if (sibling) {
-        for (sibling = sibling->next; sibling; sibling = sibling->next) {
-            mprAssert(VALID_BLK(sibling));
-            mprAssert(sibling != parent);
-            mprAssert(sibling->parent == parent);
-            if (sibling->children) {
-                mprAssert(VALID_BLK(sibling->children));
+    heap->stats.ram = MAXINT64;
+    if ((fd = open("/proc/meminfo", O_RDONLY)) >= 0) {
+        if ((len = read(fd, buf, sizeof(buf) - 1)) > 0) {
+            buf[len] = '\0';
+            if ((cp = strstr(buf, "MemTotal:")) != 0) {
+                for (; *cp && !isdigit((int) *cp); cp++) {}
+                heap->stats.ram = ((size_t) atoi(cp) * 1024);
             }
-            mprAssert(sibling != bp);
         }
+        close(fd);
     }
+#endif
+#if MACOSX || FREEBSD
+    size_t      ram, usermem, len;
+    int         mib[2];
 
-    /*
-        Validate children (recursively)
-     */
-    for (child = bp->children; child; child = child->next) {
-        mprAssert(child != bp);
-        mprValidateBlock(GET_PTR(child));
-    }
+    mib[0] = CTL_HW;
+#if FREEBSD
+    mib[1] = HW_MEMSIZE;
+#else
+    mib[1] = HW_PHYSMEM;
+#endif
+    len = sizeof(ram);
+    sysctl(mib, 2, &ram, &len, NULL, 0);
+    heap->stats.ram = ram;
+
+    mib[0] = CTL_HW;
+    mib[1] = HW_USERMEM;
+    len = sizeof(usermem);
+    sysctl(mib, 2, &usermem, &len, NULL, 0);
+    heap->stats.user = usermem;
+#endif
+    heap->stats.rss = mprGetUsedMemory();
+    return &heap->stats;
+}
+
+
+size_t mprGetUsedMemory()
+{
+#if LINUX || MACOSX || FREEBSD
+    struct rusage   rusage;
+    getrusage(RUSAGE_SELF, &rusage);
+    return rusage.ru_maxrss;
+#else
+    return heap->stats.bytesAllocated;
 #endif
 }
 
 
-#if BLD_FEATURE_MEMORY_STATS
-
-#define percent(a,b) ((a / 1000) * 100 / (b / 1000))
-
-/*
-    Traverse all blocks and look for heaps
- */
-static void printMprHeaps(MprCtx ctx)
+#if BLD_MEMORY_STATS
+static void printQueueStats() 
 {
-    MprAlloc    *ap;
-    MprBlk      *bp, *child;
-    MprHeap     *heap;
-    MprRegion   *region;
-    cchar       *kind;
-    int64       available, total, remaining;
+    MprFreeBlk  *freeq;
+    int         i, index, total;
 
-    bp = MPR_GET_BLK(ctx);
-
-    if (bp->size & MPR_ALLOC_IS_HEAP) {
-        ap = mprGetAllocStats(ctx);
-        heap = (MprHeap*) ctx;
-        if (heap->flags & MPR_ALLOC_PAGE_HEAP) {
-            kind = "page";
-        } else if (heap->flags & MPR_ALLOC_ARENA_HEAP) {
-            kind = "arena";
-        } else if (heap->flags & MPR_ALLOC_SLAB_HEAP) {
-            kind = "slab";
-        } else {
-            kind = "general";
-        }
-        mprLog(ctx, 0, "\n    Heap                     %10s (%s)",       heap->name, kind);
-
-        available = 0;
-        total = 0;
-        for (region = heap->depleted; region; region = region->next) {
-            available += (region->size - (region->nextMem - region->memory));
-            total += region->size;
-        }
-        remaining = 0;
-        if (heap->region) {
-            total += heap->region->size;
-            remaining = (region->size - (region->nextMem - region->memory));
-        }
-
-        mprLog(ctx, 0, "    Allocated memory         %,10d K",          heap->allocBytes / 1024);
-        mprLog(ctx, 0, "    Peak heap memory         %,10d K",          heap->peakAllocBytes / 1024);
-        mprLog(ctx, 0, "    Allocated blocks         %,10d",            heap->allocBlocks);
-        mprLog(ctx, 0, "    Peak heap blocks         %,10d",            heap->peakAllocBlocks);
-        mprLog(ctx, 0, "    Alloc calls              %,10d",            heap->totalAllocCalls);
-
-        if (heap->flags & (MPR_ALLOC_PAGE_HEAP | MPR_ALLOC_ARENA_HEAP | MPR_ALLOC_SLAB_HEAP)) {
-            mprLog(ctx, 0, "    Heap Regions             %,10d K",      (int) (total / 1024));
-            mprLog(ctx, 0, "    Depleted regions         %,10d K",      (int) (available / 1024));
-            if (heap->region) {
-                mprLog(ctx, 0, "    Unallocated memory       %,10d K",  (int) (remaining / 1024));
-            }            
-        }
-            
-        if (heap->flags & MPR_ALLOC_PAGE_HEAP) {
-            mprLog(ctx, 0, "    Page size                %,10d",         ap->pageSize);
-
-        } else if (heap->flags & MPR_ALLOC_ARENA_HEAP) {
-
-        } else if (heap->flags & MPR_ALLOC_SLAB_HEAP) {
-            mprLog(ctx, 0, "    Heap object size         %,10d bytes",   heap->objSize);
-            mprLog(ctx, 0, "    Heap free list count     %,10d",         heap->freeListCount);
-            mprLog(ctx, 0, "    Heap peak free list      %,10d",         heap->peakFreeListCount);
-            mprLog(ctx, 0, "    Heap reuse count         %,10d",         heap->reuseCount);
-        }
+    mprLog(MPR, 0, "\nFree Queue Stats\n Bucket                     Size   Count        Reuse");
+    for (i = 0, freeq = heap->free; freeq != heap->freeEnd; freeq++, i++) {
+        total += freeq->size * freeq->count;
+        index = (freeq - heap->free);
+        mprLog(MPR, 0, "%7d %24lu %7d %12d", i, freeq->size, freeq->count, freeq->reuse);
     }
-    for (child = bp->children; child; child = child->next) {
-        printMprHeaps(MPR_GET_PTR(child));
+}
+#endif /* BLD_MEMORY_STATS */
+
+
+void mprPrintAllocReport(cchar *msg, int detail)
+{
+#if BLD_MEMORY_STATS
+    MprAllocStats   *ap;
+
+    ap = mprGetAllocStats();
+
+    mprLog(MPR, 0, "\n\n\nMPR Memory Report %s", msg);
+    mprLog(MPR, 0, "------------------------------------------------------------------------------------------\n");
+    mprLog(MPR, 0, "  Total memory           %,14d K",              mprGetUsedMemory());
+    mprLog(MPR, 0, "  Current heap memory    %,14d K",              ap->bytesAllocated / 1024);
+    mprLog(MPR, 0, "  Free heap memory       %,14d K",              ap->bytesFree / 1024);
+    mprLog(MPR, 0, "  Allocation errors      %,14d",                ap->errors);
+    mprLog(MPR, 0, "  Memory limit           %,14d MB (%d %%)",     ap->maxMemory / (1024 * 1024), 
+       percent(ap->bytesAllocated / 1024, ap->maxMemory / 1024));
+    mprLog(MPR, 0, "  Memory redline         %,14d MB (%d %%)",     ap->redLine / (1024 * 1024), 
+       percent(ap->bytesAllocated / 1024, ap->redLine / 1024));
+
+    mprLog(MPR, 0, "  Memory requests        %,14Ld",                ap->requests);
+    mprLog(MPR, 0, "  O/S allocations        %d %%",                 percent(ap->allocs, ap->requests));
+    mprLog(MPR, 0, "  Block unpinns          %d %%",                 percent(ap->unpins, ap->requests));
+    mprLog(MPR, 0, "  Block reuse            %d %%",                 percent(ap->reuse, ap->requests));
+    mprLog(MPR, 0, "  Joins                  %d %%",                 percent(ap->joins, ap->requests));
+    mprLog(MPR, 0, "  Splits                 %d %%",                 percent(ap->splits, ap->requests));
+
+    if (detail) {
+        printQueueStats();
+    }
+#endif /* BLD_MEMORY_STATS */
+}
+
+
+#if BLD_MEMORY_DEBUG
+static int validBlk(MprBlk *bp)
+{
+    mprAssert(bp->magic == MPR_ALLOC_MAGIC);
+    mprAssert(bp->size > 0);
+    mprAssert(GET_TRAILER(bp) == MPR_ALLOC_MAGIC);
+    return (bp->magic == MPR_ALLOC_MAGIC) && (bp->size > 0) && (GET_TRAILER(bp) == MPR_ALLOC_MAGIC);
+}
+
+
+static void check(MprBlk *bp)
+{
+    mprAssert(VALID_BLK(bp));
+}
+
+
+static void breakpoint(MprBlk *bp) 
+{
+    if (bp == stopAlloc || bp->seqno == stopSeqno) {
+        mprBreakpoint();
     }
 }
 #endif
-
-
-void mprPrintAllocReport(MprCtx ctx, cchar *msg)
-{
-#if BLD_FEATURE_MEMORY_STATS
-    MprAlloc    *ap;
-
-    ap = &mprGetMpr(ctx)->alloc;
-
-    mprLog(ctx, 0, "\n\n\nMPR Memory Report %s", msg);
-    mprLog(ctx, 0, "------------------------------------------------------------------------------------------\n");
-    mprLog(ctx, 0, "  Current heap memory  %,14d K",              ap->bytesAllocated / 1024);
-    mprLog(ctx, 0, "  Peak heap memory     %,14d K",              ap->peakAllocated / 1024);
-    mprLog(ctx, 0, "  Peak stack size      %,14d K",              ap->peakStack / 1024);
-    mprLog(ctx, 0, "  Allocation errors    %,14d",                ap->errors);
-    
-    mprLog(ctx, 0, "  Memory limit         %,14d MB (%d %%)",    ap->maxMemory / (1024 * 1024), 
-           percent(ap->bytesAllocated, ap->maxMemory));
-    mprLog(ctx, 0, "  Memory redline       %,14d MB (%d %%)",    ap->redLine / (1024 * 1024), 
-           percent(ap->bytesAllocated, ap->redLine));
-
-    mprLog(ctx, 0, "\n  Heaps");
-    mprLog(ctx, 0, "  -----");
-    printMprHeaps(ctx);
-#endif /* BLD_FEATURE_MEMORY_STATS */
-}
 
 
 /*
@@ -2740,7 +2217,7 @@ MprBuf *mprCreateBuf(MprCtx ctx, int initialSize, int maxSize)
     if (initialSize <= 0) {
         initialSize = MPR_DEFAULT_ALLOC;
     }
-    if ((bp = mprAllocObjZeroed(ctx, MprBuf)) == 0) {
+    if ((bp = mprAllocCtx(ctx, sizeof(MprBuf))) == 0) {
         return 0;
     }
     bp->growBy = MPR_BUFSIZE;
@@ -2796,10 +2273,6 @@ int mprSetBufSize(MprBuf *bp, int initialSize, int maxSize)
         bp->maxsize = maxSize;
         return 0;
     }
-
-    /*
-        New buffer - create storage for the data
-     */
     if ((bp->data = mprAlloc(bp, initialSize)) == 0) {
         return MPR_ERR_NO_MEMORY;
     }
@@ -3136,7 +2609,6 @@ int mprGrowBuf(MprBuf *bp, int need)
     } else {
         growBy = bp->growBy;
     }
-    
     if ((newbuf = mprAlloc(bp, bp->buflen + growBy)) == 0) {
         return MPR_ERR_NO_MEMORY;
     }
@@ -3304,7 +2776,7 @@ MprCmd *mprCreateCmd(MprCtx ctx, MprDispatcher *dispatcher)
     MprCmdFile      *files;
     int             i;
     
-    cmd = mprAllocObjWithDestructorZeroed(ctx, MprCmd, cmdDestructor);
+    cmd = mprAllocObj(ctx, MprCmd, cmdDestructor);
     if (cmd == 0) {
         return 0;
     }
@@ -4831,7 +4303,7 @@ MprCond *mprCreateCond(MprCtx ctx)
 {
     MprCond     *cp;
 
-    cp = mprAllocObjWithDestructor(ctx, MprCond, condDestructor);
+    cp = mprAllocObj(ctx, MprCond, condDestructor);
     if (cp == 0) {
         return 0;
     }
@@ -5647,7 +5119,7 @@ static MprFile *openFile(MprCtx ctx, MprFileSystem *fileSystem, cchar *path, int
     mprAssert(path);
 
     dfs = (MprDiskFileSystem*) fileSystem;
-    file = mprAllocObjWithDestructorZeroed(ctx, MprFile, closeFile);
+    file = mprAllocObj(ctx, MprFile, closeFile);
     
     file->fd = open(path, omode, perms);
     if (file->fd < 0) {
@@ -5903,8 +5375,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     MprFileSystem       *fs;
     MprDiskFileSystem   *dfs;
 
-    dfs = mprAllocObjZeroed(ctx, MprDiskFileSystem);
-    if (dfs == 0) {
+    if ((dfs = mprAllocObj(ctx, MprDiskFileSystem, NULL)) == 0) {
         return 0;
     }
     
@@ -5926,7 +5397,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     dfs->writeFile = writeFile;
 
 #if !WINCE
-    dfs->stdError = mprAllocObjZeroed(dfs, MprFile);
+    dfs->stdError = mprAllocObj(dfs, MprFile, NULL);
     if (dfs->stdError == 0) {
         mprFree(dfs);
     }
@@ -5934,7 +5405,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     dfs->stdError->fileSystem = fs;
     dfs->stdError->mode = O_WRONLY;
 
-    dfs->stdInput = mprAllocObjZeroed(dfs, MprFile);
+    dfs->stdInput = mprAllocObj(dfs, MprFile, NULL);
     if (dfs->stdInput == 0) {
         mprFree(dfs);
     }
@@ -5942,7 +5413,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     dfs->stdInput->fileSystem = fs;
     dfs->stdInput->mode = O_RDONLY;
 
-    dfs->stdOutput = mprAllocObjZeroed(dfs, MprFile);
+    dfs->stdOutput = mprAllocObj(dfs, MprFile, NULL);
     if (dfs->stdOutput == 0) {
         mprFree(dfs);
     }
@@ -6032,7 +5503,7 @@ MprEventService *mprCreateEventService(MprCtx ctx)
     Mpr                 *mpr;
 
     mpr = mprGetMpr(ctx);
-    if ((es = mprAllocObjZeroed(ctx, MprEventService)) == 0) {
+    if ((es = mprAllocObj(ctx, MprEventService, NULL)) == 0) {
         return 0;
     }
     mpr->eventService = es;
@@ -6234,7 +5705,7 @@ MprDispatcher *mprCreateDispatcher(MprCtx ctx, cchar *name, int enable)
     MprEventService     *es;
     MprDispatcher       *dispatcher;
 
-    if ((dispatcher = mprAllocObjWithDestructorZeroed(ctx, MprDispatcher, dispatcherDestructor)) == 0) {
+    if ((dispatcher = mprAllocObj(ctx, MprDispatcher, dispatcherDestructor)) == 0) {
         return 0;
     }
     dispatcher->name = name;
@@ -6983,7 +6454,7 @@ int mprCreateNotifierService(MprWaitService *ws)
     ev.data.fd = ws->breakPipe[MPR_READ_PIPE];
     epoll_ctl(ws->epoll, EPOLL_CTL_ADD, ws->breakPipe[MPR_READ_PIPE], &ev);
 
-    if (mprAllocObjWithDestructor(ws, char*, epollNotifierDestructor) == 0) {
+    if (mprAllocObj(ws, char*, epollNotifierDestructor) == 0) {
         return MPR_ERR_NO_MEMORY;
     }
     return 0;
@@ -7268,9 +6739,10 @@ MprEvent *mprCreateEvent(MprDispatcher *dispatcher, cchar *name, int period, Mpr
 {
     MprEvent    *event;
 
-    if ((event = mprAllocObjWithDestructorZeroed(dispatcher, MprEvent, eventDestructor)) != 0) {
-        mprInitEvent(dispatcher, event, name, period, proc, data, flags);
+    if ((event = mprAllocObj(dispatcher, MprEvent, eventDestructor)) == 0) {
+        return 0;
     }
+    mprInitEvent(dispatcher, event, name, period, proc, data, flags);
     mprQueueEvent(dispatcher, event);
     return event;
 }
@@ -7339,6 +6811,11 @@ void mprQueueEvent(MprDispatcher *dispatcher, MprEvent *event)
             break;
         }
     }
+    mprAssert(event->next == 0);
+    mprAssert(event->prev == 0);
+    mprAssert(prior->next);
+    mprAssert(prior->prev);
+    
     queueEvent(prior, event);
     es->eventCount++;
     if (dispatcher->enabled) {
@@ -7534,7 +7011,7 @@ MprFile *mprAttachFd(MprCtx ctx, int fd, cchar *name, int omode)
 
     fs = mprLookupFileSystem(ctx, "/");
 
-    file = mprAllocObjZeroed(ctx, MprFile);
+    file = mprAllocObj(ctx, MprFile, NULL);
     if (file) {
         file->fd = fd;
         file->fileSystem = fs;
@@ -8125,7 +7602,7 @@ MprFileSystem *mprCreateFileSystem(MprCtx ctx, cchar *path)
     if (mpr->fileSystem == NULL) {
         mpr->fileSystem = fs;
     }
-    fs->root = mprGetAbsPath(ctx, path);
+    fs->root = mprGetAbsPath(fs, path);
     if ((cp = strpbrk(fs->root, fs->separators)) != 0) {
         *++cp = '\0';
     }
@@ -8281,8 +7758,7 @@ MprHashTable *mprCreateHash(MprCtx ctx, int hashSize)
 {
     MprHashTable    *table;
 
-    table = mprAllocObjZeroed(ctx, MprHashTable);
-    if (table == 0) {
+    if ((table = mprAllocObj(ctx, MprHashTable, NULL)) == 0) {
         return 0;
     }
     /*  TODO -- should support rehashing */
@@ -8294,7 +7770,6 @@ MprHashTable *mprCreateHash(MprCtx ctx, int hashSize)
     table->count = 0;
     table->hashSize = hashSize;
     table->buckets = (MprHash**) mprAllocZeroed(table, sizeof(MprHash*) * hashSize);
-
     if (table->buckets == 0) {
         mprFree(table);
         return 0;
@@ -8347,14 +7822,13 @@ MprHash *mprAddHash(MprHashTable *table, cchar *key, cvoid *ptr)
     /*
         New entry
      */
-    sp = mprAllocObjZeroed(table, MprHash);
+    sp = mprAllocObj(table, MprHash, NULL);
     if (sp == 0) {
         return 0;
     }
     sp->data = ptr;
     sp->key = mprStrdup(sp, key);
     sp->bucket = index;
-
     sp->next = table->buckets[index];
     table->buckets[index] = sp;
     table->count++;
@@ -8372,7 +7846,7 @@ MprHash *mprAddDuplicateHash(MprHashTable *table, cchar *key, cvoid *ptr)
     MprHash     *sp;
     int         index;
 
-    sp = mprAllocObjZeroed(table, MprHash);
+    sp = mprAllocObj(table, MprHash, NULL);
     if (sp == 0) {
         return 0;
     }
@@ -8635,7 +8109,7 @@ int mprCreateNotifierService(MprWaitService *ws)
     EV_SET(&ws->interest[ws->interestCount], ws->breakPipe[MPR_READ_PIPE], EVFILT_READ, EV_ADD, 0, 0, 0);
     ws->interestCount++;
 
-    if (mprAllocObjWithDestructor(ws, char*, keventNotifierDestructor) == 0) {
+    if (mprAllocObj(ws, char*, keventNotifierDestructor) == 0) {
         return MPR_ERR_NO_MEMORY;
     }
     return 0;
@@ -8963,7 +8437,7 @@ MprList *mprCreateList(MprCtx ctx)
 {
     MprList     *lp;
 
-    lp = mprAllocObj(ctx, MprList);
+    lp = mprAllocObj(ctx, MprList, NULL);
     if (lp == 0) {
         return 0;
     }
@@ -9003,11 +8477,12 @@ int mprSetListLimits(MprList *lp, int initialSize, int maxSize)
     size = initialSize * sizeof(void*);
 
     if (lp->items == 0) {
-        lp->items = (void**) mprAllocZeroed(lp, size);
+        lp->items = (void**) mprAllocCtx(lp, size);
         if (lp->items == 0) {
             mprFree(lp);
             return MPR_ERR_NO_MEMORY;
         }
+        memset(lp->items, 0, size);
         lp->capacity = initialSize;
     }
     lp->maxSize = maxSize;
@@ -9441,18 +8916,21 @@ static int growList(MprList *lp, int incr)
     }
     memsize = len * sizeof(void*);
 
+#if MEMZZ
     /*
         Grow the list of items. Use the existing context for lp->items if it already exists. Otherwise use the list as the
         memory context owner.
      */
     lp->items = (void**) mprRealloc((lp->items) ? mprGetParent(lp->items): lp, lp->items, memsize);
+#else
+    lp->items = (void**) mprRealloc(lp, lp->items, memsize);
+#endif
 
     /*
         Zero the new portion (required for no-compact lists)
      */
     memset(&lp->items[lp->capacity], 0, sizeof(void*) * (len - lp->capacity));
     lp->capacity = len;
-
     return 0;
 }
 
@@ -9467,7 +8945,7 @@ MprKeyValue *mprCreateKeyPair(MprCtx ctx, cchar *key, cchar *value)
 {
     MprKeyValue     *pair;
     
-    pair = mprAllocObj(ctx, MprKeyValue);
+    pair = mprAlloc(ctx, sizeof(MprKeyValue));
     if (pair == 0) {
         return 0;
     }
@@ -9539,7 +9017,7 @@ MprMutex *mprCreateLock(MprCtx ctx)
 
     mprAssert(ctx);
 
-    lock = mprAllocObjWithDestructor(ctx, MprMutex, destroyLock);
+    lock = mprAllocObj(ctx, MprMutex, destroyLock);
     if (lock == 0) {
         return 0;
     }
@@ -9594,7 +9072,7 @@ MprMutex *mprInitLock(MprCtx ctx, MprMutex *lock)
 
 
 /*
-    Destroy a lock. Must be locked on entrance.
+    Destroy a lock. Should be locked on entrance.
  */
 static int destroyLock(MprMutex *lock)
 {
@@ -9634,7 +9112,7 @@ MprSpin *mprCreateSpinLock(MprCtx ctx)
 
     mprAssert(ctx);
 
-    lock = mprAllocObjWithDestructor(ctx, MprSpin, destroySpinLock);
+    lock = mprAllocObj(ctx, MprSpin, destroySpinLock);
     if (lock == 0) {
         return 0;
     }
@@ -10353,7 +9831,7 @@ MprModuleService *mprCreateModuleService(MprCtx ctx)
     MprModuleService    *ms;
     cchar               *searchPath;
 
-    ms = mprAllocObjZeroed(ctx, MprModuleService);
+    ms = mprAllocObj(ctx, MprModuleService, NULL);
     if (ms == 0) {
         return 0;
     }
@@ -10437,14 +9915,15 @@ MprModule *mprCreateModule(MprCtx ctx, cchar *name, void *data)
     ms = mpr->moduleService;
     mprAssert(ms);
 
-    mp = mprAllocObjZeroed(mpr, MprModule);
-    if (mp == 0) {
+    if ((mp = mprAllocObj(mpr, MprModule, NULL)) == 0) {
         return 0;
     }
     index = mprAddItem(ms->modules, mp);
     mp->name = mprStrdup(mp, name);
     mp->moduleData = data;
     mp->handle = 0;
+    mp->start = 0;
+    mp->stop = 0;
 
     if (index < 0 || mp->name == 0) {
         mprFree(mp);
@@ -11017,7 +10496,7 @@ MprList *mprGetPathFiles(MprCtx ctx, cchar *dir, bool enumDirs)
             continue;
         }
         if (enumDirs || !(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            dp = mprAllocObjZeroed(list, MprDirEntry);
+            dp = mprAllocCtx(list, sizeof(MprDirEntry));
             if (dp == 0) {
                 mprFree(path);
                 return 0;
@@ -11037,6 +10516,7 @@ MprList *mprGetPathFiles(MprCtx ctx, cchar *dir, bool enumDirs)
                 dp->lastModified = fileInfo.mtime;
             }
             dp->isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
+            dp->isLink = 0;
 
 #if FUTURE_64_BIT
             if (findData.nFileSizeLow < 0) {
@@ -11086,7 +10566,7 @@ MprList *mprGetPathFiles(MprCtx ctx, cchar *path, bool enumDirs)
         rc = mprGetPathInfo(ctx, fileName, &fileInfo);
         mprFree(fileName);
         if (enumDirs || (rc == 0 && !fileInfo.isDir)) { 
-            dp = mprAllocObjZeroed(list, MprDirEntry);
+            dp = mprAllocCtx(list, sizeof(MprDirEntry));
             if (dp == 0) {
                 return 0;
             }
@@ -12657,6 +12137,7 @@ int mprPrintfError(MprCtx ctx, cchar *fmt, ...)
     /* No asserts here as this is used as part of assert reporting */
 
     fs = mprLookupFileSystem(ctx, "/");
+    mprAssert(fs);
 
     va_start(ap, fmt);
     buf = mprVasprintf(ctx, -1, fmt, ap);
@@ -12872,7 +12353,6 @@ static char *sprintfCore(MprCtx ctx, char *buf, int maxsize, cchar *spec, va_lis
         fmt.endbuf = &fmt.buf[len];
         fmt.growBy = min(MPR_DEFAULT_ALLOC * 2, maxsize - len);
     }
-
     fmt.maxsize = maxsize;
     fmt.start = fmt.buf;
     fmt.end = fmt.buf;
@@ -13326,7 +12806,7 @@ int mprIsZero(double value) {
 char *mprDtoa(MprCtx ctx, double value, int ndigits, int mode, int flags)
 {
     MprBuf  *buf;
-    char    *intermediate, *ip;
+    char    *intermediate, *ip, *result;
     int     period, sign, len, exponentForm, fixedForm, exponent, count, totalDigits;
 
     buf = mprCreateBuf(ctx, MPR_MAX_STRING, -1);
@@ -13449,7 +12929,9 @@ char *mprDtoa(MprCtx ctx, double value, int ndigits, int mode, int flags)
     if (intermediate) {
         freedtoa(intermediate);
     }
-    return mprStealBuf(ctx, buf);
+    result = mprStrdup(ctx, mprGetBufStart(buf));
+    mprFree(buf);
+    return result;
 }
 
 
@@ -13581,7 +13063,7 @@ static MprFile *openFile(MprCtx ctx, MprFileSystem *fileSystem, cchar *path, int
     mprAssert(path && *path);
 
     rfs = (MprRomFileSystem*) fileSystem;
-    file = mprAllocObjWithDestructorZeroed(ctx, MprFile, closeFile);
+    file = mprAllocObj(ctx, MprFile, closeFile);
     file->fileSystem = fileSystem;
     file->mode = omode;
     file->fd = -1;
@@ -13770,11 +13252,10 @@ MprRomFileSystem *mprCreateRomFileSystem(MprCtx ctx, cchar *path)
     MprFileSystem      *fs;
     MprRomFileSystem   *rfs;
 
-    rfs = mprAllocObjZeroed(ctx, MprRomFileSystem);
+    rfs = mprAlloc(ctx, sizeof(MprRomFileSystem));
     if (rfs == 0) {
         return rfs;
     }
-
     fs = &rfs->fileSystem;
     fs->accessPath = (MprAccessFileProc) accessPath;
     fs->deletePath = (MprDeleteFileProc) deletePath;
@@ -13789,7 +13270,7 @@ MprRomFileSystem *mprCreateRomFileSystem(MprCtx ctx, cchar *path)
     fs->writeFile = writeFile;
 
 #if !WINCE
-    fs->stdError = mprAllocObjZeroed(fs, MprFile);
+    fs->stdError = mprAllocZeroed(fs, sizeof(MprFile));
     if (fs->stdError == 0) {
         mprFree(fs);
     }
@@ -13797,7 +13278,7 @@ MprRomFileSystem *mprCreateRomFileSystem(MprCtx ctx, cchar *path)
     fs->stdError->fileSystem = fs;
     fs->stdError->mode = O_WRONLY;
 
-    fs->stdInput = mprAllocObjZeroed(fs, MprFile);
+    fs->stdInput = mprAllocZeroed(fs, sizeof(MprFile));
     if (fs->stdInput == 0) {
         mprFree(fs);
     }
@@ -13805,7 +13286,7 @@ MprRomFileSystem *mprCreateRomFileSystem(MprCtx ctx, cchar *path)
     fs->stdInput->fileSystem = fs;
     fs->stdInput->mode = O_RDONLY;
 
-    fs->stdOutput = mprAllocObjZeroed(fs, MprFile);
+    fs->stdOutput = mprAllocZeroed(fs, sizeof(MprFile));
     if (fs->stdOutput == 0) {
         mprFree(fs);
     }
@@ -14252,7 +13733,7 @@ MprSocketService *mprCreateSocketService(MprCtx ctx)
 
     mprAssert(ctx);
 
-    ss = mprAllocObjZeroed(ctx, MprSocketService);
+    ss = mprAllocObj(ctx, MprSocketService, NULL);
     if (ss == 0) {
         return 0;
     }
@@ -14318,7 +13799,7 @@ static MprSocketProvider *createStandardProvider(MprSocketService *ss)
 {
     MprSocketProvider   *provider;
 
-    provider = mprAllocObj(ss, MprSocketProvider);
+    provider = mprAlloc(ss, sizeof(MprSocketProvider));
     if (provider == 0) {
         return 0;
     }
@@ -14368,7 +13849,7 @@ static MprSocket *createSocket(MprCtx ctx, struct MprSsl *ssl)
 {
     MprSocket       *sp;
 
-    sp = mprAllocObjWithDestructorZeroed(ctx, MprSocket, socketDestructor);
+    sp = mprAllocObj(ctx, MprSocket, socketDestructor);
     if (sp == 0) {
         return 0;
     }
@@ -15448,7 +14929,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct so
             return MPR_ERR_CANT_OPEN;
         }
     }
-    *addr = (struct sockaddr*) mprAllocObjZeroed(ctx, struct sockaddr_storage);
+    *addr = (struct sockaddr*) mprAlloc(ctx, sizeof(struct sockaddr_storage));
     mprMemcpy((char*) *addr, sizeof(struct sockaddr_storage), (char*) res->ai_addr, (int) res->ai_addrlen);
 
     *addrlen = (int) res->ai_addrlen;
@@ -16534,8 +16015,7 @@ MprTestService *mprCreateTestService(MprCtx ctx)
 {
     MprTestService      *sp;
 
-    sp = mprAllocObjZeroed(ctx, MprTestService);
-    if (sp == 0) {
+    if ((sp = mprAllocObj(ctx, MprTestService, NULL)) == 0) {
         return 0;
     }
     sp->iterations = 1;
@@ -16831,6 +16311,7 @@ int mprRunTests(MprTestService *sp)
             return MPR_ERR_CANT_INITIALIZE;
         }
     }
+    // mprSleep(sp, 999999);
 
     /*
         Wait for all the threads to complete (simple but effective)
@@ -16975,7 +16456,7 @@ static MprTestGroup *createTestGroup(MprTestService *sp, MprTestDef *def, MprTes
     MprTestDef      **dp;
     MprTestCase     *tc;
 
-    gp = mprAllocObjZeroed(sp, MprTestGroup);
+    gp = mprAllocCtx(sp, sizeof(MprTestGroup));
     if (gp == 0) {
         return 0;
     }
@@ -16987,19 +16468,16 @@ static MprTestGroup *createTestGroup(MprTestService *sp, MprTestDef *def, MprTes
         mprFree(gp);
         return 0;
     }
-
     gp->cases = mprCreateList(sp);
     if (gp->cases == 0) {
         mprFree(gp);
         return 0;
     }
-
     gp->groups = mprCreateList(sp);
     if (gp->groups == 0) {
         mprFree(gp);
         return 0;
     }
-
     gp->def = def;
     gp->name = mprStrdup(sp, def->name);
     gp->success = 1;
@@ -17010,7 +16488,6 @@ static MprTestGroup *createTestGroup(MprTestService *sp, MprTestDef *def, MprTes
             return 0;
         }
     }
-
     if (def->groupDefs) {
         for (dp = &def->groupDefs[0]; *dp && (*dp)->name; dp++) {
             child = createTestGroup(sp, *dp, gp);
@@ -17280,7 +16757,7 @@ static MprTestFailure *createFailure(MprTestGroup *gp, cchar *loc, cchar *messag
 {
     MprTestFailure  *fp;
 
-    fp = mprAllocObj(gp, MprTestFailure);
+    fp = mprAllocCtx(gp, sizeof(MprTestFailure));
     if (fp == 0) {
         return 0;
     }
@@ -17484,7 +16961,7 @@ MprThreadService *mprCreateThreadService(Mpr *mpr)
 
     mprAssert(mpr);
 
-    ts = mprAllocObjZeroed(mpr, MprThreadService);
+    ts = mprAllocObj(mpr, MprThreadService, NULL);
     if (ts == 0) {
         return 0;
     }
@@ -17599,7 +17076,7 @@ MprThread *mprCreateThread(MprCtx ctx, cchar *name, MprThreadProc entry, void *d
     if (ts) {
         ctx = ts;
     }
-    tp = mprAllocObjWithDestructorZeroed(ctx, MprThread, threadDestructor);
+    tp = mprAllocObj(ctx, MprThread, threadDestructor);
     if (tp == 0) {
         return 0;
     }
@@ -17810,7 +17287,7 @@ MprThreadLocal *mprCreateThreadLocal(MprCtx ctx)
 {
     MprThreadLocal      *tls;
 
-    tls = mprAllocObjWithDestructorZeroed(ctx, MprThreadLocal, threadLocalDestructor);
+    tls = mprAllocObj(ctx, MprThreadLocal, threadLocalDestructor);
     if (tls == 0) {
         return 0;
     }
@@ -17988,11 +17465,10 @@ MprWorkerService *mprCreateWorkerService(MprCtx ctx)
 {
     MprWorkerService      *ws;
 
-    ws = mprAllocObjZeroed(ctx, MprWorkerService);
+    ws = mprAllocObj(ctx, MprWorkerService, NULL);
     if (ws == 0) {
         return 0;
     }
-
     ws->mutex = mprCreateLock(ws);
     ws->minThreads = MPR_DEFAULT_MIN_THREADS;
     ws->maxThreads = MPR_DEFAULT_MAX_THREADS;
@@ -18315,11 +17791,10 @@ static MprWorker *createWorker(MprWorkerService *ws, int stackSize)
 
     char    name[16];
 
-    worker = mprAllocObjWithDestructorZeroed(ws, MprWorker, workerDestructor);
+    worker = mprAllocObj(ws, MprWorker, workerDestructor);
     if (worker == 0) {
         return 0;
     }
-
     worker->flags = 0;
     worker->proc = 0;
     worker->cleanup = 0;
@@ -20780,11 +20255,10 @@ MprOsService *mprCreateOsService(MprCtx ctx)
 {
     MprOsService    *os;
 
-    os = mprAllocObj(ctx, MprOsService);
+    os = mprAllocObj(ctx, MprOsService, NULL);
     if (os == 0) {
         return 0;
     }
-
     umask(022);
 
     /*
@@ -21217,7 +20691,7 @@ MprWaitService *mprCreateWaitService(Mpr *mpr)
 {
     MprWaitService  *ws;
 
-    ws = mprAllocObjZeroed(mpr, MprWaitService);
+    ws = mprAllocObj(mpr, MprWaitService, NULL);
     if (ws == 0) {
         return 0;
     }
@@ -21276,7 +20750,7 @@ MprWaitHandler *mprCreateWaitHandler(MprCtx ctx, int fd, int mask, MprDispatcher
     mprAssert(fd >= 0);
 
     ws = mprGetMpr(ctx)->waitService;
-    wp = mprAllocObjWithDestructorZeroed(ws, MprWaitHandler, handlerDestructor);
+    wp = mprAllocObj(ws, MprWaitHandler, handlerDestructor);
     if (wp == 0) {
         return 0;
     }
@@ -22923,11 +22397,10 @@ MprXml *mprXmlOpen(MprCtx ctx, int initialSize, int maxSize)
 {
     MprXml  *xp;
 
-    xp = mprAllocObjZeroed(ctx, MprXml);
+    xp = mprAllocObj(ctx, MprXml, NULL);
     
     xp->inBuf = mprCreateBuf(xp, MPR_XML_BUFSIZE, MPR_XML_BUFSIZE);
     xp->tokBuf = mprCreateBuf(xp, initialSize, maxSize);
-
     return xp;
 }
 
@@ -23786,7 +23259,7 @@ int mprXmlGetLineNumber(MprXml *xp)
  */
 
 #if EMBEDTHIS || 1
-    #if WIN
+    #if WIN || WINCE
         typedef int int32_t;
         typedef unsigned int uint32_t;
     #endif

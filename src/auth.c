@@ -13,8 +13,7 @@ HttpAuth *httpCreateAuth(MprCtx ctx, HttpAuth *parent)
 {
     HttpAuth      *auth;
 
-    auth = mprAllocObjZeroed(ctx, HttpAuth);
-
+    auth = mprAllocObj(ctx, HttpAuth, NULL);
     if (parent) {
         auth->allow = parent->allow;
         auth->anyValidUser = parent->anyValidUser;

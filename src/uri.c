@@ -25,8 +25,7 @@ HttpUri *httpCreateUri(MprCtx ctx, cchar *uri, int complete)
 
     mprAssert(uri);
 
-    up = mprAllocObjZeroed(ctx, HttpUri);
-    if (up == 0) {
+    if ((up = mprAllocObj(ctx, HttpUri, NULL)) == 0) {
         return 0;
     }
     /*  
@@ -139,8 +138,7 @@ HttpUri *httpCreateUriFromParts(MprCtx ctx, cchar *scheme, cchar *host, int port
     HttpUri     *up;
     char        *cp, *last_delim;
 
-    up = mprAllocObjZeroed(ctx, HttpUri);
-    if (up == 0) {
+    if ((up = mprAllocObj(ctx, HttpUri, NULL)) == 0) {
         return 0;
     }
     if (scheme) {
@@ -199,8 +197,7 @@ HttpUri *httpCloneUri(MprCtx ctx, HttpUri *base, int complete)
     char        *path, *cp, *last_delim;
     int         port;
 
-    up = mprAllocObjZeroed(ctx, HttpUri);
-    if (up == 0) {
+    if ((up = mprAllocObj(ctx, HttpUri, NULL)) == 0) {
         return 0;
     }
     port = base->port;
@@ -514,7 +511,7 @@ void httpNormalizeUri(HttpUri *uri)
 
     old = uri->path;
     uri->path = httpNormalizeUriPath(uri, uri->path);
-    if (mprGetParent(old) == uri) {
+    if (mprIsValid(old)) {
         mprFree(old);
     }
 }

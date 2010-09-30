@@ -76,8 +76,7 @@ Http *httpCreate(MprCtx ctx)
     Http            *http;
     HttpStatusCode  *code;
 
-    http = mprAllocObjZeroed(ctx, Http);
-    if (http == 0) {
+    if ((http = mprAllocObj(ctx, Http, NULL)) == 0) {
         return 0;
     }
     http->protocol = "HTTP/1.1";
@@ -170,7 +169,7 @@ HttpLimits *httpCreateLimits(MprCtx ctx, int serverSide)
 {
     HttpLimits  *limits;
 
-    if ((limits = mprAllocObjZeroed(ctx, HttpLimits)) != 0) {
+    if ((limits = mprAllocObj(ctx, HttpLimits, NULL)) != 0) {
         httpInitLimits(limits, serverSide);
     }
     return limits;

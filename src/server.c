@@ -23,8 +23,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     mprAssert(ip);
     mprAssert(port > 0);
 
-    server = mprAllocObjWithDestructorZeroed(http, HttpServer, destroyServer);
-    if (server == 0) {
+    if ((server = mprAllocObj(http, HttpServer, destroyServer)) == 0) {
         return 0;
     }
     server->clients = mprCreateHash(server, HTTP_CLIENTS_HASH);

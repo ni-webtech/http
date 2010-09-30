@@ -15,8 +15,7 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, Http
 {
     HttpQueue   *q;
 
-    q = mprAllocObjZeroed(conn->tx, HttpQueue);
-    if (q == 0) {
+    if ((q = mprAllocObj(conn->tx, HttpQueue, NULL)) == 0) {
         return 0;
     }
     httpInitQueue(conn, q, stage->name);

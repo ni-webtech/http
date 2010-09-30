@@ -105,8 +105,7 @@ static void openUpload(HttpQueue *q)
     tx = conn->tx;
     rx = conn->rx;
 
-    up = mprAllocObjZeroed(tx, Upload);
-    if (up == 0) {
+    if ((up = mprAllocObj(tx, Upload, NULL)) == 0) {
         return;
     }
     q->queueData = up;
@@ -374,7 +373,7 @@ static int processContentHeader(HttpQueue *q, char *line)
                 /*  
                     Create the files[id]
                  */
-                file = up->currentFile = mprAllocObjZeroed(up, HttpUploadFile);
+                file = up->currentFile = mprAllocObj(up, HttpUploadFile, NULL);
                 file->clientFilename = mprStrdup(file, up->clientFilename);
                 file->filename = mprStrdup(file, up->tmpPath);
             }

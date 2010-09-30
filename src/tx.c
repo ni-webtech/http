@@ -21,15 +21,7 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
 
     http = conn->http;
 
-    /*  
-        Use the rxs arena so that freeing the rx will also free the tx 
-     */
-#if FUTURE
-    tx = mprAllocObjWithDestructorZeroed(conn->rx->arena, HttpTx, destroyTx);
-#else
-    tx = mprAllocObjWithDestructorZeroed(conn->rx, HttpTx, destroyTx);
-#endif
-    if (tx == 0) {
+    if ((tx = mprAllocObj(conn->rx, HttpTx, destroyTx)) == 0) {
         return 0;
     }
     conn->tx = tx;

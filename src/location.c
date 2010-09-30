@@ -16,8 +16,7 @@ HttpLoc *httpCreateLocation(Http *http)
 {
     HttpLoc  *loc;
 
-    loc = mprAllocObjZeroed(http, HttpLoc);
-    if (loc == 0) {
+    if ((loc = mprAllocObj(http, HttpLoc, NULL)) == 0) {
         return 0;
     }
     loc->http = http;
@@ -43,8 +42,7 @@ HttpLoc *httpCreateInheritedLocation(Http *http, HttpLoc *parent)
     if (parent == 0) {
         return httpCreateLocation(http);
     }
-    loc = mprAllocObjZeroed(http, HttpLoc);
-    if (loc == 0) {
+    if ((loc = mprAllocObj(http, HttpLoc, NULL)) == 0) {
         return 0;
     }
     loc->http = http;
@@ -97,7 +95,7 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
     mprAssert(loc);
 
     http = loc->http;
-    if (mprGetParent(loc->handlers) == loc->parent) {
+    if (mprIsParent(loc->parent, loc->handlers)) {
         loc->extensions = mprCopyHash(loc, loc->parent->extensions);
         loc->handlers = mprDupList(loc, loc->parent->handlers);
     }
@@ -152,7 +150,7 @@ int httpSetHandler(HttpLoc *loc, cchar *name)
 
     mprAssert(loc);
     
-    if (mprGetParent(loc->handlers) == loc->parent) {
+    if (mprIsParent(loc->parent, loc->handlers)) {
         loc->extensions = mprCopyHash(loc, loc->parent->extensions);
         loc->handlers = mprDupList(loc, loc->parent->handlers);
     }
@@ -206,13 +204,13 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
     }
 
     if (direction & HTTP_STAGE_INCOMING) {
-        if (mprGetParent(loc->inputStages) == loc->parent) {
+        if (mprIsParent(loc->parent, loc->inputStages)) {
             loc->inputStages = mprDupList(loc, loc->parent->inputStages);
         }
         mprAddItem(loc->inputStages, filter);
     }
     if (direction & HTTP_STAGE_OUTGOING) {
-        if (mprGetParent(loc->outputStages) == loc->parent) {
+        if (mprIsParent(loc->parent, loc->outputStages)) {
             loc->outputStages = mprDupList(loc, loc->parent->outputStages);
         }
         mprAddItem(loc->outputStages, filter);
@@ -254,22 +252,22 @@ int httpSetConnector(HttpLoc *loc, cchar *name)
 
 void httpResetPipeline(HttpLoc *loc)
 {
-    if (mprGetParent(loc->extensions) == loc) {
+    if (mprIsParent(loc, loc->extensions)) {
         mprFree(loc->extensions);
     }
     loc->extensions = mprCreateHash(loc, 0);
     
-    if (mprGetParent(loc->handlers) == loc) {
+    if (mprIsParent(loc, loc->handlers)) {
         mprFree(loc->handlers);
     }
     loc->handlers = mprCreateList(loc);
     
-    if (mprGetParent(loc->inputStages) == loc) {
+    if (mprIsParent(loc, loc->inputStages)) {
         mprFree(loc->inputStages);
     }
     loc->inputStages = mprCreateList(loc);
     
-    if (mprGetParent(loc->outputStages) == loc) {
+    if (mprIsParent(loc, loc->outputStages)) {
         mprFree(loc->outputStages);
     }
     loc->outputStages = mprCreateList(loc);
@@ -320,7 +318,7 @@ void httpSetLocationScript(HttpLoc *loc, cchar *script)
 
 void httpAddErrorDocument(HttpLoc *loc, cchar *code, cchar *url)
 {
-    if (mprGetParent(loc->errorDocuments) == loc->parent) {
+    if (mprIsParent(loc->parent, loc->errorDocuments)) {
         loc->errorDocuments = mprCopyHash(loc, loc->parent->errorDocuments);
     }
     mprAddHash(loc->errorDocuments, code, mprStrdup(loc, url));

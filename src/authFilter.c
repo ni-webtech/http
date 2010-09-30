@@ -72,7 +72,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     if (!conn->server || auth == 0 || auth->type == 0) {
         return 0;
     }
-    if ((ad = mprAllocObjZeroed(rx, AuthData)) == 0) {
+    if ((ad = mprAllocObj(rx, AuthData, NULL)) == 0) {
         return 1;
     }
 #if UNUSED

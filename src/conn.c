@@ -22,8 +22,7 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
 {
     HttpConn    *conn;
 
-    conn = mprAllocObjWithDestructorZeroed(http, HttpConn, connectionDestructor);
-    if (conn == 0) {
+    if ((conn = mprAllocObj(http, HttpConn, connectionDestructor)) == 0) {
         return 0;
     }
     conn->http = http;
@@ -623,7 +622,7 @@ HttpLimits *httpSetUniqueConnLimits(HttpConn *conn)
 {
     HttpLimits      *limits;
 
-    limits = mprAllocObj(conn, HttpLimits);
+    limits = mprAllocObj(conn, HttpLimits, NULL);
     *limits = *conn->limits;
     conn->limits = limits;
     return limits;

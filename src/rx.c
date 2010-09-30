@@ -29,27 +29,9 @@ HttpRx *httpCreateRx(HttpConn *conn)
 {
     HttpRx      *rx;
 
-#if FUTURE
-    MprHeap     *arena;
-    /*  
-        Create a request memory arena. From this arena, are all allocations made for this entire request.
-        Arenas are scalable, non-thread-safe virtual memory blocks.
-     */
-    arena  = mprAllocArena(conn, "request", HTTP_REC_MEM, 0, NULL);
-    if (arena == 0) {
+    if ((rx = mprAllocObj(conn, HttpRx, NULL)) == 0) {
         return 0;
     }
-    rx = mprAllocObjZeroed(arena, HttpRx);
-    rx->arena = arena;
-    if (rx == 0) {
-        return 0;
-    }
-#else
-    rx = mprAllocObjZeroed(conn, HttpRx);
-    if (rx == 0) {
-        return 0;
-    }
-#endif
     rx->conn = conn;
     rx->length = -1;
     rx->ifMatch = 1;
@@ -71,7 +53,7 @@ HttpRx *httpCreateRx(HttpConn *conn)
 void httpDestroyRx(HttpConn *conn)
 {
     if (conn->input) {
-        if (mprGetParent(conn->input) != conn && httpGetPacketLength(conn->input) > 0) {
+        if (!mprIsParent(conn, conn->input) && httpGetPacketLength(conn->input) > 0) {
             conn->input = httpSplitPacket(conn, conn->input, 0);
         } else {
             conn->input = 0;
@@ -81,11 +63,7 @@ void httpDestroyRx(HttpConn *conn)
         if (conn->server) {
             httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
         }
-#if FUTURE
-        mprFree(conn->rx->arena);
-#else
         mprFree(conn->rx);
-#endif
         conn->rx = 0;
     }
     if (conn->server) {
@@ -1010,14 +988,9 @@ static bool processCompletion(HttpConn *conn)
 
     mpr = mprGetMpr(conn);
 
-#if FUTURE
-    mprLog(conn, 4, "Request complete used %,d K, mpr usage %,d K, page usage %,d K",
-        conn->arena->allocBytes / 1024, mpr->heap.allocBytes / 1024, mpr->pageHeap.allocBytes / 1024);
-#endif
-
     packet = conn->input;
     more = packet && !conn->connError && (mprGetBufLength(packet->content) > 0);
-    if (mprGetParent(packet) != conn) {
+    if (!mprIsParent(conn, packet)) {
         if (more) {
             conn->input = httpSplitPacket(conn, packet, 0);
         } else {
@@ -1135,8 +1108,7 @@ HttpRange *httpCreateRange(HttpConn *conn, int start, int end)
 {
     HttpRange     *range;
 
-    range = mprAllocObjZeroed(conn->rx, HttpRange);
-    if (range == 0) {
+    if ((range = mprAllocObj(conn->rx, HttpRange, NULL)) == 0) {
         return 0;
     }
     range->start = start;
@@ -1462,12 +1434,11 @@ static bool parseRange(HttpConn *conn, char *value)
     tok = mprStrTok(value, "=", &value);
 
     for (last = 0; value && *value; ) {
-        range = mprAllocObjZeroed(rx, HttpRange);
-        if (range == 0) {
+        if ((range = mprAllocObj(rx, HttpRange, NULL)) == 0) {
             return 0;
         }
-
-        /*  A range "-7" will set the start to -1 and end to 8
+        /*  
+            A range "-7" will set the start to -1 and end to 8
          */
         tok = mprStrTok(value, ",", &value);
         if (*tok != '-') {

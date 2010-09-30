@@ -1,5 +1,6 @@
 /*
     packet.c -- Queue support routines. Queues are the bi-directional data flow channels for the pipeline.
+
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
 
@@ -8,15 +9,16 @@
 #include    "http.h"
 
 /************************************ Code ************************************/
-/*  Create a new packet. If size is -1, then also create a default growable buffer -- used for incoming body content. If 
-    size > 0, then create a non-growable buffer of the requested size.
+/*  
+    Create a new packet. If size is -1, then also create a default growable buffer -- 
+    used for incoming body content. If size > 0, then create a non-growable buffer 
+    of the requested size.
  */
 HttpPacket *httpCreatePacket(MprCtx ctx, int size)
 {
     HttpPacket  *packet;
 
-    packet = mprAllocObjZeroed(ctx, HttpPacket);
-    if (packet == 0) {
+    if ((packet = mprAllocObj(ctx, HttpPacket, NULL)) == 0) {
         return 0;
     }
     if (size != 0) {
@@ -63,7 +65,7 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
     conn = q->conn;
     rx = conn->rx;
 
-    if (rx == 0 || packet->content == 0 || packet->content->buflen < HTTP_BUFSIZE || mprGetParent(packet) == conn) {
+    if (rx == 0 || packet->content == 0 || packet->content->buflen < HTTP_BUFSIZE || mprIsParent(conn, packet)) {
         /* 
             Don't bother recycling non-content, small packets or packets owned by the connection
             We only store packets owned by the request and not by the connection on the free list.

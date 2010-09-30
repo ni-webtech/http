@@ -139,11 +139,9 @@ HttpGroup *httpCreateGroup(HttpAuth *auth, cchar *name, HttpAcl acl, bool enable
 {
     HttpGroup     *gp;
 
-    gp = mprAllocObjZeroed(auth, HttpGroup);
-    if (gp == 0) {
+    if ((gp = mprAllocObj(auth, HttpGroup, NULL)) == 0) {
         return 0;
     }
-
     gp->acl = acl;
     gp->name = mprStrdup(gp, name);
     gp->enabled = enabled;
@@ -183,8 +181,7 @@ HttpUser *httpCreateUser(HttpAuth *auth, cchar *realm, cchar *user, cchar *passw
 {
     HttpUser      *up;
 
-    up = mprAllocObjZeroed(auth, HttpUser);
-    if (up == 0) {
+    if ((up = mprAllocObj(auth, HttpUser, NULL)) == 0) {
         return 0;
     }
     up->name = mprStrdup(up, user);
