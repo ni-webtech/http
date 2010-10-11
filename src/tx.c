@@ -36,8 +36,7 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
         tx->headers = headers;
         mprStealBlock(tx, headers);
     } else {
-        tx->headers = mprCreateHash(tx, HTTP_SMALL_HASH_SIZE);
-        mprSetHashCase(tx->headers, 0);
+        tx->headers = mprCreateHash(tx, HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
         setDefaultHeaders(conn);
     }
     httpInitQueue(conn, &tx->queue[HTTP_QUEUE_TRANS], "TxHead");
@@ -189,8 +188,7 @@ void httpClearHeaders(HttpConn *conn)
 
     tx = conn->tx;
     mprFree(tx->headers);
-    tx->headers = mprCreateHash(tx, HTTP_SMALL_HASH_SIZE);
-    mprSetHashCase(tx->headers, 0);
+    tx->headers = mprCreateHash(tx, HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     setDefaultHeaders(conn);
 }
 

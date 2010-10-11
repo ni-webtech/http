@@ -19,6 +19,7 @@ BLD_TYPE="DEBUG"                # The build type: (DEBUG), (RELEASE)
 BLD_TUNE="MPR_TUNE_SIZE" 	    # The tune type: (SIZE), (BALANCED), (SPEED)
 BLD_DEFAULTS="standard"         # Name of this defaults file
 BLD_DEBUG=1                     # Set to 1 if DEBUG
+BLD_CHAR_LEN=1
 BLD_CLEAN_INSTALL=0             # Overwrite existing installations
 BLD_LICENSE=gpl
 BLD_COMMERCIAL=0

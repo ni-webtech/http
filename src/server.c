@@ -26,7 +26,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     if ((server = mprAllocObj(http, HttpServer, destroyServer)) == 0) {
         return 0;
     }
-    server->clients = mprCreateHash(server, HTTP_CLIENTS_HASH);
+    server->clients = mprCreateHash(server, HTTP_CLIENTS_HASH, 0);
     server->async = 1;
     server->http = http;
     server->port = port;

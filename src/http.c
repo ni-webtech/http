@@ -82,10 +82,10 @@ Http *httpCreate(MprCtx ctx)
     http->protocol = "HTTP/1.1";
     http->mutex = mprCreateLock(http);
     http->connections = mprCreateList(http);
-    http->stages = mprCreateHash(http, 31);
+    http->stages = mprCreateHash(http, 31, 0);
 
     updateCurrentDate(http);
-    http->statusCodes = mprCreateHash(http, 41);
+    http->statusCodes = mprCreateHash(http, 41, 0);
     for (code = HttpStatusCodes; code->code; code++) {
         mprAddHash(http->statusCodes, code->codeString, code);
     }

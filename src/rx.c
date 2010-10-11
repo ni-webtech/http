@@ -44,8 +44,7 @@ HttpRx *httpCreateRx(HttpConn *conn)
     rx->statusMessage = "";
     rx->mimeType = "";
     rx->needInputPipeline = !conn->server;
-    rx->headers = mprCreateHash(rx, HTTP_SMALL_HASH_SIZE);
-    mprSetHashCase(rx->headers, 0);
+    rx->headers = mprCreateHash(rx, HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     return rx;
 }
 

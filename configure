@@ -1505,6 +1505,7 @@ BLD_TYPE="$BLD_TYPE"
 BLD_VERSION="$BLD_VERSION"
 BLD_NUMBER="$BLD_NUMBER"
 BLD_TUNE=$BLD_TUNE
+BLD_CHAR_LEN=$BLD_CHAR_LEN
 BLD_DEFAULTS="$BLD_DEFAULTS"
 BLD_COMPONENTS="$BLD_COMPONENTS"
 BLD_EMBEDTHIS=$BLD_EMBEDTHIS
@@ -2057,6 +2058,7 @@ General Features:
   --buildNumber=NUMBER     Set the build number part of the version (1.0.0.X).
   --defaults=FILE          Set the file name of the defaults master in conf
   --help                   Display this message.
+  --char=N                 Set the character size for Unicode characters.
   --cygwin                 Use the cygwin compiler in preference if a Microsoft
                            Visual Studio compiler is also installed.
   --diab                   Use the diab compiler for VxWorks
@@ -2298,6 +2300,13 @@ while [ "${1#--}" != "$1" ] ; do
 #       ;;
     buildNumber=*)
         BLD_NUMBER="${ARG}"
+        ;;
+    char=*)
+        BLD_CHAR_LEN="${ARG}"
+        if [ "$BLD_CHAR_LEN" != 1 -a "$BLD_CHAR_LEN" != 2 ] ; then
+            echo "Invalid char size (Valid sizes: 1 or 2)"
+            exit 255
+        fi
         ;;
     debug)
         BLD_TYPE=DEBUG

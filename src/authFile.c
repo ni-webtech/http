@@ -165,7 +165,7 @@ int httpAddGroup(HttpAuth *auth, cchar *group, HttpAcl acl, bool enabled)
         Create the index on demand
      */
     if (auth->groups == 0) {
-        auth->groups = mprCreateHash(auth, -1);
+        auth->groups = mprCreateHash(auth, -1, 0);
     }
     if (mprLookupHash(auth->groups, group)) {
         return MPR_ERR_ALREADY_EXISTS;
@@ -203,7 +203,7 @@ int httpAddUser(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, bool
         return MPR_ERR_NO_MEMORY;
     }
     if (auth->users == 0) {
-        auth->users = mprCreateHash(auth, -1);
+        auth->users = mprCreateHash(auth, -1, 0);
     }
     key = mprStrcat(auth, -1, realm, ":", user, NULL);
     if (mprLookupHash(auth->users, key)) {

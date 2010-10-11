@@ -20,9 +20,9 @@ HttpLoc *httpCreateLocation(Http *http)
         return 0;
     }
     loc->http = http;
-    loc->errorDocuments = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE);
+    loc->errorDocuments = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE, 0);
     loc->handlers = mprCreateList(loc);
-    loc->extensions = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE);
+    loc->extensions = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE, 0);
     loc->inputStages = mprCreateList(loc);
     loc->outputStages = mprCreateList(loc);
     loc->prefix = mprStrdup(loc, "");
@@ -186,7 +186,7 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
     filter = httpCloneStage(loc->http, stage);
 
     if (extensions && *extensions) {
-        filter->extensions = mprCreateHash(filter, 0);
+        filter->extensions = mprCreateHash(filter, 0, 0);
         extlist = mprStrdup(loc, extensions);
         word = mprStrTok(extlist, " \t\r\n", &tok);
         while (word) {
@@ -255,7 +255,7 @@ void httpResetPipeline(HttpLoc *loc)
     if (mprIsParent(loc, loc->extensions)) {
         mprFree(loc->extensions);
     }
-    loc->extensions = mprCreateHash(loc, 0);
+    loc->extensions = mprCreateHash(loc, 0, 0);
     
     if (mprIsParent(loc, loc->handlers)) {
         mprFree(loc->handlers);

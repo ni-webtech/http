@@ -250,7 +250,7 @@ void httpAddUploadFile(HttpConn *conn, cchar *id, HttpUploadFile *upfile)
 
     rx = conn->rx;
     if (rx->files == 0) {
-        rx->files = mprCreateHash(rx, -1);
+        rx->files = mprCreateHash(rx, -1, 0);
     }
     mprAddHash(rx->files, id, upfile);
 }

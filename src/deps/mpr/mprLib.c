@@ -82,8 +82,7 @@
 /*
     WARN: this will reset pad words too.
  */
-#define RESET_MEM(bp)           if (bp != GET_BLK(MPR)) { \
-                                    memset(GET_PTR(bp), 0xFE, bp->size - MPR_ALLOC_HDR_SIZE); } else
+#define RESET_MEM(bp)           if (bp != GET_BLK(MPR)) { memset(GET_PTR(bp), 0xFE, bp->size - MPR_ALLOC_HDR_SIZE); } else
 #define SET_MAGIC(bp)           if (1) { (bp)->magic = MPR_ALLOC_MAGIC; } else
 #define SET_SEQ(bp)             if (1) { (bp)->seqno = heap->nextSeqno++; } else
 #define INIT_BLK(bp, len)       if (1) { SET_MAGIC(bp); SET_SEQ(bp); bp->size = len; bp->pad = 0; } else
@@ -155,7 +154,6 @@ static void linkChild(MprBlk *parent, MprBlk *bp);
 static MprBlk *splitBlock(MprBlk *bp, size_t required, int qspare);
 static void getSystemInfo();
 static void unlinkChild(MprBlk *bp);
-static void *virtAlloc(size_t size);
 
 #if BLD_CC_MMU && !BLD_WIN_LIKE
 static void virtFree(MprBlk *bp);
@@ -186,6 +184,8 @@ Mpr *mprCreateAllocService(MprAllocFailure cback, MprDestructor destructor)
 
     heap = &initHeap;
     memset(heap, 0, sizeof(MprHeap));
+    heap->stats.maxMemory = INT_MAX;
+    heap->stats.redLine = INT_MAX / 100 * 99;
 
     padWords = DESTRUCTOR_SIZE;
     usize = sizeof(Mpr) + (padWords * sizeof(void*));
@@ -194,7 +194,7 @@ Mpr *mprCreateAllocService(MprAllocFailure cback, MprDestructor destructor)
     size = max(required, MPR_REGION_MIN_SIZE);
     extra = size - required;
     if ((bp = (MprBlk*) mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
-        return 0;
+        return NULL;
     }
     INIT_BLK(bp, required);
     bp->pad = padWords;
@@ -496,7 +496,7 @@ int mprGetPageSize()
 }
 
 
-int mprGetBlockSize(cvoid *ptr)
+size_t mprGetBlockSize(cvoid *ptr)
 {
     MprBlk      *bp;
 
@@ -822,9 +822,7 @@ static MprBlk *getBlock(size_t usize, int padWords, int flags)
     size_t      maxBlock, size;
     int         bucket, group, index;
 
-	int mob = MPR_ALLOC_HDR_SIZE;
     mprAssert(usize >= 0);
-	mob = usize + MPR_ALLOC_HDR_SIZE + (padWords * sizeof(void*));
     size = MPR_ALLOC_ALIGN(usize + MPR_ALLOC_HDR_SIZE + (padWords * sizeof(void*)));
     
     if ((bp = searchFree(size, &index)) == NULL) {
@@ -1034,39 +1032,6 @@ static void virtFree(MprBlk *bp)
 
 
 /*
-    Allocate virtual memory and check a memory allocation request against configured maximums and redlines. 
-    Do this so that the application does not need to check the result of every little memory allocation. Rather, an 
-    application-wide memory allocation failure can be invoked proactively when a memory redline is exceeded. 
-    It is the application's responsibility to set the red-line value suitable for the system.
- */
-static void *virtAlloc(size_t size)
-{
-    void        *mem;
-    size_t      used;
-
-    used = mprGetUsedMemory();
-    if ((size + used) > heap->stats.maxMemory) {
-        allocException(size, 0);
-        /* Prevent allocation as over the maximum memory limit.  */
-        return 0;
-
-    } else if ((size + used) > heap->stats.redLine) {
-        /* Warn if allocation puts us over the red line. Then continue to grant the request.  */
-        allocException(size, 1);
-    }
-    if ((mem = mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == 0) {
-        allocException(size, 0);
-        return 0;
-    }
-    lockHeap(heap);
-    INC(allocs);
-    heap->stats.bytesAllocated += size;
-    unlockHeap(heap);
-    return mem;
-}
-
-
-/*
     Grow the heap and return a block of the required size (unqueued)
  */
 static MprBlk *growHeap(size_t required)
@@ -1079,7 +1044,7 @@ static MprBlk *growHeap(size_t required)
     size = max(required, (size_t) heap->chunkSize);
     size = MPR_PAGE_ALIGN(size, heap->pageSize);
 
-    if ((bp = (MprBlk*) virtAlloc(size)) == NULL) {
+    if ((bp = (MprBlk*) mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
         return 0;
     }
     INIT_BLK(bp, size);
@@ -1125,12 +1090,29 @@ static void allocException(size_t size, bool granted)
 }
 
 
+/*
+    Allocate virtual memory and check a memory allocation request against configured maximums and redlines. 
+    Do this so that the application does not need to check the result of every little memory allocation. Rather, 
+    an application-wide memory allocation failure can be invoked proactively when a memory redline is exceeded. 
+    It is the application's responsibility to set the red-line value suitable for the system.
+ */
 void *mprVirtAlloc(size_t size, int mode)
 {
+    size_t      used;
     void        *ptr;
 
+    used = mprGetUsedMemory();
     if (heap->pageSize) {
         size = MPR_PAGE_ALIGN(size, heap->pageSize);
+    }
+    if ((size + used) > heap->stats.maxMemory) {
+        allocException(size, 0);
+        /* Prevent allocation as over the maximum memory limit.  */
+        return NULL;
+
+    } else if ((size + used) > heap->stats.redLine) {
+        /* Warn if allocation puts us over the red line. Then continue to grant the request.  */
+        allocException(size, 1);
     }
 #if BLD_CC_MMU
     #if BLD_UNIX_LIKE
@@ -1146,9 +1128,14 @@ void *mprVirtAlloc(size_t size, int mode)
 #else
     ptr = malloc(size);
 #endif
-    if (ptr == 0) {
+    if (ptr == NULL) {
+        allocException(size, 0);
         return 0;
     }
+    lockHeap(heap);
+    INC(allocs);
+    heap->stats.bytesAllocated += size;
+    unlockHeap(heap);
     return ptr;
 }
 
@@ -6476,7 +6463,7 @@ cchar *mprLookupMimeType(MprCtx ctx, cchar *ext)
         return "";
     }
     if (mimeTable == 0) {
-        mimeTable = mprCreateHash(mprGetMpr(ctx), 67);
+        mimeTable = mprCreateHash(mprGetMpr(ctx), 67, 0);
         for (cp = mimeTypes; cp[0]; cp += 2) {
             mprAddHash(mimeTable, cp[0], cp[1]);
         }
@@ -7863,10 +7850,9 @@ void mprSetPathNewline(MprCtx ctx, cchar *path, cchar *newline)
 /*
     mprHash.c - Fast hashing table lookup module
 
-    This hash table uses a fast key lookup mechanism. Keys are strings and the value entries are arbitrary pointers.
-    The keys are hashed into a series of buckets which then have a chain of hash entries using the standard doubly
-    linked list classes (List/Link). The chain in in collating sequence so search time through the chain is on
-    average (N/hashSize)/2.
+    This hash table uses a fast key lookup mechanism. Keys may be C strings or unicode strings. The hash value entries 
+    are arbitrary pointers. The keys are hashed into a series of buckets which then have a chain of hash entries.
+    The chain in in collating sequence so search time through the chain is on average (N/hashSize)/2.
 
     This module is not thread-safe. It is the callers responsibility to perform all thread synchronization.
 
@@ -7876,15 +7862,15 @@ void mprSetPathNewline(MprCtx ctx, cchar *path, cchar *newline)
 
 
 
-static int hashIndex(MprHashTable *table, cchar *key, int size);
-static MprHash  *lookupInner(int *bucketIndex, MprHash **prevSp, MprHashTable *table, cchar *key);
+static int hashIndex(MprHashTable *table, cvoid *key, int size);
+static MprHash  *lookupHash(int *bucketIndex, MprHash **prevSp, MprHashTable *table, cvoid *key);
 
 /*
     Create a new hash table of a given size. Caller should provide a size that is a prime number for the greatest
     efficiency. Caller should use mprFree to free the hash table.
  */
 
-MprHashTable *mprCreateHash(MprCtx ctx, int hashSize)
+MprHashTable *mprCreateHash(MprCtx ctx, int hashSize, int flags)
 {
     MprHashTable    *table;
 
@@ -7896,7 +7882,7 @@ MprHashTable *mprCreateHash(MprCtx ctx, int hashSize)
         hashSize = MPR_DEFAULT_HASH_SIZE;
     }
     table->hashSize = hashSize;
-
+    table->flags = flags;
     table->count = 0;
     table->hashSize = hashSize;
     table->buckets = (MprHash**) mprAllocZeroed(table, sizeof(MprHash*) * hashSize);
@@ -7908,18 +7894,12 @@ MprHashTable *mprCreateHash(MprCtx ctx, int hashSize)
 }
 
 
-void mprSetHashCase(MprHashTable *table, int caseMatters)
-{
-    table->caseless = !caseMatters;
-}
-
-
 MprHashTable *mprCopyHash(MprCtx ctx, MprHashTable *master)
 {
     MprHash         *hp;
     MprHashTable    *table;
 
-    table = mprCreateHash(ctx, master->hashSize);
+    table = mprCreateHash(ctx, master->hashSize, master->flags);
     if (table == 0) {
         return 0;
     }
@@ -7933,15 +7913,15 @@ MprHashTable *mprCopyHash(MprCtx ctx, MprHashTable *master)
 
 
 /*
-    Insert an entry into the hash table. If the entry already exists, update its value. Order of insertion is not preserved.
+    Insert an entry into the hash table. If the entry already exists, update its value. 
+    Order of insertion is not preserved.
  */
-MprHash *mprAddHash(MprHashTable *table, cchar *key, cvoid *ptr)
+MprHash *mprAddHash(MprHashTable *table, cvoid *key, cvoid *ptr)
 {
     MprHash     *sp, *prevSp;
     int         index;
 
-    sp = lookupInner(&index, &prevSp, table, key);
-
+    sp = lookupHash(&index, &prevSp, table, key);
     if (sp != 0) {
         /*
             Already exists. Just update the data.
@@ -7971,7 +7951,7 @@ MprHash *mprAddHash(MprHashTable *table, cchar *key, cvoid *ptr)
     Order of insertion is not preserved. Lookup cannot be used to retrieve all duplicate keys, some will be shadowed. 
     Use enumeration to retrieve the keys.
  */
-MprHash *mprAddDuplicateHash(MprHashTable *table, cchar *key, cvoid *ptr)
+MprHash *mprAddDuplicateHash(MprHashTable *table, cvoid *key, cvoid *ptr)
 {
     MprHash     *sp;
     int         index;
@@ -7995,12 +7975,12 @@ MprHash *mprAddDuplicateHash(MprHashTable *table, cchar *key, cvoid *ptr)
 /*
     Remove an entry from the table
  */
-int mprRemoveHash(MprHashTable *table, cchar *key)
+int mprRemoveHash(MprHashTable *table, cvoid *key)
 {
     MprHash     *sp, *prevSp;
     int         index;
 
-    if ((sp = lookupInner(&index, &prevSp, table, key)) == 0) {
+    if ((sp = lookupHash(&index, &prevSp, table, key)) == 0) {
         return MPR_ERR_NOT_FOUND;
     }
     if (prevSp) {
@@ -8017,24 +7997,24 @@ int mprRemoveHash(MprHashTable *table, cchar *key)
 /*
     Lookup a key and return the hash entry
  */
-MprHash *mprLookupHashEntry(MprHashTable *table, cchar *key)
+MprHash *mprLookupHashEntry(MprHashTable *table, cvoid *key)
 {
     mprAssert(key);
 
-    return lookupInner(0, 0, table, key);
+    return lookupHash(0, 0, table, key);
 }
 
 
 /*
     Lookup a key and return the hash entry data
  */
-cvoid *mprLookupHash(MprHashTable *table, cchar *key)
+cvoid *mprLookupHash(MprHashTable *table, cvoid *key)
 {
     MprHash     *sp;
 
     mprAssert(key);
 
-    sp = lookupInner(0, 0, table, key);
+    sp = lookupHash(0, 0, table, key);
     if (sp == 0) {
         return 0;
     }
@@ -8042,10 +8022,11 @@ cvoid *mprLookupHash(MprHashTable *table, cchar *key)
 }
 
 
-static MprHash *lookupInner(int *bucketIndex, MprHash **prevSp, MprHashTable *table, cchar *key)
+static MprHash *lookupHash(int *bucketIndex, MprHash **prevSp, MprHashTable *table, cvoid *key)
 {
     MprHash     *sp, *prev;
-    int         index, rc;
+    MprUni      *u1, *u2;
+    int         index, rc, i;
 
     mprAssert(key);
 
@@ -8057,7 +8038,16 @@ static MprHash *lookupInner(int *bucketIndex, MprHash **prevSp, MprHashTable *ta
     prev = 0;
 
     while (sp) {
-        if (table->caseless) {
+        if (table->flags & MPR_HASH_UNICODE) {
+            u1 = (MprUni*) sp->key;
+            u2 = (MprUni*) key;
+            rc = -1;
+            if (u1->length == u2->length) {
+                for (i = 0; i < u1->length; i++) {
+                    rc = u1->value[i] == u2->value[i];
+                }
+            }
+        } else if (table->flags & MPR_HASH_CASELESS) {
             rc = mprStrcmpAnyCase(sp->key, key);
         } else {
             rc = strcmp(sp->key, key);
@@ -8130,18 +8120,35 @@ MprHash *mprGetNextHash(MprHashTable *table, MprHash *last)
 /*
     Hash the key to produce a hash index.
  */
-static int hashIndex(MprHashTable *table, cchar *key, int size)
+static int hashIndex(MprHashTable *table, cvoid *vkey, int size)
 {
-    int     c;
+    MprUni  *ukey;
+    cchar   *key;
     uint    sum;
+    int     c, i;
 
-    if (table->caseless) {
+    if (table->flags & MPR_HASH_UNICODE) {
+        ukey = (MprUni*) vkey;
+        sum = 0;
+        if (table->flags & MPR_HASH_CASELESS) {
+            for (i = 0; i < ukey->length; i++) {
+                c = ukey->value[i];
+                sum += (sum * 33) + tolower(c);
+            }
+        } else {
+            for (i = 0; i < ukey->length; i++) {
+                sum += (sum * 33) + ukey->value[i];
+            }
+        }
+    } if (table->flags & MPR_HASH_CASELESS) {
+        key = (char*) vkey;
         sum = 0;
         while (*key) {
             c = *key++;
             sum += (sum * 33) + tolower(c);
         }
     } else {
+        key = (char*) vkey;
         sum = 0;
         while (*key) {
             sum += (sum * 33) + *key++;
@@ -9697,7 +9704,7 @@ void mprStaticAssert(cchar *loc, cchar *msg)
 #endif
     
 #if BLD_UNIX_LIKE || VXWORKS
-    write(2, buf, strlen(buf));
+    (void) write(2, buf, strlen(buf));
 #elif BLD_WIN_LIKE
     /*
         Only time we use printf. We can't get an alloc context so we have to use real print
@@ -12231,6 +12238,10 @@ static int  growBuf(MprCtx ctx, Format *fmt);
 static char *sprintfCore(MprCtx ctx, char *buf, int maxsize, cchar *fmt, va_list arg);
 static void outNum(MprCtx ctx, Format *fmt, cchar *prefix, uint64 val);
 static void outFloat(MprCtx ctx, Format *fmt, char specChar, double value);
+static void outString(MprCtx ctx, Format *fmt, cchar *str, int len);
+#if BLD_CHAR_LEN > 1
+static void outWideString(MprCtx ctx, Format *fmt, MprChar *str, int len);
+#endif
 
 
 int mprPrintf(MprCtx ctx, cchar *fmt, ...)
@@ -12457,10 +12468,11 @@ static int getState(char c, int state)
 static char *sprintfCore(MprCtx ctx, char *buf, int maxsize, cchar *spec, va_list arg)
 {
     Format      fmt;
-    char        *cp, *sValue, c, *tmpBuf;
+    MprUni      *us;
+    char        c;
     int64       iValue;
     uint64      uValue;
-    int         i, len, state;
+    int         len, state;
 
     if (spec == 0) {
         spec = "";
@@ -12589,69 +12601,55 @@ static char *sprintfCore(MprCtx ctx, char *buf, int maxsize, cchar *spec, va_lis
                 BPUT(ctx, &fmt, (char) va_arg(arg, int));
                 break;
 
-#if FUTURE
             case 'N':
-                qualifier = va_arg(arg, char*);
-                len = strlen(qualifier);
-                name = va_arg(arg, char*);
-                tmpBuf = mprAlloc(ctx, len + strlen(name) + 2);
-                if (tmpBuf == 0) {
-                    return NULL;
-                }
-                strcpy(tmpBuf, qualifier);
-                tmpBuf[len++] = ':';
-                strcpy(&tmpBuf[len], name);
-                sValue = tmpBuf;
-                goto emitString;
+                /* Name */
+                us = va_arg(arg, MprUni*);
+#if BLD_CHAR_LEN == 1
+                outString(ctx, &fmt, us->value, us->length);
+                BPUT(ctx, &fmt, ':');
+                BPUT(ctx, &fmt, ':');
+                us = va_arg(arg, MprUni*);
+                outString(ctx, &fmt, us->value, us->length);
+#else
+                outWideString(ctx, &fmt, us->value, us->length);
+                BPUT(ctx, &fmt, ':');
+                us = va_arg(arg, MprUni*);
+                outWideString(ctx, &fmt, us->value, us->length);
+#endif
+                break;
+
+            case 'S':
+                /* MprUni */
+                us = va_arg(arg, MprUni*);
+#if BLD_CHAR_LEN == 1
+                outString(ctx, &fmt, us->value, us->length);
+#else
+                outWideString(ctx, &fmt, us->value, us->length);
+#endif
+                break;
+
+            case 'w':
+                /* Wide string of MprChar characters. Null terminated. */
+#if BLD_CHAR_LEN > 1
+                outWideString(ctx, &fmt, va_arg(arg, MprChar*), -1);
+                break;
+#else
+                /* Fall through */
 #endif
 
             case 's':
-            case 'S':
-                sValue = va_arg(arg, char*);
-                tmpBuf = 0;
-
-#if FUTURE
-            emitString:
+                /* Standard string */
+#if BLD_CHAR_LEN > 1
+                if (fmt.flags & SPRINTF_LONG) {
+                    outWideString(ctx, &fmt, va_arg(arg, MprChar*), -1);
+                } else
 #endif
-                if (sValue == 0) {
-                    sValue = "null";
-                    len = (int) strlen(sValue);
-                } else if (fmt.flags & SPRINTF_ALTERNATE) {
-                    sValue++;
-                    len = (int) *sValue;
-                } else if (fmt.precision >= 0) {
-                    /*
-                     *  Can't use strlen(), the string may not have a null
-                     */
-                    cp = sValue;
-                    for (len = 0; len < fmt.precision; len++) {
-                        if (*cp++ == '\0') {
-                            break;
-                        }
-                    }
-                } else {
-                    len = (int) strlen(sValue);
-                }
-                if (!(fmt.flags & SPRINTF_LEFT)) {
-                    for (i = len; i < fmt.width; i++) {
-                        BPUT(ctx, &fmt, (char) ' ');
-                    }
-                }
-                for (i = 0; i < len && *sValue; i++) {
-                    BPUT(ctx, &fmt, *sValue++);
-                }
-                if (fmt.flags & SPRINTF_LEFT) {
-                    for (i = len; i < fmt.width; i++) {
-                        BPUT(ctx, &fmt, (char) ' ');
-                    }
-                }
-                if (tmpBuf) {
-                    mprFree(tmpBuf);
-                }
+                    outString(ctx, &fmt, va_arg(arg, char*), -1);
                 break;
 
             case 'i':
                 ;
+
             case 'd':
                 fmt.radix = 10;
                 if (fmt.flags & SPRINTF_SHORT) {
@@ -12754,9 +12752,83 @@ static char *sprintfCore(MprCtx ctx, char *buf, int maxsize, cchar *spec, va_lis
 }
 
 
-/*
-    Output a number according to the given format. 
- */
+static void outString(MprCtx ctx, Format *fmt, cchar *str, int len)
+{
+    cchar   *cp;
+    int     i;
+
+    if (str == NULL) {
+        str = "null";
+        len = 4;
+    } else if (fmt->flags & SPRINTF_ALTERNATE) {
+        str++;
+        len = (int) *str;
+    } else if (fmt->precision >= 0) {
+        for (cp = str, len = 0; len < fmt->precision; len++) {
+            if (*cp++ == '\0') {
+                break;
+            }
+        }
+    } else if (len < 0) {
+        len = (int) strlen(str);
+    }
+    if (!(fmt->flags & SPRINTF_LEFT)) {
+        for (i = len; i < fmt->width; i++) {
+            BPUT(ctx, fmt, (char) ' ');
+        }
+    }
+    for (i = 0; i < len && *str; i++) {
+        BPUT(ctx, fmt, *str++);
+    }
+    if (fmt->flags & SPRINTF_LEFT) {
+        for (i = len; i < fmt->width; i++) {
+            BPUT(ctx, fmt, (char) ' ');
+        }
+    }
+}
+
+
+#if BLD_CHAR_LEN > 1
+static void outWideString(MprCtx ctx, Format *fmt, MprChar *str, int len)
+{
+    MprChar     *cp;
+    int         i;
+
+    if (str == 0) {
+        BPUT(ctx, fmt, (char) 'n');
+        BPUT(ctx, fmt, (char) 'u');
+        BPUT(ctx, fmt, (char) 'l');
+        BPUT(ctx, fmt, (char) 'l');
+        return;
+    } else if (fmt->flags & SPRINTF_ALTERNATE) {
+        str++;
+        len = (int) *str;
+    } else if (fmt->precision >= 0) {
+        for (cp = str, len = 0; len < fmt->precision; len++) {
+            if (*cp++ == 0) {
+                break;
+            }
+        }
+    } else if (len < 0) {
+        for (cp = str, len = 0; *cp++ == 0; len++) ;
+    }
+    if (!(fmt->flags & SPRINTF_LEFT)) {
+        for (i = len; i < fmt->width; i++) {
+            BPUT(ctx, fmt, (char) ' ');
+        }
+    }
+    for (i = 0; i < len && *str; i++) {
+        BPUT(ctx, fmt, *str++);
+    }
+    if (fmt->flags & SPRINTF_LEFT) {
+        for (i = len; i < fmt->width; i++) {
+            BPUT(ctx, fmt, (char) ' ');
+        }
+    }
+}
+#endif
+
+
 static void outNum(MprCtx ctx, Format *fmt, cchar *prefix, uint64 value)
 {
     char    numBuf[64];
@@ -13832,7 +13904,6 @@ void stubMprSelectWait() {}
 
 #if !VXWORKS && !WINCE
 /*
-    Set this to 0 to disable the IPv6 address service. You can do this if you only need IPv4.
     On MAC OS X, getaddrinfo is not thread-safe and crashes when called by a 2nd thread at any time. ie. locking wont help.
  */
 #define BLD_HAS_GETADDRINFO 1
@@ -13846,7 +13917,8 @@ static MprSocket *createSocket(MprCtx ctx, struct MprSsl *ssl);
 static MprSocketProvider *createStandardProvider(MprSocketService *ss);
 static void disconnectSocket(MprSocket *sp);
 static int  flushSocket(MprSocket *sp);
-static int  getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct sockaddr **addr, socklen_t *addrlen);
+static int  getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, 
+        socklen_t *addrlen);
 static int  getSocketIpAddr(MprCtx ctx, struct sockaddr *addr, int addrlen, char *ip, int size, int *port);
 static int  listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags);
 static int  readSocket(MprSocket *sp, void *buf, int bufsize);
@@ -14071,7 +14143,7 @@ static int listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
 {
     struct sockaddr     *addr;
     socklen_t           addrlen;
-    int                 datagram, family, rc;
+    int                 datagram, family, protocol, rc;
 
     lock(sp);
 
@@ -14089,7 +14161,7 @@ static int listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
          MPR_SOCKET_LISTENER | MPR_SOCKET_NOREUSE | MPR_SOCKET_NODELAY | MPR_SOCKET_THREAD));
 
     datagram = sp->flags & MPR_SOCKET_DATAGRAM;
-    if (getSocketInfo(sp, ip, port, &family, &addr, &addrlen) < 0) {
+    if (getSocketInfo(sp, ip, port, &family, &protocol, &addr, &addrlen) < 0) {
         unlock(sp);
         return MPR_ERR_NOT_FOUND;
     }
@@ -14097,7 +14169,7 @@ static int listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
     /*
         Create the O/S socket
      */
-    sp->fd = (int) socket(family, datagram ? SOCK_DGRAM: SOCK_STREAM, 0);
+    sp->fd = (int) socket(family, datagram ? SOCK_DGRAM: SOCK_STREAM, protocol);
     if (sp->fd < 0) {
         unlock(sp);
         return MPR_ERR_CANT_OPEN;
@@ -14193,7 +14265,7 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
 {
     struct sockaddr     *addr;
     socklen_t           addrlen;
-    int                 broadcast, datagram, family, rc, err;
+    int                 broadcast, datagram, family, protocol, rc, err;
 
     lock(sp);
 
@@ -14216,7 +14288,7 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
     }
     datagram = sp->flags & MPR_SOCKET_DATAGRAM;
 
-    if (getSocketInfo(sp, ip, port, &family, &addr, &addrlen) < 0) {
+    if (getSocketInfo(sp, ip, port, &family, &protocol, &addr, &addrlen) < 0) {
         err = mprGetSocketError(sp);
         closesocket(sp->fd);
         sp->fd = -1;
@@ -14226,7 +14298,7 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
     /*
         Create the O/S socket
      */
-    sp->fd = (int) socket(family, datagram ? SOCK_DGRAM: SOCK_STREAM, 0);
+    sp->fd = (int) socket(family, datagram ? SOCK_DGRAM: SOCK_STREAM, protocol);
     if (sp->fd < 0) {
         err = mprGetSocketError(sp);
         unlock(sp);
@@ -14605,7 +14677,7 @@ static int writeSocket(MprSocket *sp, void *buf, int bufsize)
 {
     struct sockaddr     *addr;
     socklen_t           addrlen;
-    int                 family, sofar, errCode, len, written;
+    int                 family, protocol, sofar, errCode, len, written;
 
     mprAssert(buf);
     mprAssert(bufsize >= 0);
@@ -14613,7 +14685,7 @@ static int writeSocket(MprSocket *sp, void *buf, int bufsize)
 
     lock(sp);
     if (sp->flags & (MPR_SOCKET_BROADCAST | MPR_SOCKET_DATAGRAM)) {
-        if (getSocketInfo(sp, sp->ip, sp->port, &family, &addr, &addrlen) < 0) {
+        if (getSocketInfo(sp, sp->ip, sp->port, &family, &protocol, &addr, &addrlen) < 0) {
             unlock(sp);
             return MPR_ERR_NOT_FOUND;
         }
@@ -15009,7 +15081,8 @@ int mprGetSocketError(MprSocket *sp)
     Get a socket address from a host/port combination. If a host provides both IPv4 and IPv6 addresses, 
     prefer the IPv4 address.
  */
-static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct sockaddr **addr, socklen_t *addrlen)
+static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, 
+    struct sockaddr **addr, socklen_t *addrlen)
 {
     MprSocketService    *ss;
     struct addrinfo     hints, *res;
@@ -15055,6 +15128,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct so
         hints.ai_family = AF_INET6;
         rc = getaddrinfo(ip, portBuf, &hints, &res);
         if (rc != 0) {
+            freeaddrinfo(res);
             mprUnlock(ss->mutex);
             return MPR_ERR_CANT_OPEN;
         }
@@ -15064,6 +15138,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct so
 
     *addrlen = (int) res->ai_addrlen;
     *family = res->ai_family;
+    *protocol = res->ai_protocol;
 
     freeaddrinfo(res);
     mprUnlock(ss->mutex);
@@ -15072,7 +15147,8 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct so
 
 
 #elif MACOSX
-static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct sockaddr **addr, socklen_t *addrlen)
+static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, 
+        struct sockaddr **addr, socklen_t *addrlen)
 {
     MprSocketService    *ss;
     struct hostent      *hostent;
@@ -15116,6 +15192,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct so
     mprAssert(hostent);
     *addrlen = len;
     *family = hostent->h_addrtype;
+    *protocol = 0;
     freehostent(hostent);
     mprUnlock(ss->mutex);
     return 0;
@@ -15124,7 +15201,8 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct so
 
 #else
 
-static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct sockaddr **addr, socklen_t *addrlen)
+static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol,
+        struct sockaddr **addr, socklen_t *addrlen)
 {
     MprSocketService    *ss;
     struct sockaddr_in  *sa;
@@ -15175,6 +15253,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, struct so
     *addr = (struct sockaddr*) sa;
     *addrlen = sizeof(struct sockaddr_in);
     *family = sa->sin_family;
+    *protocol = 0;
     mprUnlock(ss->mutex);
     return 0;
 }
@@ -15376,7 +15455,7 @@ bool mprIsSocketSecure(MprSocket *sp)
 /*
     TODO - need a join and split function
     TODO - need a routine that supplies a length of bytes to copy out of str. Like:
-        int mprMemcpy(void *dest, int destMax, const void *src, int nbytes)   but adding a null.
+        int mprMemcpy(void *dest, int destMax, cvoid *src, int nbytes)   but adding a null.
  */
 
 
@@ -15431,7 +15510,7 @@ int mprStrcpyCount(char *dest, int destMax, cchar *src, int count)
 }
 
 
-int mprMemcmp(const void *s1, int s1Len, const void *s2, int s2Len)
+int mprMemcmp(cvoid *s1, int s1Len, cvoid *s2, int s2Len)
 {
     int     len, rc;
 
@@ -15457,7 +15536,7 @@ int mprMemcmp(const void *s1, int s1Len, const void *s2, int s2Len)
 /*
     Supports insitu copy where src and destination overlap
  */
-int mprMemcpy(void *dest, int destMax, const void *src, int nbytes)
+int mprMemcpy(void *dest, int destMax, cvoid *src, int nbytes)
 {
     mprAssert(dest);
     mprAssert(destMax <= 0 || destMax >= nbytes);
@@ -18300,7 +18379,7 @@ int mprCreateTimeService(MprCtx ctx)
     TimeToken           *tt;
 
     mpr = mprGetMpr(ctx);
-    mpr->timeTokens = mprCreateHash(mpr, -1);
+    mpr->timeTokens = mprCreateHash(mpr, -1, 0);
     ctx = mpr->timeTokens;
 
     for (tt = days; tt->name; tt++) {
@@ -19819,545 +19898,6 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
 /************************************************************************/
 /*
  *  End of file "../src/mprTime.c"
- */
-/************************************************************************/
-
-
-
-/************************************************************************/
-/*
- *  Start of file "../src/mprUnicode.c"
- */
-/************************************************************************/
-
-/**
-    mprUnicode.c - Unicode 
-
-    Copyright (c) All Rights Reserved. See details at the end of the file.
- */
-
-#if KEEP
-
-
-/*
-    Allocate a new (empty) unicode string
- */
-uni *mprAllocUs(MprCtx ctx)
-{
-    mprAssert(ctx);
-
-    return mprAllocObjZeroed(ctx, uni);
-}
-
-
-/*
-    Grow the string buffer for a unicode string
- */
-static int growUs(uni *us, int len)
-{
-    mprAssert(us);
-    mprAssert(len >= 0);
-
-    if (len < us->length) {
-        return 0;
-    }
-
-    //  TODO - ensure slab allocation. What about a reasonable growth increment?
-    us->str = mprRealloc(us, us->str, len);
-    if (us->str == 0) {
-        return MPR_ERR_NO_MEMORY;
-    }
-    us->length = len;
-    return 0;
-}
-
-
-/*
-    Convert a ASCII string to UTF-8/16
- */
-static int memToUs(uni *us, const uchar *str, int len)
-{
-    uniData   *up;
-    cchar       *cp;
-
-    mprAssert(us);
-    mprAssert(str);
-
-    if (len > us->length) {
-        if (growUs(us, len) < 0) {
-            return MPR_ERR_NO_MEMORY;
-        }
-    }
-    us->length = len;
-
-#if BLD_FEATURE_UTF16
-    cp = (cchar*) str;
-    up = us->str;
-    while (*cp) {
-        *up++ = *cp++;
-    }
-#else
-    memcpy((void*) us->str, str, len);
-#endif
-
-    return 0;
-}
-
-
-/*
-    Convert a C string to a newly allocated unicode string
- */
-uni *mprStrToUs(MprCtx ctx, cchar *str)
-{
-    uni   *us;
-    int     len;
-
-    mprAssert(ctx);
-    mprAssert(str);
-
-    us = mprAllocUs(ctx);
-    if (us == 0) {
-        return 0;
-    }
-
-    if (str == 0) {
-        str = "";
-    }
-
-    len = strlen(str);
-
-    if (memToUs(us, (const uchar*) str, len) < 0) {
-        return 0;
-    }
-    
-    return us;
-}
-
-
-/*
-    Convert a memory buffer to a newly allocated unicode string
- */
-uni *mprMemToUs(MprCtx ctx, const uchar *buf, int len)
-{
-    uni   *us;
-
-    mprAssert(ctx);
-    mprAssert(buf);
-
-    us = mprAllocUs(ctx);
-    if (us == 0) {
-        return 0;
-    }
-
-    if (memToUs(us, buf, len) < 0) {
-        return 0;
-    }
-    
-    return us;
-}
-
-
-/*
-    Convert a unicode string newly allocated C string
- */
-char *mprUsToStr(uni *us)
-{
-    char    *str, *cp;
-
-    mprAssert(us);
-
-    str = cp = mprAlloc(us, us->length + 1);
-    if (cp == 0) {
-        return 0;
-    }
-
-#if BLD_FEATURE_UTF16
-{
-    uniData   *up;
-    int         i;
-
-    up = us->str;
-    for (i = 0; i < us->length; i++) {
-        cp[i] = up[i];
-    }
-}
-#else
-    mprStrcpy(cp, us->length, us->str);
-#endif
-    return str;
-}
-
-
-/*
-    Copy one unicode string to another. No allocation
- */
-static void copyUs(uni *dest, uni *src)
-{
-    mprAssert(dest);
-    mprAssert(src);
-    mprAssert(dest->length <= src->length);
-    mprAssert(dest->str);
-    mprAssert(src->str);
-
-    memcpy(dest->str, src->str, src->length   sizeof(uniData));
-    dest->length = src->length;
-}
-
-
-/*
-    Copy one unicode string to another. Grow the destination unicode string buffer as required.
- */
-int mprCopyUs(uni *dest, uni *src)
-{
-    mprAssert(dest);
-    mprAssert(src);
-
-    dest->length = src->length;
-
-    if (src->length > dest->length) {
-        if (growUs(dest, src->length) < 0) {
-            return MPR_ERR_NO_MEMORY;
-        }
-    }
-
-    copyUs(dest, src);
-
-    return 0;
-}
-
-
-/*
-    Catenate a unicode string onto another.
- */
-int mprCatUs(uni *dest, uni *src)
-{
-    int     len;
-
-    len = dest->length + src->length;
-    if (growUs(dest, len) < 0) {
-        return MPR_ERR_NO_MEMORY;
-    }
-
-    memcpy(&dest->str[dest->length], src->str, src->length   sizeof(uniData));
-    dest->length += src->length;
-
-    return 0;
-}
-
-
-/*
-    Catenate a set of unicode string arguments onto another.
- */
-int mprCatUsArgs(uni *dest, uni *src, ...)
-{
-    va_list     args;
-    uni       *us;
-    int         len;
-
-    va_start(args, src);
-
-    len = 0;
-    us = src;
-    for (us = src; us; ) {
-        us = va_arg(args, uni*);
-        len += us->length;
-    }
-
-    if (growUs(dest, len) < 0) {
-        return MPR_ERR_NO_MEMORY;
-    }
-
-    va_start(args, src);
-    for (us = src; us; ) {
-        us = va_arg(args, uni*);
-        
-        memcpy(&dest->str[dest->length], src->str, src->length   sizeof(uniData));
-        dest->length += src->length;
-    }
-    va_end(args);
-    return 0;
-}
-
-
-/*
-    Duplicate a unicode string by allocating a new unicode string and copying the source data.
- */
-uni *mprDupUs(uni *src)
-{
-    uni   *dest;
-
-    dest = mprAllocUs(src);
-    if (dest == 0) {
-        return 0;
-    }
-    copyUs(dest, src);
-    return dest;
-}
-
-
-/*
-    Copy a C string into an existing unicode string.
- */
-int mprCopyStrToUs(uni *dest, cchar *str)
-{
-    mprAssert(dest);
-    mprAssert(str);
-
-    return memToUs(dest, (const uchar*) str, strlen(str));
-}
-
-
-/*
-    Return the lenght of a unicoded string.
- */
-int mprGetUsLength(uni *us)
-{
-    mprAssert(us);
-
-    return us->length;
-}
-
-
-/*
-    Return the index in a unicode string of a given unicode character code. Return -1 if not found.
- */
-int mprContainsChar(uni *us, int charPat)
-{
-    int     i;
-
-    mprAssert(us);
-
-    for (i = 0; i < us->length; i++) {
-        if (us->str[i] == charPat) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-
-/*
-    Return TRUE if a unicode string contains a given unicode string.
- */
-int mprContainsUs(uni *us, uni *pat)
-{
-    int     i, j;
-
-    mprAssert(us);
-    mprAssert(pat);
-    mprAssert(pat->str);
-
-    if (pat == 0 || pat->str == 0) {
-        return 0;
-    }
-    
-    for (i = 0; i < us->length; i++) {
-        for (j = 0; j < pat->length; j++) {
-            if (us->str[i] != pat->str[j]) {
-                break;
-            }
-        }
-        if (j == pat->length) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-
-/*
-    Return TRUE if a unicode string contains a given unicode string after doing a case insensitive comparison.
- */
-int mprContainsCaselessUs(uni *us, uni *pat)
-{
-    int     i, j;
-
-    mprAssert(us);
-    mprAssert(pat);
-    mprAssert(pat->str);
-
-    for (i = 0; i < us->length; i++) {
-        for (j = 0; j < pat->length; j++) {
-            if (tolower(us->str[i]) != tolower(pat->str[j])) {
-                break;
-            }
-        }
-        if (j == pat->length) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-
-/*
-    Return TRUE if a unicode string contains a given C string.
- */
-int mprContainsStr(uni *us, cchar *pat)
-{
-    int     i, j, len;
-
-    mprAssert(us);
-    mprAssert(pat);
-
-    if (pat == 0 || *pat == '\0') {
-        return 0;
-    }
-    
-    len = strlen(pat);
-    
-    for (i = 0; i < us->length; i++) {
-        for (j = 0; j < len; j++) {
-            if (us->str[i] != pat[j]) {
-                break;
-            }
-        }
-        if (j == len) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-
-#if FUTURE
-int mprContainsPattern(uni *us, MprRegex *pat)
-{
-    return 0;
-}
-#endif
-
-
-uni *mprTrimUs(uni *us, uni *pat)
-{
-    //  TODO
-    return 0;
-}
-
-
-int mprTruncateUs(uni *us, int len)
-{
-    mprAssert(us);
-
-    mprAssert(us->length >= len);
-
-    if (us->length < len) {
-        return MPR_ERR_WONT_FIT;
-    }
-
-    us->length = len;
-    return 0;
-}
-
-
-uni *mprSubUs(uni *src, int start, int len)
-{
-    uni   *dest;
-
-    mprAssert(src);
-    mprAssert(start >= 0);
-    mprAssert(len > 0);
-    mprAssert((start + len) <= src->length);
-
-    if ((start + len) > src->length) {
-        return 0;
-    }
-
-    dest = mprAllocUs(src);
-    if (dest == 0) {
-        return 0;
-    }
-
-    if (growUs(dest, len) < 0) {
-        mprFree(dest);
-        return 0;
-    }
-    memcpy(dest->str, &src->str[start], len   sizeof(uniData));
-    dest->length = len;
-
-    return dest;
-}
-
-
-void mprUsToLower(uni *us)
-{
-    int     i;
-
-    mprAssert(us);
-    mprAssert(us->str);
-
-    for (i = 0; i < us->length; i++) {
-        us->str[i] = tolower(us->str[i]);
-    }
-}
-
-
-void mprUsToUpper(uni *us)
-{
-    int     i;
-
-    mprAssert(us);
-    mprAssert(us->str);
-
-    for (i = 0; i < us->length; i++) {
-        us->str[i] = toupper(us->str[i]);
-    }
-}
-
-
-uni *mprTokenizeUs(uni *us, uni *delim, int *last)
-{
-    return 0;
-}
-
-
-int mprFormatUs(uni *us, int maxSize, cchar *fmt, ...)
-{
-    return 0;
-}
-
-
-int mprScanUs(uni *us, cchar *fmt, ...)
-{
-    return 0;
-}
-
-#else
-void stubMprUnicode() {}
-#endif
-
-/*
-    @copy   default
-    
-    Copyright (c) Embedthis Software LLC, 2003-2010. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2010. All Rights Reserved.
-    
-    This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire 
-    a commercial license from Embedthis Software. You agree to be fully bound 
-    by the terms of either license. Consult the LICENSE.TXT distributed with 
-    this software for full details.
-    
-    This software is open source; you can redistribute it and/or modify it 
-    under the terms of the GNU General Public License as published by the 
-    Free Software Foundation; either version 2 of the License, or (at your 
-    option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
-    
-    This program is distributed WITHOUT ANY WARRANTY; without even the 
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
-    
-    This GPL license does NOT permit incorporating this software into 
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses 
-    for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
-    
-    @end
- */
-/************************************************************************/
-/*
- *  End of file "../src/mprUnicode.c"
  */
 /************************************************************************/
 
