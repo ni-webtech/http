@@ -1,5 +1,5 @@
 #
-#	Makefile for the MPR - Multithreaded Portable Runtime
+#	Makefile for the MPR (Multithreaded Portable Runtime) for use with the combo release.
 #
 #	Copyright (c) Embedthis Software LLC, 2003-2010. All Rights Reserved.
 #

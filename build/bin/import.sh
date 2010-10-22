@@ -67,11 +67,12 @@ buildPatch() {
 
 
 syncFiles() {
-    local status
+    local status file
 
     log "Sync" ${ARCHIVE}
 
-    tar tfz $ARCHIVE | while read file ; do
+    (cd $SRC >/dev/null 2>&1 ; find *) | while read file ; do
+        # Strip off "./"
         target=${file##$STRIP}
         if [ "$ignore" != "" -a "${file/$ignore/}" != "${file}" ] ; then
             echo "#    ignore $file"
@@ -189,7 +190,7 @@ fi
 mkdir -p $IDIR
 rm -fr $IDIR/*
 tar xfz $ARCHIVE -C $IDIR
-SRC=$IDIR
+SRC=$IDIR/*
 syncFiles
 rm -fr $IDIR/*
 
