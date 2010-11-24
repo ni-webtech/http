@@ -32,3 +32,4 @@ staging
 bin/angel*
 projects/MACOSX/*/build
 */x86_64-pc-win
+out
