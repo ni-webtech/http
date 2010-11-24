@@ -202,6 +202,7 @@ int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
 }
 
 
+//  MOB - need formatted version
 void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value) 
 {
     MprHashTable    *vars;
@@ -211,6 +212,7 @@ void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value)
         /* This is allowed. Upload filter uses this when uploading to the file handler */
         return;
     }
+    //  MOB -- DUP?
     mprAddHash(vars, var, (void*) value);
 }
 
