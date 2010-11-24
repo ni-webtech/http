@@ -43,7 +43,7 @@ HttpAuth *httpCreateAuth(MprCtx ctx, HttpAuth *parent)
 void httpSetAuthAllow(HttpAuth *auth, cchar *allow)
 {
     mprFree(auth->allow);
-    auth->allow = mprStrdup(auth, allow);
+    auth->allow = sclone(auth, allow);
 }
 
 
@@ -57,14 +57,14 @@ void httpSetAuthAnyValidUser(HttpAuth *auth)
 void httpSetAuthDeny(HttpAuth *auth, cchar *deny)
 {
     mprFree(auth->deny);
-    auth->deny = mprStrdup(auth, deny);
+    auth->deny = sclone(auth, deny);
 }
 
 
 void httpSetAuthGroup(HttpConn *conn, cchar *group)
 {
     mprFree(conn->authGroup);
-    conn->authGroup = mprStrdup(conn, group);
+    conn->authGroup = sclone(conn, group);
 }
 
 
@@ -78,9 +78,9 @@ void httpSetAuthQop(HttpAuth *auth, cchar *qop)
 {
     mprFree(auth->qop);
     if (strcmp(qop, "auth") == 0 || strcmp(qop, "auth-int") == 0) {
-        auth->qop = mprStrdup(auth, qop);
+        auth->qop = sclone(auth, qop);
     } else {
-        auth->qop = mprStrdup(auth, "");
+        auth->qop = sclone(auth, "");
     }
 }
 
@@ -88,14 +88,14 @@ void httpSetAuthQop(HttpAuth *auth, cchar *qop)
 void httpSetAuthRealm(HttpAuth *auth, cchar *realm)
 {
     mprFree(auth->requiredRealm);
-    auth->requiredRealm = mprStrdup(auth, realm);
+    auth->requiredRealm = sclone(auth, realm);
 }
 
 
 void httpSetAuthRequiredGroups(HttpAuth *auth, cchar *groups)
 {
     mprFree(auth->requiredGroups);
-    auth->requiredGroups = mprStrdup(auth, groups);
+    auth->requiredGroups = sclone(auth, groups);
     auth->flags |= HTTP_AUTH_REQUIRED;
 }
 
@@ -103,7 +103,7 @@ void httpSetAuthRequiredGroups(HttpAuth *auth, cchar *groups)
 void httpSetAuthRequiredUsers(HttpAuth *auth, cchar *users)
 {
     mprFree(auth->requiredUsers);
-    auth->requiredUsers = mprStrdup(auth, users);
+    auth->requiredUsers = sclone(auth, users);
     auth->flags |= HTTP_AUTH_REQUIRED;
 }
 
@@ -111,7 +111,7 @@ void httpSetAuthRequiredUsers(HttpAuth *auth, cchar *users)
 void httpSetAuthUser(HttpConn *conn, cchar *user)
 {
     mprFree(conn->authUser);
-    conn->authUser = mprStrdup(conn, user);
+    conn->authUser = sclone(conn, user);
 }
 
 

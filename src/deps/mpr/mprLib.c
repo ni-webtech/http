@@ -1,120 +1,94 @@
 #define BLD_MPRLIB 1
-#define MPR_IN_ALLOC 1
+#define MPR_IN_MEM 1
 #include "mpr.h"
 
 /******************************************************************************/
 /* 
- *  This file is an amalgamation of all the individual source code files for
- *  Multithreaded Portable Runtime 4.1.0.
- *
- *  Catenating all the source into a single file makes embedding simpler and
- *  the resulting application faster, as many compilers can do whole file
- *  optimization.
- *
- *  If you want to modify mpr, you can still get the whole source
- *  as individual files if you need.
+    This file is an amalgamation of all the individual source code files for
+     .
+  
+    Catenating all the source into a single file makes embedding simpler and
+    the resulting application faster, as many compilers can do whole file
+    optimization.
+  
+    If you want to modify , you can still get the whole source
+    as individual files if you need.
  */
 
 
 /************************************************************************/
 /*
- *  Start of file "../src/mprAlloc.c"
+ *  Start of file "../src/mprMem.c"
  */
 /************************************************************************/
 
 /**
-    mprAlloc.c - Memory Allocator. 
+    mprMem.c - Memory Allocator and Garbage Collector. 
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
 
-#define MPR_IN_ALLOC 1
 
+#if BLD_MEMORY_DEBUG
+/*
+    Set this address to break when this address is allocated or freed
+ */
+static MprMem *stopAlloc = 0;
+static int stopSeqno = -1;
+#endif
 
-
-#define GET_BLK(ptr)            ((MprBlk*) (((char*) (ptr)) - MPR_ALLOC_HDR_SIZE))
-#define GET_PTR(bp)             ((char*) (((char*) (bp)) + MPR_ALLOC_HDR_SIZE))
-#define GET_NEXT(bp)            ((bp)->last) ? NULL : ((MprBlk*) ((char*) bp + bp->size))
-#define GET_USIZE(bp)           (bp->size - MPR_ALLOC_HDR_SIZE - (bp->pad * sizeof(void*)))
-#define INIT_LIST(bp)           if (1) { bp->next = bp->prev = bp; } else
+#define GET_MEM(ptr)            ((MprMem*) (((char*) (ptr)) - sizeof(MprMem)))
+#define GET_PTR(mp)             ((char*) (((char*) (mp)) + sizeof(MprMem)))
+#define GET_NEXT(mp)            ((mp)->last) ? NULL : ((MprMem*) ((char*) mp + mp->size))
+#define GET_REGION(mp)          ((MprRegion*) (((char*) mp) - sizeof(MprRegion)))
+#define GET_USIZE(mp)           (mp->size - sizeof(MprMem) - (mp->hasManager * sizeof(void*)))
 
 /*
     Trailing block. This is optional and will look like:
-        Destructor
-        Children
+        Manager
         Trailer
  */
-#define PAD_PTR(bp, offset)     (((char*) bp) + bp->size - ((offset) * sizeof(void*)))
+#define PAD_PTR(mp, offset)     ((void*) (((char*) mp) + mp->size - ((offset) * sizeof(void*))))
 
-#if BLD_MEMORY_VERIFY
-#define TRAILER_SIZE            1
-#define TRAILER_OFFSET          1
-#define HAS_TRAILER(bp)         (bp->pad >= TRAILER_OFFSET)
-#define GET_TRAILER(bp)         (HAS_TRAILER(bp) ? (*((int*) PAD_PTR(bp, TRAILER_OFFSET))) : MPR_ALLOC_MAGIC)
-#define SET_TRAILER(bp, v)      if (1) { *((int*) PAD_PTR(bp, TRAILER_OFFSET)) = v; } else
-#else
-#define TRAILER_SIZE            0
-#define TRAILER_OFFSET          0
-#define GET_TRAILER(bp)         MPR_ALLOC_MAGIC
-#define SET_TRAILER(bp, v)         
-#endif
-
-/*
-    Children take 2 words
- */
-#define CHILDREN_SIZE           (TRAILER_SIZE + 2)
-#define CHILDREN_OFFSET         (TRAILER_OFFSET + 2)
-#define HAS_CHILDREN(bp)        (bp->pad >= CHILDREN_OFFSET)
-#define GET_CHILDREN(bp)        (HAS_CHILDREN(bp) ? ((MprBlk*) PAD_PTR(bp, CHILDREN_OFFSET)) : NULL)
-
-#define DESTRUCTOR_SIZE         (CHILDREN_SIZE + 1)
-#define DESTRUCTOR_OFFSET       (TRAILER_OFFSET + 3)
-#define HAS_DESTRUCTOR(bp)      (bp->pad >= DESTRUCTOR_OFFSET)
-#define GET_DESTRUCTOR(bp)      (HAS_DESTRUCTOR(bp) ? (*(MprDestructor*) (PAD_PTR(bp, DESTRUCTOR_OFFSET))) : NULL)
-#define SET_DESTRUCTOR(bp, fn)  if (1) { *((MprDestructor*) PAD_PTR(bp, DESTRUCTOR_OFFSET)) = fn; } else
+#define MANAGER_SIZE            1
+#define MANAGER_OFFSET          1
+#define GET_MANAGER(mp)         ((MprManager) (*(void**) ((PAD_PTR(mp, MANAGER_OFFSET)))))
+#define SET_MANAGER(mp, fn)     if (1) { *((MprManager*) PAD_PTR(mp, MANAGER_OFFSET)) = fn; } else
 
 #if BLD_MEMORY_DEBUG
-#define BREAKPOINT(bp)          breakpoint(bp);
-#define CHECK(bp)               check(bp)
-#define CHECK_PTR(ptr)          CHECK(GET_BLK(ptr))
+#define BREAKPOINT(mp)          breakpoint(mp);
+#define CHECK(mp)               mprCheckBlock((MprMem*) mp)
+#define CHECK_PTR(ptr)          CHECK(GET_MEM(ptr))
 
 /*
     WARN: this will reset pad words too.
  */
-#define RESET_MEM(bp)           if (bp != GET_BLK(MPR)) { memset(GET_PTR(bp), 0xFE, bp->size - MPR_ALLOC_HDR_SIZE); } else
-#define SET_MAGIC(bp)           if (1) { (bp)->magic = MPR_ALLOC_MAGIC; } else
-#define SET_SEQ(bp)             if (1) { (bp)->seqno = heap->nextSeqno++; } else
-#define INIT_BLK(bp, len)       if (1) { SET_MAGIC(bp); SET_SEQ(bp); bp->size = len; bp->pad = 0; } else
-#define VALID_BLK(bp)           validBlk(bp)
-
-/*
-    Set this address to break when this address is allocated or freed
- */
-static MprBlk *stopAlloc;
-static int stopSeqno = -1;
+#define RESET_MEM(mp)           if (mp != GET_MEM(MPR)) { memset(GET_PTR(mp), 0xFE, mp->size - sizeof(MprMem)); } else
+#define SET_MAGIC(mp)           if (1) { (mp)->magic = MPR_ALLOC_MAGIC; } else
+#define SET_SEQ(mp)             if (1) { (mp)->seqno = heap->nextSeqno++; } else
+#define INIT_BLK(mp, len)       if (1) { SET_MAGIC(mp); SET_SEQ(mp); mp->size = len; mp->name = NULL; } else
+#define VALID_BLK(mp)           validBlk(mp)
 
 #else
-#define BREAKPOINT(bp)
-#define CHECK(bp)           
-#define CHECK_PTR(bp)           
-#define RESET_MEM(bp)           
-#define SET_MAGIC(bp)
-#define SET_SEQ(bp)           
-#define INIT_BLK(bp, len)       if (1) { bp->size = len; bp->pad = 0; } else
-#define VALID_BLK(bp)           1
+#define BREAKPOINT(mp)
+#define CHECK(mp)           
+#define CHECK_PTR(mp)           
+#define RESET_MEM(mp)           
+#define SET_MAGIC(mp)
+#define SET_SEQ(mp)           
+#define INIT_BLK(mp, len)       if (1) { mp->size = len; } else
+#define VALID_BLK(mp)           1
 #endif
 
 #if BLD_MEMORY_STATS
     #define INC(field)          if (1) { heap->stats.field++; } else 
-    #define LOCKED_INC(field)   if (1) { lockHeap(heap); heap->stats.field++; unlockHeap(heap);} else 
 #else
-    #define INC(field)              
-    #define LOCKED_INC(field)
+    #define INC(field)
 #endif
 
-#define lockHeap(heap)          mprSpinLock(&heap->spin);
-#define unlockHeap(heap)        mprSpinUnlock(&heap->spin);
+#define lockHeap()              mprSpinLock(&heap->heapLock);
+#define unlockHeap()            mprSpinUnlock(&heap->heapLock);
 
 #define percent(a,b) ((int) ((a) * 100 / (b)))
 
@@ -138,352 +112,331 @@ static int stopSeqno = -1;
 
 Mpr             *MPR;
 static MprHeap  *heap;
-static int      padding[] = { TRAILER_SIZE, CHILDREN_SIZE, DESTRUCTOR_SIZE, DESTRUCTOR_SIZE };
+static int      padding[] = { 0, MANAGER_SIZE };
 
 
 static void allocException(size_t size, bool granted);
-static void deq(MprBlk *bp);
-static void enq(MprBlk *bp); 
-static void freeBlock(MprBlk *bp);
-static void freeChildren(MprBlk *bp);
-static MprBlk *getBlock(size_t usize, int padWords, int flags);
+static void checkGarbage();
+static void deq(MprFreeMem *fp);
+static void enq(MprFreeMem *head, MprFreeMem *fp);
+static void freeBlock(MprMem *mp);
+static void *getNextRoot(int *indexp);
 static int getQueueIndex(size_t size, int roundup);
-static MprBlk *growHeap(size_t size);
-static int initFree();
-static void linkChild(MprBlk *parent, MprBlk *bp);
-static MprBlk *splitBlock(MprBlk *bp, size_t required, int qspare);
 static void getSystemInfo();
-static void unlinkChild(MprBlk *bp);
+static MprMem *growHeap(size_t size);
+static int initFree();
+static void initGen();
+static void linkFreeBlock(MprMem *mp); 
+static void mark();
+static void markRoots();
+static void nextGen();
+static MprMem *searchFree(size_t size, int *indexp);
+static MprMem *splitBlock(MprMem *mp, size_t required, int qspare);
+static void sweep();
+static void synchronize();
+static void unlinkFreeBlock(MprFreeMem *fp);
 
-#if BLD_CC_MMU && !BLD_WIN_LIKE
-static void virtFree(MprBlk *bp);
+#if MPR_GC_WORKERS >= 1
+static void marker(void *unused, MprWorker *worker);
+#endif
+#if MPR_GC_WORKERS >= 2
+static void sweeper(void *unused, MprWorker *worker);
 #endif
 
 #if BLD_WIN_LIKE
     static int winPageModes(int flags);
 #endif
 #if BLD_MEMORY_DEBUG
-    static void breakpoint(MprBlk *bp);
-    static void check(MprBlk *bp);
-    static int validBlk(MprBlk *bp);
+    static void breakpoint(MprMem *mp);
+    static int validBlk(MprMem *mp);
 #endif
 #if BLD_MEMORY_STATS
-    static MprFreeBlk *getQueue(size_t size);
+    static MprFreeMem *getQueue(size_t size);
     static void printQueueStats();
+    static void printGCStats();
 #endif
+
+void checkPrior(MprMem *mp)
+{
+#if CHECK_PRIOR
+    MprMem  *p;
+
+    for (p = mp; p; p = p->prior) {
+        CHECK(p);
+    }
+#endif
+}
+
 
 /*
     Initialize the memory subsystem
  */
-Mpr *mprCreateAllocService(MprAllocFailure cback, MprDestructor destructor)
+Mpr *mprCreateMemService(MprMemNotifier cback, MprManager manager)
 {
+    MprRegion   *region;
     MprHeap     initHeap;
-    MprBlk      *bp, *children, *spare;
-    size_t      usize, size, required, extra;
-    int         padWords;
+    MprMem      *mp, *spare;
+    size_t      regionSize, size, mprSize;
 
     heap = &initHeap;
     memset(heap, 0, sizeof(MprHeap));
-    heap->stats.maxMemory = INT_MAX;
-    heap->stats.redLine = INT_MAX / 100 * 99;
+    heap->stats.maxMemory = MAXINT;
+    heap->stats.redLine = MAXINT / 100 * 99;
+    mprInitSpinLock(heap, &heap->heapLock);
 
-    padWords = DESTRUCTOR_SIZE;
-    usize = sizeof(Mpr) + (padWords * sizeof(void*));
-    required = MPR_ALLOC_ALIGN(MPR_ALLOC_HDR_SIZE + usize);
+    /*
+        Hand-craft the Mpr structure this include the MprRegion and MprMem headers
+     */
+    mprSize = MPR_ALLOC_ALIGN(sizeof(MprMem) + sizeof(Mpr) + (MANAGER_SIZE * sizeof(void*)));
+    regionSize = MPR_ALLOC_ALIGN(sizeof(MprRegion));
+    size = max(mprSize + regionSize, MPR_REGION_MIN_SIZE);
 
-    size = max(required, MPR_REGION_MIN_SIZE);
-    extra = size - required;
-    if ((bp = (MprBlk*) mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
+    if ((region = (MprRegion*) mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
         return NULL;
     }
-    INIT_BLK(bp, required);
-    bp->pad = padWords;
-    INIT_LIST(bp);
-    SET_DESTRUCTOR(bp, destructor);
-    SET_TRAILER(bp, MPR_ALLOC_MAGIC);
-    children = GET_CHILDREN(bp);
-    INIT_LIST(children);
+    mp = region->start = (MprMem*) (((char*) region) + regionSize);
+    region->size = size;
 
-    spare = (MprBlk*) (((char*) bp) + required);
-    INIT_BLK(spare, extra);
+    MPR = (Mpr*) GET_PTR(mp);
+    INIT_BLK(mp, mprSize);
+    mp->gen = MPR_GEN_ETERNAL;
+    mp->hasManager = 1;
+    SET_MANAGER(mp, manager);
+    mprSetName(MPR, "Mpr");
+
+    spare = (MprMem*) (((char*) mp) + mprSize);
+    INIT_BLK(spare, size - regionSize - mprSize);
     spare->last = 1;
-    spare->prior = bp;
+    spare->prior = mp;
 
-    MPR = (Mpr*) GET_PTR(bp);
     heap = &MPR->heap;
     heap->notifier = cback;
-    heap->notifierCtx = MPR;
     heap->nextSeqno = 1;
     heap->chunkSize = MPR_REGION_MIN_SIZE;
-    heap->stats.maxMemory = INT_MAX;
-    heap->stats.redLine = INT_MAX / 100 * 99;
+    heap->stats.maxMemory = MAXINT;
+    heap->stats.redLine = MAXINT / 100 * 99;
+    heap->newQuota = MPR_NEW_QUOTA;
+    heap->regions = region;
+
+    //  MOB - re-enable
+    heap->enabled = 0;
+
     heap->stats.bytesAllocated += size;
-    mprInitSpinLock(heap, &heap->spin);
+    mprInitSpinLock(heap, &heap->heapLock);
+    mprInitSpinLock(heap, &heap->rootLock);
     getSystemInfo();
 
-    if (initFree() < 0) {
-        return 0;
-    }
-    enq(spare);
+    initFree();
+    initGen();
+    linkFreeBlock(spare);
 
-    if ((MPR->ctx = mprAllocCtx(MPR, 0)) == NULL) {
-        return 0;
-    }
+    heap->roots = mprCreateList(MPR);
+    mprAddRoot(MPR);
     return MPR;
 }
 
 
-void mprInitBlock(MprCtx ctx, void *ptr, size_t size, int flags)
+void mprDestroyMemService()
 {
-    MprBlk      *bp, *parent;
+    MprRegion   *region;
+    MprMem      *mp, *next;
 
-    parent = GET_BLK(ctx);
-    CHECK(parent);
-
-    bp = GET_BLK(ptr);
-    INIT_BLK(bp, size);
-
-    memset(ptr, 0, size);
-    bp->last = 1;
-    bp->prior = NULL;
-    linkChild(parent, bp);
+    if (heap->destroying) {
+        return;
+    }
+    heap->destroying = 1;
+    for (region = heap->regions; region; region = region->next) {
+        for (mp = region->start; mp; mp = next) {
+            next = GET_NEXT(mp);
+            if (unlikely(mp->hasManager)) {
+                (GET_MANAGER(mp))(GET_PTR(mp), MPR_MANAGE_FREE);
+            }
+        }
+    }
+    if (heap->enabled) {
+        printGCStats();
+    }
 }
 
 
-void *mprAllocBlock(MprCtx ctx, size_t usize, int flags)
+void *mprAllocBlock(MprCtx IGNORED, size_t usize, int flags)
 {
-    MprBlk      *bp, *parent, *children;
+    MprMem      *mp;
+    void        *ptr;
+    size_t      maxBlock, size;
+    int         bucket, group, index, padWords;
 
-    mprAssert(usize >= 0);
+    mprAssert(usize > 0);
 
-    if (ctx == NULL) {
-        ctx = MPR->ctx;
+    if (usize == 0) {
+        usize = 1;
     }
-    parent = GET_BLK(ctx);
-    CHECK(parent);
+    padWords = padding[flags & MPR_ALLOC_PAD_MASK];
+    size = MPR_ALLOC_ALIGN(usize + sizeof(MprMem) + (padWords * sizeof(void*)));
     
-    if ((bp = getBlock(usize, padding[flags & MPR_ALLOC_PAD_MASK], flags)) != 0) {
-        if (flags & MPR_ALLOC_CHILDREN) {
-            children = GET_CHILDREN(bp);
-            mprAssert(children);
-            INIT_LIST(children);
+    if ((mp = searchFree(size, &index)) == NULL) {
+        if ((mp = growHeap(size)) == NULL) {
+            return NULL;
         }
-        linkChild(parent, bp);
-        return GET_PTR(bp);
     }
-    return 0;
+    BREAKPOINT(mp);
+    mprAssert(mp->size >= size);
+
+    if (mp->size >= (size + MPR_ALLOC_MIN_SPLIT)) {
+        index = getQueueIndex(size, 1);
+        group = index / MPR_ALLOC_NUM_BUCKETS;
+        bucket = index % MPR_ALLOC_NUM_BUCKETS;
+        maxBlock = (((size_t) 1 ) << group | (((size_t) bucket) << (max(0, group - 1)))) << MPR_ALIGN_SHIFT;
+        maxBlock += sizeof(MprMem);
+        if (mp->size > maxBlock) {
+            splitBlock(mp, size, 1);
+        }
+    }
+    ptr = GET_PTR(mp);
+    if (flags & MPR_ALLOC_ZERO) {
+        memset(ptr, 0, usize);
+    }
+    if (flags & MPR_ALLOC_MANAGER) {
+        mp->hasManager = 1;
+        *((MprManager*) PAD_PTR(mp, padWords)) = NULL;
+    }
+    CHECK(mp);
+    mp->gen = heap->active;
+    heap->newCount++;
+checkPrior(mp);
+    return ptr;
 }
 
 
 /*
-    Free a block of memory. Free all children recursively. Return 0 if the memory was freed. A destructor may prevent
-    memory being deleted by returning non-zero.
+    Free a block of memory
  */
-int mprFree(void *ptr)
+void mprFree(void *ptr)
 {
-    MprBlk  *bp;
+    MprMem  *mp;
 
     if (likely(ptr)) {
-        bp = GET_BLK(ptr);
-        CHECK(bp);
-        mprAssert(!bp->free);
-
-        if (unlikely(HAS_DESTRUCTOR(bp)) && (GET_DESTRUCTOR(bp))(ptr) != 0) {
-            /* Destructor aborted the free */
-            return 1;
+        mp = GET_MEM(ptr);
+checkPrior(mp);
+        CHECK(mp);
+        mprAssert(!mp->free);
+        if (unlikely(mp->isRoot)) {
+            mprRemoveRoot(mp);
         }
-        if (HAS_CHILDREN(bp)) {
-            freeChildren(bp);
+        if (unlikely(mp->hasManager)) {
+// printf("FREE CALL MANAGER %d %s\n", mp->seqno, basename((char*) mp->name));
+            GET_MANAGER(mp)(GET_PTR(mp), MPR_MANAGE_FREE);
+            mp->hasManager = 0;
+        } else {
+// printf("FREE %d %s\n", mp->seqno, basename((char*) mp->name));
         }
-        unlinkChild(bp);
-        freeBlock(bp);
-    }
-    return 0;
-}
-
-
-static void freeChildren(MprBlk *bp)
-{
-    MprBlk      *children, *child, *next;
-    int         count;
-
-    CHECK(bp);
-    if ((children = GET_CHILDREN(bp)) != NULL) {
-        count = 0;
-        for (child = children->next; child != children; child = next) {
-            next = child->next;
-            if (!HAS_DESTRUCTOR(child) || (GET_DESTRUCTOR(child))(GET_PTR(child)) == 0) {
-                if (HAS_CHILDREN(child)) {
-                    freeChildren(child);
-                }
-                unlinkChild(child);
-                freeBlock(child);
-            }
-            count++;
-        }
-        INIT_LIST(children);
+        mp->gen = heap->stale;
     }
 }
 
 
-void mprFreeChildren(MprCtx ptr)
+#if BLD_DEBUG
+void mprFreeBlock(void *ptr, cchar *loc)
 {
-    if (likely(ptr)) {
-        freeChildren(GET_BLK(ptr));
-    }
+    size_t      size;
+
+    size = GET_USIZE(GET_MEM(ptr));
+    mprFree(ptr);
+    strncpy(ptr, loc, size);
 }
+#endif
 
 
-void *mprRealloc(MprCtx ctx, void *ptr, size_t usize)
+void *mprRealloc(MprCtx IGNORED, void *ptr, size_t usize)
 {
-    MprBlk      *bp, *newb;
+    MprMem      *mp, *newb;
     void        *newptr;
+    int         flags;
 
-    CHECK_PTR(ctx);
     mprAssert(usize > 0);
 
     if (ptr == 0) {
-        return mprAllocBlock(ctx, usize, 0);
+        return mprAllocBlock(IGNORED, usize, 0);
     }
-    bp = GET_BLK(ptr);
-    if (usize <= GET_USIZE(bp)) {
+    mp = GET_MEM(ptr);
+    CHECK(mp);
+    if (usize <= GET_USIZE(mp)) {
         return ptr;
     }
-    if ((newb = getBlock(usize, bp->pad, 0)) == 0) {
+    flags = mp->hasManager ? MPR_ALLOC_MANAGER : 0;
+    if ((newptr = mprAllocBlock(IGNORED, usize, flags)) == NULL) {
         return 0;
     }
-    newptr = GET_PTR(newb);
-    memcpy(newptr, ptr, bp->size - MPR_ALLOC_HDR_SIZE);
-    unlinkChild(bp);
-    linkChild(GET_BLK(ctx), newb);
-    freeBlock(bp);
+    newb = GET_MEM(newptr);
+    memcpy(newptr, ptr, mp->size - sizeof(MprMem));
+checkPrior(mp);
+    freeBlock(mp);
+checkPrior(mp);
+checkPrior(newb);
     return newptr;
 }
 
 
-char *mprStrdup(MprCtx ctx, cchar *str)
-{
-    char    *ptr;
-    int     len;
-
-    CHECK_PTR(ctx);
-
-    if (str == NULL) {
-        str = "";
-    }
-    len = (int) strlen(str) + 1;
-    if ((ptr = (char*) mprAllocBlock(ctx, len, 0)) != NULL) {
-        memcpy(ptr, str, len);
-    }
-    return ptr;
-}
-
-
-char *mprStrndup(MprCtx ctx, cchar *str, size_t usize)
-{
-    char    *ptr;
-    size_t  len;
-
-    CHECK_PTR(ctx);
-
-    if (str == NULL) {
-        str = "";
-    }
-    len = (int) strlen(str) + 1;
-    len = min(len, usize);
-    if ((ptr = (char*) mprAllocBlock(ctx, len, 0)) != 0) {
-        memcpy(ptr, str, len);
-    }
-    return ptr;
-}
-
-
-void *mprMemdup(MprCtx ctx, cvoid *ptr, size_t usize)
+void *mprMemdup(MprCtx IGNORED, cvoid *ptr, size_t usize)
 {
     char    *newp;
 
-    CHECK_PTR(ctx);
-
-    if ((newp = (char*) mprAllocBlock(ctx, usize, 0)) != 0) {
+    if ((newp = mprAllocBlock(IGNORED, usize, 0)) != 0) {
         memcpy(newp, ptr, usize);
     }
     return newp;
 }
 
 
-bool mprIsParent(MprCtx ctx, cvoid *ptr)
+int mprMemcmp(cvoid *s1, int s1Len, cvoid *s2, int s2Len)
 {
-    MprBlk  *bp, *child, *children;
+    int     len, rc;
 
-    if (ptr == 0 || !VALID_BLK(GET_BLK(ptr))) {
-        return 0;
-    }
-    bp = GET_BLK(ptr);
-    if ((children = GET_CHILDREN(bp)) != NULL) {
-        for (child = children->next; child != children; child = child->next) {
-            if (child == bp) {
-                return 1;
-            }
+    mprAssert(s1);
+    mprAssert(s2);
+    mprAssert(s1Len >= 0);
+    mprAssert(s2Len >= 0);
+
+    len = min(s1Len, s2Len);
+
+    rc = memcmp(s1, s2, len);
+    if (rc == 0) {
+        if (s1Len < s2Len) {
+            return -1;
+        } else if (s1Len > s2Len) {
+            return 1;
         }
     }
-    return 0;
+    return rc;
 }
 
 
 /*
-    Steal a block from one context and insert in a new context.
+    Supports insitu copy where src and destination overlap
  */
-void mprStealBlock(MprCtx ctx, cvoid *ptr)
+int mprMemcpy(void *dest, int destMax, cvoid *src, int nbytes)
 {
-    MprBlk      *bp;
+    mprAssert(dest);
+    mprAssert(destMax <= 0 || destMax >= nbytes);
+    mprAssert(src);
+    mprAssert(nbytes >= 0);
 
-    if (ptr) {
-        CHECK_PTR(ctx);
-        CHECK_PTR(ptr);
-        bp = GET_BLK(ptr);
-        unlinkChild(bp);
-        linkChild(GET_BLK(ctx), bp);
+    if (destMax > 0 && nbytes > destMax) {
+        mprAssert(!MPR_ERR_WONT_FIT);
+        return MPR_ERR_WONT_FIT;
     }
-}
-
-
-//  MOB - temporary until new Ejs GC.
-
-MprBlk *mprGetFirstChild(cvoid *ptr)
-{
-    MprBlk  *bp, *children;
-
-    bp = GET_BLK(ptr);
-    if ((children = GET_CHILDREN(bp)) != NULL && children->next != children) {
-        return children->next;
+    if (nbytes > 0) {
+        memmove(dest, src, nbytes);
+        return nbytes;
+    } else {
+        return 0;
     }
-    return NULL;
-}
-
-
-MprBlk *mprGetNextChild(cvoid *ptr)
-{
-    MprBlk  *bp;
-
-    bp = GET_BLK(ptr);
-    return bp->next;
-}
-
-
-MprBlk *mprGetEndChildren(cvoid *ptr)
-{
-    MprBlk  *bp, *children;
-
-    bp = GET_BLK(ptr);
-    if ((children = GET_CHILDREN(bp)) != NULL && children->prev != children) {
-        return children->prev;
-    }
-    return NULL;
 }
 
 
 #if BLD_WIN_LIKE
-Mpr *mprGetMpr(MprCtx ctx)
+//  MOB - remove arg
+Mpr *mprGetMpr(MprCtx IGNORED)
 {
     return MPR;
 }
@@ -498,24 +451,29 @@ int mprGetPageSize()
 
 size_t mprGetBlockSize(cvoid *ptr)
 {
-    MprBlk      *bp;
+    MprMem      *mp;
 
-    bp = GET_BLK(ptr);
-    if (ptr == 0 || !VALID_BLK(bp)) {
+    mp = GET_MEM(ptr);
+    if (ptr == 0 || !VALID_BLK(mp)) {
         return 0;
     }
-    return GET_USIZE(bp);
+    return GET_USIZE(mp);
 }
 
 
-void mprSetAllocCallback(MprCtx ctx, MprAllocFailure cback)
+void mprSetMemNotifier(MprMemNotifier cback)
 {
     heap->notifier = cback;
-    heap->notifierCtx = ctx;
 }
 
 
-void mprSetAllocLimits(MprCtx ctx, int redLine, int maxMemory)
+void mprSetMemCollect(MprMemCollect collect)
+{
+    heap->collect = collect;
+}
+
+
+void mprSetMemLimits(MprCtx IGNORED, int redLine, int maxMemory)
 {
     if (redLine > 0) {
         heap->stats.redLine = redLine;
@@ -526,25 +484,25 @@ void mprSetAllocLimits(MprCtx ctx, int redLine, int maxMemory)
 }
 
 
-void mprSetAllocPolicy(MprCtx ctx, int policy)
+void mprSetMemPolicy(MprCtx IGNORED, int policy)
 {
     heap->allocPolicy = policy;
 }
 
 
-void mprSetAllocError()
+void mprSetMemError()
 {
     heap->hasError = 1;
 }
 
 
-bool mprHasAllocError()
+bool mprHasMemError()
 {
     return heap->hasError;
 }
 
 
-void mprResetAllocError()
+void mprResetMemError()
 {
     heap->hasError = 0;
 }
@@ -552,23 +510,27 @@ void mprResetAllocError()
 
 int mprIsValid(cvoid *ptr)
 {
-    return ptr && VALID_BLK(GET_BLK(ptr));
+    return ptr && VALID_BLK(GET_MEM(ptr));
 }
 
 
-static int dummyAllocDestructor(MprCtx ctx) { return 0; }
+static int dummyManager(void *ptr, int flags) { 
+    return 0; 
+}
 
 
-void *mprUpdateDestructor(void *ptr, MprDestructor destructor)
+void *mprSetManager(void *ptr, void *manager)
 {
-    MprBlk      *bp;
+    MprMem      *mp;
 
-    bp = GET_BLK(ptr);
-    mprAssert(HAS_DESTRUCTOR(bp));
-    if (!destructor) {
-        destructor = dummyAllocDestructor;
+    mp = GET_MEM(ptr);
+    mprAssert(mp->hasManager);
+    if (mp->hasManager) {
+        if (!manager) {
+            manager = dummyManager;
+        }
+        SET_MANAGER(mp, manager);
     }
-    SET_DESTRUCTOR(bp, destructor);
     return ptr;
 }
 
@@ -588,17 +550,17 @@ void *mprUpdateDestructor(void *ptr, MprDestructor destructor)
  */
 static int initFree() 
 {
-    MprFreeBlk  *freeq;
+    MprFreeMem  *freeq;
     
-    heap->freeEnd = &heap->free[MPR_ALLOC_NUM_GROUPS * MPR_ALLOC_NUM_BUCKETS];
-    for (freeq = heap->free; freeq != heap->freeEnd; freeq++) {
+    heap->freeEnd = &heap->freeq[MPR_ALLOC_NUM_GROUPS * MPR_ALLOC_NUM_BUCKETS];
+    for (freeq = heap->freeq; freeq != heap->freeEnd; freeq++) {
 #if BLD_MEMORY_STATS
         size_t      bit, size, groupBits, bucketBits;
         int         index, group, bucket;
         /*
             NOTE: skip the buckets with MSB == 0 (round up)
          */
-        index = (freeq - heap->free);
+        index = (freeq - heap->freeq);
         group = index / MPR_ALLOC_NUM_BUCKETS;
         bucket = index % MPR_ALLOC_NUM_BUCKETS;
 
@@ -607,11 +569,37 @@ static int initFree()
         bucketBits = ((size_t) bucket) << (max(0, group - 1));
 
         size = groupBits | bucketBits;
-        freeq->size = size << MPR_ALIGN_SHIFT;
+        freeq->stats.minSize = size << MPR_ALIGN_SHIFT;
 #endif
-        freeq->forw = freeq->back = freeq;
+        freeq->next = freeq->prev = freeq;
     }
     return 0;
+}
+
+
+static void initGen()
+{
+    heap->eternal = MPR_GEN_ETERNAL;
+    heap->active = heap->eternal - 1;
+    heap->stale = heap->active - 1;
+    heap->dead = heap->stale - 1;
+#if UNUSED
+    heap->mark = heap->active + 1;
+#endif
+}
+
+
+static void nextGen() 
+{
+    int     active;
+
+    active = (heap->active + 1) % MPR_MAX_GEN;
+    heap->active = active;
+    heap->stale = (active - 1 + MPR_MAX_GEN) % MPR_MAX_GEN;
+    heap->dead = (active - 2 + MPR_MAX_GEN) % MPR_MAX_GEN;
+#if UNUSED
+    heap->mark = active + 1;
+#endif
 }
 
 
@@ -626,7 +614,7 @@ static int getQueueIndex(size_t size, int roundup)
         Allocate based on user sizes (sans header). This permits block searches to avoid scanning the next 
         highest queue for common block sizes: eg. 1K.
      */
-    usize = (size - MPR_ALLOC_HDR_SIZE);
+    usize = (size - sizeof(MprMem));
     asize = usize >> MPR_ALIGN_SHIFT;
 
     //  Zero based most significant bit
@@ -639,10 +627,10 @@ static int getQueueIndex(size_t size, int roundup)
     mprAssert(bucket < MPR_ALLOC_NUM_BUCKETS);
 
     index = (group * MPR_ALLOC_NUM_BUCKETS) + bucket;
-    mprAssert(index < (heap->freeEnd - heap->free));
+    mprAssert(index < (heap->freeEnd - heap->freeq));
     
 #if BLD_MEMORY_STATS
-    mprAssert(heap->free[index].size <= usize && usize < heap->free[index + 1].size);
+    mprAssert(heap->freeq[index].stats.minSize <= usize && usize < heap->freeq[index + 1].stats.minSize);
 #endif
     
     if (roundup) {
@@ -666,22 +654,21 @@ static int getQueueIndex(size_t size, int roundup)
 
 
 #if BLD_MEMORY_STATS
-static MprFreeBlk *getQueue(size_t size)
+static MprFreeMem *getQueue(size_t size)
 {   
-    MprFreeBlk  *freeq;
+    MprFreeMem  *freeq;
     int         index;
     
     index = getQueueIndex(size, 0);
-    freeq = &heap->free[index];
+    freeq = &heap->freeq[index];
     return freeq;
 }
 #endif
 
 
-static MprBlk *searchFree(size_t size, int *indexp)
+static MprMem *searchFree(size_t size, int *indexp)
 {
-    MprFreeBlk  *freeq;
-    MprBlk      *bp;
+    MprFreeMem  *freeq, *fp;
     size_t      groupMap, bucketMap;
     int         bucket, baseGroup, group, index;
     
@@ -689,7 +676,8 @@ static MprBlk *searchFree(size_t size, int *indexp)
     baseGroup = index / MPR_ALLOC_NUM_BUCKETS;
     bucket = index % MPR_ALLOC_NUM_BUCKETS;
 
-    lockHeap(heap);
+    lockHeap();
+    INC(requests);
     
     /* Mask groups lower than the base group */
     groupMap = heap->groupMap & ~((((size_t) 1) << baseGroup) - 1);
@@ -703,354 +691,278 @@ static MprBlk *searchFree(size_t size, int *indexp)
             while (bucketMap) {
                 bucket = ffsl(bucketMap) - 1;
                 index = (group * MPR_ALLOC_NUM_BUCKETS) + bucket;
-                freeq = &heap->free[index];
-                if (freeq->forw != freeq) {
-                    bp = (MprBlk*) freeq->forw;
-                    deq(bp);
+                freeq = &heap->freeq[index];
+                if (freeq->next != freeq) {
+                    fp = freeq->next;
+                    unlinkFreeBlock(fp);
                     INC(reuse);
-                    unlockHeap(heap);
-                    CHECK(bp);
-                    return bp;
+                    unlockHeap();
+                    CHECK(fp);
+                    return (MprMem*) fp;
                 }
                 bucketMap &= ~(((size_t) 1) << bucket);
                 heap->bucketMap[group] &= ~(((size_t) 1) << bucket);
             }
             groupMap &= ~(((size_t) 1) << group);
             heap->groupMap &= ~(((size_t) 1) << group);
+
+            /*
+                Put test here so we don't do this in the common path where the block can be satisfied from the free list
+             */
+            unlockHeap();
+            checkGarbage();
+            lockHeap();
         }
     }
-    unlockHeap(heap);
+    unlockHeap();
+    checkGarbage();
     return NULL;
+}
+
+
+static void enq(MprFreeMem *head, MprFreeMem *fp)
+{
+    CHECK(fp);
+    mprAssert(fp != head);
+    mprAssert(fp->next == NULL);
+    mprAssert(fp->prev == NULL);
+
+    fp->next = head->next;
+    fp->prev = head;
+    head->next->prev = fp;
+    head->next = fp;
+
+    mprAssert(fp != fp->next);
+    mprAssert(fp != fp->prev);
+}
+
+
+static void deq(MprFreeMem *fp)
+{
+    CHECK(fp);
+
+    fp->prev->next = fp->next;
+    fp->next->prev = fp->prev;
+#if BLD_MEMORY_DEBUG
+    fp->next = fp->prev = NULL;
+#endif
 }
 
 
 /*
     Add a block to a free q. Must be called locked.
  */
-static void enq(MprBlk *bp) 
+static void linkFreeBlock(MprMem *mp) 
 {
-    MprFreeBlk  *freeq, *fb;
+    MprFreeMem  *freeq, *fp;
     int         index, group, bucket;
 
-    bp->free = 1;
-    bp->pad = 0;
-    
-    index = getQueueIndex(bp->size, 0);
+    //  MOB - just for free list
+    mp->dynamic = 0;
+    mp->visited = 0;
+    mp->builtin = 0;
+    mp->isRoot = 0;
+
+    mp->free = 1;
+    mp->gen = heap->eternal;
+    mp->hasManager = 0;
+    fp = (MprFreeMem*) mp;
+#if BLD_DEBUG
+    fp->next = fp->prev = NULL;
+#endif
+    index = getQueueIndex(mp->size, 0);
     group = index / MPR_ALLOC_NUM_BUCKETS;
     bucket = index % MPR_ALLOC_NUM_BUCKETS;
     heap->groupMap |= (((size_t) 1) << group);
     heap->bucketMap[group] |= (((size_t) 1) << bucket);
 
-    freeq = &heap->free[index];
-    fb = (MprFreeBlk*) bp;
-    fb->forw = freeq->forw;
-    fb->back = freeq;
-    freeq->forw->back = fb;
-    freeq->forw = fb;
+    freeq = &heap->freeq[index];
+    enq(freeq, fp);
+
+    heap->stats.bytesFree += mp->size;
 #if BLD_MEMORY_STATS
-    freeq->count++;
+    freeq->stats.count++;
 #endif
-    heap->stats.bytesFree += bp->size;
 }
 
 
 /*
     Remove a block from a free q. Must be called locked.
  */
-static void deq(MprBlk *bp) 
+static void unlinkFreeBlock(MprFreeMem *fp) 
 {
-    MprFreeBlk  *fb;
+    MprMem  *mp;
+    deq(fp);
+    mp = (MprMem*) fp;
+    heap->stats.bytesFree -= mp->size;
+    mp->free = 0;
+#if BLD_MEMORY_STATS
+{
+    MprFreeMem *freeq = getQueue(mp->size);
+    freeq->stats.count--;
+    mprAssert(freeq->stats.count >= 0);
+}
+#endif
+}
 
-    fb = (MprFreeBlk*) bp;
-    fb->back->forw = fb->forw;
-    fb->forw->back = fb->back;
+
 #if BLD_MEMORY_DEBUG
-    fb->forw = fb->back = NULL;
-#endif
-    bp->free = 0;
-    heap->stats.bytesFree -= bp->size;
-    mprAssert(heap->stats.bytesFree >= 0);
-#if BLD_MEMORY_STATS
+static int isFirst(MprMem *mp)
 {
-    MprFreeBlk *freeq = getQueue(bp->size);
-    freeq->count--;
-    mprAssert(freeq->count >= 0);
-}
-#endif
-}
+    MprRegion   *region;
 
-
-static void linkChild(MprBlk *parent, MprBlk *bp)
-{
-    MprBlk  *children;
-
-    CHECK(bp);
-    mprAssert(bp != parent);
-
-    if (!HAS_CHILDREN(parent)) {
-        mprError(MPR, "Parent is not a context object, use mprAllocObj or mprAllocCtx on parent");
-        return;
-    }
-    children = GET_CHILDREN(parent);
-
-    lockHeap(heap);
-    bp->next = children->next;
-    bp->prev = children;
-    children->next->prev = bp;
-    children->next = bp;
-    unlockHeap(heap);
-}
-
-
-static void unlinkChild(MprBlk *bp)
-{
-    CHECK(bp);
-
-    lockHeap(heap);
-    bp->prev->next = bp->next;
-    bp->next->prev = bp->prev;
-    unlockHeap(heap);
-}
-
-
-/*
-    Get a block off a free queue or allocate if required
- */
-static MprBlk *getBlock(size_t usize, int padWords, int flags)
-{
-    MprBlk      *bp;
-    size_t      maxBlock, size;
-    int         bucket, group, index;
-
-    mprAssert(usize >= 0);
-    size = MPR_ALLOC_ALIGN(usize + MPR_ALLOC_HDR_SIZE + (padWords * sizeof(void*)));
-    
-    if ((bp = searchFree(size, &index)) == NULL) {
-        if ((bp = growHeap(size)) == NULL) {
-            return NULL;
-        }
-        index = getQueueIndex(size, 1);
-    }
-    BREAKPOINT(bp);
-    mprAssert(bp->size >= size);
-
-    if (bp->size >= (size + MPR_ALLOC_MIN_SPLIT)) {
-        group = index / MPR_ALLOC_NUM_BUCKETS;
-        bucket = index % MPR_ALLOC_NUM_BUCKETS;
-        maxBlock = (((size_t) 1 ) << group | (((size_t) bucket) << (max(0, group - 1)))) << MPR_ALIGN_SHIFT;
-        maxBlock += MPR_ALLOC_HDR_SIZE;
-        if (bp->size > maxBlock) {
-            // int gap = bp->size - maxBlock;
-            splitBlock(bp, size, 1);
+    for (region = heap->regions; region; region = region->next) {
+        if (region->start == mp) {
+            return 1;
         }
     }
-
-    if (flags & MPR_ALLOC_ZERO) {
-        memset(GET_PTR(bp), 0, usize);
-    }
-    if (padWords) {
-        bp->pad = padWords;
-        memset(PAD_PTR(bp, padWords), 0, padWords * sizeof(void*));
-        SET_TRAILER(bp, MPR_ALLOC_MAGIC);
-    }
-    CHECK(bp);
-#if BLD_MEMORY_STATS
-{
-    MprFreeBlk *freeq = getQueue(bp->size);
-    lockHeap(heap)
-    INC(requests);
-    freeq->reuse++;
-    unlockHeap(heap);
+    return 0;
 }
 #endif
-    return bp;
-}
 
 
-static void freeBlock(MprBlk *bp)
+static void freeBlock(MprMem *mp)
 {
-    MprBlk  *prev, *next, *after;
-    size_t  size;
+    MprRegion   *region;
+    MprMem      *prev, *next, *after;
+    size_t      size;
 
+    BREAKPOINT(mp);
+
+    size = mp->size;
     after = next = prev = NULL;
+    RESET_MEM(mp);
     
-    BREAKPOINT(bp);
-    RESET_MEM(bp);
-    
-    size = bp->size;
-    bp->pad = 0;
-
     /*
         Coalesce with next if it is also free.
      */
-    lockHeap(heap);
-    next = GET_NEXT(bp);
+    lockHeap();
+    next = GET_NEXT(mp);
     if (next && next->free) {
         BREAKPOINT(next);
-        deq(next);
+        unlinkFreeBlock((MprFreeMem*) next);
         if ((after = GET_NEXT(next)) != NULL) {
             mprAssert(after->prior == next);
-            after->prior = bp;
+            after->prior = mp;
         } else {
-            bp->last = 1;
+            mp->last = 1;
         }
         size += next->size;
-        bp->size = size;
+        mp->size = size;
         INC(joins);
     }
     /*
         Coalesce with previous if it is also free.
      */
-    prev = bp->prior;
+    prev = mp->prior;
     if (prev && prev->free) {
         BREAKPOINT(prev);
-        deq(prev);
-        if ((after = GET_NEXT(bp)) != NULL) {
-            mprAssert(after->prior == bp);
+        unlinkFreeBlock((MprFreeMem*) prev);
+        if ((after = GET_NEXT(mp)) != NULL) {
+            mprAssert(after->prior == mp);
             after->prior = prev;
         } else {
             prev->last = 1;
         }
         size += prev->size;
         prev->size = size;
-        bp = prev;
+        mp = prev;
         INC(joins);
     }
+#if BLD_CC_MMU
+    /*
+        Release entire regions back to the O/S. (Region has no prior and is also last when complete)
+     */
 #if BLD_MEMORY_DEBUG
-    if ((after = GET_NEXT(bp)) != 0) {
-        mprAssert(after->prior == bp);
+    if (mp->prior == NULL) {
+        mprAssert(isFirst(mp) || mp->seqno == 0);
     }
 #endif
-#if BLD_CC_MMU && !BLD_WIN_LIKE
-    /*
-        Windows can't easily release portions of a prior virtual allocation. You can decommit memory on windows, 
-        but the pages are still part of the virtual address space -- so this will result in a loss of virtual space.
-     */
-    if (bp->size >= MPR_ALLOC_RETURN && heap->stats.bytesFree > (MPR_REGION_MIN_SIZE * 4)) {
+    if (mp->prior == NULL && mp->last && heap->stats.bytesFree > (MPR_REGION_MIN_SIZE * 4)) {
         INC(unpins);
-        unlockHeap(heap);
-        virtFree(bp);
+        unlockHeap();
+        region = GET_REGION(mp);
+        mprVirtFree(region, region->size);
     } else
 #endif
     {
-        enq(bp);
-        unlockHeap(heap);
+        linkFreeBlock(mp);
+        unlockHeap();
     }
 }
 
 
 /*
-    Split a block. Required specifies the number of bytes needed in the block. If swap, then put bp back on the free
+    Split a block. Required specifies the number of bytes needed in the block. If swap, then put mp back on the free
     queue instead of the second half.
  */
-static MprBlk *splitBlock(MprBlk *bp, size_t required, int qspare)
+static MprMem *splitBlock(MprMem *mp, size_t required, int qspare)
 {
-    MprBlk      *spare, *after;
+    MprMem      *spare, *after;
     size_t      size, extra;
 
-    mprAssert(bp);
+    mprAssert(mp);
     mprAssert(required > 0);
 
-    CHECK(bp);
-    BREAKPOINT(bp);
-
-    size = bp->size;
+    CHECK(mp);
+    size = mp->size;
     extra = size - required;
     mprAssert(extra >= MPR_ALLOC_MIN_SPLIT);
 
-    spare = (MprBlk*) ((char*) bp + required);
+    spare = (MprMem*) ((char*) mp + required);
     INIT_BLK(spare, extra);
-    spare->last = bp->last;
-    spare->prior = bp;
-    BREAKPOINT(spare);
+    spare->last = mp->last;
+    spare->prior = mp;
 
-    lockHeap(heap);
-    bp->size = required;
-    bp->last = 0;
+    lockHeap();
+    mp->size = required;
+    mp->last = 0;
     if ((after = GET_NEXT(spare)) != NULL) {
         after->prior = spare;
     }
     INC(splits);
     if (qspare) {
-        enq(spare);
+        linkFreeBlock(spare);
     }
     CHECK(spare);
-    CHECK(bp);
-    unlockHeap(heap);
+    CHECK(mp);
+checkPrior(mp);
+checkPrior(spare);
+    unlockHeap();
     return (qspare) ? NULL : spare;
 }
-
-
-#if BLD_CC_MMU && !BLD_WIN_LIKE
-static void virtFree(MprBlk *bp)
-{
-    MprBlk      *spare, *after;
-    size_t      gap;
-
-    /*
-        If block is non-aligned, split the front portion and save
-     */
-    gap = MPR_PAGE_ALIGN(bp, heap->pageSize) - (size_t) bp;
-    if (gap) {
-        if (gap < MPR_ALLOC_MIN_SPLIT) {
-            /* Gap must be useful -- If too small, preserve one extra page with it */
-            gap += heap->pageSize;
-        }
-        spare = splitBlock(bp, gap, 0);
-        bp->last = 1;
-        lockHeap(heap);
-        enq(bp);
-        unlockHeap(heap);
-        bp = spare;
-    }
-
-    /*
-        If non-aligned tail, then split the tail and save
-     */
-    gap = bp->size % heap->pageSize;
-    if (gap) {
-        if (gap < MPR_ALLOC_MIN_SPLIT) {
-            gap += heap->pageSize;
-        }
-        splitBlock(bp, bp->size - gap, 1);
-    }
-
-    lockHeap(heap);
-    if (bp->prior) {
-        bp->prior->last = 1;
-    }
-    if ((after = GET_NEXT(bp)) != NULL) {
-        after->prior = NULL;
-    }
-    heap->stats.bytesAllocated -= bp->size;
-    mprAssert(heap->stats.bytesAllocated >= 0);
-    unlockHeap(heap);
-
-    mprVirtFree((void*) bp, bp->size);
-}
-#endif
 
 
 /*
     Grow the heap and return a block of the required size (unqueued)
  */
-static MprBlk *growHeap(size_t required)
+static MprMem *growHeap(size_t required)
 {
-    MprBlk      *bp;
-    size_t      size;
+    MprRegion   *region;
+    MprMem      *mp;
+    size_t      size, rsize;
 
     mprAssert(required > 0);
 
-    size = max(required, (size_t) heap->chunkSize);
+    rsize = MPR_ALLOC_ALIGN(sizeof(MprRegion));
+    size = max(required + rsize, (size_t) heap->chunkSize);
     size = MPR_PAGE_ALIGN(size, heap->pageSize);
 
-    if ((bp = (MprBlk*) mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
+    if ((region = mprVirtAlloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
         return 0;
     }
-    INIT_BLK(bp, size);
-    bp->last = 1;
-    CHECK(bp);
-    return bp;
+    lockHeap();
+    region->next = heap->regions;
+    region->size = size;
+    region->start = (MprMem*) (((char*) region) + rsize);
+    heap->regions = region;
+
+    mp = (MprMem*) region->start;
+    INIT_BLK(mp, size - rsize);
+    mp->last = 1;
+    unlockHeap();
+    CHECK(mp);
+    return mp;
 }
 
 
@@ -1058,19 +970,19 @@ static void allocException(size_t size, bool granted)
 {
     heap->hasError = 1;
 
-    lockHeap(heap);
+    lockHeap();
     INC(errors);
-    if (heap->stats.inAllocException) {
-        unlockHeap(heap);
+    if (heap->stats.inMemException) {
+        unlockHeap();
         return;
     }
-    heap->stats.inAllocException = 1;
+    heap->stats.inMemException = 1;
+    unlockHeap();
 
     if (heap->notifier) {
-        (heap->notifier)(heap->notifierCtx, size, heap->stats.bytesAllocated, granted);
+        (heap->notifier)(granted ? MPR_ALLOC_LOW : MPR_ALLOC_DEPLETED, size);
     }
-    heap->stats.inAllocException = 0;
-    unlockHeap(heap);
+    heap->stats.inMemException = 0;
 
     if (!granted) {
         switch (heap->allocPolicy) {
@@ -1132,10 +1044,10 @@ void *mprVirtAlloc(size_t size, int mode)
         allocException(size, 0);
         return 0;
     }
-    lockHeap(heap);
+    lockHeap();
     INC(allocs);
     heap->stats.bytesAllocated += size;
-    unlockHeap(heap);
+    unlockHeap();
     return ptr;
 }
 
@@ -1160,7 +1072,7 @@ void mprVirtFree(void *ptr, size_t size)
 
 static void getSystemInfo()
 {
-    MprAllocStats   *ap;
+    MprMemStats   *ap;
 
     ap = &heap->stats;
     ap->numCpu = 1;
@@ -1265,7 +1177,7 @@ static int winPageModes(int flags)
 #endif
 
 
-MprAllocStats *mprGetAllocStats()
+MprMemStats *mprGetMemStats()
 {
 #if LINUX
     char            buf[1024], *cp;
@@ -1334,6 +1246,7 @@ static inline int ffsl(ulong x)
     return (int) r + 1;
 }
 
+
 static inline int flsl(ulong x)
 {
     long r;
@@ -1345,6 +1258,7 @@ static inline int flsl(ulong x)
     return (int) r + 1;
 }
 #else /* USE_FFSL_ASM_X86 */ 
+
 
 /* 
     Find first bit set in word 
@@ -1380,43 +1294,83 @@ static inline int flsl(ulong word)
 #if BLD_MEMORY_STATS
 static void printQueueStats() 
 {
-    MprFreeBlk  *freeq;
+    MprFreeMem  *freeq;
     int         i, index;
 
-    mprRawLog(MPR, 0, "\nFree Queue Stats\n Bucket                     Size   Count        Reuse\n");
-    for (i = 0, freeq = heap->free; freeq != heap->freeEnd; freeq++, i++) {
-        index = (freeq - heap->free);
-        mprRawLog(MPR, 0, "%7d %24lu %7d %12d\n", i, freeq->size, freeq->count, freeq->reuse);
+    printf("\nFree Queue Stats\n Bucket                     Size   Count\n");
+    for (i = 0, freeq = heap->freeq; freeq != heap->freeEnd; freeq++, i++) {
+        index = (freeq - heap->freeq);
+        printf("%7d %24d %7d\n", i, freeq->stats.minSize, freeq->stats.count);
     }
+}
+
+
+static void printGCStats()
+{
+    MprRegion   *region;
+    MprMem      *mp;
+    int         regionCount, i, freeCount, allocatedCount, counts[MPR_MAX_GEN + 2], bytes[MPR_MAX_GEN + 2], free;
+
+    for (i = 0; i < (MPR_MAX_GEN + 2); i++) {
+        counts[i] = bytes[i] = 0;
+    }
+    printf("\nRegion Stats\n");
+    regionCount = 0;
+    free = heap->eternal + 1;
+    for (region = heap->regions; region; region = region->next) {
+        freeCount = allocatedCount = 0;
+        for (mp = region->start; mp; mp = GET_NEXT(mp)) {
+            if (mp->free) {
+                freeCount++;
+                counts[free]++;
+                bytes[free] += mp->size;
+            } else {
+                counts[mp->gen]++;
+                bytes[mp->gen] += mp->size;
+                allocatedCount++;
+            }
+        }
+        regionCount++;
+        printf("  Region %d is %d bytes, has %d allocated %d free\n", i, (int) region->size, allocatedCount, freeCount);
+    }
+    printf("Regions: %d\n", regionCount);
+
+    printf("\nGC Stats\n");
+    printf("  Eternal generation has %9d blocks, %12d bytes\n", counts[heap->eternal], bytes[heap->eternal]);
+    printf("  Stale generation has   %9d blocks, %12d bytes\n", counts[heap->stale], bytes[heap->stale]);
+    printf("  Active generation has  %9d blocks, %12d bytes\n", counts[heap->active], bytes[heap->active]);
+    printf("  Dead generation has    %9d blocks, %12d bytes\n", counts[heap->dead], bytes[heap->dead]);
+    printf("  Free generation has    %9d blocks, %12d bytes\n", counts[free], bytes[free]);
 }
 #endif /* BLD_MEMORY_STATS */
 
 
-void mprPrintAllocReport(cchar *msg, int detail)
+void mprPrintMemReport(cchar *msg, int detail)
 {
 #if BLD_MEMORY_STATS
-    MprAllocStats   *ap;
+    MprMemStats   *ap;
 
-    ap = mprGetAllocStats();
+    ap = mprGetMemStats();
 
-    mprRawLog(MPR, 0, "\n\nMPR Memory Report %s\n", msg);
-    mprRawLog(MPR, 0, "------------------------------------------------------------------------------------------\n");
-    mprRawLog(MPR, 0, "  Total memory           %,14d K\n",              mprGetUsedMemory());
-    mprRawLog(MPR, 0, "  Current heap memory    %,14d K\n",              ap->bytesAllocated / 1024);
-    mprRawLog(MPR, 0, "  Free heap memory       %,14d K\n",              ap->bytesFree / 1024);
-    mprRawLog(MPR, 0, "  Allocation errors      %,14d\n",                ap->errors);
-    mprRawLog(MPR, 0, "  Memory limit           %,14d MB (%d %%)\n",     ap->maxMemory / (1024 * 1024), 
+    printf("\n\nMPR Memory Report %s\n", msg);
+    printf("------------------------------------------------------------------------------------------\n");
+    printf("  Total memory        %14ld K\n",            mprGetUsedMemory());
+    printf("  Current heap memory %14d K\n",             (int) (ap->bytesAllocated / 1024));
+    printf("  Free heap memory    %14d K\n",             (int) (ap->bytesFree / 1024));
+    printf("  Allocation errors   %14d\n",               ap->errors);
+    printf("  Memory limit        %14d MB (%d %%)\n",    (int) (ap->maxMemory / (1024 * 1024)),
        percent(ap->bytesAllocated / 1024, ap->maxMemory / 1024));
-    mprRawLog(MPR, 0, "  Memory redline         %,14d MB (%d %%)\n",     ap->redLine / (1024 * 1024), 
+    printf("  Memory redline      %14d MB (%d %%)\n",    (int) (ap->redLine / (1024 * 1024)),
        percent(ap->bytesAllocated / 1024, ap->redLine / 1024));
 
-    mprRawLog(MPR, 0, "  Memory requests        %,14Ld\n",                ap->requests);
-    mprRawLog(MPR, 0, "  O/S allocations        %d %%\n",                 percent(ap->allocs, ap->requests));
-    mprRawLog(MPR, 0, "  Block unpinns          %d %%\n",                 percent(ap->unpins, ap->requests));
-    mprRawLog(MPR, 0, "  Block reuse            %d %%\n",                 percent(ap->reuse, ap->requests));
-    mprRawLog(MPR, 0, "  Joins                  %d %%\n",                 percent(ap->joins, ap->requests));
-    mprRawLog(MPR, 0, "  Splits                 %d %%\n",                 percent(ap->splits, ap->requests));
+    printf("  Memory requests     %14Ld\n",              ap->requests);
+    printf("  O/S allocations     %14d %%\n",            percent(ap->allocs, ap->requests));
+    printf("  Block unpinns       %14d %%\n",            percent(ap->unpins, ap->requests));
+    printf("  Block reuse         %14d %%\n",            percent(ap->reuse, ap->requests));
+    printf("  Joins               %14d %%\n",            percent(ap->joins, ap->requests));
+    printf("  Splits              %14d %%\n",            percent(ap->splits, ap->requests));
 
+    printGCStats();
     if (detail) {
         printQueueStats();
     }
@@ -1425,28 +1379,397 @@ void mprPrintAllocReport(cchar *msg, int detail)
 
 
 #if BLD_MEMORY_DEBUG
-static int validBlk(MprBlk *bp)
+static int validBlk(MprMem *mp)
 {
-    mprAssert(bp->magic == MPR_ALLOC_MAGIC);
-    mprAssert(bp->size > 0);
-    mprAssert(GET_TRAILER(bp) == MPR_ALLOC_MAGIC);
-    return (bp->magic == MPR_ALLOC_MAGIC) && (bp->size > 0) && (GET_TRAILER(bp) == MPR_ALLOC_MAGIC);
+    mprAssert(mp->magic == MPR_ALLOC_MAGIC);
+    mprAssert(mp->size > 0);
+    return (mp->magic == MPR_ALLOC_MAGIC) && (mp->size > 0);
 }
 
 
-static void check(MprBlk *bp)
+void mprCheckBlock(MprMem *mp)
 {
-    mprAssert(VALID_BLK(bp));
+    mprAssert(VALID_BLK(mp));
 }
 
 
-static void breakpoint(MprBlk *bp) 
+static void breakpoint(MprMem *mp) 
 {
-    if (bp == stopAlloc || bp->seqno == stopSeqno) {
+    if (mp == stopAlloc || mp->seqno == stopSeqno) {
         mprBreakpoint();
     }
 }
 #endif
+
+/*
+    Collect all garbage. This conducts three sweeps of garbage.
+ */
+void mprCollectAllGarbage()
+{
+    if (heap->enabled) {
+        mprPrintMemReport("GC", 0);
+    }
+    mprCollectGarbage();
+    mprCollectGarbage();
+    mprCollectGarbage();
+    if (heap->enabled) {
+        mprPrintMemReport("GC", 0);
+    }
+}
+
+
+#if MPR_GC_WORKERS > 0
+static void startMemWorkers()
+{
+#if MPR_GC_WORKERS == 2
+    heap->hasSweeper = 1;
+    mprStartWorker(NULL, marker, NULL);
+    mprStartWorker(NULL, sweeper, NULL);
+#elif MPR_GC_WORKERS == 1
+    mprStartWorker(NULL, marker, NULL);
+#endif
+}
+#endif
+
+
+/*
+    Initiate a garbage collection. This can be called by any thread and will block until GC is complete.
+ */
+void mprCollectGarbage()
+{
+    lockHeap();
+    heap->newCount = 0;
+    if (heap->collecting || !heap->enabled) {
+        unlockHeap();
+        return;
+    }
+    heap->collecting = 1;
+    unlockHeap();
+
+#if MPR_GC_WORKERS == 0
+    mark();
+#else
+    startMemWorkers();
+    /* Wait for GC sync */
+    mprYieldThread(NULL);
+#endif
+}
+
+
+static void checkGarbage()
+{
+    if (heap->newCount >= heap->newQuota && !heap->collecting && heap->stats.bytesFree < MPR_GC_LOW_MEM) {
+        mprCollectGarbage();
+    }
+}
+
+
+/*
+    Return true if there is time to do a garbage collection and if we will benefit from it.
+ */
+int mprIsTimeForGC(int timeTillNextEvent)
+{
+    if (heap->collecting || timeTillNextEvent < MPR_MIN_TIME_FOR_GC) {
+        return 0;
+    }
+    if (!heap->enabled || heap->newCount < heap->newQuota || heap->stats.bytesFree < MPR_GC_LOW_MEM) {
+        return 0;
+    }
+    mprLog(NULL, 7, "Time for GC. Work done %d, time till next event %d", heap->newCount, timeTillNextEvent);
+    return 1;
+}
+
+
+/*
+    Marker synchronization point. At the end of each GC mark/sweep, all threads must rendezvous at the 
+    synchronization point.  This happens infrequently and is essential to safely move to a new generation.
+    All threads must yield to the marker (including sweeper)
+ */
+static void synchronize()
+{
+    heap->mustYield = 1;
+    if (heap->notifier) {
+        (heap->notifier)(MPR_ALLOC_GC, 0);
+    }
+    //  MOB - Need proper timeout here - should be short
+    if (mprPauseForGCSync(120 * 1000)) {
+        nextGen();
+        heap->mustYield = 0;
+        mprResumeThreadsAfterGC();
+    } else {
+        heap->mustYield = 0;
+    }
+}
+
+
+static void mark()
+{
+    /*
+        Yield this thread first so mprPauseForGCSync will not wait for self in synchronize()
+     */
+    mprYieldThread(NULL);
+    markRoots();
+    if (!heap->hasSweeper) {
+        sweep();
+    }
+    synchronize();
+    printf("GC Complete: MARKED %d/%d, SWEPT %d/%d\n", heap->stats.marked, heap->stats.markVisited, 
+        heap->stats.swept, heap->stats.sweepVisited);
+    mprResumeThread(NULL);
+    heap->collecting = 0;
+}
+
+
+static void sweep()
+{
+    MprRegion   *region;
+    MprMem      *mp;
+    
+    if (!heap->enabled) {
+        return;
+    }
+    heap->stats.sweepVisited = 0;
+    heap->stats.swept = 0;
+
+    for (region = heap->regions; region; region = region->next) {
+        for (mp = region->start; mp; mp = GET_NEXT(mp)) {
+            CHECK(mp);
+            BREAKPOINT(mp);
+            INC(sweepVisited);
+            if (mp->gen == heap->dead) {
+                INC(swept);
+                if (unlikely(mp->hasManager)) {
+                    //  TODO OPT - would be good to have a separate bit for free required
+// printf("SWEEP seqno %d, %s CALL MANAGER()\n", mp->seqno, basename((char*) mp->name));
+                    GET_MANAGER(mp)(GET_PTR(mp), MPR_MANAGE_FREE);
+                } else {
+// printf("SWEEP seqno %d, %s\n", mp->seqno, basename((char*) mp->name));
+                }
+#if UNUSED || 1
+                freeBlock(mp);
+#else
+                RESET_MEM(mp);
+                mp->free = 1;
+                mp->gen = heap->eternal;
+                mp->hasManager = 0;
+#endif
+            }
+        }
+    }
+}
+
+
+static void markRoots()
+{
+    void    *root;
+    int     index, scans;
+
+    heap->stats.markVisited = 0;
+    heap->stats.marked = 0;
+    heap->rescanRoots = 0;
+
+    scans = 0;
+    do {
+        for (index = 0; (root = getNextRoot(&index)) != 0; ) {
+            mprMark(root);
+        }
+    } while (heap->rescanRoots && ++scans < 2);
+    mprMark(heap->roots);
+}
+
+
+void mprMarkBlock(cvoid *ptr)
+{
+    MprMem      *mp;
+
+    mprAssert(ptr);
+    mp = MPR_GET_MEM(ptr);
+    CHECK(mp);
+    INC(markVisited);
+
+    if (mp->mark != heap->active) {
+        BREAKPOINT(mp);
+        INC(marked);
+        mp->mark = heap->active;
+        mprAssert(mp->gen != heap->dead);
+        mp->gen = heap->active;
+        if (mp->hasManager) {
+            (GET_MANAGER(mp))((void*) ptr, MPR_MANAGE_MARK);
+        }
+    }
+}
+
+
+#if UNUSED
+void mprEternalize(void *ptr)
+{
+    MprMem  *mp;
+    int     save;
+
+    if (ptr) {
+        mprPrintMemReport("Before Eternalize", 0);
+        mp = GET_MEM(ptr);
+        checkPrior(mp);
+        CHECK(mp);
+        heap->stats.marked = 0;
+
+        if (mp->hasManager) {
+            lockHeap();
+            while (heap->collecting) {
+                unlockHeap();
+                mprYieldThread(NULL);
+                lockHeap();
+            }
+            save = heap->active;
+            heap->active = heap->eternal;
+            mprMarkBlock(ptr);
+            heap->active = save;
+            unlockHeap();
+        } else {
+            mp->gen = heap->eternal;
+        }
+        printf("Eternalize Complete: Eternalized %d\n", heap->stats.marked);
+        mprPrintMemReport("Eternalized", 0);
+    }
+}
+#endif
+
+
+void mprHold(void *ptr)
+{
+    MprMem  *mp;
+    int     save;
+
+    if (ptr) {
+        mp = GET_MEM(ptr);
+        CHECK(mp);
+        if (mp->hasManager) {
+            lockHeap();
+            while (heap->collecting) {
+                unlockHeap();
+                mprYieldThread(NULL);
+                lockHeap();
+            }
+            save = heap->active;
+            heap->active = heap->eternal;
+            mprMarkBlock(ptr);
+            heap->active = save;
+            unlockHeap();
+        } else {
+            mp->gen = heap->eternal;
+        }
+    }
+}
+
+
+void mprRelease(void *ptr)
+{
+    MprMem  *mp;
+    int     save;
+
+    if (ptr) {
+        mp = GET_MEM(ptr);
+        CHECK(mp);
+        if (mp->hasManager) {
+            lockHeap();
+            while (heap->collecting) {
+                unlockHeap();
+                mprYieldThread(NULL);
+                lockHeap();
+            }
+            save = heap->active;
+            heap->active = heap->eternal;
+            mprMarkBlock(ptr);
+            heap->active = save;
+            unlockHeap();
+        } else {
+            mp->gen = heap->eternal;
+        }
+    }
+}
+
+
+#if UNUSED
+void mprHold(void *ptr)
+{
+    if (ptr) {
+        GET_MEM(ptr)->gen = heap->eternal;
+    }
+}
+
+
+void mprRelease(void *ptr)
+{
+    if (ptr) {
+        GET_MEM(ptr)->gen = heap->active;
+    }
+}
+#endif
+
+
+#if MPR_GC_WORKERS >= 1
+static void marker(void *unused, MprWorker *worker)
+{
+    mark();
+}
+#endif
+
+
+#if MPR_GC_WORKERS >= 2
+static void sweeper(void *unused, MprWorker *worker) 
+{
+    sweep();
+    /* Sync with marker */
+    mprYieldThread(NULL);
+    mprResumeThread(NULL);
+}
+#endif
+
+
+bool mprEnableGC(bool on)
+{
+    bool    old;
+
+    old = heap->enabled;
+    heap->enabled = on;
+    return old;
+}
+
+
+int mprGCSyncup()
+{
+    return heap->mustYield;
+}
+
+
+void mprAddRoot(void *root)
+{
+    mprSpinLock(&heap->rootLock);
+    mprAddItem(heap->roots, root);
+    GET_MEM(root)->isRoot = 1;
+    mprSpinUnlock(&heap->rootLock);
+}
+
+
+void mprRemoveRoot(void *root)
+{
+    mprSpinLock(&heap->rootLock);
+    mprRemoveItem(heap->roots, root);
+    heap->rescanRoots = 1;
+    GET_MEM(root)->isRoot = 0;
+    mprSpinUnlock(&heap->rootLock);
+}
+
+
+static void *getNextRoot(int *indexp)
+{
+    void    *root;
+
+    mprSpinLock(&heap->rootLock);
+    root = mprGetNextItem(heap->roots, indexp);
+    mprSpinUnlock(&heap->rootLock);
+    return root;
+}
 
 
 /*
@@ -1481,7 +1804,7 @@ static void breakpoint(MprBlk *bp)
 
 /************************************************************************/
 /*
- *  End of file "../src/mprAlloc.c"
+ *  End of file "../src/mprMem.c"
  */
 /************************************************************************/
 
@@ -1502,47 +1825,35 @@ static void breakpoint(MprBlk *bp)
 
 
 
-static void memoryFailure(MprCtx ctx, size_t size, size_t total, bool granted);
-static int  mprDestructor(Mpr *mpr);
+static void memoryNotifier(int flags, size_t size);
+static void manageMpr(Mpr *mpr, int flags);
 static void serviceEventsThread(void *data, MprThread *tp);
 
 /*
     Create the MPR service. This routine is the first call an MPR application must do. It creates the top 
     level memory context.
  */
-
-Mpr *mprCreate(int argc, char **argv, MprAllocFailure cback)
-{
-    return mprCreateEx(argc, argv, cback, NULL);
-}
-
-
-/*
-    Add a shell parameter then do the regular init
- */
-Mpr *mprCreateEx(int argc, char **argv, MprAllocFailure cback, void *shell)
+Mpr *mprCreate(int argc, char **argv, MprMemNotifier cback)
 {
     MprFileSystem   *fs;
     Mpr             *mpr;
     char            *cp;
 
     if (cback == 0) {
-        cback = memoryFailure;
+        cback = memoryNotifier;
     }
     srand((uint) time(NULL));
-    mpr = (Mpr*) mprCreateAllocService(cback, (MprDestructor) mprDestructor);
 
-    if (mpr == 0) {
+    if ((mpr = (Mpr*) mprCreateMemService(cback, (MprManager) manageMpr)) == 0) {
         mprAssert(mpr);
         return 0;
     }
-    
     /*
         Wince and Vxworks passes an arg via argc, and the program name in argv. NOTE: this will only work on 32-bit systems.
         TODO - refactor this
      */
 #if WINCE
-    mprMakeArgv(mpr, (char*) argv, mprToAsc(mpr, (uni*) argc), &argc, &argv);
+    mprMakeArgv(mpr, (char*) argv, mprToMulti(mpr, (uni*) argc), &argc, &argv);
 #elif VXWORKS
     mprMakeArgv(mpr, NULL, (char*) argc, &argc, &argv);
 #endif
@@ -1550,14 +1861,22 @@ Mpr *mprCreateEx(int argc, char **argv, MprAllocFailure cback, void *shell)
     mpr->argv = argv;
     mpr->logFd = -1;
 
-    mpr->name = mprStrdup(mpr, BLD_PRODUCT);
-    mpr->title = mprStrdup(mpr, BLD_NAME);
-    mpr->version = mprStrdup(mpr, BLD_VERSION);
+    mpr->title = sclone(mpr, BLD_NAME);
+    mpr->version = sclone(mpr, BLD_VERSION);
+    mpr->idleCallback = mprServicesAreIdle;
 
+    if (mpr->argv && mpr->argv[0] && *mpr->argv[0]) {
+        mpr->name = sclone(mpr, basename(mpr->argv[0]));
+        if ((cp = strchr(mpr->name, '.')) != 0) {
+            *cp = '\0';
+        }
+    } else {
+        mpr->name = sclone(mpr, BLD_PRODUCT);
+    }
     if (mprCreateTimeService(mpr) < 0) {
         goto error;
     }
-    if ((mpr->osService = mprCreateOsService(mpr)) < 0) {
+    if (mprCreateOsService() < 0) {
         goto error;
     }
 
@@ -1565,7 +1884,7 @@ Mpr *mprCreateEx(int argc, char **argv, MprAllocFailure cback, void *shell)
         See if any of the preceeding allocations failed and mark all blocks allocated so far as required.
         They will then be omitted from leak reports.
      */
-    if (mprHasAllocError()) {
+    if (mprHasMemError()) {
         goto error;
     }
     if ((mpr->threadService = mprCreateThreadService(mpr)) == 0) {
@@ -1585,6 +1904,9 @@ Mpr *mprCreateEx(int argc, char **argv, MprAllocFailure cback, void *shell)
     if ((mpr->eventService = mprCreateEventService(mpr)) == 0) {
         goto error;
     }
+    if ((mpr->cmdService = mprCreateCmdService(mpr)) == 0) {
+        goto error;
+    }
     if ((mpr->workerService = mprCreateWorkerService(mpr)) == 0) {
         goto error;
     }
@@ -1594,46 +1916,61 @@ Mpr *mprCreateEx(int argc, char **argv, MprAllocFailure cback, void *shell)
     if ((mpr->socketService = mprCreateSocketService(mpr)) == 0) {
         goto error;
     }
-    if (mpr->argv && mpr->argv[0] && *mpr->argv[0]) {
-        mprFree(mpr->name);
-        mpr->name = mprGetPathBase(mpr, mpr->argv[0]);
-        if ((cp = strchr(mpr->name, '.')) != 0) {
-            *cp = '\0';
-        }
-    }
-
     /*
         Now catch all memory allocation errors up to this point. Should be none.
      */
-    if (mprHasAllocError()) {
+    if (mprHasMemError()) {
         goto error;
     }
     return mpr;
 
-/*
-    Error return
- */
 error:
     mprFree(mpr);
     return 0;
 }
 
 
-static int mprDestructor(Mpr *mpr)
+static void manageMpr(Mpr *mpr, int flags)
 {
-    if ((mpr->flags & MPR_STARTED) && !(mpr->flags & MPR_STOPPED)) {
-        if (!mprStop(mpr)) {
-            return 1;
-        }
-    }
-    return 0;
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(mpr->altLogData);
+        mprMark(mpr->appDir);
+        mprMark(mpr->appPath);
+        mprMark(mpr->cmdService);
+        mprMark(mpr->dispatcher);
+        mprMark(mpr->domainName);
+        mprMark(mpr->ejsService);
+        mprMark(mpr->eventService);
+        mprMark(mpr->fileSystem);
+        mprMark(mpr->hostName);
+        mprMark(mpr->ip);
+        mprMark(mpr->logData);
+        mprMark(mpr->moduleService);
+        mprMark(mpr->mutex);
+        mprMark(mpr->name);
+        mprMark(mpr->osService);
+        mprMark(mpr->serverName);
+        mprMark(mpr->spin);
+        mprMark(mpr->socketService);
+        mprMark(mpr->threadService);
+        mprMark(mpr->timeTokens);
+        mprMark(mpr->title);
+        mprMark(mpr->version);
+        mprMark(mpr->waitService);
+        mprMark(mpr->workerService);
+#if UNUSED
+        mprMark(mpr->heap.cond);
+#endif
 
+    } else if (flags & MPR_MANAGE_FREE) {
+        if ((mpr->flags & MPR_STARTED) && !(mpr->flags & MPR_STOPPED)) {
+            mprStop(mpr);
+        }
+        mprDestroyMemService();
+    }
 }
 
 
-/*
-    Start the Mpr and all services
- */
 int mprStart(Mpr *mpr)
 {
     int     rc;
@@ -1642,7 +1979,6 @@ int mprStart(Mpr *mpr)
     rc += mprStartModuleService(mpr->moduleService);
     rc += mprStartWorkerService(mpr->workerService);
     rc += mprStartSocketService(mpr->socketService);
-
     if (rc != 0) {
         mprUserError(mpr, "Can't start MPR services");
         return MPR_ERR_CANT_INITIALIZE;
@@ -1659,7 +1995,7 @@ bool mprStop(Mpr *mpr)
 
     stopped = 1;
     mprLock(mpr->mutex);
-    if (! (mpr->flags & MPR_STARTED) || (mpr->flags & MPR_STOPPED)) {
+    if ((!(mpr->flags & MPR_STARTED)) || (mpr->flags & MPR_STOPPED)) {
         mprUnlock(mpr->mutex);
         return 0;
     }
@@ -1669,7 +2005,6 @@ bool mprStop(Mpr *mpr)
         Trigger graceful termination. This will prevent further tasks and events being created.
      */
     mprTerminate(mpr, 1);
-
     mprStopSocketService(mpr->socketService);
     if (!mprStopWorkerService(mpr->workerService, MPR_TIMEOUT_STOP_TASK)) {
         stopped = 0;
@@ -1732,6 +2067,124 @@ bool mprIsExiting(MprCtx ctx)
 }
 
 
+bool mprIsComplete(MprCtx ctx)
+{
+    Mpr *mpr;
+
+    mpr = mprGetMpr(ctx);
+    if (mpr == 0) {
+        return 1;
+    }
+    return (mpr->flags & MPR_EXITING) && mprIsIdle(ctx);
+}
+
+
+//  MOB - order file
+
+/*
+    Make an argv array. Caller must free by calling mprFree(argv) to free everything.
+ */
+int mprMakeArgv(MprCtx ctx, cchar *program, cchar *cmd, int *argcp, char ***argvp)
+{
+    char        *cp, **argv, *buf, *args;
+    int         size, argc;
+
+    /*
+        Allocate one buffer for argv and the actual args themselves
+     */
+    size = strlen(cmd) + 1;
+
+    buf = (char*) mprAlloc(ctx, (MPR_MAX_ARGC * sizeof(char*)) + size);
+    if (buf == 0) {
+        return MPR_ERR_MEMORY;
+    }
+    args = &buf[MPR_MAX_ARGC * sizeof(char*)];
+    strcpy(args, cmd);
+    argv = (char**) buf;
+
+    argc = 0;
+    if (program) {
+        argv[argc++] = (char*) sclone(ctx, program);
+    }
+
+    for (cp = args; cp && *cp != '\0'; argc++) {
+        if (argc >= MPR_MAX_ARGC) {
+            mprAssert(argc < MPR_MAX_ARGC);
+            mprFree(buf);
+            *argvp = 0;
+            if (argcp) {
+                *argcp = 0;
+            }
+            return MPR_ERR_TOO_MANY;
+        }
+        while (isspace((int) *cp)) {
+            cp++;
+        }
+        if (*cp == '\0')  {
+            break;
+        }
+        if (*cp == '"') {
+            cp++;
+            argv[argc] = cp;
+            while ((*cp != '\0') && (*cp != '"')) {
+                cp++;
+            }
+        } else {
+            argv[argc] = cp;
+            while (*cp != '\0' && !isspace((int) *cp)) {
+                cp++;
+            }
+        }
+        if (*cp != '\0') {
+            *cp++ = '\0';
+        }
+    }
+    argv[argc] = 0;
+
+    if (argcp) {
+        *argcp = argc;
+    }
+    *argvp = argv;
+
+    return argc;
+}
+
+
+/*
+    Just the Mpr services are idle. Use mprIsIdle to determine if the entire process is idle
+ */
+bool mprServicesAreIdle(MprCtx ctx)
+{
+#if MOB
+    Mpr     *mpr;
+    
+    mpr = mprGetMpr(ctx);
+    return mprGetListCount(mpr->workerService->busyThreads) == 0 && mprGetListCount(mpr->cmdService->cmds) == 0 && 
+        //MOB -- dispatcher here not right
+       !(mpr->dispatcher->flags & MPR_DISPATCHER_DO_EVENT);
+#endif
+    return 1;
+}
+
+
+bool mprIsIdle(MprCtx ctx)
+{
+    return (mprGetMpr(ctx)->idleCallback)(ctx);
+}
+
+
+MprIdleCallback mprSetIdleCallback(MprCtx ctx, MprIdleCallback idleCallback)
+{
+    MprIdleCallback old;
+    Mpr             *mpr;
+    
+    mpr = mprGetMpr(ctx);
+    old = mpr->idleCallback;
+    mpr->idleCallback = idleCallback;
+    return old;
+}
+
+
 void mprSignalExit(MprCtx ctx)
 {
     Mpr     *mpr;
@@ -1763,13 +2216,13 @@ int mprSetAppName(MprCtx ctx, cchar *name, cchar *title, cchar *version)
     }
     if (title) {
         mprFree(mpr->title);
-        if ((mpr->title = mprStrdup(ctx, title)) == 0) {
+        if ((mpr->title = sclone(mpr, title)) == 0) {
             return MPR_ERR_CANT_ALLOCATE;
         }
     }
     if (version) {
         mprFree(mpr->version);
-        if ((mpr->version = mprStrdup(ctx, version)) == 0) {
+        if ((mpr->version = sclone(mpr, version)) == 0) {
             return MPR_ERR_CANT_ALLOCATE;
         }
     }
@@ -1799,7 +2252,7 @@ void mprSetHostName(MprCtx ctx, cchar *s)
     mpr = mprGetMpr(ctx);
     mprLock(mpr->mutex);
     mprFree(mpr->hostName);
-    mpr->hostName = mprStrdup(mpr, s);
+    mpr->hostName = sclone(mpr, s);
     mprUnlock(mpr->mutex);
     return;
 }
@@ -1825,7 +2278,7 @@ void mprSetServerName(MprCtx ctx, cchar *s)
     if (mpr->serverName) {
         mprFree(mpr->serverName);
     }
-    mpr->serverName = mprStrdup(mpr, s);
+    mpr->serverName = sclone(mpr, s);
     return;
 }
 
@@ -1847,10 +2300,8 @@ void mprSetDomainName(MprCtx ctx, cchar *s)
     Mpr     *mpr;
 
     mpr = mprGetMpr(ctx);
-    if (mpr->domainName) {
-        mprFree(mpr->domainName);
-    }
-    mpr->domainName = mprStrdup(mpr, s);
+    mprFree(mpr->domainName);
+    mpr->domainName = sclone(mpr, s);
     return;
 }
 
@@ -1875,7 +2326,7 @@ void mprSetIpAddr(MprCtx ctx, cchar *s)
     if (mpr->ip) {
         mprFree(mpr->ip);
     }
-    mpr->ip = mprStrdup(mpr, s);
+    mpr->ip = sclone(mpr, s);
     return;
 }
 
@@ -1948,15 +2399,16 @@ int mprGetEndian(MprCtx ctx)
 /*
     Default memory handler
  */
-static void memoryFailure(MprCtx ctx, size_t size, size_t total, bool granted)
+static void memoryNotifier(int flags, size_t size)
 {
-    if (!granted) {
-        mprPrintfError(ctx, "Can't allocate memory block of size %d\n", size);
-        mprPrintfError(ctx, "Total memory used %d\n", total);
+    if (flags & MPR_ALLOC_DEPLETED) {
+        mprPrintfError(NULL, "Can't allocate memory block of size %d\n", size);
+        mprPrintfError(NULL, "Total memory used %d\n", mprGetUsedMemory());
         exit(255);
+    } else if (flags & MPR_ALLOC_LOW) {
+        mprPrintfError(NULL, "Memory request for %d bytes exceeds memory red-line\n", size);
+        mprPrintfError(NULL, "Total memory used %d\n", mprGetUsedMemory());
     }
-    mprPrintfError(ctx, "Memory request for %d bytes exceeds memory red-line\n", size);
-    mprPrintfError(ctx, "Total memory used %d\n", total);
 }
 
 
@@ -2312,6 +2764,9 @@ void stubMprAsync() {}
 
 
 
+
+static void manageBuf(MprBuf *buf, int flags);
+
 /*
     Create a new buffer. "maxsize" is the limit to which the buffer can ever grow. -1 means no limit. "initialSize" is 
     used to define the amount to increase the size of the buffer each time if it becomes full. (Note: mprGrowBuf() will 
@@ -2324,7 +2779,7 @@ MprBuf *mprCreateBuf(MprCtx ctx, int initialSize, int maxSize)
     if (initialSize <= 0) {
         initialSize = MPR_DEFAULT_ALLOC;
     }
-    if ((bp = mprAllocCtx(ctx, sizeof(MprBuf))) == 0) {
+    if ((bp = mprAllocObj(ctx, MprBuf, manageBuf)) == 0) {
         return 0;
     }
     bp->growBy = MPR_BUFSIZE;
@@ -2333,7 +2788,15 @@ MprBuf *mprCreateBuf(MprCtx ctx, int initialSize, int maxSize)
 }
 
 
-MprBuf *mprDupBuf(MprCtx ctx, MprBuf *orig)
+static void manageBuf(MprBuf *bp, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(bp->data);
+    } 
+}
+
+
+MprBuf *mprCloneBuf(MprCtx ctx, MprBuf *orig)
 {
     MprBuf      *bp;
     int         len;
@@ -2347,6 +2810,12 @@ MprBuf *mprDupBuf(MprCtx ctx, MprBuf *orig)
         memcpy(bp->data, orig->data, len);
     }
     return bp;
+}
+
+
+char *mprGet(MprCtx ctx, MprBuf *bp)
+{
+    return (char*) bp->start;
 }
 
 
@@ -2374,14 +2843,14 @@ int mprSetBufSize(MprBuf *bp, int initialSize, int maxSize)
          */
         if (bp->buflen < initialSize) {
             if (mprGrowBuf(bp, initialSize - bp->buflen) < 0) {
-                return MPR_ERR_NO_MEMORY;
+                return MPR_ERR_MEMORY;
             }
         }
         bp->maxsize = maxSize;
         return 0;
     }
     if ((bp->data = mprAlloc(bp, initialSize)) == 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     bp->growBy = initialSize;
     bp->maxsize = maxSize;
@@ -2400,19 +2869,6 @@ void mprSetBufMax(MprBuf *bp, int max)
 }
 
 
-char *mprStealBuf(MprCtx ctx, MprBuf *bp)
-{
-    char    *str;
-
-    str = (char*) bp->start;
-
-    mprStealBlock(ctx, bp->start);
-    bp->start = bp->end = bp->data = bp->endbuf = 0;
-    bp->buflen = 0;
-    return str;
-}
-
-
 /*
     This appends a silent null. It does not count as one of the actual bytes in the buffer
  */
@@ -2421,7 +2877,7 @@ void mprAddNullToBuf(MprBuf *bp)
     size_t      space;
 
     space = bp->endbuf - bp->end;
-    if (space < (int) sizeof(char)) {
+    if (space < sizeof(char)) {
         if (mprGrowBuf(bp, 1) < 0) {
             return;
         }
@@ -2436,7 +2892,7 @@ void mprAddNullToBuf(MprBuf *bp)
 void mprAdjustBufEnd(MprBuf *bp, int size)
 {
     mprAssert(bp->buflen == (bp->endbuf - bp->data));
-    mprAssert(size <= bp->buflen);
+    mprAssert(size <= (int) bp->buflen);
     mprAssert((bp->end + size) >= bp->data);
     mprAssert((bp->end + size) <= bp->endbuf);
 
@@ -2457,7 +2913,7 @@ void mprAdjustBufEnd(MprBuf *bp, int size)
 void mprAdjustBufStart(MprBuf *bp, int size)
 {
     mprAssert(bp->buflen == (bp->endbuf - bp->data));
-    mprAssert(size <= bp->buflen);
+    mprAssert(size <= (int) bp->buflen);
     mprAssert((bp->start + size) >= bp->data);
     mprAssert((bp->start + size) <= bp->end);
 
@@ -2516,21 +2972,21 @@ int mprGetBlockFromBuf(MprBuf *bp, char *buf, int size)
 }
 
 
-int mprGetBufLength(MprBuf *bp)
+size_t mprGetBufLength(MprBuf *bp)
 {
-    return (int) (bp->end - bp->start);
+    return (bp->end - bp->start);
 }
 
 
-int mprGetBufSize(MprBuf *bp)
+size_t mprGetBufSize(MprBuf *bp)
 {
     return bp->buflen;
 }
 
 
-int mprGetBufSpace(MprBuf *bp)
+size_t mprGetBufSpace(MprBuf *bp)
 {
-    return (int) (bp->endbuf - bp->end);
+    return (bp->endbuf - bp->end);
 }
 
 
@@ -2590,7 +3046,7 @@ int mprPutCharToBuf(MprBuf *bp, int c)
     mprAssert(bp->buflen == (bp->endbuf - bp->data));
 
     space = bp->buflen - mprGetBufLength(bp);
-    if (space < (int) sizeof(char)) {
+    if (space < sizeof(char)) {
         if (mprGrowBuf(bp, 1) < 0) {
             return -1;
         }
@@ -2606,12 +3062,13 @@ int mprPutCharToBuf(MprBuf *bp, int c)
 }
 
 
-int mprPutBlockToBuf(MprBuf *bp, cchar *str, int size)
+size_t mprPutBlockToBuf(MprBuf *bp, cchar *str, size_t size)
 {
-    int     thisLen, bytes, space;
+    size_t      thisLen, bytes, space;
 
     mprAssert(str);
     mprAssert(size >= 0);
+    mprAssert(size < MAXINT);
 
     bytes = 0;
     while (size > 0) {
@@ -2640,7 +3097,7 @@ int mprPutBlockToBuf(MprBuf *bp, cchar *str, int size)
 int mprPutStringToBuf(MprBuf *bp, cchar *str)
 {
     if (str) {
-        return mprPutBlockToBuf(bp, str, (int) strlen(str));
+        return mprPutBlockToBuf(bp, str, strlen(str));
     }
     return 0;
 }
@@ -2651,7 +3108,7 @@ int mprPutSubStringToBuf(MprBuf *bp, cchar *str, int count)
     int     len;
 
     if (str) {
-        len = (int) strlen(str);
+        len = strlen(str);
         len = min(len, count);
         if (len > 0) {
             return mprPutBlockToBuf(bp, str, len);
@@ -2661,8 +3118,10 @@ int mprPutSubStringToBuf(MprBuf *bp, cchar *str, int count)
 }
 
 
-int mprPutPadToBuf(MprBuf *bp, int c, int count)
+size_t mprPutPadToBuf(MprBuf *bp, int c, size_t count)
 {
+    mprAssert(count < MAXINT);
+
     while (count-- > 0) {
         if (mprPutCharToBuf(bp, c) < 0) {
             return -1;
@@ -2683,14 +3142,9 @@ int mprPutFmtToBuf(MprBuf *bp, cchar *fmt, ...)
     }
     va_start(ap, fmt);
     space = mprGetBufSpace(bp);
-
-    /*
-        Add max that the buffer can grow 
-     */
     space += (bp->maxsize - bp->buflen);
-    buf = mprVasprintf(bp, space, fmt, ap);
+    buf = mprAsprintfv(bp, fmt, ap);
     rc = mprPutStringToBuf(bp, buf);
-
     mprFree(buf);
     va_end(ap);
     return rc;
@@ -2717,7 +3171,7 @@ int mprGrowBuf(MprBuf *bp, int need)
         growBy = bp->growBy;
     }
     if ((newbuf = mprAlloc(bp, bp->buflen + growBy)) == 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     if (bp->data) {
         memcpy(newbuf, bp->data, bp->buflen);
@@ -2753,7 +3207,7 @@ int mprPutIntToBuf(MprBuf *bp, int i)
     char    numBuf[16];
     int     rc;
 
-    mprItoa(numBuf, sizeof(numBuf), i, 10);
+    itos(numBuf, sizeof(numBuf), i, 10);
     rc = mprPutStringToBuf(bp, numBuf);
 
     if (bp->end < bp->endbuf) {
@@ -2804,6 +3258,89 @@ void mprResetBufIfEmpty(MprBuf *bp)
     }
 }
 
+
+#if BLD_CHAR_LEN > 1
+void mprAddNullToWideBuf(MprBuf *bp)
+{
+    size_t      space;
+
+    space = bp->endbuf - bp->end;
+    if (space < sizeof(MprChar)) {
+        if (mprGrowBuf(bp, sizeof(MprChar)) < 0) {
+            return;
+        }
+    }
+    mprAssert(bp->end < bp->endbuf);
+    if (bp->end < bp->endbuf) {
+        *((MprChar*) bp->end) = (char) '\0';
+    }
+}
+
+
+int mprPutCharToWideBuf(MprBuf *bp, int c)
+{
+    MprChar *cp;
+    int     space;
+
+    mprAssert(bp->buflen == (bp->endbuf - bp->data));
+
+    space = bp->buflen - mprGetBufLength(bp);
+    if (space < (sizeof(MprChar) * 2)) {
+        if (mprGrowBuf(bp, sizeof(MprChar) * 2) < 0) {
+            return -1;
+        }
+    }
+    cp = (MprChar*) bp->end;
+    *cp++ = (MprChar) c;
+    bp->end = (char*) cp;
+
+    if (bp->end < bp->endbuf) {
+        *((MprChar*) bp->end) = (char) '\0';
+    }
+    return 1;
+}
+
+
+int mprPutFmtToWideBuf(MprBuf *bp, cchar *fmt, ...)
+{
+    va_list     ap;
+    MprChar     *wbuf;
+    char        *buf;
+    size_t      len;
+    int         rc, space;
+
+    if (fmt == 0) {
+        return 0;
+    }
+    va_start(ap, fmt);
+    space = mprGetBufSpace(bp);
+    space += (bp->maxsize - bp->buflen);
+    buf = mprAsprintfv(bp, fmt, ap);
+    wbuf = amtow(bp, buf, &len);
+    rc = mprPutBlockToBuf(bp, (char*) wbuf, len * sizeof(MprChar));
+    mprFree(buf);
+    mprFree(wbuf);
+    va_end(ap);
+    return rc;
+}
+
+
+int mprPutStringToWideBuf(MprBuf *bp, cchar *str)
+{
+    MprChar     *wstr;
+    size_t      len;
+    int         result;
+
+    if (str) {
+        wstr = amtow(bp, str, &len);
+        result = mprPutBlockToBuf(bp, (char*) wstr, len);
+        mprFree(wstr);
+        return result;
+    }
+    return 0;
+}
+
+#endif /* BLD_CHAR_LEN > 1 */
 
 /*
     @copy   default
@@ -2857,9 +3394,11 @@ void mprResetBufIfEmpty(MprBuf *bp)
 
 
 
+static void closeFiles(MprCmd *cmd);
 static void cmdCallback(MprCmd *cmd, int channel, void *data);
-static int cmdDestructor(MprCmd *cmd);
 static int makeChannel(MprCmd *cmd, int index);
+static void manageCmdService(MprCmdService *cmd, int flags);
+static void manageCmd(MprCmd *cmd, int flags);
 static void resetCmd(MprCmd *cmd);
 static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env);
 static int startProcess(MprCmd *cmd);
@@ -2872,23 +3411,49 @@ static char **fixenv(MprCmd *cmd);
 #if VXWORKS
 typedef int (*MprCmdTaskFn)(int argc, char **argv, char **envp);
 static void cmdTaskEntry(char *program, MprCmdTaskFn entry, int cmdArg);
+static void vxCmdManager(MprCmd *cmd);
 #endif
+
+
+MprCmdService *mprCreateCmdService(Mpr *mpr)
+{
+    MprCmdService   *cs;
+
+    if ((cs = (MprCmdService*) mprAllocObj(mpr, MprCmd, manageCmdService)) == 0) {
+        return 0;
+    }
+    cs->cmds = mprCreateList(cs);
+    cs->mutex = mprCreateLock(cs);
+    return cs;
+}
+
+
+static void manageCmdService(MprCmdService *cs, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(cs->cmds);
+        mprMark(cs->mutex);
+    }
+}
+
 
 /*
     Create a new command object
  */
 MprCmd *mprCreateCmd(MprCtx ctx, MprDispatcher *dispatcher)
 {
+    MprCmdService   *cs;
     MprCmd          *cmd;
     MprCmdFile      *files;
     int             i;
     
-    cmd = mprAllocObj(ctx, MprCmd, cmdDestructor);
+    cmd = mprAllocObj(ctx, MprCmd, manageCmd);
     if (cmd == 0) {
         return 0;
     }
     cmd->timeoutPeriod = MPR_TIMEOUT_CMD;
     cmd->timestamp = mprGetTime(cmd);
+    cmd->forkCallback = (MprForkCallback) closeFiles;
     cmd->dispatcher = dispatcher ? dispatcher : mprGetDispatcher(ctx);
     mprAssert(cmd->dispatcher);
 
@@ -2902,12 +3467,44 @@ MprCmd *mprCreateCmd(MprCtx ctx, MprDispatcher *dispatcher)
         files[i].fd = -1;
     }
     cmd->mutex = mprCreateLock(cmd);
+    cs = mprGetMpr(ctx)->cmdService;
+    mprLock(cs->mutex);
+    mprAddItem(cs->cmds, cmd);
+    mprUnlock(cs->mutex);
     return cmd;
 }
 
 
+static void manageCmd(MprCmd *cmd, int flags)
+{
+    MprCmdService   *cs;
+
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(cmd->dir);
+        mprMark(cmd->env);
+        mprMark(cmd->program);
+        mprMark(cmd->stdoutBuf);
+        mprMark(cmd->stderrBuf);
+        mprMark(cmd->mutex);
+#if BLD_WIN_LIKE
+        mprMark(cmd->command);
+        mprMark(cmd->arg0);
+#endif
+    } else if (flags & MPR_MANAGE_FREE) {
+        resetCmd(cmd);
 #if VXWORKS
-static void vxCmdDestructor(MprCmd *cmd)
+        vxCmdManager(cmd);
+#endif
+        cs = mprGetMpr(ctx)->cmdService;
+        mprLock(cs->mutex);
+        mprAddItem(cs->cmds, cmd);
+        mprUnlock(cs->mutex);
+    }
+}
+
+
+#if VXWORKS
+static void vxCmdManager(MprCmd *cmd)
 {
     MprCmdFile      *files;
     int             i;
@@ -2934,16 +3531,6 @@ static void vxCmdDestructor(MprCmd *cmd)
     }
 }
 #endif
-
-
-static int cmdDestructor(MprCmd *cmd)
-{
-    resetCmd(cmd);
-#if VXWORKS
-    vxCmdDestructor(cmd);
-#endif
-    return 0;
-}
 
 
 static void resetCmd(MprCmd *cmd)
@@ -3086,11 +3673,11 @@ int mprRunCmdV(MprCmd *cmd, int argc, char **argv, char **out, char **err, int f
     if (rc < 0) {
         if (err) {
             if (rc == MPR_ERR_CANT_ACCESS) {
-                *err = mprAsprintf(cmd, -1, "Can't access command %s", cmd->program);
+                *err = mprAsprintf(cmd, "Can't access command %s", cmd->program);
             } else if (MPR_ERR_CANT_OPEN) {
-                *err = mprAsprintf(cmd, -1, "Can't open standard I/O for command %s", cmd->program);
+                *err = mprAsprintf(cmd, "Can't open standard I/O for command %s", cmd->program);
             } else if (rc == MPR_ERR_CANT_CREATE) {
-                *err = mprAsprintf(cmd, -1, "Can't create process for %s", cmd->program);
+                *err = mprAsprintf(cmd, "Can't create process for %s", cmd->program);
             }
         }
         unlock(cmd);
@@ -3144,11 +3731,12 @@ int mprStartCmd(MprCmd *cmd, int argc, char **argv, char **envp, int flags)
     }
     resetCmd(cmd);
     program = argv[0];
-    cmd->program = program;
+    cmd->program = sclone(cmd, program);
     cmd->flags = flags;
 
+//MOB MARK all sanitized args
     if (sanitizeArgs(cmd, argc, argv, envp) < 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     if (access(program, X_OK) < 0) {
         program = mprJoinPathExt(cmd, program, BLD_EXE);
@@ -3669,7 +4257,7 @@ void mprSetCmdDir(MprCmd *cmd, cchar *dir)
     mprAssert(dir && *dir);
 
     mprFree(cmd->dir);
-    cmd->dir = mprStrdup(cmd, dir);
+    cmd->dir = sclone(cmd, dir);
 }
 
 
@@ -3697,7 +4285,7 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
             mprLog(cmd, 6, "cmd: env[%d]: %s", i, env[i]);
         }
         if ((cmd->env = mprAlloc(cmd, (i + 3) * sizeof(char*))) == NULL) {
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
         hasPath = hasLibPath = 0;
         for (index = i = 0; env && env[i]; i++) {
@@ -3714,10 +4302,10 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
             Add PATH and LD_LIBRARY_PATH 
          */
         if (!hasPath && (cp = getenv("PATH")) != 0) {
-            cmd->env[index++] = mprAsprintf(cmd, MPR_MAX_STRING, "PATH=%s", cp);
+            cmd->env[index++] = mprAsprintf(cmd, "PATH=%s", cp);
         }
         if (!hasLibPath && (cp = getenv(LD_LIBRARY_PATH)) != 0) {
-            cmd->env[index++] = mprAsprintf(cmd, MPR_MAX_STRING, "%s=%s", LD_LIBRARY_PATH, cp);
+            cmd->env[index++] = mprAsprintf(cmd, "%s=%s", LD_LIBRARY_PATH, cp);
         }
         cmd->env[index++] = '\0';
         for (i = 0; i < argc; i++) {
@@ -3730,7 +4318,7 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
 #endif
 
 #if BLD_WIN_LIKE
-    char    *program, *SYSTEMROOT, **ep, **ap, *destp, *cp, *progBuf, *localArgv[2], *saveArg0, *PATH, *endp;
+    char    *program, *SYSTEMROOT, **ep, **ap, *destp, *cp, *localArgv[2], *saveArg0, *PATH, *endp;
     int     i, len, hasPath, hasSystemRoot;
 
     mprAssert(argc > 0 && argv[0] != NULL);
@@ -3738,10 +4326,8 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
     cmd->argv = argv;
     cmd->argc = argc;
 
-    program = argv[0];
-    progBuf = mprAlloc(cmd, (int) strlen(program) * 2 + 1);
-    strcpy(progBuf, program);
-    program = progBuf;
+    program = cmd->arg0 = mprAlloc(cmd, strlen(argv[0]) * 2 + 1);
+    strcpy(program, argv[0]);
 
     for (cp = program; *cp; cp++) {
         if (*cp == '/') {
@@ -3755,7 +4341,6 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
             *cp = '\0';
         }
     }
-
     if (argv == 0) {
         argv = localArgv;
         argv[1] = 0;
@@ -3769,7 +4354,7 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
     argv[0] = program;
     argc = 0;
     for (len = 0, ap = argv; *ap; ap++) {
-        len += (int) strlen(*ap) + 1 + 2;         /* Space and possible quotes */
+        len += strlen(*ap) + 1 + 2;         /* Space and possible quotes */
         argc++;
     }
     cmd->command = (char*) mprAlloc(cmd, len + 1);
@@ -3807,7 +4392,7 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
     cmd->env = 0;
     if (env) {
         for (hasSystemRoot =  hasPath = len = 0, ep = env; ep && *ep; ep++) {
-            len += (int) strlen(*ep) + 1;
+            len += strlen(*ep) + 1;
             if (strncmp(*ep, "PATH=", 5) == 0) {
                 hasPath++;
             } else if (strncmp(*ep, "SYSTEMROOT=", 11) == 0) {
@@ -3815,10 +4400,10 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
             }
         }
         if (!hasSystemRoot && (SYSTEMROOT = getenv("SYSTEMROOT")) != 0) {
-            len += 11 + (int) strlen(SYSTEMROOT) + 1;
+            len += 11 + strlen(SYSTEMROOT) + 1;
         }
         if (!hasPath && (PATH = getenv("PATH")) != 0) {
-            len += 5 + (int) strlen(PATH) + 1;
+            len += 5 + strlen(PATH) + 1;
         }
         len += 2;       /* Windows requires 2 nulls for the block end */
 
@@ -4084,9 +4669,7 @@ static int startProcess(MprCmd *cmd)
                 close(2);
             }
         }
-        for (i = 3; i < MPR_MAX_FILE; i++) {
-            close(i);
-        }
+        cmd->forkCallback(cmd->forkData);
         if (cmd->env) {
             rc = execve(cmd->program, cmd->argv, fixenv(cmd));
         } else {
@@ -4156,7 +4739,7 @@ int startProcess(MprCmd *cmd)
     if (cmd->env) {
         for (i = 0; cmd->env[i]; i++) {
             if (strncmp(cmd->env[i], "entryPoint=", 11) == 0) {
-                entryPoint = mprStrdup(cmd, cmd->env[i]);
+                entryPoint = sclone(cmd, cmd->env[i]);
             }
         }
     }
@@ -4164,9 +4747,9 @@ int startProcess(MprCmd *cmd)
     if (entryPoint == 0) {
         program = mprTrimPathExtension(cmd, program);
 #if BLD_HOST_CPU_ARCH == MPR_CPU_IX86 || BLD_HOST_CPU_ARCH == MPR_CPU_IX64
-        entryPoint = mprStrcat(cmd, -1, "_", program, "Main", NULL);
+        entryPoint = sjoin(cmd, NULL, "_", program, "Main", NULL);
 #else
-        entryPoint = mprStrcat(cmd, -1, program, "Main", NULL);
+        entryPoint = sjoin(cmd, NULL, program, "Main", NULL);
 #endif
     }
 
@@ -4316,6 +4899,15 @@ static int makeChannel(MprCmd *cmd, int index)
 #endif /* VXWORKS */
 
 
+static void closeFiles(MprCmd *cmd)
+{
+    int     i;
+    for (i = 3; i < MPR_MAX_FILE; i++) {
+        close(i);
+    }
+}
+
+
 #if BLD_UNIX_LIKE
 /*
     CYGWIN requires a PATH or else execve hangs in cygwin 1.7
@@ -4338,7 +4930,7 @@ static char **fixenv(MprCmd *cmd)
             return NULL;
         }
         i = 0;
-        env[i++] = mprStrcat(cmd, -1, "PATH=", getenv("PATH"), NULL);
+        env[i++] = sjoin(cmd, NULL, "PATH=", getenv("PATH"), NULL);
         for (envc = 0; cmd->env[envc]; envc++) {
             env[i++] = cmd->env[envc];
         }
@@ -4400,7 +4992,7 @@ static char **fixenv(MprCmd *cmd)
 
 
 
-static int condDestructor(MprCond *cp);
+static void manageCond(MprCond *cp, int flags);
 
 /*
     Create a condition variable for use by single or multiple waiters
@@ -4410,7 +5002,7 @@ MprCond *mprCreateCond(MprCtx ctx)
 {
     MprCond     *cp;
 
-    cp = mprAllocObj(ctx, MprCond, condDestructor);
+    cp = mprAllocObj(ctx, MprCond, manageCond);
     if (cp == 0) {
         return 0;
     }
@@ -4428,25 +5020,24 @@ MprCond *mprCreateCond(MprCtx ctx)
 }
 
 
-/*
-    Condition variable destructor
- */
-static int condDestructor(MprCond *cp)
+static void manageCond(MprCond *cp, int flags)
 {
     mprAssert(cp);
     
-    mprAssert(cp->mutex);
-    mprLock(cp->mutex);
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(cp->mutex);
 
+    } else if (flags & MPR_MANAGE_FREE) {
+        mprAssert(cp->mutex);
+        mprLock(cp->mutex);
 #if BLD_WIN_LIKE
-    CloseHandle(cp->cv);
+        CloseHandle(cp->cv);
 #elif VXWORKS
-    semDelete(cp->cv);
+        semDelete(cp->cv);
 #else
-    pthread_cond_destroy(&cp->cv);
+        pthread_cond_destroy(&cp->cv);
 #endif
-    /* mprFree will call the mutex lock destructor */
-    return 0;
+    }
 }
 
 
@@ -4492,7 +5083,7 @@ int mprWaitForCond(MprCond *cp, int timeout)
             } else if (rc == WAIT_TIMEOUT) {
                 rc = MPR_ERR_TIMEOUT;
             } else {
-                rc = MPR_ERR_GENERAL;
+                rc = MPR_ERR;
             }
 #elif VXWORKS
             mprUnlock(cp->mutex);
@@ -4502,7 +5093,7 @@ int mprWaitForCond(MprCond *cp, int timeout)
                 if (errno == S_objLib_OBJ_UNAVAILABLE) {
                     rc = MPR_ERR_TIMEOUT;
                 } else {
-                    rc = MPR_ERR_GENERAL;
+                    rc = MPR_ERR;
                 }
             }
             
@@ -4516,7 +5107,7 @@ int mprWaitForCond(MprCond *cp, int timeout)
                 rc = MPR_ERR_TIMEOUT;
             } else if (rc != 0) {
                 mprAssert(rc == 0);
-                rc = MPR_ERR_GENERAL;
+                rc = MPR_ERR;
             }
 #endif
         } while (!cp->triggered && rc == 0 && (now = mprGetTime(cp)) < expire);
@@ -4609,7 +5200,7 @@ int mprWaitForMultiCond(MprCond *cp, int timeout)
     } else if (rc == WAIT_TIMEOUT) {
         rc = MPR_ERR_TIMEOUT;
     } else {
-        rc = MPR_ERR_GENERAL;
+        rc = MPR_ERR;
     }
 #elif VXWORKS
     rc = semTake(cp->cv, (int) (expire - now));
@@ -4617,7 +5208,7 @@ int mprWaitForMultiCond(MprCond *cp, int timeout)
         if (errno == S_objLib_OBJ_UNAVAILABLE) {
             rc = MPR_ERR_TIMEOUT;
         } else {
-            rc = MPR_ERR_GENERAL;
+            rc = MPR_ERR;
         }
     }
 #elif BLD_UNIX_LIKE
@@ -4627,7 +5218,7 @@ int mprWaitForMultiCond(MprCond *cp, int timeout)
         rc = MPR_ERR_TIMEOUT;
     } else if (rc != 0) {
         mprAssert(rc == 0);
-        rc = MPR_ERR_GENERAL;
+        rc = MPR_ERR;
     }
     mprUnlock(cp->mutex);
 #endif
@@ -4847,11 +5438,11 @@ int mprRandom()
 
 char *mprDecode64(MprCtx ctx, cchar *s)
 {
-    uint        bitBuf;
-    char        *buffer, *bp;
-    int         len, c, i, j, shift;
+    uint    bitBuf;
+    char    *buffer, *bp;
+    int     len, c, i, j, shift;
 
-    len = (int) strlen(s);
+    len = strlen(s);
     if ((buffer = mprAlloc(ctx, len + 1)) == 0) {
         return NULL;
     }
@@ -4886,7 +5477,7 @@ char *mprEncode64(MprCtx ctx, cchar *s)
     char    *buffer, *bp;
     int     len, x, i, j, shift;
 
-    len = (int) strlen(s) * 2;
+    len = strlen(s) * 2;
     if ((buffer = mprAlloc(ctx, len + 1)) == 0) {
         return NULL;
     }
@@ -4915,7 +5506,7 @@ char *mprEncode64(MprCtx ctx, cchar *s)
 /*
     Return the MD5 hash of a block
  */
-char *mprGetMD5Hash(MprCtx ctx, cchar *buf, int length, cchar *prefix)
+char *mprGetMD5Hash(MprCtx ctx, cchar *buf, size_t length, cchar *prefix)
 {
     MD5CONTEXT      context;
     uchar           hash[CRYPT_HASH_SIZE];
@@ -4925,7 +5516,7 @@ char *mprGetMD5Hash(MprCtx ctx, cchar *buf, int length, cchar *prefix)
     int             i, len;
 
     /*
-     *  Take the MD5 hash of the string argument.
+        Take the MD5 hash of the string argument.
      */
     initMD5(&context);
     update(&context, (uchar*) buf, (uint) length);
@@ -4937,7 +5528,7 @@ char *mprGetMD5Hash(MprCtx ctx, cchar *buf, int length, cchar *prefix)
     }
     *r = '\0';
 
-    len = (prefix) ? (int) strlen(prefix) : 0;
+    len = (prefix) ? strlen(prefix) : 0;
     str = (char*) mprAlloc(ctx, sizeof(result) + len);
     if (str) {
         if (prefix) {
@@ -4957,7 +5548,7 @@ static void initMD5(MD5CONTEXT *context)
     context->count[0] = context->count[1] = 0;
 
     /*
-     *  Load constants
+        Load constants
      */
     context->state[0] = 0x67452301;
     context->state[1] = 0xefcdab89;
@@ -5224,7 +5815,7 @@ static void decode(uint *output, uchar *input, uint len)
 
 #if !BLD_FEATURE_ROMFS
 
-static int closeFile(MprFile *file);
+static void manageDiskFile(MprFile *file, int flags);
 static int getPathInfo(MprDiskFileSystem *fileSystem, cchar *path, MprPath *info);
 
 
@@ -5236,8 +5827,12 @@ static MprFile *openFile(MprCtx ctx, MprFileSystem *fileSystem, cchar *path, int
     mprAssert(path);
 
     dfs = (MprDiskFileSystem*) fileSystem;
-    file = mprAllocObj(ctx, MprFile, closeFile);
+    file = mprAllocObj(ctx, MprFile, manageDiskFile);
+    if (file == 0) {
+        return 0;
+    }
     
+    file->path = sclone(file, path);
     file->fd = open(path, omode, perms);
     if (file->fd < 0) {
         mprFree(file);
@@ -5247,7 +5842,19 @@ static MprFile *openFile(MprCtx ctx, MprFileSystem *fileSystem, cchar *path, int
 }
 
 
-static int closeFile(MprFile *file)
+static void manageDiskFile(MprFile *file, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(file->buf);
+        mprMark(file->path);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        mprCloseFile(file);
+    }
+}
+
+
+int mprCloseFile(MprFile *file)
 {
     MprBuf  *bp;
 
@@ -5268,7 +5875,7 @@ static int closeFile(MprFile *file)
 }
 
 
-static int readFile(MprFile *file, void *buf, uint size)
+static size_t readFile(MprFile *file, void *buf, size_t size)
 {
     mprAssert(file);
     mprAssert(buf);
@@ -5277,7 +5884,7 @@ static int readFile(MprFile *file, void *buf, uint size)
 }
 
 
-static int writeFile(MprFile *file, cvoid *buf, uint count)
+static size_t writeFile(MprFile *file, cvoid *buf, size_t count)
 {
     mprAssert(file);
     mprAssert(buf);
@@ -5290,14 +5897,14 @@ static int writeFile(MprFile *file, cvoid *buf, uint count)
 }
 
 
-static long seekFile(MprFile *file, int seekType, long distance)
+static MprOffset seekFile(MprFile *file, int seekType, MprOffset distance)
 {
     mprAssert(file);
 
     if (file == 0) {
         return MPR_ERR_BAD_HANDLE;
     }
-    return lseek(file->fd, distance, seekType);
+    return (MprOffset) lseek(file->fd, distance, seekType);
 }
 
 
@@ -5480,9 +6087,63 @@ static char *getPathLink(MprDiskFileSystem *fileSystem, cchar *path)
         return NULL;
     }
     pbuf[len] = '\0';
-    return mprStrdup(fileSystem, pbuf);
+    return sclone(fileSystem, pbuf);
 #else
     return NULL;
+#endif
+}
+
+
+static int truncateFile(MprDiskFileSystem *fileSystem, cchar *path, MprOffset size)
+{
+    if (!mprPathExists(NULL, path, F_OK)) {
+        return MPR_ERR_CANT_ACCESS;
+    }
+#if BLD_WIN_LIKE
+{
+    HANDLE  h;
+
+    h = CreateFile(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    SetFilePointer(h, size, 0, FILE_BEGIN);
+    if (h == INVALID_HANDLE_VALUE || SetEndOfFile(h) == 0) {
+        CloseHandle(h);
+        return MPR_ERR_CANT_WRITE;
+    }
+    CloseHandle(h);
+}
+#elif VXWORKS
+{
+#if FUTURE
+    int     fd;
+
+    fd = open(path, O_WRONLY, 0664);
+    if (fd < 0 || ftruncate(fd, size) < 0) {
+        return MPR_ERR_CANT_WRITE;
+    }
+    close(fd);
+#endif
+    return MPR_ERR_CANT_WRITE;
+}
+#else
+    if (truncate(path, size) < 0) {
+        return MPR_ERR_CANT_WRITE;
+    }
+#endif
+    return 0;
+}
+
+
+static void manageDiskFileSystem(MprDiskFileSystem *dfs, int flags)
+{
+#if !WINCE
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(dfs->stdError);
+        mprMark(dfs->stdInput);
+        mprMark(dfs->stdOutput);
+        mprMark(dfs->separators);
+        mprMark(dfs->newline);
+        mprMark(dfs->root);
+    }
 #endif
 }
 
@@ -5492,10 +6153,10 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     MprFileSystem       *fs;
     MprDiskFileSystem   *dfs;
 
-    if ((dfs = mprAllocObj(ctx, MprDiskFileSystem, NULL)) == 0) {
+    if ((dfs = mprAllocObj(ctx, MprDiskFileSystem, manageDiskFileSystem)) == 0) {
         return 0;
     }
-    
+
     /*
         Temporary
      */
@@ -5508,9 +6169,10 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     dfs->makeDir = makeDir;
     dfs->makeLink = makeLink;
     dfs->openFile = openFile;
-    dfs->closeFile = closeFile;
+    dfs->closeFile = mprCloseFile;
     dfs->readFile = readFile;
     dfs->seekFile = seekFile;
+    dfs->truncateFile = truncateFile;
     dfs->writeFile = writeFile;
 
 #if !WINCE
@@ -5518,6 +6180,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     if (dfs->stdError == 0) {
         mprFree(dfs);
     }
+    mprSetName(dfs->stdError, "stderr");
     dfs->stdError->fd = 2;
     dfs->stdError->fileSystem = fs;
     dfs->stdError->mode = O_WRONLY;
@@ -5526,6 +6189,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     if (dfs->stdInput == 0) {
         mprFree(dfs);
     }
+    mprSetName(dfs->stdInput, "stdin");
     dfs->stdInput->fd = 0;
     dfs->stdInput->fileSystem = fs;
     dfs->stdInput->mode = O_RDONLY;
@@ -5534,6 +6198,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
     if (dfs->stdOutput == 0) {
         mprFree(dfs);
     }
+    mprSetName(dfs->stdOutput, "stdout");
     dfs->stdOutput->fd = 1;
     dfs->stdOutput->fileSystem = fs;
     dfs->stdOutput->mode = O_WRONLY;
@@ -5599,11 +6264,12 @@ MprDiskFileSystem *mprCreateDiskFileSystem(MprCtx ctx, cchar *path)
 
 
 static void dequeueDispatcher(MprDispatcher *dispatcher);
-static int  dispatcherDestructor(MprDispatcher *dispatcher);
 static int getIdleTime(MprEventService *ds, MprDispatcher *dispatcher);
 static MprDispatcher *getNextReadyDispatcher(MprEventService *es);
 static void initDispatcherQ(MprEventService *ds, MprDispatcher *q, cchar *name);
 static bool isIdle(MprEventService *es, MprDispatcher *dispatcher);
+static void manageDispatcher(MprDispatcher *dispatcher, int flags);
+static void manageEventService(MprEventService *es, int flags);
 static void queueDispatcher(MprDispatcher *prior, MprDispatcher *dispatcher);
 
 #define isRunning(dispatcher) (dispatcher->parent == &dispatcher->service->runQ)
@@ -5620,7 +6286,7 @@ MprEventService *mprCreateEventService(MprCtx ctx)
     Mpr                 *mpr;
 
     mpr = mprGetMpr(ctx);
-    if ((es = mprAllocObj(ctx, MprEventService, NULL)) == 0) {
+    if ((es = mprAllocObj(ctx, MprEventService, manageEventService)) == 0) {
         return 0;
     }
     mpr->eventService = es;
@@ -5631,8 +6297,38 @@ MprEventService *mprCreateEventService(MprCtx ctx)
     initDispatcherQ(es, &es->readyQ, "ready");
     initDispatcherQ(es, &es->idleQ, "idle");
     initDispatcherQ(es, &es->waitQ, "waiting");
-    mpr->dispatcher = mprCreateDispatcher(mpr, "mpr", 1);
+
+    //  MOB -- move this to MPR
+    mpr->dispatcher = mprCreateDispatcher(es, "mpr", 1);
     return es;
+}
+
+
+static void manageEventService(MprEventService *es, int flags)
+{
+    MprDispatcher   *dp, *q;
+
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(es->waitCond);
+        mprMark(es->mutex);
+
+        q = &es->runQ;
+        for (dp = q->next; dp != q; dp = dp->next) {
+            mprMark(dp);
+        }
+        q = &es->readyQ;
+        for (dp = q->next; dp != q; dp = dp->next) {
+            mprMark(dp);
+        }
+        q = &es->waitQ;
+        for (dp = q->next; dp != q; dp = dp->next) {
+            mprMark(dp);
+        }
+        q = &es->idleQ;
+        for (dp = q->next; dp != q; dp = dp->next) {
+            mprMark(dp);
+        }
+    }
 }
 
 
@@ -5771,11 +6467,12 @@ int mprServiceEvents(MprCtx ctx, MprDispatcher *dispatcher, int timeout, int fla
             idle = getIdleTime(es, dispatcher);
             delay = min(delay, idle);
         }
-        while ((dp = getNextReadyDispatcher(es)) != NULL && !mprIsExiting(mpr)) {
+        while ((dp = getNextReadyDispatcher(es)) != NULL && !mprIsComplete(mpr)) {
             mprAssert(isRunning(dp));
             if (dp->requiredWorker) {
                 mprActivateWorker(dp->requiredWorker, (MprWorkerProc) serviceDispatcher, dp);
             } else {
+//  MOB -- need option to run events without starting a worker
                 if (mprStartWorker(dp, (MprWorkerProc) serviceDispatcher, dp) < 0) {
                     /* Can't start a worker thread. Put back on the wait queue */
                     queueDispatcher(&es->waitQ, dp);
@@ -5788,21 +6485,31 @@ int mprServiceEvents(MprCtx ctx, MprDispatcher *dispatcher, int timeout, int fla
         lock(es);
         if (delay > 0) {
             if (es->eventCount == eventCount && isIdle(es, dispatcher)) {
+                /*
+                    Allow GC sync at this point
+                 */
+                mprYieldThread(NULL);
                 if (es->waiting) {
                     unlock(es);
                     mprWaitForMultiCond(es->waitCond, delay);
                 } else {
                     es->waiting = 1;
                     unlock(es);
+#if MPR_GC_WORKERS == 0
+                    if (mprIsTimeForGC(delay)) {
+                        mprCollectGarbage();
+                    }
+#endif
                     mprWaitForIO(mpr->waitService, delay);
                     es->waiting = 0;
                     mprSignalMultiCond(es->waitCond);
                 }
+                mprResumeThread(NULL);
             } else unlock(es);
         } else unlock(es);
 
         es->now = mprGetTime(mpr);
-    } while (es->now < expires && !justOne && !mprIsExiting(es));
+    } while (es->now < expires && !justOne && !mprIsComplete(es));
 
     if (dispatcher && !wasRunning) {
         lock(es);
@@ -5822,9 +6529,10 @@ MprDispatcher *mprCreateDispatcher(MprCtx ctx, cchar *name, int enable)
     MprEventService     *es;
     MprDispatcher       *dispatcher;
 
-    if ((dispatcher = mprAllocObj(ctx, MprDispatcher, dispatcherDestructor)) == 0) {
+    if ((dispatcher = mprAllocObj(ctx, MprDispatcher, manageDispatcher)) == 0) {
         return 0;
     }
+    //  MOB - cleanup. Requires name to be static. It is this way because some dispatchers are not allocated.
     dispatcher->name = name;
     dispatcher->enabled = enable;
     es = dispatcher->service = mprGetMpr(ctx)->eventService;
@@ -5834,21 +6542,27 @@ MprDispatcher *mprCreateDispatcher(MprCtx ctx, cchar *name, int enable)
 }
 
 
-static int dispatcherDestructor(MprDispatcher *dispatcher)
+static void manageDispatcher(MprDispatcher *dispatcher, int flags)
 {
-    MprEventService     *es;
+    MprEvent        *q, *event;
 
-    es = dispatcher->service;
-    lock(es);
-    dequeueDispatcher(dispatcher);
-    dispatcher->deleted = 1;
-    if (dispatcher->inUse) {
+    if (flags & MPR_MANAGE_MARK) {
+        q = &dispatcher->eventQ;
+        for (event = q->next; event != q; event = event->next) {
+            mprMark(event);
+        }
+    } else if (flags & MPR_MANAGE_FREE) {
+        MprEventService     *es;
+        es = dispatcher->service;
+        lock(es);
+        dequeueDispatcher(dispatcher);
+        dispatcher->deleted = 1;
+        if (dispatcher->inUse) {
+            mprAssert(!dispatcher->inUse);
+            unlock(es);
+        }
         unlock(es);
-        /* Abort the free */
-        return -1;
     }
-    unlock(es);
-    return 0;
 }
 
 
@@ -6312,7 +7026,7 @@ char *mprUriDecode(MprCtx ctx, cchar *inbuf)
 
     mprAssert(inbuf);
 
-    if ((result = mprStrdup(ctx, inbuf)) == 0) {
+    if ((result = sclone(ctx, inbuf)) == 0) {
         return 0;
     }
 
@@ -6463,7 +7177,7 @@ cchar *mprLookupMimeType(MprCtx ctx, cchar *ext)
         return "";
     }
     if (mimeTable == 0) {
-        mimeTable = mprCreateHash(mprGetMpr(ctx), 67, 0);
+        mimeTable = mprCreateHash(mprGetMpr(ctx), 67, MPR_HASH_PERM_KEYS);
         for (cp = mimeTypes; cp[0]; cp += 2) {
             mprAddHash(mimeTable, cp[0], cp[1]);
         }
@@ -6536,7 +7250,7 @@ cchar *mprLookupMimeType(MprCtx ctx, cchar *ext)
 #if MPR_EVENT_EPOLL
 
 static int growEvents(MprWaitService *ws);
-static int epollNotifierDestructor(MprWaitService *ws);
+static void manageEpoll(MprWaitService *ws, int flags);
 static void serviceIO(MprWaitService *ws, int count);
 
 
@@ -6571,19 +7285,23 @@ int mprCreateNotifierService(MprWaitService *ws)
     ev.data.fd = ws->breakPipe[MPR_READ_PIPE];
     epoll_ctl(ws->epoll, EPOLL_CTL_ADD, ws->breakPipe[MPR_READ_PIPE], &ev);
 
-    if (mprAllocObj(ws, char*, epollNotifierDestructor) == 0) {
-        return MPR_ERR_NO_MEMORY;
+    if (mprAllocObj(ws, char*, manageEpoll) == 0) {
+        return MPR_ERR_MEMORY;
     }
     return 0;
 }
 
 
-static int epollNotifierDestructor(MprWaitService *ws)
+static void manageEpoll(MprWaitService *ws, int flags)
 {
-    if (ws->epoll) {
-        close(ws->epoll);
+    if (flags & MPR_MANAGE_MARK) {
+        ;
+    } else if (flags & MPR_MANAGE_FREE) {
+        if (ws->epoll) {
+            close(ws->epoll);
+            ws->epoll = 0;
+        }
     }
-    return 0;
 }
 
 
@@ -6592,7 +7310,7 @@ static int growEvents(MprWaitService *ws)
     ws->eventsMax *= 2;
     ws->events = mprRealloc(ws, ws->events, sizeof(struct epoll_event) * ws->eventsMax);
     if (ws->events == 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     return 0;
 }
@@ -6622,7 +7340,7 @@ int mprAddNotifier(MprWaitService *ws, MprWaitHandler *wp, int mask)
             oldlen = ws->handlerMax;
             ws->handlerMax = fd + 32;
             if ((ws->handlerMap = mprRealloc(ws, ws->handlerMap, sizeof(MprWaitHandler*) * ws->handlerMax)) == 0) {
-                return MPR_ERR_NO_MEMORY;
+                return MPR_ERR_MEMORY;
             }
             memset(&ws->handlerMap[oldlen], 0, sizeof(MprWaitHandler*) * (ws->handlerMax - oldlen));
         }
@@ -6845,7 +7563,7 @@ void stubMmprEpoll() {}
 
 
 static void dequeueEvent(MprEvent *event);
-static int  eventDestructor(MprEvent *event);
+static void manageEvent(MprEvent *event, int flags);
 static void queueEvent(MprEvent *prior, MprEvent *event);
 
 /*
@@ -6856,7 +7574,7 @@ MprEvent *mprCreateEvent(MprDispatcher *dispatcher, cchar *name, int period, Mpr
 {
     MprEvent    *event;
 
-    if ((event = mprAllocObj(dispatcher, MprEvent, eventDestructor)) == 0) {
+    if ((event = mprAllocObj(dispatcher, MprEvent, manageEvent)) == 0) {
         return 0;
     }
     mprInitEvent(dispatcher, event, name, period, proc, data, flags);
@@ -6865,12 +7583,16 @@ MprEvent *mprCreateEvent(MprDispatcher *dispatcher, cchar *name, int period, Mpr
 }
 
 
-static int eventDestructor(MprEvent *event)
+static void manageEvent(MprEvent *event, int flags)
 {
-    if (event->next) {
-        mprRemoveEvent(event);
+    if (flags & MPR_MANAGE_MARK) {
+        ;
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        if (event->next) {
+            mprRemoveEvent(event);
+        }
     }
-    return 0;
 }
 
 
@@ -7118,7 +7840,8 @@ static void dequeueEvent(MprEvent *event)
 
 
 
-static int  fillBuf(MprFile *file);
+static int fillBuf(MprFile *file);
+static void manageFile(MprFile *file, int flags);
 
 
 MprFile *mprAttachFd(MprCtx ctx, int fd, cchar *name, int omode)
@@ -7128,166 +7851,26 @@ MprFile *mprAttachFd(MprCtx ctx, int fd, cchar *name, int omode)
 
     fs = mprLookupFileSystem(ctx, "/");
 
-    file = mprAllocObj(ctx, MprFile, NULL);
+    file = mprAllocObj(ctx, MprFile, manageFile);
     if (file) {
         file->fd = fd;
         file->fileSystem = fs;
-        file->path = mprStrdup(file, name);
+        file->path = sclone(file, name);
         file->mode = omode;
     }
     return file;
 }
 
 
-MprFile *mprGetStderr(MprCtx ctx)
+static void manageFile(MprFile *file, int flags)
 {
-    MprFileSystem   *fs;
-    fs = mprLookupFileSystem(ctx, NULL);
-    return fs->stdError;
-}
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(file->buf);
+        mprMark(file->path);
 
-
-MprFile *mprGetStdin(MprCtx ctx)
-{
-    MprFileSystem   *fs;
-    fs = mprLookupFileSystem(ctx, NULL);
-    return fs->stdInput;
-}
-
-
-MprFile *mprGetStdout(MprCtx ctx)
-{
-    MprFileSystem   *fs;
-    fs = mprLookupFileSystem(ctx, NULL);
-    return fs->stdOutput;
-}
-
-
-MprFile *mprOpen(MprCtx ctx, cchar *path, int omode, int perms)
-{
-    MprFileSystem   *fs;
-    MprFile         *file;
-    MprPath         info;
-
-    fs = mprLookupFileSystem(ctx, path);
-
-    file = fs->openFile(ctx, fs, path, omode, perms);
-    if (file) {
-        file->fileSystem = fs;
-        file->path = mprStrdup(file, path);
-        if (omode & (O_WRONLY | O_RDWR)) {
-            /*
-                OPT. Should compute this lazily.
-             */
-            fs->getPathInfo(fs, path, &info);
-            file->size = (MprOffset) info.size;
-        }
-        file->mode = omode;
-        file->perms = perms;
+    } else if (flags & MPR_MANAGE_FREE) {
+        mprCloseFile(file);
     }
-    return file;
-}
-
-
-int mprRead(MprFile *file, void *buf, uint size)
-{
-    MprFileSystem   *fs;
-    MprBuf          *bp;
-    void            *bufStart;
-    int             bytes, totalRead;
-
-    mprAssert(file);
-    if (file == 0) {
-        return MPR_ERR_BAD_HANDLE;
-    }
-
-    fs = file->fileSystem;
-    bp = file->buf;
-    if (bp == 0) {
-        totalRead = fs->readFile(file, buf, size);
-
-    } else {
-        bufStart = buf;
-        while (size > 0) {
-            if (mprGetBufLength(bp) == 0) {
-                bytes = fillBuf(file);
-                if (bytes <= 0) {
-                    return -1;
-                }
-            }
-            bytes = min((int) size, mprGetBufLength(bp));
-            memcpy(buf, mprGetBufStart(bp), bytes);
-            mprAdjustBufStart(bp, bytes);
-            buf = (void*) (((char*) buf) + bytes);
-            size -= bytes;
-        }
-        totalRead = (int) ((char*) buf - (char*) bufStart);
-    }
-    file->pos += totalRead;
-    return totalRead;
-}
-
-
-int mprWrite(MprFile *file, cvoid *buf, uint count)
-{
-    MprFileSystem   *fs;
-    MprBuf          *bp;
-    int             bytes, written;
-
-    mprAssert(file);
-    if (file == 0) {
-        return MPR_ERR_BAD_HANDLE;
-    }
-
-    fs = file->fileSystem;
-    bp = file->buf;
-    if (bp == 0) {
-        if ((written = fs->writeFile(file, buf, count)) < 0) {
-            return written;
-        }
-
-    } else {
-        written = 0;
-        while (count > 0) {
-            bytes = mprPutBlockToBuf(bp, buf, count);
-            if (bytes < 0) {
-                return bytes;
-            } 
-            if (bytes != (int) count) {
-                mprFlush(file);
-            }
-            count -= bytes;
-            written += bytes;
-            buf = (char*) buf + bytes;
-        }
-    }
-    file->pos += written;
-    if (file->pos > file->size) {
-        file->size = file->pos;
-    }
-    return written;
-}
-
-
-int mprWriteString(MprFile *file, cchar *str)
-{
-    return mprWrite(file, str, (int) strlen(str));
-}
-
-
-int mprWriteFormat(MprFile *file, cchar *fmt, ...)
-{
-    va_list     ap;
-    char        *buf;
-    int         rc;
-
-    rc = -1;
-    va_start(ap, fmt);
-    if ((buf = mprVasprintf(file, -1, fmt, ap)) != NULL) {
-        rc = mprWriteString(file, buf);
-    }
-    va_end(ap);
-    return rc;
 }
 
 
@@ -7322,55 +7905,6 @@ int mprFlush(MprFile *file)
 }
 
 
-//  TODO - pos should be a MprOffset
-
-long mprSeek(MprFile *file, int seekType, long pos)
-{
-    MprFileSystem   *fs;
-
-    mprAssert(file);
-
-    fs = file->fileSystem;
-
-    if (file->buf) {
-        if (! (seekType == SEEK_CUR && pos == 0)) {
-            /*
-                Discard buffering as we may be seeking outside the buffer.
-                OPT. Could be smarter about this and preserve the buffer.
-             */
-            if (file->mode & (O_WRONLY | O_RDWR)) {
-                if (mprFlush(file) < 0) {
-                    return MPR_ERR_CANT_WRITE;
-                }
-            }
-            if (file->buf) {
-                mprFlushBuf(file->buf);
-            }
-        }
-    }
-
-    if (seekType == SEEK_SET) {
-        file->pos = pos;
-
-    } else if (seekType == SEEK_CUR) {
-        file->pos += pos;
-
-    } else {
-        file->pos = fs->seekFile(file, SEEK_END, 0);
-    }
-
-    if (fs->seekFile(file, SEEK_SET, (long) file->pos) != (long) file->pos) {
-        return MPR_ERR;
-    }
-    if (file->mode & (O_WRONLY | O_RDWR)) {
-        if (file->pos > file->size) {
-            file->size = file->pos;
-        }
-    }
-    return (long) file->pos;
-}
-
-
 MprOffset mprGetFilePosition(MprFile *file)
 {
     return file->pos;
@@ -7383,119 +7917,27 @@ MprOffset mprGetFileSize(MprFile *file)
 }
 
 
-/*
-    Fill the read buffer. Return the new buffer length. Only called when the buffer is empty.
- */
-static int fillBuf(MprFile *file)
+MprFile *mprGetStderr(MprCtx ctx)
 {
     MprFileSystem   *fs;
-    MprBuf          *bp;
-    int             len;
-
-    bp = file->buf;
-    fs = file->fileSystem;
-
-    mprAssert(mprGetBufLength(bp) == 0);
-    mprFlushBuf(bp);
-
-    len = fs->readFile(file, mprGetBufStart(bp), mprGetBufSpace(bp));
-    if (len <= 0) {
-        return len;
-    }
-    mprAdjustBufEnd(bp, len);
-    return len;
+    fs = mprLookupFileSystem(ctx, NULL);
+    return fs->stdError;
 }
 
 
-//  TODO - should this strdup?
-/*
-    Get a string from the file. This will put the file into buffered mode.
- */
-char *mprGets(MprFile *file, char *buf, uint size)
+MprFile *mprGetStdin(MprCtx ctx)
 {
-    MprBuf          *bp;
     MprFileSystem   *fs;
-    int             count, c;
-
-    mprAssert(file);
-    if (file == 0) {
-        return 0;
-    }
-
-    fs = file->fileSystem;
-    if (file->buf == 0) {
-        file->buf = mprCreateBuf(file, MPR_BUFSIZE, MPR_MAX_STRING);
-    }
-    bp = file->buf;
-
-    /*
-        Must leave room for null
-     */
-    count = 0;
-    while (--size > 0) {
-        if (mprGetBufLength(bp) == 0) {
-            if (fillBuf(file) <= 0) {
-                return 0;
-            }
-        }
-        if ((c = mprGetCharFromBuf(bp)) == '\n') {
-            file->pos++;
-            break;
-        }
-        buf[count++] = c;
-    }
-    buf[count] = '\0';
-    file->pos += count;
-    return buf;
+    fs = mprLookupFileSystem(ctx, NULL);
+    return fs->stdInput;
 }
 
 
-/*
-    Put a string to the file. This will put the file into buffered mode.
- */
-int mprPuts(MprFile *file, cchar *str)
+MprFile *mprGetStdout(MprCtx ctx)
 {
-    MprBuf  *bp;
-    char    *buf;
-    int     total, bytes, count;
-
-    mprAssert(file);
-    count = (int) strlen(str);
-
-    /*
-        Buffer output and flush when full.
-     */
-    if (file->buf == 0) {
-        file->buf = mprCreateBuf(file, MPR_BUFSIZE, 0);
-        if (file->buf == 0) {
-            return MPR_ERR_CANT_ALLOCATE;
-        }
-    }
-    bp = file->buf;
-
-    if (mprGetBufLength(bp) > 0 && mprGetBufSpace(bp) < (int) count) {
-        mprFlush(file);
-    }
-    total = 0;
-    buf = (char*) str;
-
-    while (count > 0) {
-        bytes = mprPutBlockToBuf(bp, buf, count);
-        if (bytes < 0) {
-            return MPR_ERR_CANT_ALLOCATE;
-
-        } else if (bytes == 0) {
-            if (mprFlush(file) < 0) {
-                return MPR_ERR_CANT_WRITE;
-            }
-            continue;
-        }
-        count -= bytes;
-        buf += bytes;
-        total += bytes;
-        file->pos += bytes;
-    }
-    return total;
+    MprFileSystem   *fs;
+    fs = mprLookupFileSystem(ctx, NULL);
+    return fs->stdOutput;
 }
 
 
@@ -7528,6 +7970,130 @@ int mprGetc(MprFile *file)
     }
     file->pos++;
     return mprGetCharFromBuf(bp);
+}
+
+
+/*
+    Get a string from the file. This will put the file into buffered mode.
+    Return NULL on eof.
+ */
+char *mprGets(MprFile *file, size_t size, int *lenp)
+{
+    MprBuf          *bp;
+    MprFileSystem   *fs;
+    cchar           *eol, *newline;
+    size_t          len;
+    int             count;
+
+    mprAssert(file);
+    if (file == 0) {
+        return NULL;
+    }
+    if (size == 0) {
+        size = MAXSIZE;
+    }
+    fs = file->fileSystem;
+    newline = fs->newline;
+    if (file->buf == 0) {
+        file->buf = mprCreateBuf(file, size, size);
+    }
+    bp = file->buf;
+    /*
+        Must leave room for null
+     */
+    count = 0;
+    while (--size > 0) {
+        if (mprGetBufLength(bp) == 0) {
+            if (fillBuf(file) <= 0) {
+                return NULL;
+            }
+        }
+        if ((eol = scontains(mprGetBufStart(bp), newline, mprGetBufLength(bp))) != 0) {
+            len = eol - mprGetBufStart(bp);
+            if (lenp) {
+                *lenp = len;
+            }
+            file->pos += len + slen(newline);
+            return ssub(NULL, mprGetBufStart(bp), 0, len);
+        }
+    }
+    file->pos += size;
+    return ssub(NULL, mprGetBufStart(bp), 0, size);
+}
+
+
+MprFile *mprOpen(MprCtx ctx, cchar *path, int omode, int perms)
+{
+    MprFileSystem   *fs;
+    MprFile         *file;
+    MprPath         info;
+
+    fs = mprLookupFileSystem(ctx, path);
+
+    file = fs->openFile(ctx, fs, path, omode, perms);
+    if (file) {
+        file->fileSystem = fs;
+        file->path = sclone(file, path);
+        if (omode & (O_WRONLY | O_RDWR)) {
+            /*
+                OPT. Should compute this lazily.
+             */
+            fs->getPathInfo(fs, path, &info);
+            file->size = (MprOffset) info.size;
+        }
+        file->mode = omode;
+        file->perms = perms;
+    }
+    return file;
+}
+
+
+/*
+    Put a string to the file. This will put the file into buffered mode.
+ */
+int mprPuts(MprFile *file, cchar *str)
+{
+    MprBuf  *bp;
+    char    *buf;
+    size_t  total, bytes, count;
+
+    mprAssert(file);
+    count = strlen(str);
+
+    /*
+        Buffer output and flush when full.
+     */
+    if (file->buf == 0) {
+        file->buf = mprCreateBuf(file, MPR_BUFSIZE, 0);
+        if (file->buf == 0) {
+            return MPR_ERR_CANT_ALLOCATE;
+        }
+    }
+    bp = file->buf;
+
+    if (mprGetBufLength(bp) > 0 && mprGetBufSpace(bp) < count) {
+        mprFlush(file);
+    }
+    total = 0;
+    buf = (char*) str;
+
+    while (count > 0) {
+        bytes = mprPutBlockToBuf(bp, buf, count);
+        if (bytes < 0) {
+            return MPR_ERR_CANT_ALLOCATE;
+
+        } else if (bytes == 0) {
+            if (mprFlush(file) < 0) {
+                return MPR_ERR_CANT_WRITE;
+            }
+            continue;
+        }
+        count -= bytes;
+        buf += bytes;
+        total += bytes;
+        file->pos += bytes;
+    }
+    return total;
 }
 
 
@@ -7582,6 +8148,186 @@ int mprPutc(MprFile *file, int c)
 
     }
     return mprWrite(file, &c, 1);
+}
+
+
+int mprRead(MprFile *file, void *buf, size_t size)
+{
+    MprFileSystem   *fs;
+    MprBuf          *bp;
+    void            *bufStart;
+    size_t          bytes, totalRead;
+
+    mprAssert(file);
+    if (file == 0) {
+        return MPR_ERR_BAD_HANDLE;
+    }
+    fs = file->fileSystem;
+    bp = file->buf;
+    if (bp == 0) {
+        totalRead = fs->readFile(file, buf, size);
+
+    } else {
+        bufStart = buf;
+        while (size > 0) {
+            if (mprGetBufLength(bp) == 0) {
+                bytes = fillBuf(file);
+                if (bytes <= 0) {
+                    return -1;
+                }
+            }
+            bytes = min(size, mprGetBufLength(bp));
+            memcpy(buf, mprGetBufStart(bp), bytes);
+            mprAdjustBufStart(bp, bytes);
+            buf = (void*) (((char*) buf) + bytes);
+            size -= bytes;
+        }
+        totalRead = ((char*) buf - (char*) bufStart);
+    }
+    file->pos += totalRead;
+    return totalRead;
+}
+
+
+MprOffset mprSeek(MprFile *file, int seekType, MprOffset pos)
+{
+    MprFileSystem   *fs;
+
+    mprAssert(file);
+    fs = file->fileSystem;
+
+    if (file->buf) {
+        if (! (seekType == SEEK_CUR && pos == 0)) {
+            /*
+                Discard buffering as we may be seeking outside the buffer.
+                OPT. Could be smarter about this and preserve the buffer.
+             */
+            if (file->mode & (O_WRONLY | O_RDWR)) {
+                if (mprFlush(file) < 0) {
+                    return MPR_ERR_CANT_WRITE;
+                }
+            }
+            if (file->buf) {
+                mprFlushBuf(file->buf);
+            }
+        }
+    }
+    if (seekType == SEEK_SET) {
+        file->pos = pos;
+    } else if (seekType == SEEK_CUR) {
+        file->pos += pos;
+    } else {
+        file->pos = fs->seekFile(file, SEEK_END, 0);
+    }
+    if (fs->seekFile(file, SEEK_SET, (long) file->pos) != (long) file->pos) {
+        return MPR_ERR;
+    }
+    if (file->mode & (O_WRONLY | O_RDWR)) {
+        if (file->pos > file->size) {
+            file->size = file->pos;
+        }
+    }
+    return file->pos;
+}
+
+
+int mprTruncate(cchar *path, MprOffset size)
+{
+    MprFileSystem   *fs;
+
+    mprAssert(path && *path);
+
+    if ((fs = mprLookupFileSystem(NULL, path)) == 0) {
+        return MPR_ERR_CANT_OPEN;
+    }
+    return fs->truncateFile(fs, path, size);
+}
+
+
+int mprWrite(MprFile *file, cvoid *buf, size_t count)
+{
+    MprFileSystem   *fs;
+    MprBuf          *bp;
+    size_t          bytes, written;
+
+    mprAssert(file);
+    if (file == 0) {
+        return MPR_ERR_BAD_HANDLE;
+    }
+
+    fs = file->fileSystem;
+    bp = file->buf;
+    if (bp == 0) {
+        if ((written = fs->writeFile(file, buf, count)) < 0) {
+            return written;
+        }
+    } else {
+        written = 0;
+        while (count > 0) {
+            bytes = mprPutBlockToBuf(bp, buf, count);
+            if (bytes < 0) {
+                return bytes;
+            } 
+            if (bytes != count) {
+                mprFlush(file);
+            }
+            count -= bytes;
+            written += bytes;
+            buf = (char*) buf + bytes;
+        }
+    }
+    file->pos += written;
+    if (file->pos > file->size) {
+        file->size = file->pos;
+    }
+    return written;
+}
+
+
+int mprWriteString(MprFile *file, cchar *str)
+{
+    return mprWrite(file, str, strlen(str));
+}
+
+
+int mprWriteFormat(MprFile *file, cchar *fmt, ...)
+{
+    va_list     ap;
+    char        *buf;
+    int         rc;
+
+    rc = -1;
+    va_start(ap, fmt);
+    if ((buf = mprAsprintfv(file, fmt, ap)) != NULL) {
+        rc = mprWriteString(file, buf);
+        mprFree(buf);
+    }
+    va_end(ap);
+    return rc;
+}
+
+
+/*
+    Fill the read buffer. Return the new buffer length. Only called when the buffer is empty.
+ */
+static int fillBuf(MprFile *file)
+{
+    MprFileSystem   *fs;
+    MprBuf          *bp;
+    int             len;
+
+    bp = file->buf;
+    fs = file->fileSystem;
+
+    mprAssert(mprGetBufLength(bp) == 0);
+    mprFlushBuf(bp);
+
+    len = fs->readFile(file, mprGetBufStart(bp), mprGetBufSpace(bp));
+    if (len <= 0) {
+        return len;
+    }
+    mprAdjustBufEnd(bp, len);
+    return len;
 }
 
 
@@ -7699,11 +8445,11 @@ MprFileSystem *mprCreateFileSystem(MprCtx ctx, cchar *path)
 #endif
 
 #if BLD_WIN_LIKE
-    fs->separators = mprStrdup(fs, "\\/");
-    fs->newline = mprStrdup(fs, "\r\n");
+    fs->separators = sclone(fs, "\\/");
+    fs->newline = sclone(fs, "\r\n");
 #else
-    fs->separators = mprStrdup(fs, "/");
-    fs->newline = mprStrdup(fs, "\n");
+    fs->separators = sclone(fs, "/");
+    fs->newline = sclone(fs, "\n");
 #endif
 
 #if BLD_WIN_LIKE || MACOSX
@@ -7737,6 +8483,7 @@ void mprAddFileSystem(MprCtx ctx, MprFileSystem *fs)
     mprAssert(ctx);
     mprAssert(fs);
     
+    //  TODO - this does not currently add a file system. It merely replaces the existing.
     mprGetMpr(ctx)->fileSystem = fs;
 }
 
@@ -7786,7 +8533,7 @@ void mprSetPathSeparators(MprCtx ctx, cchar *path, cchar *separators)
     
     fs = mprLookupFileSystem(ctx, path);
     mprFree(fs->separators);
-    fs->separators = mprStrdup(fs, separators);
+    fs->separators = sclone(fs, separators);
 }
 
 
@@ -7800,7 +8547,7 @@ void mprSetPathNewline(MprCtx ctx, cchar *path, cchar *newline)
     
     fs = mprLookupFileSystem(ctx, path);
     mprFree(fs->newline);
-    fs->newline = mprStrdup(fs, newline);
+    fs->newline = sclone(fs, newline);
 }
 
 
@@ -7862,8 +8609,9 @@ void mprSetPathNewline(MprCtx ctx, cchar *path, cchar *newline)
 
 
 
-static int hashIndex(MprHashTable *table, cvoid *key, int size);
+static inline void *dupKey(MprHashTable *table, MprHash *sp, cvoid *key);
 static MprHash  *lookupHash(int *bucketIndex, MprHash **prevSp, MprHashTable *table, cvoid *key);
+static void manageHash(MprHashTable *table, int flags);
 
 /*
     Create a new hash table of a given size. Caller should provide a size that is a prime number for the greatest
@@ -7874,7 +8622,7 @@ MprHashTable *mprCreateHash(MprCtx ctx, int hashSize, int flags)
 {
     MprHashTable    *table;
 
-    if ((table = mprAllocObj(ctx, MprHashTable, NULL)) == 0) {
+    if ((table = mprAllocObj(ctx, MprHashTable, manageHash)) == 0) {
         return 0;
     }
     /*  TODO -- should support rehashing */
@@ -7886,6 +8634,22 @@ MprHashTable *mprCreateHash(MprCtx ctx, int hashSize, int flags)
     table->count = 0;
     table->hashSize = hashSize;
     table->buckets = (MprHash**) mprAllocZeroed(table, sizeof(MprHash*) * hashSize);
+#if BLD_CHAR_LEN > 1
+    if (table->flags & MPR_HASH_UNICODE) {
+        if (table->flags & MPR_HASH_CASELESS) {
+            table->hash = (MprHashProc) whashlower;
+        } else {
+            table->hash = (MprHashProc) whash;
+        }
+    } else 
+#endif
+    {
+        if (table->flags & MPR_HASH_CASELESS) {
+            table->hash = (MprHashProc) shashlower;
+        } else {
+            table->hash = (MprHashProc) shash;
+        }
+    }
     if (table->buckets == 0) {
         mprFree(table);
         return 0;
@@ -7894,7 +8658,26 @@ MprHashTable *mprCreateHash(MprCtx ctx, int hashSize, int flags)
 }
 
 
-MprHashTable *mprCopyHash(MprCtx ctx, MprHashTable *master)
+static void manageHash(MprHashTable *table, int flags)
+{
+    MprHash     *sp;
+    int         i;
+
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(table->buckets);
+        for (i = 0; i < table->hashSize; i++) {
+            for (sp = (MprHash*) table->buckets[i]; sp; sp = sp->next) {
+                mprMark(sp);
+                if (!(table->flags & MPR_HASH_PERM_KEYS)) {
+                    mprMark(sp->key);
+                }
+            }
+        }
+    }
+}
+
+
+MprHashTable *mprCloneHash(MprCtx ctx, MprHashTable *master)
 {
     MprHash         *hp;
     MprHashTable    *table;
@@ -7937,7 +8720,11 @@ MprHash *mprAddHash(MprHashTable *table, cvoid *key, cvoid *ptr)
         return 0;
     }
     sp->data = ptr;
-    sp->key = mprStrdup(sp, key);
+    if (!(table->flags & MPR_HASH_PERM_KEYS)) {
+        sp->key = dupKey(table, sp, key);
+    } else {
+        sp->key = (void*) key;
+    }
     sp->bucket = index;
     sp->next = table->buckets[index];
     table->buckets[index] = sp;
@@ -7960,10 +8747,14 @@ MprHash *mprAddDuplicateHash(MprHashTable *table, cvoid *key, cvoid *ptr)
     if (sp == 0) {
         return 0;
     }
-    index = hashIndex(table, key, table->hashSize);
+    index = table->hash(key, -1) % table->hashSize;
 
     sp->data = ptr;
-    sp->key = mprStrdup(sp, key);
+    if (!(table->flags & MPR_HASH_PERM_KEYS)) {
+        sp->key = dupKey(table, sp, key);
+    } else {
+        sp->key = (void*) key;
+    }
     sp->bucket = index;
     sp->next = table->buckets[index];
     table->buckets[index] = sp;
@@ -7981,7 +8772,7 @@ int mprRemoveHash(MprHashTable *table, cvoid *key)
     int         index;
 
     if ((sp = lookupHash(&index, &prevSp, table, key)) == 0) {
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     if (prevSp) {
         prevSp->next = sp->next;
@@ -8025,12 +8816,14 @@ cvoid *mprLookupHash(MprHashTable *table, cvoid *key)
 static MprHash *lookupHash(int *bucketIndex, MprHash **prevSp, MprHashTable *table, cvoid *key)
 {
     MprHash     *sp, *prev;
-    MprUni      *u1, *u2;
-    int         index, rc, i;
+    int         index, rc;
 
     mprAssert(key);
 
-    index = hashIndex(table, key, table->hashSize);
+    if (key == 0 || table == 0) {
+        return 0;
+    }
+    index = table->hash(key, strlen(key)) % table->hashSize;
     if (bucketIndex) {
         *bucketIndex = index;
     }
@@ -8038,17 +8831,21 @@ static MprHash *lookupHash(int *bucketIndex, MprHash **prevSp, MprHashTable *tab
     prev = 0;
 
     while (sp) {
+#if BLD_CHAR_LEN > 1
         if (table->flags & MPR_HASH_UNICODE) {
-            u1 = (MprUni*) sp->key;
-            u2 = (MprUni*) key;
+            MprChar *u1, *u2;
+            u1 = (MprChar*) sp->key;
+            u2 = (MprChar*) key;
             rc = -1;
-            if (u1->length == u2->length) {
-                for (i = 0; i < u1->length; i++) {
-                    rc = u1->value[i] == u2->value[i];
-                }
+            if (table->flags & MPR_HASH_CASELESS) {
+                rc = wcasecmp(u1, u2);
+            } else {
+                rc = wcmp(u1, u2);
             }
-        } else if (table->flags & MPR_HASH_CASELESS) {
-            rc = mprStrcmpAnyCase(sp->key, key);
+        } else 
+#endif
+        if (table->flags & MPR_HASH_CASELESS) {
+            rc = scasecmp(sp->key, key);
         } else {
             rc = strcmp(sp->key, key);
         }
@@ -8116,45 +8913,30 @@ MprHash *mprGetNextHash(MprHashTable *table, MprHash *last)
 }
 
 
-//  TODO OPT - Get a better hash. See Ejscript
-/*
-    Hash the key to produce a hash index.
- */
-static int hashIndex(MprHashTable *table, cvoid *vkey, int size)
+static inline void *dupKey(MprHashTable *table, MprHash *sp, cvoid *key)
 {
-    MprUni  *ukey;
-    cchar   *key;
-    uint    sum;
-    int     c, i;
-
+#if BLD_CHAR_LEN > 1
     if (table->flags & MPR_HASH_UNICODE) {
-        ukey = (MprUni*) vkey;
-        sum = 0;
-        if (table->flags & MPR_HASH_CASELESS) {
-            for (i = 0; i < ukey->length; i++) {
-                c = ukey->value[i];
-                sum += (sum * 33) + tolower(c);
+        return wclone(sp, (MprChar*) key, -1);
+    } else
+#endif
+        return sclone(sp, key);
+}
+
+
+void mprMarkHash(MprHashTable *table)
+{
+    MprHash     *sp;
+    int         i;
+
+    if (table) {
+        for (i = 0; i < table->hashSize; i++) {
+            for (sp = (MprHash*) table->buckets[i]; sp; sp = sp->next) {
+                mprMark((void*) sp->data);
             }
-        } else {
-            for (i = 0; i < ukey->length; i++) {
-                sum += (sum * 33) + ukey->value[i];
-            }
         }
-    } if (table->flags & MPR_HASH_CASELESS) {
-        key = (char*) vkey;
-        sum = 0;
-        while (*key) {
-            c = *key++;
-            sum += (sum * 33) + tolower(c);
-        }
-    } else {
-        key = (char*) vkey;
-        sum = 0;
-        while (*key) {
-            sum += (sum * 33) + *key++;
-        }
+        mprMark(table);
     }
-    return sum % size;
 }
 
 
@@ -8215,7 +8997,6 @@ static int hashIndex(MprHashTable *table, cvoid *vkey, int size)
 #if MPR_EVENT_KQUEUE
 
 static int growEvents(MprWaitService *ws);
-static int keventNotifierDestructor(MprWaitService *ws);
 static void serviceIO(MprWaitService *ws, int count);
 
 
@@ -8245,20 +9026,29 @@ int mprCreateNotifierService(MprWaitService *ws)
     fcntl(ws->breakPipe[1], F_SETFL, fcntl(ws->breakPipe[1], F_GETFL) | O_NONBLOCK);
     EV_SET(&ws->interest[ws->interestCount], ws->breakPipe[MPR_READ_PIPE], EVFILT_READ, EV_ADD, 0, 0, 0);
     ws->interestCount++;
-
-    if (mprAllocObj(ws, char*, keventNotifierDestructor) == 0) {
-        return MPR_ERR_NO_MEMORY;
-    }
     return 0;
 }
 
 
-static int keventNotifierDestructor(MprWaitService *ws)
+void mprManageKqueue(MprWaitService *ws, int flags)
 {
-    if (ws->kq) {
-        close(ws->kq);
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(ws->events);
+        mprMark(ws->interest);
+        mprMark(ws->stableInterest);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        if (ws->kq) {
+            close(ws->kq);
+            ws->kq = 0;
+        }
+        if (ws->breakPipe[0] >= 0) {
+            close(ws->breakPipe[0]);
+        }
+        if (ws->breakPipe[1] >= 0) {
+            close(ws->breakPipe[1]);
+        }
     }
-    return 0;
 }
 
 
@@ -8269,7 +9059,7 @@ static int growEvents(MprWaitService *ws)
     ws->interest = mprRealloc(ws, ws->interest, sizeof(struct kevent) * ws->interestMax);
     ws->events = mprRealloc(ws, ws->events, sizeof(struct kevent) * ws->eventsMax);
     if (ws->interest == 0 || ws->events == 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     memset(&ws->events[ws->eventsMax / 2], 0, sizeof(struct kevent) * ws->eventsMax / 2);
     return 0;
@@ -8312,7 +9102,7 @@ int mprAddNotifier(MprWaitService *ws, MprWaitHandler *wp, int mask)
             oldlen = ws->handlerMax;
             ws->handlerMax = fd + 32;
             if ((ws->handlerMap = mprRealloc(ws, ws->handlerMap, sizeof(MprWaitHandler*) * ws->handlerMax)) == 0) {
-                return MPR_ERR_NO_MEMORY;
+                return MPR_ERR_MEMORY;
             }
             memset(&ws->handlerMap[oldlen], 0, sizeof(MprWaitHandler*) * (ws->handlerMax - oldlen));
         }
@@ -8565,16 +9355,16 @@ void stubMprKqueue() {}
 
 
 static int growList(MprList *lp, int incr);
+static void manageList(MprList *lp, int flags);
 
 /*
     Create a general growable list structure. Use mprFree to destroy.
  */
-
 MprList *mprCreateList(MprCtx ctx)
 {
     MprList     *lp;
 
-    lp = mprAllocObj(ctx, MprList, NULL);
+    lp = mprAllocObj(ctx, MprList, manageList);
     if (lp == 0) {
         return 0;
     }
@@ -8583,6 +9373,14 @@ MprList *mprCreateList(MprCtx ctx)
     lp->maxSize = MAXINT;
     lp->items = 0;
     return lp;
+}
+
+
+static void manageList(MprList *lp, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(lp->items);
+    }
 }
 
 
@@ -8614,10 +9412,10 @@ int mprSetListLimits(MprList *lp, int initialSize, int maxSize)
     size = initialSize * sizeof(void*);
 
     if (lp->items == 0) {
-        lp->items = (void**) mprAllocCtx(lp, size);
+        lp->items = (void**) mprAlloc(NULL, size);
         if (lp->items == 0) {
             mprFree(lp);
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
         memset(lp->items, 0, size);
         lp->capacity = initialSize;
@@ -8635,18 +9433,18 @@ int mprCopyList(MprList *dest, MprList *src)
     mprClearList(dest);
 
     if (mprSetListLimits(dest, src->capacity, src->maxSize) < 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     for (next = 0; (item = mprGetNextItem(src, &next)) != 0; ) {
         if (mprAddItem(dest, item) < 0) {
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
     }
     return 0;
 }
 
 
-MprList *mprDupList(MprCtx ctx, MprList *src)
+MprList *mprCloneList(MprCtx ctx, MprList *src)
 {
     MprList     *list;
 
@@ -8798,7 +9596,7 @@ int mprRemoveLastItem(MprList *lp)
     mprAssert(lp->length > 0);
 
     if (lp->length <= 0) {
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     return mprRemoveItemAtPos(lp, lp->length - 1);
 }
@@ -8806,6 +9604,7 @@ int mprRemoveLastItem(MprList *lp)
 
 /*
     Remove an index from the list. Return the index where the item resided.
+    The list is compacted.
  */
 int mprRemoveItemAtPos(MprList *lp, int index)
 {
@@ -8818,7 +9617,7 @@ int mprRemoveItemAtPos(MprList *lp, int index)
     mprAssert(lp->length > 0);
 
     if (index < 0 || index >= lp->length) {
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     items = lp->items;
     for (i = index; i < (lp->length - 1); i++) {
@@ -8844,10 +9643,10 @@ int mprRemoveRangeOfItems(MprList *lp, int start, int end)
     mprAssert(start > end);
 
     if (start < 0 || start >= lp->length) {
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     if (end < 0 || end >= lp->length) {
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     if (start > end) {
         return MPR_ERR_BAD_ARGS;
@@ -9019,7 +9818,7 @@ int mprLookupItem(MprList *lp, cvoid *item)
             return i;
         }
     }
-    return MPR_ERR_NOT_FOUND;
+    return MPR_ERR_CANT_FIND;
 }
 
 
@@ -9053,15 +9852,8 @@ static int growList(MprList *lp, int incr)
     }
     memsize = len * sizeof(void*);
 
-#if MEMZZ
-    /*
-        Grow the list of items. Use the existing context for lp->items if it already exists. Otherwise use the list as the
-        memory context owner.
-     */
-    lp->items = (void**) mprRealloc((lp->items) ? mprGetParent(lp->items): lp, lp->items, memsize);
-#else
-    lp->items = (void**) mprRealloc(lp, lp->items, memsize);
-#endif
+    //  MOB -- temp workaround for ejsNamespace that has a static list
+    lp->items = mprRealloc(/* lp */ NULL, lp->items, memsize);
 
     /*
         Zero the new portion (required for no-compact lists)
@@ -9086,9 +9878,22 @@ MprKeyValue *mprCreateKeyPair(MprCtx ctx, cchar *key, cchar *value)
     if (pair == 0) {
         return 0;
     }
-    pair->key = mprStrdup(pair, key);
-    pair->value = mprStrdup(pair, value);
+    pair->key = sclone(pair, key);
+    pair->value = sclone(pair, value);
     return pair;
+}
+
+
+void mprMarkList(MprList *lp)
+{
+    int     i;
+
+    if (lp) {
+        for (i = 0; i < lp->length; i++) {
+            mprMark(lp->items[i]);
+        }
+        mprMark(lp);
+    }
 }
 
 
@@ -9144,8 +9949,8 @@ MprKeyValue *mprCreateKeyPair(MprCtx ctx, cchar *key, cchar *value)
 
 
 
-static int destroyLock(MprMutex *lock);
-static int destroySpinLock(MprSpin *lock);
+static void manageLock(MprMutex *lock, int flags);
+static void manageSpinLock(MprSpin *lock, int flags);
 
 
 MprMutex *mprCreateLock(MprCtx ctx)
@@ -9154,7 +9959,7 @@ MprMutex *mprCreateLock(MprCtx ctx)
 
     mprAssert(ctx);
 
-    lock = mprAllocObj(ctx, MprMutex, destroyLock);
+    lock = mprAllocObj(ctx, MprMutex, manageLock);
     if (lock == 0) {
         return 0;
     }
@@ -9178,6 +9983,24 @@ MprMutex *mprCreateLock(MprCtx ctx)
     }
 #endif
     return lock;
+}
+
+
+static void manageLock(MprMutex *lock, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        ;
+    } else if (flags & MPR_MANAGE_FREE) {
+        mprAssert(lock);
+#if BLD_UNIX_LIKE
+        pthread_mutex_unlock(&lock->cs);
+        pthread_mutex_destroy(&lock->cs);
+#elif BLD_WIN_LIKE
+        DeleteCriticalSection(&lock->cs);
+#elif VXWORKS
+        semDelete(lock->cs);
+#endif
+    }
 }
 
 
@@ -9209,24 +10032,6 @@ MprMutex *mprInitLock(MprCtx ctx, MprMutex *lock)
 
 
 /*
-    Destroy a lock. Should be locked on entrance.
- */
-static int destroyLock(MprMutex *lock)
-{
-    mprAssert(lock);
-#if BLD_UNIX_LIKE
-    pthread_mutex_unlock(&lock->cs);
-    pthread_mutex_destroy(&lock->cs);
-#elif BLD_WIN_LIKE
-    DeleteCriticalSection(&lock->cs);
-#elif VXWORKS
-    semDelete(lock->cs);
-#endif
-    return 0;
-}
-
-
-/*
     Try to attain a lock. Do not block! Returns true if the lock was attained.
  */
 bool mprTryLock(MprMutex *lock)
@@ -9249,7 +10054,7 @@ MprSpin *mprCreateSpinLock(MprCtx ctx)
 
     mprAssert(ctx);
 
-    lock = mprAllocObj(ctx, MprSpin, destroySpinLock);
+    lock = mprAllocObj(ctx, MprSpin, manageSpinLock);
     if (lock == 0) {
         return 0;
     }
@@ -9282,6 +10087,27 @@ MprSpin *mprCreateSpinLock(MprCtx ctx)
     lock->owner = 0;
 #endif
     return lock;
+}
+
+
+static void manageSpinLock(MprSpin *lock, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        ;
+    } else if (flags & MPR_MANAGE_FREE) {
+        mprAssert(lock);
+#if USE_MPR_LOCK || MACOSX
+        ;
+#elif BLD_UNIX_LIKE && BLD_HAS_SPINLOCK
+        pthread_spin_destroy(&lock->cs);
+#elif BLD_UNIX_LIKE
+        pthread_mutex_destroy(&lock->cs);
+#elif BLD_WIN_LIKE
+        DeleteCriticalSection(&lock->cs);
+#elif VXWORKS
+        semDelete(lock->cs);
+#endif
+    }
 }
 
 
@@ -9317,35 +10143,11 @@ MprSpin *mprInitSpinLock(MprCtx ctx, MprSpin *lock)
         return 0;
     }
 #endif
-
 #if BLD_DEBUG
     lock->owner = 0;
 #endif
     return lock;
 }
-
-
-/*
-    Destroy a lock. Must be locked on entrance.
- */
-static int destroySpinLock(MprSpin *lock)
-{
-    mprAssert(lock);
-#if USE_MPR_LOCK || MACOSX
-    ;
-#elif BLD_UNIX_LIKE && BLD_HAS_SPINLOCK
-    pthread_spin_destroy(&lock->cs);
-#elif BLD_UNIX_LIKE
-    pthread_mutex_destroy(&lock->cs);
-#elif BLD_WIN_LIKE
-    DeleteCriticalSection(&lock->cs);
-#elif VXWORKS
-    semDelete(lock->cs);
-#endif
-    return 0;
-}
-
-
 
 
 /*
@@ -9587,7 +10389,7 @@ void mprLog(MprCtx ctx, int level, cchar *fmt, ...)
         return;
     }
     va_start(args, fmt);
-    buf = mprVasprintf(ctx, -1, fmt, args);
+    buf = mprAsprintfv(ctx, fmt, args);
     va_end(args);
 
     logOutput(ctx, MPR_LOG_SRC, level, buf);
@@ -9604,7 +10406,7 @@ void mprRawLog(MprCtx ctx, int level, cchar *fmt, ...)
         return;
     }
     va_start(args, fmt);
-    buf = mprVasprintf(ctx, -1, fmt, args);
+    buf = mprAsprintfv(ctx, fmt, args);
     va_end(args);
     
     logOutput(ctx, MPR_RAW, 0, buf);
@@ -9618,7 +10420,7 @@ void mprError(MprCtx ctx, cchar *fmt, ...)
     char        *buf;
 
     va_start(args, fmt);
-    buf = mprVasprintf(ctx, -1, fmt, args);
+    buf = mprAsprintfv(ctx, fmt, args);
     va_end(args);
     
     logOutput(ctx, MPR_ERROR_MSG | MPR_ERROR_SRC, 0, buf);
@@ -9637,7 +10439,7 @@ void mprMemoryError(MprCtx ctx, cchar *fmt, ...)
         logOutput(ctx, MPR_ERROR_MSG | MPR_ERROR_SRC, 0, "Memory allocation error");
     } else {
         va_start(args, fmt);
-        buf = mprVasprintf(ctx, -1, fmt, args);
+        buf = mprAsprintfv(ctx, fmt, args);
         va_end(args);
         logOutput(ctx, MPR_ERROR_MSG | MPR_ERROR_SRC, 0, buf);
         mprFree(buf);
@@ -9651,7 +10453,7 @@ void mprUserError(MprCtx ctx, cchar *fmt, ...)
     char        *buf;
 
     va_start(args, fmt);
-    buf = mprVasprintf(ctx, -1, fmt, args);
+    buf = mprAsprintfv(ctx, fmt, args);
     va_end(args);
     
     logOutput(ctx, MPR_USER_MSG | MPR_ERROR_SRC, 0, buf);
@@ -9665,7 +10467,7 @@ void mprFatalError(MprCtx ctx, cchar *fmt, ...)
     char        *buf;
 
     va_start(args, fmt);
-    buf = mprVasprintf(ctx, -1, fmt, args);
+    buf = mprAsprintfv(ctx, fmt, args);
     va_end(args);
     
     logOutput(ctx, MPR_USER_MSG | MPR_FATAL_SRC, 0, buf);
@@ -9674,25 +10476,27 @@ void mprFatalError(MprCtx ctx, cchar *fmt, ...)
 }
 
 
+#if UNUSED
 /*
     Handle an error without allocating memory.
  */
-void mprStaticError(MprCtx ctx, cchar *fmt, ...)
+void mprStaticError(cchar *fmt, ...)
 {
     va_list     args;
     char        buf[MPR_MAX_STRING];
 
     va_start(args, fmt);
-    mprVsprintf(ctx, buf, sizeof(buf), fmt, args);
+    mprSprintfv(buf, sizeof(buf), fmt, args);
     va_end(args);
-    logOutput(ctx, MPR_ERROR_MSG | MPR_ERROR_SRC, 0, buf);
+    logOutput(NULL, MPR_ERROR_MSG | MPR_ERROR_SRC, 0, buf);
 }
+#endif
 
 
 /*
     Direct output to the standard error. Does not hook into the logging system and does not allocate memory.
  */
-void mprStaticAssert(cchar *loc, cchar *msg)
+void mprAssertError(cchar *loc, cchar *msg)
 {
 #if BLD_DEBUG
     char    buf[MPR_MAX_STRING];
@@ -9774,21 +10578,10 @@ static void defaultLogHandler(MprCtx ctx, int flags, int level, cchar *msg)
     }
     if (flags & MPR_LOG_SRC) {
         mprPrintfError(ctx, "%s: %d: %s\n", prefix, level, msg);
-
     } else if (flags & MPR_ERROR_SRC) {
-        /*
-            Use static printing to avoid malloc when the messages are small.
-            This is important for memory allocation errors.
-         */
-        if (strlen(msg) < (MPR_MAX_STRING - 32)) {
-            mprStaticPrintfError(ctx, "%s: Error: %s\n", prefix, msg);
-        } else {
-            mprPrintfError(ctx, "%s: Error: %s\n", prefix, msg);
-        }
-
+        mprPrintfError(ctx, "%s: Error: %s\n", prefix, msg);
     } else if (flags & MPR_FATAL_SRC) {
         mprPrintfError(ctx, "%s: Fatal: %s\n", prefix, msg);
-
     } else if (flags & MPR_RAW) {
         mprPrintfError(ctx, "%s", msg);
     }
@@ -9948,6 +10741,446 @@ int _cmp(char *s1, char *s2)
 
 /************************************************************************/
 /*
+ *  Start of file "../src/mprMixed.c"
+ */
+/************************************************************************/
+
+/**
+    mprMixed.c - Mixed mode strings. Unicode results with ascii args.
+
+    Copyright (c) All Rights Reserved. See details at the end of the file.
+ */
+
+
+
+#if BLD_CHAR_LEN > 1
+
+int mcasecmp(MprChar *str1, cchar *str2)
+{
+    return mncasecmp(str1, str2, -1);
+}
+
+
+int mcmp(MprChar *s1, cchar *s2)
+{
+    return mncmp(s1, s2, -1);
+}
+
+
+MprChar *mcontains(MprChar *str, cchar *pattern, size_t limit)
+{
+    MprChar     *cp, *s1;
+    cchar       *s2;
+    size_t      lim;
+
+    mprAssert(0 <= limit && limit < MAXSIZE);
+
+    if (str == 0) {
+        return 0;
+    }
+    if (pattern == 0 || *pattern == '\0') {
+        return (MprChar*) str;
+    }
+    for (cp = str; *cp; cp++) {
+        s1 = cp;
+        s2 = pattern;
+        for (lim = limit; *s1 && *s2 && (*s1 == (uchar) *s2) && lim > 0; lim--) {
+            s1++;
+            s2++;
+        }
+        if (*s2 == '\0') {
+            return cp;
+        }
+    }
+    return 0;
+}
+
+
+/*
+    destMax and len are character counts, not sizes in bytes
+ */
+size_t mcopy(MprChar *dest, cchar *src)
+{
+    size_t      len;
+
+    mprAssert(src);
+    mprAssert(dest);
+    mprAssert(0 < destMax && destMax < MAXINT);
+
+    len = strlen(src);
+    if (destMax <= len) {
+        mprAssert(!MPR_ERR_WONT_FIT);
+        return MPR_ERR_WONT_FIT;
+    }
+    return mtow(dest, len + 1, src, len);
+}
+
+
+int mends(MprChar *str, cchar *suffix)
+{
+    MprChar     *cp;
+    cchar       *sp;
+
+    if (str == NULL || suffix == NULL) {
+        return 0;
+    }
+    cp = &str[wlen(str) - 1];
+    sp = &suffix[strlen(suffix) - 1];
+    for (; cp > str && sp > suffix; ) {
+        if (*cp-- != *sp--) {
+            return 0;
+        }
+    }
+    if (sp > suffix) {
+        return 0;
+    }
+    return 1;
+}
+
+
+MprChar *mfmt(MprCtx ctx, cchar *fmt, ...)
+{
+    MprChar     *result;
+    va_list     ap;
+    char        *mresult;
+
+    mprAssert(fmt);
+
+    va_start(ap, fmt);
+    mresult = mprAsprintfv(ctx, fmt, ap);
+    va_end(ap);
+    result = amtow(ctx, mresult, NULL);
+    mprFree(mresult);
+    return result;
+}
+
+
+MprChar *mfmtv(MprCtx ctx, cchar *fmt, va_list arg)
+{
+    MprChar     *result;
+    char        *mresult;
+
+    mprAssert(fmt);
+    mresult = mprAsprintfv(ctx, fmt, arg);
+    result = amtow(ctx, mresult, NULL);
+    mprFree(mresult);
+    return result;
+}
+
+
+/*
+    Sep is ascii, args are MprChar
+ */
+MprChar *mjoin(MprCtx ctx, cchar *sep, ...)
+{
+    MprChar     *result;
+    va_list     ap;
+
+    mprAssert(ctx);
+
+    va_start(ap, sep);
+    result = mrejoinv(ctx, NULL, sep, ap);
+    va_end(ap);
+    return result;
+}
+
+
+MprChar *mjoinv(MprCtx ctx, cchar *sep, va_list args)
+{
+    return mrejoinv(ctx, NULL, sep, args);
+}
+
+
+/*
+    Case insensitive string comparison. Limited by length
+ */
+int mncasecmp(MprChar *s1, cchar *s2, size_t n)
+{
+    int     rc;
+
+    mprAssert(0 <= n && n < MAXSIZE);
+
+    if (s1 == 0 || s2 == 0) {
+        return -1;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
+        rc = tolower((int) *s1) - tolower((int) (uchar) *s2);
+    }
+    if (rc) {
+        return (rc > 0) ? 1 : -1;
+    } else if (n == 0) {
+        return 0;
+    } else if (*s1 == '\0' && *s2 == '\0') {
+        return 0;
+    } else if (*s1 == '\0') {
+        return -1;
+    } else if (*s2 == '\0') {
+        return 1;
+    }
+    return 0;
+}
+
+
+
+int mncmp(MprChar *s1, cchar *s2, size_t n)
+{
+    mprAssert(0 <= n && n < MAXSIZE);
+
+    if (s1 == 0 && s2 == 0) {
+        return 0;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
+        rc = *s1 - (uchar) *s2;
+    }
+    if (rc) {
+        return (rc > 0) ? 1 : -1;
+    } else if (n == 0) {
+        return 0;
+    } else if (*s1 == '\0' && *s2 == '\0') {
+        return 0;
+    } else if (*s1 == '\0') {
+        return -1;
+    } else if (*s2 == '\0') {
+        return 1;
+    }
+    return 0;
+}
+
+
+size_t mncopy(MprChar *dest, size_t destMax, cchar *src, size_t len)
+{
+    mprAssert(0 <= len && len < MAXSIZE);
+    mprAssert(0 < destMax && destMax < MAXSIZE);
+
+    return mtow(dest, destMax, src, len);
+}
+
+
+MprChar *mpbrk(MprChar *str, cchar *set)
+{
+    cchar   *sp;
+    int     count;
+
+    if (str == NULL || set == NULL) {
+        return 0;
+    }
+    for (count = 0; *str; count++) {
+        for (sp = set; *sp; sp++) {
+            if (*str == *sp) {
+                return str;
+            }
+        }
+    }
+    return 0;
+}
+
+
+/*
+    Sep is ascii, args are MprChar
+ */
+MprChar *mrejoin(MprCtx ctx, MprChar *buf, cchar *sep, ...)
+{
+    MprChar     *result;
+    va_list     ap;
+
+    mprAssert(ctx);
+
+    va_start(ap, sep);
+    result = mrejoinv(ctx, buf, sep, ap);
+    va_end(ap);
+    return result;
+}
+
+
+MprChar *mrejoinv(MprCtx ctx, MprChar *buf, cchar *sep, va_list args)
+{
+    va_list     ap;
+    MprChar     *dest, *str, *dp, *wsep;
+    int         required, seplen, len;
+
+    mprAssert(ctx);
+
+    if (sep == 0) {
+        sep = "";
+    } 
+    wsep = amtow(ctx, sep, NULL);
+    seplen = strlen(sep);
+    va_copy(ap, args);
+    required = 1;
+    str = va_arg(ap, MprChar*);
+    while (str) {
+        required += wlen(str);
+        required += seplen;
+        str = va_arg(ap, MprChar*);
+    }
+    if (buf && *buf) {
+        required += seplen;
+    }
+    if ((dest = mprRealloc(ctx, buf, required)) == 0) {
+        mprFree(wsep);
+        return 0;
+    }
+    dp = dest;
+    va_copy(ap, args);
+    str = va_arg(ap, MprChar*);
+    if (str && *buf) {
+        wcopy(dp, required, wsep);
+        dp += seplen;
+        required -= seplen;
+    }
+    while (str) {
+        wcopy(dp, required, str);
+        len = wlen(str);
+        dp += len;
+        required -= len;
+        str = va_arg(ap, MprChar*);
+        if (str) {
+            wcopy(dp, required, wsep);
+            dp += seplen;
+            required -= seplen;
+        }
+    }
+    *dp = '\0';
+    mprFree(wsep);
+    return dest;
+}
+
+
+size_t mspn(MprChar *str, cchar *set)
+{
+    cchar   *sp;
+    int     count;
+
+    if (str == NULL || set == NULL) {
+        return 0;
+    }
+    for (count = 0; *str; count++, str++) {
+        for (sp = set; *sp; sp++) {
+            if (*str == *sp) {
+                return break;
+            }
+        }
+        if (*str != *sp) {
+            break;
+        }
+    }
+    return count;
+}
+ 
+
+int mstarts(MprChar *str, cchar *prefix)
+{
+    if (str == NULL || prefix == NULL) {
+        return 0;
+    }
+    if (mncmp(str, prefix, strlen(prefix)) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+
+MprChar *mtok(MprChar *str, cchar *delim, MprChar **last)
+{
+    MprChar    *start, *end;
+    size_t     i;
+
+    start = str ? str : *last;
+
+    if (start == 0) {
+        *last = 0;
+        return 0;
+    }
+    i = mspn(start, delim);
+    start += i;
+    if (*start == '\0') {
+        *last = 0;
+        return 0;
+    }
+    end = mpbrk(start, delim);
+    if (end) {
+        *end++ = '\0';
+        i = mspn(end, delim);
+        end += i;
+    }
+    *last = end;
+    return start;
+}
+
+
+MprChar *mtrim(MprChar *str, cchar *set, int where)
+{
+    size_t  len, i;
+
+    if (str == NULL || set == NULL) {
+        return str;
+    }
+    if (where & MPR_TRIM_START) {
+        i = mspn(str, set);
+    } else {
+        i = 0;
+    }
+    str += i;
+    if (where & MPR_TRIM_END) {
+        len = wlen(str);
+        while (len > 0 && mspn(&str[len - 1], set) > 0) {
+            str[len - 1] = '\0';
+            len--;
+        }
+    }
+    return str;
+}
+
+#endif /* BLD_CHAR_LEN > 1 */
+
+/*
+    @copy   default
+
+    Copyright (c) Embedthis Software LLC, 2003-2010. All Rights Reserved.
+    Copyright (c) Michael O'Brien, 1993-2010. All Rights Reserved.
+
+    This software is distributed under commercial and open source licenses.
+    You may use the GPL open source license described below or you may acquire
+    a commercial license from Embedthis Software. You agree to be fully bound
+    by the terms of either license. Consult the LICENSE.TXT distributed with
+    this software for full details.
+
+    This software is open source; you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the
+    Free Software Foundation; either version 2 of the License, or (at your
+    option) any later version. See the GNU General Public License for more
+    details at: http://www.embedthis.com/downloads/gplLicense.html
+
+    This program is distributed WITHOUT ANY WARRANTY; without even the
+    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+    This GPL license does NOT permit incorporating this software into
+    proprietary programs. If you are unable to comply with the GPL, you must
+    acquire a commercial license to use this software. Commercial licenses
+    for this software and support services are available from Embedthis
+    Software at http://www.embedthis.com
+
+    @end
+ */
+
+/************************************************************************/
+/*
+ *  End of file "../src/mprMixed.c"
+ */
+/************************************************************************/
+
+
+
+/************************************************************************/
+/*
  *  Start of file "../src/mprModule.c"
  */
 /************************************************************************/
@@ -9960,6 +11193,9 @@ int _cmp(char *s1, char *s2)
 
 
 
+
+static void manageModuleService(MprModuleService *ms, int flags);
+
 /*
     Open the module service
  */
@@ -9968,7 +11204,7 @@ MprModuleService *mprCreateModuleService(MprCtx ctx)
     MprModuleService    *ms;
     cchar               *searchPath;
 
-    ms = mprAllocObj(ctx, MprModuleService, NULL);
+    ms = mprAllocObj(ctx, MprModuleService, manageModuleService);
     if (ms == 0) {
         return 0;
     }
@@ -9990,9 +11226,19 @@ MprModuleService *mprCreateModuleService(MprCtx ctx)
     } else {
         searchPath = ms->searchPath;
     }
-    ms->searchPath = mprStrdup(ms, (searchPath) ? searchPath : (cchar*) ".");
+    ms->searchPath = sclone(ms, (searchPath) ? searchPath : (cchar*) ".");
     ms->mutex = mprCreateLock(ms);
     return ms;
+}
+
+
+static void manageModuleService(MprModuleService *ms, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMarkList(ms->modules);
+        mprMark(ms->searchPath);
+        mprMark(ms->mutex);
+    }
 }
 
 
@@ -10056,7 +11302,7 @@ MprModule *mprCreateModule(MprCtx ctx, cchar *name, void *data)
         return 0;
     }
     index = mprAddItem(ms->modules, mp);
-    mp->name = mprStrdup(mp, name);
+    mp->name = sclone(mp, name);
     mp->moduleData = data;
     mp->handle = 0;
     mp->start = 0;
@@ -10094,9 +11340,17 @@ MprModule *mprLookupModule(MprCtx ctx, cchar *name)
 }
 
 
-/*
-    Update the module search path
- */
+MprAny mprLookupModuleData(MprCtx ctx, cchar *name)
+{
+    MprModule   *module;
+
+    if ((module = mprLookupModule(ctx, name)) == NULL) {
+        return NULL;
+    }
+    return module->moduleData;
+}
+
+
 void mprSetModuleSearchPath(MprCtx ctx, char *searchPath)
 {
     MprModuleService    *ms;
@@ -10110,7 +11364,7 @@ void mprSetModuleSearchPath(MprCtx ctx, char *searchPath)
     ms = mpr->moduleService;
 
     mprFree(ms->searchPath);
-    ms->searchPath = mprStrdup(ms, searchPath);
+    ms->searchPath = sclone(ms, searchPath);
 
 #if BLD_WIN_LIKE && !WINCE
     {
@@ -10119,7 +11373,7 @@ void mprSetModuleSearchPath(MprCtx ctx, char *searchPath)
         /*
             So dependent DLLs can be loaded by LoadLibrary
          */
-        path = mprStrcat(mpr, -1, "PATH=", searchPath, ";", getenv("PATH"), NULL);
+        path = sjoin(mpr, NULL, "PATH=", searchPath, ";", getenv("PATH"), NULL);
         mprMapSeparators(mpr, path, '\\');
         putenv(path);
         mprFree(path);
@@ -10159,12 +11413,12 @@ static int probe(MprCtx ctx, cchar *filename, char **pathp)
     *pathp = 0;
     mprLog(ctx, 6, "Probe for native module %s", filename);
     if (mprPathExists(ctx, filename, R_OK)) {
-        *pathp = mprStrdup(ctx, filename);
+        *pathp = sclone(ctx, filename);
         return 1;
     }
 
     if (strstr(filename, BLD_SHOBJ) == 0) {
-        path = mprStrcat(ctx, -1, filename, BLD_SHOBJ, NULL);
+        path = sjoin(ctx, NULL, filename, BLD_SHOBJ, NULL);
         mprLog(ctx, 6, "Probe for native module %s", path);
         if (mprPathExists(ctx, path, R_OK)) {
             *pathp = path;
@@ -10194,10 +11448,10 @@ int mprSearchForModule(MprCtx ctx, cchar *name, char **path)
     /*
         Search in the searchPath
      */
-    searchPath = mprStrdup(ctx, mprGetModuleSearchPath(ctx));
+    searchPath = sclone(ctx, mprGetModuleSearchPath(ctx));
 
     tok = 0;
-    dir = mprStrTok(searchPath, MPR_SEARCH_SEP, &tok);
+    dir = stok(searchPath, MPR_SEARCH_SEP, &tok);
     while (dir && *dir) {
         fileName = mprJoinPath(ctx, dir, name);
         if (probe(ctx, fileName, path)) {
@@ -10206,10 +11460,10 @@ int mprSearchForModule(MprCtx ctx, cchar *name, char **path)
             return 0;
         }
         mprFree(fileName);
-        dir = mprStrTok(0, MPR_SEARCH_SEP, &tok);
+        dir = stok(0, MPR_SEARCH_SEP, &tok);
     }
     mprFree(searchPath);
-    return MPR_ERR_NOT_FOUND;
+    return MPR_ERR_CANT_FIND;
 }
 #endif
 
@@ -10489,7 +11743,7 @@ char *mprGetAbsPath(MprCtx ctx, cchar *pathArg)
 
 
 /*
-    This will return a fully qualified absolute path for the current working directory. Caller must free.
+    This will return a fully qualified absolute path for the current working directory.
  */
 char *mprGetCurrentPath(MprCtx ctx)
 {
@@ -10511,13 +11765,13 @@ char *mprGetCurrentPath(MprCtx ctx)
     if (firstSep(fs, dir) == NULL) {
         sep[0] = defaultSep(fs);
         sep[1] = '\0';
-        return mprStrcat(ctx, -1, dir, sep, NULL);
+        return sjoin(ctx, NULL, dir, sep, NULL);
     }
 }
 #elif BLD_WIN_LIKE
     mprMapSeparators(ctx, dir, fs->separators[0]);
 #endif
-    return mprStrdup(ctx, dir);
+    return sclone(ctx, dir);
 }
 
 
@@ -10538,18 +11792,18 @@ char *mprGetPathBase(MprCtx ctx, cchar *path)
     fs = mprLookupFileSystem(ctx, path);
     cp = (char*) lastSep(fs, path);
     if (cp == 0) {
-        return mprStrdup(ctx, path);
+        return sclone(ctx, path);
     } 
     if (cp == path) {
         if (cp[1] == '\0') {
-            return mprStrdup(ctx, path);
+            return sclone(ctx, path);
         }
     } else {
         if (cp[1] == '\0') {
-            return mprStrdup(ctx, "");
+            return sclone(ctx, "");
         }
     }
-    return mprStrdup(ctx, &cp[1]);
+    return sclone(ctx, &cp[1]);
 }
 
 
@@ -10561,17 +11815,17 @@ char *mprGetPathDir(MprCtx ctx, cchar *path)
     MprFileSystem   *fs;
     cchar           *cp;
     char            *result;
-    int             len;
+    size_t          len;
 
     mprAssert(path);
     mprAssert(ctx);
 
     if (*path == '\0') {
-        return mprStrdup(ctx, path);
+        return sclone(ctx, path);
     }
 
     fs = mprLookupFileSystem(ctx, path);
-    len = (int) strlen(path);
+    len = strlen(path);
     cp = &path[len - 1];
 
     /*
@@ -10586,11 +11840,11 @@ char *mprGetPathDir(MprCtx ctx, cchar *path)
     if (cp == path) {
         if (!isSep(fs, *cp)) {
             /* No slashes found, parent is current dir */
-            return mprStrdup(ctx, ".");
+            return sclone(ctx, ".");
         }
-        return mprStrdup(ctx, fs->root);
+        return sclone(ctx, fs->root);
     }
-    len = (int) (cp - path);
+    len = (cp - path);
     result = mprAlloc(ctx, len + 1);
     mprMemcpy(result, len + 1, path, len);
     result[len] = '\0';
@@ -10633,12 +11887,12 @@ MprList *mprGetPathFiles(MprCtx ctx, cchar *dir, bool enumDirs)
             continue;
         }
         if (enumDirs || !(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            dp = mprAllocCtx(list, sizeof(MprDirEntry));
+            dp = mprAlloc(list, sizeof(MprDirEntry));
             if (dp == 0) {
                 mprFree(path);
                 return 0;
             }
-            dp->name = mprStrdup(dp, findData.cFileName);
+            dp->name = sclone(dp, findData.cFileName);
             if (dp->name == 0) {
                 mprFree(path);
                 return 0;
@@ -10703,11 +11957,11 @@ MprList *mprGetPathFiles(MprCtx ctx, cchar *path, bool enumDirs)
         rc = mprGetPathInfo(ctx, fileName, &fileInfo);
         mprFree(fileName);
         if (enumDirs || (rc == 0 && !fileInfo.isDir)) { 
-            dp = mprAllocCtx(list, sizeof(MprDirEntry));
+            dp = mprAlloc(list, sizeof(MprDirEntry));
             if (dp == 0) {
                 return 0;
             }
-            dp->name = mprStrdup(dp, dirent->d_name);
+            dp->name = sclone(dp, dirent->d_name);
             if (dp->name == 0) {
                 return 0;
             }
@@ -10741,7 +11995,7 @@ char *mprGetPathLink(MprCtx ctx, cchar *path)
 
 
 /*
-    Return the extension portion of a pathname. Caller must not free the result.
+    Return the extension portion of a pathname.
     Return the extension without the "."
  */
 cchar *mprGetPathExtension(MprCtx ctx, cchar *path)
@@ -10823,7 +12077,7 @@ char *mprGetRelPath(MprCtx ctx, cchar *pathArg)
     fs = mprLookupFileSystem(ctx, pathArg);
     
     if (pathArg == 0 || *pathArg == '\0') {
-        return mprStrdup(ctx, ".");
+        return sclone(ctx, ".");
     }
 
     /*
@@ -10852,7 +12106,7 @@ char *mprGetRelPath(MprCtx ctx, cchar *pathArg)
         strcpy(home, ".");
     }
     home[sizeof(home) - 2] = '\0';
-    len = (int) strlen(home);
+    len = strlen(home);
 
     /*
         Count segments in home working directory. Ignore trailing separators.
@@ -10894,7 +12148,7 @@ char *mprGetRelPath(MprCtx ctx, cchar *pathArg)
         cp++;
     }
     
-    hp = result = mprAlloc(ctx, homeSegments * 3 + (int) strlen(path) + 2);
+    hp = result = mprAlloc(ctx, homeSegments * 3 + strlen(path) + 2);
     for (i = commonSegments; i < homeSegments; i++) {
         *hp++ = '.';
         *hp++ = '.';
@@ -10948,18 +12202,18 @@ char *mprJoinPath(MprCtx ctx, cchar *path, cchar *other)
 
     fs = mprLookupFileSystem(ctx, path);
     if (other == NULL || *other == '\0' || strcmp(other, ".") == 0) {
-        return mprStrdup(ctx, path);
+        return sclone(ctx, path);
     }
     if (isAbsPath(fs, other)) {
         if (fs->hasDriveSpecs && !isFullPath(fs, other) && isFullPath(fs, path)) {
             /*
                 Other is absolute, but without a drive. Use the drive from path.
              */
-            drive = mprStrdup(ctx, path);
+            drive = sclone(ctx, path);
             if ((cp = strchr(drive, ':')) != 0) {
                 *++cp = '\0';
             }
-            result = mprStrcat(ctx, -1, drive, other, NULL);
+            result = sjoin(ctx, NULL, drive, other, NULL);
             mprFree(drive);
             return result;
         } else {
@@ -10976,7 +12230,7 @@ char *mprJoinPath(MprCtx ctx, cchar *path, cchar *other)
     } else {
         sep = defaultSep(fs);
     }
-    if ((join = mprAsprintf(ctx, -1, "%s%c%s", path, sep, other)) == 0) {
+    if ((join = mprAsprintf(ctx, "%s%c%s", path, sep, other)) == 0) {
         return 0;
     }
     result = mprGetNormalizedPath(ctx, join);
@@ -10995,13 +12249,13 @@ char *mprJoinPathExt(MprCtx ctx, cchar *path, cchar *ext)
 
     fs = mprLookupFileSystem(ctx, path);
     if (ext == NULL || *ext == '\0') {
-        return mprStrdup(ctx, path);
+        return sclone(ctx, path);
     }
     cp = strrchr(path, '.');
     if (cp && firstSep(fs, cp) == 0) {
-        return mprStrdup(ctx, path);
+        return sclone(ctx, path);
     }
-    return mprStrcat(ctx, -1, path, ext, NULL);
+    return sjoin(ctx, NULL, path, ext, NULL);
 }
 
 
@@ -11056,17 +12310,17 @@ char *mprGetTempPath(MprCtx ctx, cchar *tempDir)
 
     if (tempDir == 0) {
 #if WINCE
-        dir = mprStrdup(ctx, "/Temp");
+        dir = sclone(ctx, "/Temp");
 #elif BLD_WIN_LIKE
-        dir = mprStrdup(ctx, getenv("TEMP"));
+        dir = sclone(ctx, getenv("TEMP"));
         mprMapSeparators(ctx, dir, defaultSep(fs));
 #elif VXWORKS
-        dir = mprStrdup(ctx, ".");
+        dir = sclone(ctx, ".");
 #else
-        dir = mprStrdup(ctx, "/tmp");
+        dir = sclone(ctx, "/tmp");
 #endif
     } else {
-        dir = mprStrdup(ctx, tempDir);
+        dir = sclone(ctx, tempDir);
     }
 
     now = ((int) mprGetTime(ctx) & 0xFFFF) % 64000;
@@ -11076,7 +12330,7 @@ char *mprGetTempPath(MprCtx ctx, cchar *tempDir)
 
     for (i = 0; i < 128; i++) {
         mprFree(path);
-        path = mprAsprintf(ctx, -1, "%s/MPR_%d_%d_%d.tmp", dir, getpid(), now, ++tempSeed);
+        path = mprAsprintf(ctx, "%s/MPR_%d_%d_%d.tmp", dir, getpid(), now, ++tempSeed);
         file = mprOpen(ctx, path, O_CREAT | O_EXCL | O_BINARY, 0664);
         if (file) {
             mprFree(file);
@@ -11112,19 +12366,19 @@ static char *toCygPath(MprCtx ctx, cchar *path)
     mprAssert(isFullPath(mpr, path);
         
     if (fs->cygdrive) {
-        len = (int) strlen(fs->cygdrive);
+        len = strlen(fs->cygdrive);
         if (mprStrcmpAnyCaseCount(fs->cygdrive, &path[2], len) == 0 && isSep(mpr, path[len+2])) {
             /*
                 If path is like: "c:/cygdrive/c/..."
                 Just strip the "c:" portion. Still validly qualified.
              */
-            result = mprStrdup(ctx, &path[len + 2]);
+            result = sclone(ctx, &path[len + 2]);
 
         } else {
             /*
                 Path is like: "c:/some/other/path". Prepend "/cygdrive/c/"
              */
-            result = mprAsprintf(ctx, -1, "%s/%c%s", fs->cygdrive, path[0], &path[2]);
+            result = mprAsprintf(ctx, "%s/%c%s", fs->cygdrive, path[0], &path[2]);
             len = strlen(result);
             if (isSep(mpr, result[len-1])) {
                 result[len-1] = '\0';
@@ -11153,22 +12407,22 @@ static char *fromCygPath(MprCtx ctx, cchar *path)
     mpr = mprGetMpr(ctx);
 
     if (isFullPath(mpr, path)) {
-        return mprStrdup(ctx, path);
+        return sclone(ctx, path);
     }
     if (fs->cygdrive) {
-        len = (int) strlen(fs->cygdrive);
+        len = strlen(fs->cygdrive);
         if (mprComparePath(mpr, fs->cygdrive, path, len) == 0 && isSep(mpr, path[len]) && 
                 isalpha(path[len+1]) && isSep(mpr, path[len+2])) {
             /*
                 Has a "/cygdrive/c/" style prefix
              */
-            buf = mprAsprintf(ctx, -1, "%c:", path[len+1], &path[len + 2]);
+            buf = mprAsprintf(ctx, "%c:", path[len+1], &path[len + 2]);
 
         } else {
             /*
                 Cygwin path. Prepend "c:/cygdrive"
              */
-            buf = mprAsprintf(ctx, -1, "%s/%s", fs->cygdrive, path);
+            buf = mprAsprintf(ctx, "%s/%s", fs->cygdrive, path);
         }
         result = mprGetAbsPath(ctx, buf);
         mprFree(buf);
@@ -11191,10 +12445,11 @@ char *mprGetNormalizedPath(MprCtx ctx, cchar *pathArg)
 {
     MprFileSystem   *fs;
     char            *dupPath, *path, *sp, *dp, *mark, **segments;
-    int             addSep, i, segmentCount, hasDot, len, last, sep;
+    size_t          len;
+    int             addSep, i, segmentCount, hasDot, last, sep;
 
     if (pathArg == 0 || *pathArg == '\0') {
-        return mprStrdup(ctx, "");
+        return sclone(ctx, "");
     }
     fs = mprLookupFileSystem(ctx, pathArg);
 
@@ -11202,7 +12457,7 @@ char *mprGetNormalizedPath(MprCtx ctx, cchar *pathArg)
         Allocate one spare byte incase we need to break into segments. If so, will add a trailing "/" to make 
         parsing easier later.
      */
-    len = (int) strlen(pathArg);
+    len = strlen(pathArg);
     if ((path = mprAlloc(ctx, len + 2)) == 0) {
         return NULL;
     }
@@ -11237,7 +12492,7 @@ char *mprGetNormalizedPath(MprCtx ctx, cchar *pathArg)
         if (fs->hasDriveSpecs) {
             last = path[strlen(path) - 1];
             if (last == ':') {
-                path = mprStrcat(ctx, -1, path, ".", NULL);
+                path = sjoin(ctx, NULL, path, ".", NULL);
                 mprFree(dupPath);
             }
         }
@@ -11311,7 +12566,7 @@ char *mprGetNormalizedPath(MprCtx ctx, cchar *pathArg)
     if (segmentCount <= 0) {
         mprFree(dupPath);
         mprFree(segments);
-        return mprStrdup(ctx, ".");
+        return sclone(ctx, ".");
     }
 
     addSep = 0;
@@ -11358,12 +12613,12 @@ char *mprGetNormalizedPath(MprCtx ctx, cchar *pathArg)
 }
 
 
-int mprGetPathSeparator(MprCtx ctx, cchar *path)
+cchar *mprGetPathSeparator(MprCtx ctx, cchar *path)
 {
     MprFileSystem   *fs;
 
     fs = mprLookupFileSystem(ctx, path);
-    return fs->separators[0];
+    return fs->separators;
 }
 
 
@@ -11433,18 +12688,18 @@ char *mprResolvePath(MprCtx ctx, cchar *path, cchar *other)
 
     fs = mprLookupFileSystem(ctx, path);
     if (other == NULL || *other == '\0' || strcmp(other, ".") == 0) {
-        return mprStrdup(ctx, path);
+        return sclone(ctx, path);
     }
     if (isAbsPath(fs, other)) {
         if (fs->hasDriveSpecs && !isFullPath(fs, other) && isFullPath(fs, path)) {
             /*
                 Other is absolute, but without a drive. Use the drive from path.
              */
-            drive = mprStrdup(ctx, path);
+            drive = sclone(ctx, path);
             if ((cp = strchr(drive, ':')) != 0) {
                 *++cp = '\0';
             }
-            result = mprStrcat(ctx, -1, drive, other, NULL);
+            result = sjoin(ctx, NULL, drive, other, NULL);
             mprFree(drive);
             return result;
         }
@@ -11454,7 +12709,7 @@ char *mprResolvePath(MprCtx ctx, cchar *path, cchar *other)
         return mprGetNormalizedPath(ctx, other);
     }
     dir = mprGetPathDir(ctx, path);
-    if ((join = mprAsprintf(ctx, -1, "%s/%s", dir, other)) == 0) {
+    if ((join = mprAsprintf(ctx, "%s/%s", dir, other)) == 0) {
         mprFree(dir);
         return 0;
     }
@@ -11512,7 +12767,7 @@ int mprSamePath(MprCtx ctx, cchar *path1, cchar *path2)
 /*
     Compare two file path to determine if they point to the same file.
  */
-int mprSamePathCount(MprCtx ctx, cchar *path1, cchar *path2, int len)
+int mprSamePathCount(MprCtx ctx, cchar *path1, cchar *path2, size_t len)
 {
     MprFileSystem   *fs;
     char            *tmpPath1, *tmpPath2;
@@ -11554,7 +12809,7 @@ int mprSamePathCount(MprCtx ctx, cchar *path1, cchar *path2, int len)
 char *mprSearchPath(MprCtx ctx, cchar *file, int flags, cchar *search, ...)
 {
     va_list     args;
-    char        *path, *tok, *dir, *result, *nextDir;
+    char        *path, *dir, *result, *nextDir, *tok;
     int         access;
 
     va_start(args, search);
@@ -11564,8 +12819,8 @@ char *mprSearchPath(MprCtx ctx, cchar *file, int flags, cchar *search, ...)
 
         if (strchr(nextDir, MPR_SEARCH_SEP_CHAR)) {
             tok = NULL;
-            nextDir = mprStrdup(ctx, nextDir);
-            dir = mprStrTok(nextDir, MPR_SEARCH_SEP, &tok);
+            nextDir = sclone(ctx, nextDir);
+            dir = stok(nextDir, MPR_SEARCH_SEP, &tok);
             while (dir && *dir) {
                 mprLog(ctx, 5, "mprSearchForFile: %s in directory %s", file, nextDir);
                 path = mprJoinPath(ctx, dir, file);
@@ -11577,7 +12832,7 @@ char *mprSearchPath(MprCtx ctx, cchar *file, int flags, cchar *search, ...)
                     return result;
                 }
                 mprFree(path);
-                dir = mprStrTok(0, MPR_SEARCH_SEP, &tok);
+                dir = stok(0, MPR_SEARCH_SEP, &tok);
             }
             mprFree(nextDir);
 
@@ -11640,7 +12895,7 @@ char *mprGetTransformedPath(MprCtx ctx, cchar *path, int flags)
 
 
 /*
-    Return the extension portion of a pathname. Caller must not free the result.
+    Return the extension portion of a pathname.
  */
 char *mprTrimPathExtension(MprCtx ctx, cchar *path)
 {
@@ -11648,7 +12903,7 @@ char *mprTrimPathExtension(MprCtx ctx, cchar *path)
     char            *cp, *ext;
 
     fs = mprLookupFileSystem(ctx, path);
-    ext = mprStrdup(ctx, path);
+    ext = sclone(ctx, path);
     if ((cp = strrchr(ext, '.')) != NULL) {
         if (firstSep(fs, cp) == 0) {
             *cp = '\0';
@@ -11658,47 +12913,8 @@ char *mprTrimPathExtension(MprCtx ctx, cchar *path)
 }
 
 
-int mprTruncatePath(MprCtx ctx, cchar *path, int size)
-{
-    if (!mprPathExists(ctx, path, F_OK)) {
-        return MPR_ERR_CANT_ACCESS;
-    }
-#if BLD_WIN_LIKE
-{
-    HANDLE  h;
-
-    h = CreateFile(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    SetFilePointer(h, size, 0, FILE_BEGIN);
-    if (h == INVALID_HANDLE_VALUE || SetEndOfFile(h) == 0) {
-        CloseHandle(h);
-        return MPR_ERR_CANT_WRITE;
-    }
-    CloseHandle(h);
-}
-#elif VXWORKS
-{
-#if FUTURE
-    int     fd;
-
-    fd = open(path, O_WRONLY, 0664);
-    if (fd < 0 || ftruncate(fd, size) < 0) {
-        return MPR_ERR_CANT_WRITE;
-    }
-    close(fd);
-#endif
-    return MPR_ERR_CANT_WRITE;
-}
-#else
-    if (truncate(path, size) < 0) {
-        return MPR_ERR_CANT_WRITE;
-    }
-#endif
-    return 0;
-}
-
-
 /*
-    Get the path for the application executable. Tries to return an absolute path. Caller must free.
+    Get the path for the application executable. Tries to return an absolute path.
  */
 char *mprGetAppPath(MprCtx ctx)
 { 
@@ -11706,7 +12922,7 @@ char *mprGetAppPath(MprCtx ctx)
 
     mpr = mprGetMpr(ctx);
     if (mpr->appPath) {
-        return mprStrdup(ctx, mpr->appPath);
+        return sclone(ctx, mpr->appPath);
     }
 
 #if MACOSX
@@ -11725,7 +12941,7 @@ char *mprGetAppPath(MprCtx ctx)
     }
     pbuf[len] = '\0';
     mpr->appPath = mprGetAbsPath(ctx, pbuf);
-    return mprStrdup(ctx, mpr->appPath);
+    return sclone(ctx, mpr->appPath);
 
 #elif FREEBSD 
     char    pbuf[MPR_MAX_STRING];
@@ -11737,15 +12953,15 @@ char *mprGetAppPath(MprCtx ctx)
      }
      pbuf[len] = '\0';
      mpr->appPath = mprGetAbsPath(ctx, pbuf);
-     return mprStrdup(ctx, mpr->appPath);
+     return sclone(ctx, mpr->appPath);
 
 #elif BLD_UNIX_LIKE 
     char    pbuf[MPR_MAX_STRING], *path;
     int     len;
 #if SOLARIS
-    path = mprAsprintf(ctx, -1, "/proc/%i/path/a.out", getpid()); 
+    path = mprAsprintf(ctx, "/proc/%i/path/a.out", getpid()); 
 #else
-    path = mprAsprintf(ctx, -1, "/proc/%i/exe", getpid()); 
+    path = mprAsprintf(ctx, "/proc/%i/exe", getpid()); 
 #endif
     len = readlink(path, pbuf, sizeof(pbuf) - 1);
     if (len < 0) {
@@ -11755,7 +12971,7 @@ char *mprGetAppPath(MprCtx ctx)
     pbuf[len] = '\0';
     mprFree(path);
     mpr->appPath = mprGetAbsPath(ctx, pbuf);
-    return mprStrdup(ctx, mpr->appPath);
+    return sclone(ctx, mpr->appPath);
 
 #elif BLD_WIN_LIKE
 {
@@ -11765,18 +12981,17 @@ char *mprGetAppPath(MprCtx ctx)
         return 0;
     }
     mpr->appPath = mprGetAbsPath(ctx, pbuf);
-    return mprStrdup(ctx, mpr->appPath);
+    return sclone(ctx, mpr->appPath);
 }
 #else
     mpr->appPath = mprGetCurrentPath(ctx);
-    return mprStrdup(ctx, mpr->appPath);
+    return sclone(ctx, mpr->appPath);
 #endif
 }
 
  
 /*
     Get the directory containing the application executable. Tries to return an absolute path.
-    Caller must free.
  */
 char *mprGetAppDir(MprCtx ctx)
 { 
@@ -11785,11 +13000,11 @@ char *mprGetAppDir(MprCtx ctx)
 
     mpr = mprGetMpr(ctx);
     if (mpr->appDir == 0) {
-        path = mprStrdup(ctx, mprGetAppPath(ctx));
+        path = sclone(ctx, mprGetAppPath(ctx));
         mpr->appDir = mprGetPathDir(mpr, path);
         mprFree(path);
     }
-    return mprStrdup(ctx, mpr->appDir); 
+    return sclone(ctx, mpr->appDir); 
 } 
 
 /*
@@ -11859,12 +13074,11 @@ int mprCreateNotifierService(MprWaitService *ws)
     ws->fdsCount = 0;
     ws->fdMax = MPR_FD_MIN;
 
-    ws->fds = mprAllocZeroed(ws, sizeof(struct pollfd)   ws->fdMax);
-    ws->handlerMap = mprAllocZeroed(ws, sizeof(MprWaitHandler*)   ws->fdMax);
+    ws->fds = mprAllocZeroed(ws, sizeof(struct pollfd) * ws->fdMax);
+    ws->handlerMap = mprAllocZeroed(ws, sizeof(MprWaitHandler*) * ws->fdMax);
     if (ws->fds == 0 || ws->handlerMap == 0) {
         return MPR_ERR_CANT_INITIALIZE;
     }
-
     /*
         Initialize the "wakeup" pipe. This is used to wakeup the service thread if other threads need to wait for I/O.
      */
@@ -11884,16 +13098,32 @@ int mprCreateNotifierService(MprWaitService *ws)
 }
 
 
+void mprManagePoll(MprWebService *ws, int flags)
+{
+    if (flags & MPR_MANAGE_FREE) {
+        mprMark(ws->fds);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        if (ws->breakPipe[0] >= 0) {
+            close(ws->breakPipe[0]);
+        }
+        if (ws->breakPipe[1] >= 0) {
+            close(ws->breakPipe[1]);
+        }
+    }
+}
+
+
 static int growFds(MprWaitService *ws)
 {
     ws->fdMax *= 2;
     ws->fds = mprRealloc(ws, ws->fds, sizeof(struct pollfd)   ws->fdMax);
-    ws->handlerMap = mprRealloc(ws, ws->handlerMap, sizeof(MprWaitHandler*)   ws->fdMax);
+    ws->handlerMap = mprRealloc(ws, ws->handlerMap, sizeof(MprWaitHandler*) * ws->fdMax);
     if (ws->fds == 0 || ws->handlerMap) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     memset(&ws->fds[ws->fdMax / 2], 0, sizeof(struct pollfd)   ws->fdMax / 2);
-    memset(&ws->handlerMap[ws->fdMax / 2], 0, sizeof(MprWaitHandler*)   ws->fdMax / 2);
+    memset(&ws->handlerMap[ws->fdMax / 2], 0, sizeof(MprWaitHandler*) * ws->fdMax / 2);
     return 0;
 }
 
@@ -11909,7 +13139,7 @@ int mprAddNotifier(MprWaitService *ws, MprWaitHandler *wp, int mask)
         if (wp->notifierIndex < 0) {
             if (ws->fdsCount >= ws->fdMax && growFds(ws) < 0) {
                 unlock(ws);
-                return MPR_ERR_NO_MEMORY;
+                return MPR_ERR_MEMORY;
             }
             mprAssert(ws->handlerMap[fd] == 0);
             ws->handlerMap[fd] = wp;
@@ -12020,7 +13250,7 @@ void mprWaitForIO(MprWaitService *ws, int timeout)
     count = ws->fdsCount;
     if ((fds = mprMemdup(ws, ws->fds, sizeof(struct pollfd) * count)) == 0) {
         unlock(ws);
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     unlock(ws);
 
@@ -12201,7 +13431,6 @@ typedef struct Format {
     uchar   *end;
     int     growBy;
     int     maxsize;
-
     int     precision;
     int     radix;
     int     width;
@@ -12232,6 +13461,17 @@ typedef struct Format {
         } \
     } else 
 
+/*
+    Just for Ejscript to be able to do %N and %S
+ */
+typedef struct MprEjsString {
+    void            *type;
+    void            *next;
+    void            *prev;
+    size_t          length;
+    MprChar         value[0];
+} MprEjsString;
+
 
 static int  getState(char c, int state);
 static int  growBuf(MprCtx ctx, Format *fmt);
@@ -12256,7 +13496,7 @@ int mprPrintf(MprCtx ctx, cchar *fmt, ...)
     fs = mprLookupFileSystem(ctx, "/");
 
     va_start(ap, fmt);
-    buf = mprVasprintf(ctx, -1, fmt, ap);
+    buf = mprAsprintfv(ctx, fmt, ap);
     va_end(ap);
     if (buf != 0 && fs->stdOutput) {
         len = mprWriteString(fs->stdOutput, buf);
@@ -12281,7 +13521,7 @@ int mprPrintfError(MprCtx ctx, cchar *fmt, ...)
     mprAssert(fs);
 
     va_start(ap, fmt);
-    buf = mprVasprintf(ctx, -1, fmt, ap);
+    buf = mprAsprintfv(ctx, fmt, ap);
     va_end(ap);
     if (buf && fs->stdError) {
         len = mprWriteString(fs->stdError, buf);
@@ -12302,11 +13542,9 @@ int mprFprintf(MprFile *file, cchar *fmt, ...)
     if (file == 0) {
         return MPR_ERR_BAD_HANDLE;
     }
-
     va_start(ap, fmt);
-    buf = mprVasprintf(file, -1, fmt, ap);
+    buf = mprAsprintfv(file, fmt, ap);
     va_end(ap);
-
     if (buf) {
         len = mprWriteString(file, buf);
     } else {
@@ -12317,6 +13555,7 @@ int mprFprintf(MprFile *file, cchar *fmt, ...)
 }
 
 
+#if UNUSED && KEEP
 /*
     Printf with a static buffer. Used internally only. WILL NOT MALLOC.
  */
@@ -12331,7 +13570,7 @@ int mprStaticPrintf(MprCtx ctx, cchar *fmt, ...)
     va_start(ap, fmt);
     sprintfCore(ctx, buf, MPR_MAX_STRING, fmt, ap);
     va_end(ap);
-    return mprWrite(fs->stdOutput, buf, (int) strlen(buf));
+    return mprWrite(fs->stdOutput, buf, strlen(buf));
 }
 
 
@@ -12349,11 +13588,12 @@ int mprStaticPrintfError(MprCtx ctx, cchar *fmt, ...)
     va_start(ap, fmt);
     sprintfCore(ctx, buf, MPR_MAX_STRING, fmt, ap);
     va_end(ap);
-    return mprWrite(fs->stdError, buf, (int) strlen(buf));
+    return mprWrite(fs->stdError, buf, strlen(buf));
 }
+#endif
 
 
-char *mprSprintf(MprCtx ctx, char *buf, int bufsize, cchar *fmt, ...)
+char *mprSprintf(char *buf, int bufsize, cchar *fmt, ...)
 {
     va_list     ap;
     char        *result;
@@ -12363,23 +13603,23 @@ char *mprSprintf(MprCtx ctx, char *buf, int bufsize, cchar *fmt, ...)
     mprAssert(bufsize > 0);
 
     va_start(ap, fmt);
-    result = sprintfCore(ctx, buf, bufsize, fmt, ap);
+    result = sprintfCore(NULL, buf, bufsize, fmt, ap);
     va_end(ap);
     return result;
 }
 
 
-char *mprVsprintf(MprCtx ctx, char *buf, int bufsize, cchar *fmt, va_list arg)
+char *mprSprintfv(char *buf, int bufsize, cchar *fmt, va_list arg)
 {
     mprAssert(buf);
     mprAssert(fmt);
     mprAssert(bufsize > 0);
 
-    return sprintfCore(ctx, buf, bufsize, fmt, arg);
+    return sprintfCore(NULL, buf, bufsize, fmt, arg);
 }
 
 
-char *mprAsprintf(MprCtx ctx, int maxSize, cchar *fmt, ...)
+char *mprAsprintf(MprCtx ctx, cchar *fmt, ...)
 {
     va_list     ap;
     char        *buf;
@@ -12387,16 +13627,16 @@ char *mprAsprintf(MprCtx ctx, int maxSize, cchar *fmt, ...)
     mprAssert(fmt);
 
     va_start(ap, fmt);
-    buf = sprintfCore(ctx, NULL, maxSize, fmt, ap);
+    buf = sprintfCore(ctx, NULL, -1, fmt, ap);
     va_end(ap);
     return buf;
 }
 
 
-char *mprVasprintf(MprCtx ctx, int maxSize, cchar *fmt, va_list arg)
+char *mprAsprintfv(MprCtx ctx, cchar *fmt, va_list arg)
 {
     mprAssert(fmt);
-    return sprintfCore(ctx, NULL, maxSize, fmt, arg);
+    return sprintfCore(ctx, NULL, -1, fmt, arg);
 }
 
 
@@ -12434,9 +13674,9 @@ static int getState(char c, int state)
         /*  17   8     9     :     ;     <     =     >     ? */
                  5,    5,    0,    0,    0,    0,    0,    0,
         /*  20   @     A     B     C     D     E     F     G */
-                 0,    0,    0,    0,    0,    0,    0,    0,
+                 8,    0,    0,    0,    0,    0,    0,    0,
         /*  27   H     I     J     K     L     M     N     O */
-                 0,    0,    0,    0,    7,    0,    0,    0,
+                 0,    0,    0,    0,    7,    0,    8,    0,
         /*  30   P     Q     R     S     T     U     V     W */
                  0,    0,    0,    8,    0,    0,    0,    0,
         /*  37   X     Y     Z     [     \     ]     ^     _ */
@@ -12446,7 +13686,7 @@ static int getState(char c, int state)
         /*  47   h     i     j     k     l     m     n     o */
                  7,    8,    0,    0,    7,    0,    8,    8,
         /*  50   p     q     r     s     t     u     v     w */
-                 8,    0,    0,    8,    0,    8,    0,    0,
+                 8,    0,    0,    8,    0,    8,    0,    8,
         /*  57   x     y     z  */
                  8,    0,    0,
     };
@@ -12467,12 +13707,12 @@ static int getState(char c, int state)
 
 static char *sprintfCore(MprCtx ctx, char *buf, int maxsize, cchar *spec, va_list arg)
 {
-    Format      fmt;
-    MprUni      *us;
-    char        c;
-    int64       iValue;
-    uint64      uValue;
-    int         len, state;
+    Format        fmt;
+    MprEjsString  *es;
+    char          c;
+    int64         iValue;
+    uint64        uValue;
+    int           len, state;
 
     if (spec == 0) {
         spec = "";
@@ -12603,33 +13843,42 @@ static char *sprintfCore(MprCtx ctx, char *buf, int maxsize, cchar *spec, va_lis
 
             case 'N':
                 /* Name */
-                us = va_arg(arg, MprUni*);
+                es = va_arg(arg, MprEjsString*);
+                if (es) {
 #if BLD_CHAR_LEN == 1
-                outString(ctx, &fmt, us->value, us->length);
-                BPUT(ctx, &fmt, ':');
-                BPUT(ctx, &fmt, ':');
-                us = va_arg(arg, MprUni*);
-                outString(ctx, &fmt, us->value, us->length);
+                    outString(ctx, &fmt, es->value, es->length);
+                    BPUT(ctx, &fmt, ':');
+                    BPUT(ctx, &fmt, ':');
+                    es = va_arg(arg, MprEjsString*);
+                    outString(ctx, &fmt, es->value, es->length);
 #else
-                outWideString(ctx, &fmt, us->value, us->length);
-                BPUT(ctx, &fmt, ':');
-                us = va_arg(arg, MprUni*);
-                outWideString(ctx, &fmt, us->value, us->length);
+                    outWideString(ctx, &fmt, es->value, es->length);
+                    BPUT(ctx, &fmt, ':');
+                    es = va_arg(arg, MprEjsString*);
+                    outWideString(ctx, &fmt, es->value, es->length);
 #endif
+                } else {
+                    outString(ctx, &fmt, NULL, 0);
+                }
                 break;
 
+            case '@':
             case 'S':
-                /* MprUni */
-                us = va_arg(arg, MprUni*);
+                /* MprEjsString */
+                es = va_arg(arg, MprEjsString*);
+                if (es) {
 #if BLD_CHAR_LEN == 1
-                outString(ctx, &fmt, us->value, us->length);
+                    outString(ctx, &fmt, es->value, es->length);
 #else
-                outWideString(ctx, &fmt, us->value, us->length);
+                    outWideString(ctx, &fmt, es->value, es->length);
 #endif
+                } else {
+                    outString(ctx, &fmt, NULL, 0);
+                }
                 break;
 
             case 'w':
-                /* Wide string of MprChar characters. Null terminated. */
+                /* Wide string of MprChar characters (Same as %ls"). Null terminated. */
 #if BLD_CHAR_LEN > 1
                 outWideString(ctx, &fmt, va_arg(arg, MprChar*), -1);
                 break;
@@ -12770,7 +14019,7 @@ static void outString(MprCtx ctx, Format *fmt, cchar *str, int len)
             }
         }
     } else if (len < 0) {
-        len = (int) strlen(str);
+        len = strlen(str);
     }
     if (!(fmt->flags & SPRINTF_LEFT)) {
         for (i = len; i < fmt->width; i++) {
@@ -12880,7 +14129,7 @@ static void outNum(MprCtx ctx, Format *fmt, cchar *prefix, uint64 value)
     fill = fmt->width - len;
 
     if (prefix != 0) {
-        fill -= (int) strlen(prefix);
+        fill -= strlen(prefix);
     }
     leadingZeros = (fmt->precision > len) ? fmt->precision - len : 0;
     fill -= leadingZeros;
@@ -12911,7 +14160,6 @@ static void outNum(MprCtx ctx, Format *fmt, cchar *prefix, uint64 value)
 }
 
 
-
 static void outFloat(MprCtx ctx, Format *fmt, char specChar, double value)
 {
     char    result[MPR_MAX_STRING], *cp;
@@ -12934,7 +14182,7 @@ static void outFloat(MprCtx ctx, Format *fmt, char specChar, double value)
         // sprintf(result, "%*.*e", fmt->width, fmt->precision, value);
     }
 
-    len = (int) strlen(result);
+    len = strlen(result);
     fill = fmt->width - len;
     if (fmt->flags & SPRINTF_COMMA) {
         if (((len - 1) / 3) > 0) {
@@ -13009,7 +14257,7 @@ char *mprDtoa(MprCtx ctx, double value, int ndigits, int mode, int flags)
 {
     MprBuf  *buf;
     char    *intermediate, *ip, *result;
-    int     period, sign, len, exponentForm, fixedForm, exponent, count, totalDigits;
+    int     period, sign, len, exponentForm, fixedForm, exponent, count, totalDigits, npad;
 
     buf = mprCreateBuf(ctx, MPR_MAX_STRING, -1);
     intermediate = 0;
@@ -13056,7 +14304,7 @@ char *mprDtoa(MprCtx ctx, double value, int ndigits, int mode, int flags)
             Note: ndigits < 0 seems to trim N digits from the end with rounding.
          */
         ip = intermediate = dtoa(value, mode, ndigits, &period, &sign, NULL);
-        len = (int) strlen(intermediate);
+        len = strlen(intermediate);
         exponent = period - 1;
 
         if (mode == MPR_DTOA_ALL_DIGITS && ndigits == 0) {
@@ -13088,20 +14336,25 @@ char *mprDtoa(MprCtx ctx, double value, int ndigits, int mode, int flags)
                     mprPutStringToBuf(buf, "0.");
                     mprPutPadToBuf(buf, '0', -period);
                     mprPutStringToBuf(buf, ip);
-                    mprPutPadToBuf(buf, '0', ndigits - len + period);
+                    npad = ndigits - len + period;
+                    if (npad > 0) {
+                        mprPutPadToBuf(buf, '0', npad);
+                    }
 
                 } else {
                     count = min(len, period);
                     /* Leading integral digits */
                     mprPutSubStringToBuf(buf, ip, count);
                     /* Trailing zero pad */
-                    mprPutPadToBuf(buf, '0', period - len);
+                    if (period > len) {
+                        mprPutPadToBuf(buf, '0', period - len);
+                    }
                     totalDigits = count + ndigits;
                     if (period < totalDigits) {
                         count = totalDigits + sign - mprGetBufLength(buf);
                         mprPutCharToBuf(buf, '.');
                         mprPutSubStringToBuf(buf, &ip[period], count);
-                        mprPutPadToBuf(buf, '0', count - (int) strlen(&ip[period]));
+                        mprPutPadToBuf(buf, '0', count - strlen(&ip[period]));
                     }
                 }
 
@@ -13131,7 +14384,7 @@ char *mprDtoa(MprCtx ctx, double value, int ndigits, int mode, int flags)
     if (intermediate) {
         freedtoa(intermediate);
     }
-    result = mprStrdup(ctx, mprGetBufStart(buf));
+    result = sclone(ctx, mprGetBufStart(buf));
     mprFree(buf);
     return result;
 }
@@ -13159,7 +14412,7 @@ static int growBuf(MprCtx ctx, Format *fmt)
     mprAssert(ctx);
     newbuf = (uchar*) mprAlloc(ctx, buflen + fmt->growBy);
     if (newbuf == 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     if (fmt->buf) {
         memcpy(newbuf, fmt->buf, buflen);
@@ -13252,7 +14505,7 @@ int print(cchar *fmt, ...)
 
 #if BLD_FEATURE_ROMFS 
 
-static int closeFile(MprFile *file);
+static void manageRomFile(MprFile *file, int flags);
 static int getPathInfo(MprRomFileSystem *rfs, cchar *path, MprPath *info);
 static MprRomInode *lookup(MprRomFileSystem *rfs, cchar *path);
 
@@ -13265,10 +14518,11 @@ static MprFile *openFile(MprCtx ctx, MprFileSystem *fileSystem, cchar *path, int
     mprAssert(path && *path);
 
     rfs = (MprRomFileSystem*) fileSystem;
-    file = mprAllocObj(ctx, MprFile, closeFile);
+    file = mprAllocObj(ctx, MprFile, manageRomFile);
     file->fileSystem = fileSystem;
     file->mode = omode;
     file->fd = -1;
+    file->path = sclone(file, path);
 
     if ((file->inode = lookup(rfs, path)) == 0) {
         return 0;
@@ -13277,9 +14531,12 @@ static MprFile *openFile(MprCtx ctx, MprFileSystem *fileSystem, cchar *path, int
 }
 
 
-static int closeFile(MprFile *file)
+static void manageRomFile(MprFile *file, int flags)
 {
-    return 0;
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(file->path);
+        mprMark(file->buf);
+    }
 }
 
 
@@ -13375,7 +14632,7 @@ static int getPathInfo(MprRomFileSystem *rfs, cchar *path, MprPath *info)
     info->checked = 1;
 
     if ((ri = (MprRomInode*) lookup(rfs, path)) == 0) {
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     memset(info, 0, sizeof(MprPath));
 
@@ -13438,11 +14695,11 @@ int mprSetRomFileSystem(MprCtx ctx, MprRomInode *inodeList)
 
     rfs = (MprRomFileSystem*) mprGetMpr(ctx)->fileSystem;
     rfs->romInodes = inodeList;
-    rfs->fileIndex = mprCreateHash(rfs, MPR_FILES_HASH_SIZE);
+    rfs->fileIndex = mprCreateHash(rfs, MPR_FILES_HASH_SIZE, MPR_HASH_PERM_KEYS);
 
     for (ri = inodeList; ri->path; ri++) {
         if (mprAddHash(rfs->fileIndex, ri->path, ri) < 0) {
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
     }
     return 0;
@@ -13590,11 +14847,14 @@ int mprCreateNotifierService(MprWaitService *ws)
         fcntl(breakSock, F_SETFD, FD_CLOEXEC);
 #endif
         ws->breakAddress.sin_family = AF_INET;
+#if CYGWIN
         /*
             Cygwin doesn't work with INADDR_ANY
          */
-        // ws->breakAddress.sin_addr.s_addr = INADDR_ANY;
         ws->breakAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+#else
+        ws->breakAddress.sin_addr.s_addr = INADDR_ANY;
+#endif
         ws->breakAddress.sin_port = htons((short) breakPort);
         rc = bind(breakSock, (struct sockaddr *) &ws->breakAddress, sizeof(ws->breakAddress));
         if (breakSock >= 0 && rc == 0) {
@@ -13621,6 +14881,16 @@ int mprCreateNotifierService(MprWaitService *ws)
 }
 
 
+static void mprManageSelect(MprWaitService *ws, int flags)
+{
+    if (flags & MPR_MANAGE_FREE) {
+        if (ws->breakSock >= 0) {
+            close(ws->breakSock);
+        }
+    }
+}
+
+
 static int growFds(MprWaitService *ws)
 {
     growFds(ws);
@@ -13628,7 +14898,7 @@ static int growFds(MprWaitService *ws)
     ws->handlerMap = mprRealloc(ws, ws->handlerMap, sizeof(MprWaitHandler*) * ws->handlerMax);
     if (ws->handlerMap) {
         unlock(ws);
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     memset(&ws->handlerMap[ws->handlerMax / 2], 0, sizeof(MprWaitHandler*) * ws->handlerMax / 2);
     return 0;
@@ -13648,7 +14918,7 @@ int mprAddNotifier(MprWaitService *ws, MprWaitHandler *wp, int mask)
     if (wp->desiredMask != mask) {
         if (fd >= ws->handlerMax && growFds(ws) < 0) {
             unlock(ws);
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
         if (mask & MPR_READABLE) {
             FD_SET(fd, &ws->readMask);
@@ -13912,18 +15182,18 @@ void stubMprSelectWait() {}
 
 static MprSocket *acceptSocket(MprSocket *listen);
 static void closeSocket(MprSocket *sp, bool gracefully);
-static int  connectSocket(MprSocket *sp, cchar *ipAddr, int port, int initialFlags);
+static int connectSocket(MprSocket *sp, cchar *ipAddr, int port, int initialFlags);
 static MprSocket *createSocket(MprCtx ctx, struct MprSsl *ssl);
 static MprSocketProvider *createStandardProvider(MprSocketService *ss);
 static void disconnectSocket(MprSocket *sp);
-static int  flushSocket(MprSocket *sp);
-static int  getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, 
-        socklen_t *addrlen);
-static int  getSocketIpAddr(MprCtx ctx, struct sockaddr *addr, int addrlen, char *ip, int size, int *port);
-static int  listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags);
-static int  readSocket(MprSocket *sp, void *buf, int bufsize);
-static int  socketDestructor(MprSocket *sp);
-static int  writeSocket(MprSocket *sp, void *buf, int bufsize);
+static int flushSocket(MprSocket *sp);
+static int getSocketIpAddr(MprCtx ctx, struct sockaddr *addr, int addrlen, char *ip, int size, int *port);
+static int ipv6(cchar *ip);
+static int listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags);
+static void manageSocket(MprSocket *sp, int flags);
+static void manageSocketService(MprSocketService *ss, int flags);
+static size_t readSocket(MprSocket *sp, void *buf, size_t bufsize);
+static size_t writeSocket(MprSocket *sp, void *buf, size_t bufsize);
 
 /*
     Open the socket service
@@ -13935,12 +15205,12 @@ MprSocketService *mprCreateSocketService(MprCtx ctx)
 
     mprAssert(ctx);
 
-    ss = mprAllocObj(ctx, MprSocketService, NULL);
+    ss = mprAllocObj(ctx, MprSocketService, manageSocketService);
     if (ss == 0) {
         return 0;
     }
     ss->next = 0;
-    ss->maxClients = INT_MAX;
+    ss->maxClients = MAXINT;
     ss->numClients = 0;
 
     ss->standardProvider = createStandardProvider(ss);
@@ -13959,6 +15229,16 @@ MprSocketService *mprCreateSocketService(MprCtx ctx)
 }
 
 
+static void manageSocketService(MprSocketService *ss, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(ss->mutex);
+        mprMark(ss->standardProvider);
+        mprMark(ss->secureProvider);
+    }
+}
+
+
 /*
     Start the socket service
  */
@@ -13973,17 +15253,17 @@ int mprStartSocketService(MprSocketService *ss)
     hostName[0] = '\0';
 
     if (gethostname(serverName, sizeof(serverName)) < 0) {
-        mprStrcpy(serverName, sizeof(serverName), "localhost");
+        scopy(serverName, sizeof(serverName), "localhost");
         mprUserError(ss, "Can't get host name. Using \"localhost\".");
         /* Keep going */
     }
     if ((dp = strchr(serverName, '.')) != 0) {
-        mprStrcpy(hostName, sizeof(hostName), serverName);
+        scopy(hostName, sizeof(hostName), serverName);
         *dp++ = '\0';
-        mprStrcpy(domainName, sizeof(domainName), dp);
+        scopy(domainName, sizeof(domainName), dp);
 
     } else {
-        mprStrcpy(hostName, sizeof(hostName), serverName);
+        scopy(hostName, sizeof(hostName), serverName);
     }
     mprSetServerName(ss, serverName);
     mprSetDomainName(ss, domainName);
@@ -14051,7 +15331,7 @@ static MprSocket *createSocket(MprCtx ctx, struct MprSsl *ssl)
 {
     MprSocket       *sp;
 
-    sp = mprAllocObj(ctx, MprSocket, socketDestructor);
+    sp = mprAllocObj(ctx, MprSocket, manageSocket);
     if (sp == 0) {
         return 0;
     }
@@ -14063,6 +15343,27 @@ static MprSocket *createSocket(MprCtx ctx, struct MprSsl *ssl)
     sp->service = mprGetMpr(ctx)->socketService;
     sp->mutex = mprCreateLock(sp);
     return sp;
+}
+
+
+static void manageSocket(MprSocket *sp, int flags)
+{
+    MprSocketService    *ss;
+
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(sp->acceptIp);
+        mprMark(sp->ip);
+        mprMark(sp->provider);
+        mprMark(sp->mutex);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        ss = sp->service;
+        mprLock(ss->mutex);
+        if (sp->fd >= 0) {
+            mprCloseSocket(sp, 1);
+        }
+        mprUnlock(ss->mutex);
+    }
 }
 
 
@@ -14089,21 +15390,6 @@ MprSocket *mprCreateSocket(MprCtx ctx, struct MprSsl *ssl)
     }
     sp->service = ss;
     return sp;
-}
-
-
-static int socketDestructor(MprSocket *sp)
-{
-    MprSocketService    *ss;
-
-    ss = sp->service;
-
-    mprLock(ss->mutex);
-    if (sp->fd >= 0) {
-        mprCloseSocket(sp, 1);
-    }
-    mprUnlock(ss->mutex);
-    return 0;
 }
 
 
@@ -14148,27 +15434,24 @@ static int listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
     lock(sp);
 
     if (ip == 0 || *ip == '\0') {
-        mprLog(sp, 6, "mprSocket: openServer *:%d, flags %x", port, initialFlags);
+        mprLog(sp, 6, "listenSocket: %d, flags %x", port, initialFlags);
     } else {
-        mprLog(sp, 6, "mprSocket: openServer %s:%d, flags %x", ip, port, initialFlags);
+        mprLog(sp, 6, "listenSocket: %s:%d, flags %x", ip, port, initialFlags);
     }
     resetSocket(sp);
 
-    sp->ip = mprStrdup(sp, ip);
+    sp->ip = sclone(sp, ip);
     sp->port = port;
     sp->flags = (initialFlags &
         (MPR_SOCKET_BROADCAST | MPR_SOCKET_DATAGRAM | MPR_SOCKET_BLOCK |
          MPR_SOCKET_LISTENER | MPR_SOCKET_NOREUSE | MPR_SOCKET_NODELAY | MPR_SOCKET_THREAD));
 
     datagram = sp->flags & MPR_SOCKET_DATAGRAM;
-    if (getSocketInfo(sp, ip, port, &family, &protocol, &addr, &addrlen) < 0) {
+    if (mprGetSocketInfo(sp, ip, port, &family, &protocol, &addr, &addrlen) < 0) {
         unlock(sp);
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
 
-    /*
-        Create the O/S socket
-     */
     sp->fd = (int) socket(family, datagram ? SOCK_DGRAM: SOCK_STREAM, protocol);
     if (sp->fd < 0) {
         unlock(sp);
@@ -14188,7 +15471,15 @@ static int listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
         setsockopt(sp->fd, SOL_SOCKET, SO_REUSEADDR, (char*) &rc, sizeof(rc));
     }
 #endif
-
+    if (sp->service->prebind) {
+        if ((sp->service->prebind)(sp) < 0) {
+            mprFree(addr);
+            closesocket(sp->fd);
+            sp->fd = -1;
+            unlock(sp);
+            return MPR_ERR_CANT_OPEN;
+        }
+    }
     rc = bind(sp->fd, addr, addrlen);
     if (rc < 0) {
         rc = errno;
@@ -14280,7 +15571,7 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
     sp->flags |= MPR_SOCKET_CLIENT;
 
     mprFree(sp->ip);
-    sp->ip = mprStrdup(sp, ip);
+    sp->ip = sclone(sp, ip);
 
     broadcast = sp->flags & MPR_SOCKET_BROADCAST;
     if (broadcast) {
@@ -14288,16 +15579,13 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
     }
     datagram = sp->flags & MPR_SOCKET_DATAGRAM;
 
-    if (getSocketInfo(sp, ip, port, &family, &protocol, &addr, &addrlen) < 0) {
+    if (mprGetSocketInfo(sp, ip, port, &family, &protocol, &addr, &addrlen) < 0) {
         err = mprGetSocketError(sp);
         closesocket(sp->fd);
         sp->fd = -1;
         unlock(sp);
         return MPR_ERR_CANT_ACCESS;
     }
-    /*
-        Create the O/S socket
-     */
     sp->fd = (int) socket(family, datagram ? SOCK_DGRAM: SOCK_STREAM, protocol);
     if (sp->fd < 0) {
         err = mprGetSocketError(sp);
@@ -14555,7 +15843,7 @@ static MprSocket *acceptSocket(MprSocket *listen)
         mprFree(nsp);
         return 0;
     }
-    nsp->ip = mprStrdup(nsp, ip);
+    nsp->ip = sclone(nsp, ip);
     nsp->port = port;
 
     /*
@@ -14566,7 +15854,7 @@ static MprSocket *acceptSocket(MprSocket *listen)
     getsockname(fd, saddr, &saddrlen);
     acceptPort = 0;
     getSocketIpAddr(ss, saddr, saddrlen, acceptIp, sizeof(acceptIp), &acceptPort);
-    nsp->acceptIp = mprStrdup(nsp, acceptIp);
+    nsp->acceptIp = sclone(nsp, acceptIp);
     nsp->acceptPort = acceptPort;
     return nsp;
 }
@@ -14593,11 +15881,12 @@ int mprReadSocket(MprSocket *sp, void *buf, int bufsize)
     Standard read from a socket (Non SSL)
     Return number of bytes read. Return -1 on errors and EOF.
  */
-static int readSocket(MprSocket *sp, void *buf, int bufsize)
+static size_t readSocket(MprSocket *sp, void *buf, size_t bufsize)
 {
     struct sockaddr_storage server;
     socklen_t               len;
-    int                     bytes, errCode;
+    size_t                  bytes;
+    int                     errCode;
 
     mprAssert(buf);
     mprAssert(bufsize > 0);
@@ -14656,7 +15945,7 @@ again:
     Write data. Return the number of bytes written or -1 on errors. NOTE: this routine will return with a
     short write if the underlying socket can't accept any more data.
  */
-int mprWriteSocket(MprSocket *sp, void *buf, int bufsize)
+size_t mprWriteSocket(MprSocket *sp, void *buf, size_t bufsize)
 {
     mprAssert(sp);
     mprAssert(buf);
@@ -14673,7 +15962,7 @@ int mprWriteSocket(MprSocket *sp, void *buf, int bufsize)
 /*  
     Standard write to a socket (Non SSL)
  */
-static int writeSocket(MprSocket *sp, void *buf, int bufsize)
+static size_t writeSocket(MprSocket *sp, void *buf, size_t bufsize)
 {
     struct sockaddr     *addr;
     socklen_t           addrlen;
@@ -14685,9 +15974,9 @@ static int writeSocket(MprSocket *sp, void *buf, int bufsize)
 
     lock(sp);
     if (sp->flags & (MPR_SOCKET_BROADCAST | MPR_SOCKET_DATAGRAM)) {
-        if (getSocketInfo(sp, sp->ip, sp->port, &family, &protocol, &addr, &addrlen) < 0) {
+        if (mprGetSocketInfo(sp, sp->ip, sp->port, &family, &protocol, &addr, &addrlen) < 0) {
             unlock(sp);
-            return MPR_ERR_NOT_FOUND;
+            return MPR_ERR_CANT_FIND;
         }
     }
     if (sp->flags & MPR_SOCKET_EOF) {
@@ -14738,7 +16027,7 @@ static int writeSocket(MprSocket *sp, void *buf, int bufsize)
  */
 int mprWriteSocketString(MprSocket *sp, cchar *str)
 {
-    return mprWriteSocket(sp, (void*) str, (int) strlen(str));
+    return mprWriteSocket(sp, (void*) str, strlen(str));
 }
 
 
@@ -15081,13 +16370,12 @@ int mprGetSocketError(MprSocket *sp)
     Get a socket address from a host/port combination. If a host provides both IPv4 and IPv6 addresses, 
     prefer the IPv4 address.
  */
-static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, 
-    struct sockaddr **addr, socklen_t *addrlen)
+int mprGetSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, socklen_t *addrlen)
 {
     MprSocketService    *ss;
-    struct addrinfo     hints, *res;
+    struct addrinfo     hints, *res, *r;
     char                portBuf[MPR_MAX_IP_PORT];
-    int                 rc;
+    int                 v6;
 
     mprAssert(ctx);
     mprAssert(ip);
@@ -15106,15 +16394,19 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
         ip = 0;
         hints.ai_flags |= AI_PASSIVE;           /* Bind to 0.0.0.0 and :: */
     }
+    v6 = ipv6(ip);
     hints.ai_socktype = SOCK_STREAM;
-    mprItoa(portBuf, sizeof(portBuf), port, 10);
-    hints.ai_family = AF_INET;
-    res = 0;
+    if (ip) {
+        hints.ai_family = v6 ? AF_INET6 : AF_INET;
+    } else {
+        hints.ai_family = AF_UNSPEC;
+    }
+    itos(portBuf, sizeof(portBuf), port, 10);
 
     /*  
         Try to sleuth the address to avoid duplicate address lookups. Then try IPv4 first then IPv6.
      */
-    rc = -1;
+#if UNUSED
     if (ip == NULL || strchr(ip, ':') == 0) {
         /* 
             Looks like IPv4. Map localhost to 127.0.0.1 to avoid crash bug in MAC OS X.
@@ -15122,23 +16414,36 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
         if (ip && strcmp(ip, "localhost") == 0) {
             ip = "127.0.0.1";
         }
-        rc = getaddrinfo(ip, portBuf, &hints, &res);
     }
-    if (rc != 0) {
-        hints.ai_family = AF_INET6;
-        rc = getaddrinfo(ip, portBuf, &hints, &res);
-        if (rc != 0) {
-            freeaddrinfo(res);
-            mprUnlock(ss->mutex);
-            return MPR_ERR_CANT_OPEN;
+#endif
+    res = 0;
+    if (getaddrinfo(ip, portBuf, &hints, &res) != 0) {
+        mprUnlock(ss->mutex);
+        return MPR_ERR_CANT_OPEN;
+    }
+    /*
+        Prefer IPv4 if IPv6 not requested
+     */
+    for (r = res; r; r = r->ai_next) {
+        if (v6) {
+            if (r->ai_family == AF_INET6) {
+                break;
+            }
+        } else {
+            if (r->ai_family == AF_INET) {
+                break;
+            }
         }
     }
+    if (r == NULL) {
+        r = res;
+    }
     *addr = (struct sockaddr*) mprAlloc(ctx, sizeof(struct sockaddr_storage));
-    mprMemcpy((char*) *addr, sizeof(struct sockaddr_storage), (char*) res->ai_addr, (int) res->ai_addrlen);
+    mprMemcpy((char*) *addr, sizeof(struct sockaddr_storage), (char*) r->ai_addr, (int) r->ai_addrlen);
 
-    *addrlen = (int) res->ai_addrlen;
-    *family = res->ai_family;
-    *protocol = res->ai_protocol;
+    *addrlen = (int) r->ai_addrlen;
+    *family = r->ai_family;
+    *protocol = r->ai_protocol;
 
     freeaddrinfo(res);
     mprUnlock(ss->mutex);
@@ -15147,8 +16452,10 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
 
 
 #elif MACOSX
-static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, 
-        struct sockaddr **addr, socklen_t *addrlen)
+/*
+    UNUSED OLD MAC code. Mac now uses getaddrinfo above
+ */
+int mprGetSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, socklen_t *addrlen)
 {
     MprSocketService    *ss;
     struct hostent      *hostent;
@@ -15170,7 +16477,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
         sa6 = (struct sockaddr_in6*) mprAllocZeroed(ctx, len);
         if (sa6 == 0) {
             mprUnlock(ss->mutex);
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
         memcpy((char*) &sa6->sin6_addr, (char*) hostent->h_addr_list[0], (size_t) hostent->h_length);
         sa6->sin6_family = hostent->h_addrtype;
@@ -15181,7 +16488,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
         sa = (struct sockaddr_in*) mprAllocZeroed(ctx, len);
         if (sa == 0) {
             mprUnlock(ss->mutex);
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
         memcpy((char*) &sa->sin_addr, (char*) hostent->h_addr_list[0], (size_t) hostent->h_length);
         sa->sin_family = hostent->h_addrtype;
@@ -15201,8 +16508,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
 
 #else
 
-static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol,
-        struct sockaddr **addr, socklen_t *addrlen)
+int mprGetSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, socklen_t *addrlen)
 {
     MprSocketService    *ss;
     struct sockaddr_in  *sa;
@@ -15210,7 +16516,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
     ss = mprGetMpr(ctx)->socketService;
 
     if ((sa = mprAllocObj(ctx, struct sockaddr_in, NULL)) == NULL) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     memset((char*) sa, '\0', sizeof(struct sockaddr_in));
     sa->sin_family = AF_INET;
@@ -15223,7 +16529,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
     }
 
     /*
-        gethostbyname is not thread safe
+        gethostbyname is not thread safe on some systems
      */
     mprLock(ss->mutex);
     if (sa->sin_addr.s_addr == INADDR_NONE) {
@@ -15244,7 +16550,7 @@ static int getSocketInfo(MprCtx ctx, cchar *ip, int port, int *family, int *prot
             hostent = gethostbyname2(ip, AF_INET6);
             if (hostent == 0) {
                 mprUnlock(ss->mutex);
-                return MPR_ERR_NOT_FOUND;
+                return MPR_ERR_CANT_FIND;
             }
         }
         memcpy((char*) &sa->sin_addr, (char*) hostent->h_addr_list[0], (size_t) hostent->h_length);
@@ -15291,6 +16597,24 @@ static int getSocketIpAddr(MprCtx ctx, struct sockaddr *addr, int addrlen, char 
 }
 
 
+static int ipv6(cchar *ip)
+{
+    cchar   *cp;
+    int     colons;
+
+    if (ip == 0 || *ip == 0) {
+        return 0;
+    }
+    colons = 0;
+    for (cp = (char*) ip; ((*cp != '\0') && (colons < 2)) ; cp++) {
+        if (*cp == ':') {
+            colons++;
+        }
+    }
+    return colons >= 2;
+}
+
+
 /*  
     Parse ipAddrPort and return the IP address and port components. Handles ipv4 and ipv6 addresses. When an ipAddrPort
     contains an ipv6 port it should be written as
@@ -15303,7 +16627,6 @@ int mprParseIp(MprCtx ctx, cchar *ipAddrPort, char **ipAddrRef, int *port, int d
 {
     char    *ipAddr;
     char    *cp;
-    int     colonCount;
 
     ipAddr = NULL;
     if (defaultPort < 0) {
@@ -15312,19 +16635,7 @@ int mprParseIp(MprCtx ctx, cchar *ipAddrPort, char **ipAddrRef, int *port, int d
     if ((cp = strstr(ipAddrPort, "://")) != 0) {
         ipAddrPort = &cp[3];
     }
-
-    /*  
-        First check if ipv6 or ipv4 address by looking for > 1 colons.
-     */
-    colonCount = 0;
-    for (cp = (char*) ipAddrPort; ((*cp != '\0') && (colonCount < 2)) ; cp++) {
-        if (*cp == ':') {
-            colonCount++;
-        }
-    }
-
-    if (colonCount > 1) {
-
+    if (ipv6(ipAddrPort)) {
         /*  
             IPv6. If port is present, it will follow a closing bracket ']'
          */
@@ -15334,13 +16645,13 @@ int mprParseIp(MprCtx ctx, cchar *ipAddrPort, char **ipAddrRef, int *port, int d
                 *port = (*++cp == '*') ? -1 : atoi(cp);
 
                 /* Set ipAddr to ipv6 address without brackets */
-                ipAddr = mprStrdup(ctx, ipAddrPort+1);
+                ipAddr = sclone(ctx, ipAddrPort+1);
                 cp = strchr(ipAddr, ']');
                 *cp = '\0';
 
             } else {
                 /* Handles [a:b:c:d:e:f:g:h:i] case (no port)- should not occur */
-                ipAddr = mprStrdup(ctx, ipAddrPort+1);
+                ipAddr = sclone(ctx, ipAddrPort+1);
                 cp = strchr(ipAddr, ']');
                 *cp = '\0';
 
@@ -15349,7 +16660,7 @@ int mprParseIp(MprCtx ctx, cchar *ipAddrPort, char **ipAddrRef, int *port, int d
             }
         } else {
             /* Handles a:b:c:d:e:f:g:h:i case (no port) */
-            ipAddr = mprStrdup(ctx, ipAddrPort);
+            ipAddr = sclone(ctx, ipAddrPort);
 
             /* No port present, use callers default */
             *port = defaultPort;
@@ -15359,7 +16670,7 @@ int mprParseIp(MprCtx ctx, cchar *ipAddrPort, char **ipAddrRef, int *port, int d
         /*  
             ipv4 
          */
-        ipAddr = mprStrdup(ctx, ipAddrPort);
+        ipAddr = sclone(ctx, ipAddrPort);
 
         if ((cp = strchr(ipAddr, ':')) != 0) {
             *cp++ = '\0';
@@ -15370,14 +16681,14 @@ int mprParseIp(MprCtx ctx, cchar *ipAddrPort, char **ipAddrRef, int *port, int d
             }
             if (*ipAddr == '*') {
                 mprFree(ipAddr);
-                ipAddr = mprStrdup(ctx, "127.0.0.1");
+                ipAddr = sclone(ctx, "127.0.0.1");
             }
 
         } else {
             if (isdigit((int) *ipAddr)) {
                 *port = atoi(ipAddr);
                 mprFree(ipAddr);
-                ipAddr = mprStrdup(ctx, "127.0.0.1");
+                ipAddr = sclone(ctx, "127.0.0.1");
 
             } else {
                 /* No port present, use callers default */
@@ -15395,6 +16706,12 @@ int mprParseIp(MprCtx ctx, cchar *ipAddrPort, char **ipAddrRef, int *port, int d
 bool mprIsSocketSecure(MprSocket *sp)
 {
     return sp->sslSocket != 0;
+}
+
+
+void mprSetSocketPrebindCallback(MprCtx ctx, MprSocketPrebind callback)
+{
+    mprGetMpr(ctx)->socketService->prebind = callback;
 }
 
 
@@ -15445,394 +16762,330 @@ bool mprIsSocketSecure(MprSocket *sp)
     mprString.c - String routines safe for embedded programming
 
     This module provides safe replacements for the standard string library. 
-
-    Most routines in this file are not thread-safe. It is the callers responsibility to perform all thread 
-    synchronization.
+    Most routines in this file are not thread-safe. It is the callers responsibility to perform all thread synchronization.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
-/*
-    TODO - need a join and split function
-    TODO - need a routine that supplies a length of bytes to copy out of str. Like:
-        int mprMemcpy(void *dest, int destMax, cvoid *src, int nbytes)   but adding a null.
- */
-
-
-
-int mprStrcpy(char *dest, int destMax, cchar *src)
-{
-    int     len;
-
-    mprAssert(dest);
-    mprAssert(destMax >= 0);
-    mprAssert(src);
-    mprAssert(src != dest);
-
-    len = (int) strlen(src);
-    if (destMax > 0 && len >= destMax && len > 0) {
-        return MPR_ERR_WONT_FIT;
-    }
-    if (len > 0) {
-        memcpy(dest, src, len);
-        dest[len] = '\0';
-    } else {
-        *dest = '\0';
-        len = 0;
-    } 
-    return len;
-}
-
-
-int mprStrcpyCount(char *dest, int destMax, cchar *src, int count)
-{
-    int     len;
-
-    mprAssert(dest);
-    mprAssert(destMax >= 0);
-    mprAssert(src);
-    mprAssert(src != dest);
-
-    len = (int) strlen(src);
-    len = min(len, count);
-
-    if (destMax > 0 && len >= destMax && len > 0) {
-        return MPR_ERR_WONT_FIT;
-    }
-    if (len > 0) {
-        memcpy(dest, src, len);
-        dest[len] = '\0';
-    } else {
-        *dest = '\0';
-        len = 0;
-    } 
-    return len;
-}
-
-
-int mprMemcmp(cvoid *s1, int s1Len, cvoid *s2, int s2Len)
-{
-    int     len, rc;
-
-    mprAssert(s1);
-    mprAssert(s2);
-    mprAssert(s1Len >= 0);
-    mprAssert(s2Len >= 0);
-
-    len = min(s1Len, s2Len);
-
-    rc = memcmp(s1, s2, len);
-    if (rc == 0) {
-        if (s1Len < s2Len) {
-            return -1;
-        } else if (s1Len > s2Len) {
-            return 1;
-        }
-    }
-    return rc;
-}
 
 
 /*
-    Supports insitu copy where src and destination overlap
+    Format a number as a string. Support radix 10 and 16.
  */
-int mprMemcpy(void *dest, int destMax, cvoid *src, int nbytes)
+char *itos(char *buf, int count, int64 value, int radix)
 {
-    mprAssert(dest);
-    mprAssert(destMax <= 0 || destMax >= nbytes);
-    mprAssert(src);
-    mprAssert(nbytes >= 0);
+    char    numBuf[32];
+    char    *cp, *dp, *endp;
+    char    digits[] = "0123456789ABCDEF";
+    int     negative;
 
-    if (destMax > 0 && nbytes > destMax) {
-        mprAssert(0);
-        return MPR_ERR_WONT_FIT;
+    if (radix != 10 && radix != 16) {
+        return 0;
     }
-    if (nbytes > 0) {
-        memmove(dest, src, nbytes);
-        return nbytes;
+    cp = &numBuf[sizeof(numBuf)];
+    *--cp = '\0';
+
+    if (value < 0) {
+        negative = 1;
+        value = -value;
+        count--;
     } else {
-        return 0;
+        negative = 0;
     }
-}
+    do {
+        *--cp = digits[value % radix];
+        value /= radix;
+    } while (value > 0);
 
-
-char *mprStrcatV(MprCtx ctx, int destMax, cchar *src, va_list args)
-{
-    va_list     ap;
-    char        *dest, *str, *dp;
-    int         required;
-
-    mprAssert(ctx);
-    mprAssert(src);
-
-    if (destMax <= 0) {
-        destMax = INT_MAX;
+    if (negative) {
+        *--cp = '-';
     }
-
-#ifdef __va_copy
-    __va_copy(ap, args);
-#else
-    ap = args;
-#endif
-
-    required = 1;
-    str = (char*) src;
-
-    while (str) {
-        required += (int) strlen(str);
-        str = va_arg(ap, char*);
+    dp = buf;
+    endp = &buf[count];
+    while (dp < endp && *cp) {
+        *dp++ = *cp++;
     }
-    if (required >= destMax) {
-        return 0;
-    }
-
-    if ((dest = (char*) mprAlloc(ctx, required)) == 0) {
-        return 0;
-    }
-
-    dp = dest;
-#ifdef __va_copy
-    __va_copy(ap, args);
-#else
-    ap = args;
-#endif
-    str = (char*) src;
-    while (str) {
-        strcpy(dp, str);
-        dp += (int) strlen(str);
-        str = va_arg(ap, char*);
-    }
-    *dp = '\0';
-    return dest;
-}
-
-
-char *mprStrcat(MprCtx ctx, int destMax, cchar *src, ...)
-{
-    va_list     ap;
-    char        *result;
-
-    mprAssert(ctx);
-    mprAssert(src);
-
-    va_start(ap, src);
-    result = mprStrcatV(ctx, destMax, src, ap);
-    va_end(ap);
-    return result;
-}
-
-
-char *mprReallocStrcat(MprCtx ctx, int destMax, char *buf, cchar *src, ...)
-{
-    va_list     ap;
-    char        *str, *dp;
-    int         required, existingLen;
-
-    mprAssert(ctx);
-    mprAssert(src);
-
-    va_start(ap, src);
-    if (destMax <= 0) {
-        destMax = INT_MAX;
-    }
-
-    existingLen = (buf) ? (int) strlen(buf) : 0;
-    required = existingLen + 1;
-
-    str = (char*) src;
-    while (str) {
-        required += (int) strlen(str);
-        str = va_arg(ap, char*);
-    }
-    if (required >= destMax) {
-        return 0;
-    }
-    if ((buf = mprRealloc(ctx, (char*) buf, required)) == 0) {
-        return 0;
-    }
-    dp = &buf[existingLen];
-
-    va_end(ap);
-    va_start(ap, src);
-
-    str = (char*) src;
-    while (str) {
-        strcpy(dp, str);
-        dp += (int) strlen(str);
-        str = va_arg(ap, char*);
-    }
-    *dp = '\0';
-    va_end(ap);
+    *dp++ = '\0';
     return buf;
 }
 
 
-int mprStrlen(cchar *src, int max)
+char *schr(cchar *s, int c)
 {
-    int     len;
-
-    len = (int) strlen(src);
-    if (len >= max) {
-        mprAssert(0);
-        return MPR_ERR_WONT_FIT;
-    }
-    return len;
-}
-
-
-//  TODO - would be good to have a trim from only the end
-char *mprStrTrim(char *str, cchar *set)
-{
-    int     len, i;
-
-    if (str == 0 || set == 0) {
-        return str;
-    }
-
-    i = (int) strspn(str, set);
-    str += i;
-
-    len = (int) strlen(str);
-    while (len > 0 && strspn(&str[len - 1], set) > 0) {
-        str[len - 1] = '\0';
-        len--;
-    }
-    return str;
-}
-
-
-/*  
-    Map a string to lower case (overwrites original string)
- */
-char *mprStrLower(char *str)
-{
-    char    *cp;
-
-    mprAssert(str);
-
-    if (str == 0) {
-        return 0;
-    }
-
-    for (cp = str; *cp; cp++) {
-        if (isupper((int) *cp)) {
-            *cp = (char) tolower((int) *cp);
-        }
-    }
-    return str;
-}
-
-
-/*  
-    Map a string to upper case (overwrites buffer)
- */
-char *mprStrUpper(char *str)
-{
-    char    *cp;
-
-    mprAssert(str);
-    if (str == 0) {
-        return 0;
-    }
-
-    for (cp = str; *cp; cp++) {
-        if (islower((int) *cp)) {
-            *cp = (char) toupper((int) *cp);
-        }
-    }
-    return str;
-}
-
-
-/*
-    Case sensitive string comparison.
- */
-int mprStrcmp(cchar *str1, cchar *str2)
-{
-    int     rc;
-
-    if (str1 == 0) {
-        return -1;
-    }
-    if (str2 == 0) {
-        return 1;
-    }
-    if (str1 == str2) {
-        return 0;
-    }
-
-    for (rc = 0; *str1 && *str2 && rc == 0; str1++, str2++) {
-        rc = *str1 - *str2;
-    }
-    if (rc) {
-        return rc < 0 ? -1 : 1;
-    }
-    if (*str1 == '\0' && *str2) {
-        return -1;
-    }
-    if (*str2 == '\0' && *str1) {
-        return 1;
-    }
-    return rc;
-}
-
-
-/*
-    Case insensitive string comparison. Stop at the end of str1.
- */
-int mprStrcmpAnyCase(cchar *str1, cchar *str2)
-{
-    int     rc;
-
-    if (str1 == 0) {
-        return -1;
-    }
-    if (str2 == 0) {
-        return 1;
-    }
-    if (str1 == str2) {
-        return 0;
-    }
-    for (rc = 0; *str1 && *str2 && rc == 0; str1++, str2++) {
-        rc = tolower((int) *str1) - tolower((int) *str2);
-    }
-    if (rc) {
-        return rc < 0 ? -1 : 1;
-    } else if (*str1 == '\0' && *str2 == '\0') {
-        return 0;
-    } else if (*str1 == '\0') {
-        return -1;
-    } else if (*str2 == '\0') {
-        return 1;
-    }
-    return 0;
+    return strchr(s, c);
 }
 
 
 /*
     Case insensitive string comparison. Limited by length
  */
-int mprStrcmpAnyCaseCount(cchar *str1, cchar *str2, int len)
+int scasecmp(cchar *s1, cchar *s2)
+{
+    if (s1 == 0 || s2 == 0) {
+        return -1;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    return sncasecmp(s1, s2, max(strlen(s1), strlen(s2)));
+}
+
+
+size_t scopy(char *dest, size_t destMax, cchar *src)
+{
+    size_t      len;
+
+    mprAssert(src);
+    mprAssert(dest);
+    mprAssert(0 < dest && destMax < MAXINT);
+
+    len = strlen(src);
+    if (destMax <= len) {
+        mprAssert(!MPR_ERR_WONT_FIT);
+        return MPR_ERR_WONT_FIT;
+    }
+    strcpy(dest, src);
+    return len;
+}
+
+
+char *sclone(MprCtx ctx, cchar *str)
+{
+    char    *ptr;
+    size_t  size, len;
+
+    if (str == NULL) {
+        str = "";
+    }
+    len = strlen(str);
+    size = len + 1;
+    if ((ptr = mprAlloc(ctx, size)) != NULL) {
+        memcpy(ptr, str, len);
+    }
+    ptr[len] = '\0';
+    return ptr;
+}
+
+
+int scmp(cchar *s1, cchar *s2)
+{
+    if (s1 == 0 || s2 == 0) {
+        return -1;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    return sncmp(s1, s2, max(strlen(s1), strlen(s2)));
+}
+
+
+int sends(cchar *str, cchar *suffix)
+{
+    if (str == NULL || suffix == NULL) {
+        return 0;
+    }
+    if (strcmp(&str[strlen(str) - strlen(suffix) - 1], suffix) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+
+char *sfmt(MprCtx ctx, cchar *fmt, ...)
+{
+    va_list     ap;
+    char        *buf;
+
+    mprAssert(fmt);
+
+    va_start(ap, fmt);
+    buf = mprAsprintfv(ctx, fmt, ap);
+    va_end(ap);
+    return buf;
+}
+
+
+char *sfmtv(MprCtx ctx, cchar *fmt, va_list arg)
+{
+    mprAssert(fmt);
+    return mprAsprintfv(ctx, fmt, arg);
+}
+
+
+/*
+    Compute a hash for a C string
+    (Based on work by Paul Hsieh (c) 2004-2008, see http://www.azillionmonkeys.com/qed/hash.html)
+ */
+uint shash(cchar *cname, size_t len)
+{
+    uchar   *name;
+    uint    hash, rem, tmp;
+
+    mprAssert(cname);
+    mprAssert(0 <= len && len < MAXINT);
+
+    if (cname == NULL) {
+        return 0;
+    }
+    hash = len;
+    rem = len & 3;
+    name = (uchar*) cname;
+    for (len >>= 2; len > 0; len--, name += 4) {
+        hash  += name[0] | (name[1] << 8);
+        tmp   =  ((name[2] | (name[3] << 8)) << 11) ^ hash;
+        hash  =  (hash << 16) ^ tmp;
+        hash  += hash >> 11;
+    }
+    switch (rem) {
+    case 3: 
+        hash += name[0] + (name[1] << 8);
+        hash ^= hash << 16;
+        hash ^= name[2] << 18;
+        hash += hash >> 11;
+        break;
+    case 2: 
+        hash += name[0] + (name[1] << 8);
+        hash ^= hash << 11;
+        hash += hash >> 17;
+        break;
+    case 1: 
+        hash += name[0];
+        hash ^= hash << 10;
+        hash += hash >> 1;
+    }
+    hash ^= hash << 3;
+    hash += hash >> 5;
+    hash ^= hash << 4;
+    hash += hash >> 17;
+    hash ^= hash << 25;
+    hash += hash >> 6;
+    return hash;
+}
+
+
+/*
+    Hash the lower case name
+ */
+uint shashlower(cchar *cname, size_t len)
+{
+    uchar   *name;
+    uint    hash, rem, tmp;
+
+    mprAssert(cname);
+    mprAssert(0 <= len && len < MAXINT);
+
+    if (cname == NULL) {
+        return 0;
+    }
+    hash = len;
+    rem = len & 3;
+    name = (uchar*) cname;
+
+    for (len >>= 2; len > 0; len--, name += 4) {
+        hash  += tolower(name[0]) | (tolower(name[1]) << 8);
+        tmp   =  ((tolower(name[2]) | (tolower(name[3]) << 8)) << 11) ^ hash;
+        hash  =  (hash << 16) ^ tmp;
+        hash  += hash >> 11;
+    }
+    switch (rem) {
+    case 3: 
+        hash += tolower(name[0]) + (tolower(name[1]) << 8);
+        hash ^= hash << 16;
+        hash ^= tolower(name[2]) << 18;
+        hash += hash >> 11;
+        break;
+    case 2: 
+        hash += tolower(name[0]) + tolower((name[1]) << 8);
+        hash ^= hash << 11;
+        hash += hash >> 17;
+        break;
+    case 1: 
+        hash += tolower(name[0]);
+        hash ^= hash << 10;
+        hash += hash >> 1;
+    }
+    hash ^= hash << 3;
+    hash += hash >> 5;
+    hash ^= hash << 4;
+    hash += hash >> 17;
+    hash ^= hash << 25;
+    hash += hash >> 6;
+    return hash;
+}
+
+
+char *sjoin(MprCtx ctx, cchar *sep, ...)
+{
+    va_list     ap;
+    char        *result;
+
+    mprAssert(ctx);
+
+    va_start(ap, sep);
+    result = srejoinv(ctx, NULL, sep, ap);
+    va_end(ap);
+    return result;
+}
+
+
+char *sjoinv(MprCtx ctx, cchar *sep, va_list args)
+{
+    return srejoin(ctx, NULL, sep, args);
+}
+
+
+size_t slen(cchar *s)
+{
+    return strlen(s);
+}
+
+
+/*  
+    Map a string to lower case (overwrites original string)
+ */
+void slower(char *str)
+{
+    char    *cp;
+
+    mprAssert(str);
+
+    if (str) {
+        for (cp = str; *cp; cp++) {
+            if (isupper((int) *cp)) {
+                *cp = (char) tolower((int) *cp);
+            }
+        }
+    }
+}
+
+
+int sncasecmp(cchar *s1, cchar *s2, size_t n)
 {
     int     rc;
 
-    if (str1 == 0 || str2 == 0) {
-        return -1;
-    }
-    if (str1 == str2) {
-        return 0;
-    }
+    mprAssert(0 <= n && n < MAXINT);
 
-    for (rc = 0; len-- > 0 && *str1 && rc == 0; str1++, str2++) {
-        rc = tolower((int) *str1) - tolower((int) *str2);
-    }
-    if (rc || len < 0) {
-        return rc;
-    } else if (*str1 == '\0' && *str2 == '\0') {
-        return 0;
-    } else if (*str1 == '\0') {
+    if (s1 == 0 || s2 == 0) {
         return -1;
-    } else if (*str2 == '\0') {
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
+        rc = tolower((int) *s1) - tolower((int) *s2);
+    }
+    if (rc) {
+        return (rc > 0) ? 1 : -1;
+    } else if (n == 0) {
+        return 0;
+    } else if (*s1 == '\0' && *s2 == '\0') {
+        return 0;
+    } else if (*s1 == '\0') {
+        return -1;
+    } else if (*s2 == '\0') {
         return 1;
     }
     return 0;
@@ -15840,9 +17093,318 @@ int mprStrcmpAnyCaseCount(cchar *str1, cchar *str2, int len)
 
 
 /*
-    Thread-safe wrapping of strtok. Note "str" is modifed as per strtok()
+    Case sensitive string comparison. Limited by length
  */
-char *mprStrTok(char *str, cchar *delim, char **last)
+int sncmp(cchar *s1, cchar *s2, size_t n)
+{
+    int     rc;
+
+    mprAssert(0 <= n && n < MAXINT);
+
+    if (s1 == 0 && s2 == 0) {
+        return 0;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
+        rc = *s1 - *s2;
+    }
+    if (rc) {
+        return (rc > 0) ? 1 : -1;
+    } else if (n == 0) {
+        return 0;
+    } else if (*s1 == '\0' && *s2 == '\0') {
+        return 0;
+    } else if (*s1 == '\0') {
+        return -1;
+    } else if (*s2 == '\0') {
+        return 1;
+    }
+    return 0;
+}
+
+
+/*
+    This routine copies at most "count" characters from a string. It ensures the result is always null terminated and 
+    the buffer does not overflow. Returns MPR_ERR_WONT_FIT if the buffer is too small.
+ */
+size_t sncopy(char *dest, size_t destMax, cchar *src, size_t count)
+{
+    size_t      len;
+
+    mprAssert(dest);
+    mprAssert(src);
+    mprAssert(src != dest);
+    mprAssert(0 <= count && count < MAXINT);
+    mprAssert(0 < destMax && destMax < MAXINT);
+
+    len = strlen(src);
+    len = min(len, count);
+    if (destMax <= len) {
+        mprAssert(!MPR_ERR_WONT_FIT);
+        return MPR_ERR_WONT_FIT;
+    }
+    if (len > 0) {
+        memcpy(dest, src, len);
+        dest[len] = '\0';
+    } else {
+        *dest = '\0';
+        len = 0;
+    } 
+    return len;
+}
+
+
+char *spbrk(cchar *str, cchar *set)
+{
+    cchar       *sp;
+    int         count;
+
+    if (str == NULL || set == NULL) {
+        return 0;
+    }
+    for (count = 0; *str; count++) {
+        for (sp = set; *sp; sp++) {
+            if (*str == *sp) {
+                return (char*) str;
+            }
+        }
+    }
+    return 0;
+}
+
+
+char *srchr(cchar *s, int c)
+{
+    return strrchr(s, c);
+}
+
+
+char *srejoin(MprCtx ctx, char *buf, cchar *sep, ...)
+{
+    va_list     ap;
+    char        *result;
+
+    mprAssert(ctx);
+
+    va_start(ap, sep);
+    result = srejoinv(ctx, buf, sep, ap);
+    va_end(ap);
+    return result;
+}
+
+
+char *srejoinv(MprCtx ctx, char *buf, cchar *sep, va_list args)
+{
+    va_list     ap;
+    char        *dest, *str, *dp;
+    int         required, seplen;
+
+    mprAssert(ctx);
+
+    if (sep == 0) {
+        sep = "";
+    } 
+    seplen = strlen(sep);
+    va_copy(ap, args);
+    required = 1;
+    seplen = strlen(sep);
+    str = va_arg(ap, char*);
+    while (str) {
+        required += strlen(str);
+        required += seplen;
+        str = va_arg(ap, char*);
+    }
+    if (buf && *buf) {
+        required += seplen;
+    }
+    if ((dest = (char*) mprRealloc(ctx, buf, required)) == 0) {
+        return 0;
+    }
+    dp = dest;
+    va_copy(ap, args);
+    str = va_arg(ap, char*);
+    if (str && *sep) {
+        strcpy(dp, sep);
+        dp += seplen;
+    }
+    while (str) {
+        strcpy(dp, str);
+        dp += strlen(str);
+        str = va_arg(ap, char*);
+        if (str) {
+            strcpy(dp, sep);
+            dp += seplen;
+        }
+    }
+    *dp = '\0';
+    return dest;
+}
+
+
+size_t sspn(cchar *str, cchar *set)
+{
+#if KEEP
+    cchar       *sp;
+    int         count;
+
+    if (str == NULL || set == NULL) {
+        return 0;
+    }
+    for (count = 0; *str; count++, str++) {
+        for (sp = set; *sp; sp++) {
+            if (*str == *sp) {
+                break;
+            }
+        }
+        if (*str != *sp) {
+            break;
+        }
+    }
+    return count;
+#else
+    if (str == NULL || set == NULL) {
+        return 0;
+    }
+    return strspn(str, set);
+#endif
+}
+ 
+
+int sstarts(cchar *str, cchar *prefix)
+{
+    if (str == NULL || prefix == NULL) {
+        return 0;
+    }
+    if (strncmp(str, prefix, strlen(prefix)) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+
+char *scontains(cchar *str, cchar *pattern, size_t limit)
+{
+    cchar   *cp, *s1, *s2;
+    size_t  lim;
+
+    mprAssert(0 <= limit && limit < MAXINT);
+    
+    if (str == 0) {
+        return 0;
+    }
+    if (pattern == 0 || *pattern == '\0') {
+        return 0;
+    }
+    for (cp = str; *cp; cp++) {
+        s1 = cp;
+        s2 = pattern;
+        for (lim = limit; *s1 && *s2 && (*s1 == *s2) && lim > 0; lim--) {
+            s1++;
+            s2++;
+        }
+        if (*s2 == '\0') {
+            return (char*) cp;
+        }
+    }
+    return 0;
+}
+
+
+/*
+    Parse a number and check for parse errors. Supports radix 8, 10 or 16. 
+    If radix is <= 0, then the radix is sleuthed from the input.
+    Supports formats:
+        [(+|-)][0][OCTAL_DIGITS]
+        [(+|-)][0][(x|X)][HEX_DIGITS]
+        [(+|-)][DIGITS]
+
+ */
+int64 stoi(cchar *str, int radix, int *err)
+{
+    cchar   *start;
+    int64   val;
+    int     n, c, negative;
+
+    if (err) {
+        *err = 0;
+    }
+    if (str == 0) {
+        if (err) {
+            *err = MPR_ERR_BAD_SYNTAX;
+        }
+        return 0;
+    }
+    while (isspace((int) *str)) {
+        str++;
+    }
+    val = 0;
+    if (*str == '-') {
+        negative = 1;
+        str++;
+    } else {
+        negative = 0;
+    }
+    start = str;
+    if (radix <= 0) {
+        radix = 10;
+        if (*str == '0') {
+            if (tolower((int) str[1]) == 'x') {
+                radix = 16;
+                str += 2;
+            } else {
+                radix = 8;
+                str++;
+            }
+        }
+
+    } else if (radix == 16) {
+        if (*str == '0' && tolower((int) str[1]) == 'x') {
+            str += 2;
+        }
+
+    } else if (radix > 10) {
+        radix = 10;
+    }
+    if (radix == 16) {
+        while (*str) {
+            c = tolower((int) *str);
+            if (isdigit(c)) {
+                val = (val * radix) + c - '0';
+            } else if (c >= 'a' && c <= 'f') {
+                val = (val * radix) + c - 'a' + 10;
+            } else {
+                break;
+            }
+            str++;
+        }
+    } else {
+        while (*str && isdigit((int) *str)) {
+            n = *str - '0';
+            if (n >= radix) {
+                break;
+            }
+            val = (val * radix) + n;
+            str++;
+        }
+    }
+    if (str == start) {
+        /* No data */
+        if (err) {
+            *err = MPR_ERR_BAD_SYNTAX;
+        }
+        return 0;
+    }
+    return (negative) ? -val: val;
+}
+
+
+/*
+    Note "str" is modifed as per strtok()
+ */
+char *stok(char *str, cchar *delim, char **last)
 {
     char    *start, *end;
     int     i;
@@ -15870,282 +17432,67 @@ char *mprStrTok(char *str, cchar *delim, char **last)
 }
 
 
-/*
-    Split the buffer into word tokens
- */
-char *mprGetWordTok(char *buf, int bufsize, cchar *str, cchar *delim, cchar **tok)
+char *ssub(MprCtx ctx, char *str, size_t offset, size_t len)
 {
-    cchar       *start, *end;
-    int         i, len;
+    char    *result;
+    size_t  size;
 
-    start = str ? str : *tok;
+    mprAssert(str);
+    mprAssert(offset >= 0);
+    mprAssert(0 <= len && len < MAXINT);
 
-    if (start == 0) {
-        return 0;
+    if (str == NULL) {
+        return NULL;
     }
-    
-    i = (int) strspn(start, delim);
-    start += i;
-    if (*start =='\0') {
-        *tok = 0;
-        return 0;
+    size = len + 1;
+    if ((result = mprAlloc(ctx, size)) == NULL) {
+        return NULL;
     }
-    end = strpbrk(start, delim);
-    if (end) {
-        len = min((int) (end - start), bufsize - 1);
-        mprMemcpy(buf, bufsize, start, len);
-        buf[len] = '\0';
+    sncopy(result, size, &str[offset], len);
+    return result;
+}
+
+
+char *strim(char *str, cchar *set, int where)
+{
+    int     len, i;
+
+    if (str == NULL || set == NULL) {
+        return str;
+    }
+    if (where & MPR_TRIM_START) {
+        i = (int) strspn(str, set);
     } else {
-        if (mprStrcpy(buf, bufsize, start) < 0) {
-            buf[bufsize - 1] = '\0';
-            return 0;
-        }
-        buf[bufsize - 1] = '\0';
+        i = 0;
     }
-    *tok = end;
-    return buf;
+    str += i;
+    if (where & MPR_TRIM_END) {
+        len = strlen(str);
+        while (len > 0 && strspn(&str[len - 1], set) > 0) {
+            str[len - 1] = '\0';
+            len--;
+        }
+    }
+    return str;
 }
 
 
-/*
-    Format a number as a string. Support radix 10 and 16.
+
+/*  
+    Map a string to upper case (overwrites buffer)
  */
-char *mprItoa(char *buf, int size, int64 value, int radix)
+void supper(char *str)
 {
-    char    numBuf[32];
-    char    *cp, *dp, *endp;
-    char    digits[] = "0123456789ABCDEF";
-    int     negative;
+    char    *cp;
 
-    if (radix != 10 && radix != 16) {
-        return 0;
-    }
-
-    cp = &numBuf[sizeof(numBuf)];
-    *--cp = '\0';
-
-    if (value < 0) {
-        negative = 1;
-        value = -value;
-        size--;
-    } else {
-        negative = 0;
-    }
-
-    do {
-        *--cp = digits[value % radix];
-        value /= radix;
-    } while (value > 0);
-
-    if (negative) {
-        *--cp = '-';
-    }
-
-    dp = buf;
-    endp = &buf[size];
-    while (dp < endp && *cp) {
-        *dp++ = *cp++;
-    }
-    *dp++ = '\0';
-    return buf;
-}
-
-
-/*
-    Parse a number and check for parse errors. Supports radix 8, 10 or 16. 
-    If radix is <= 0, then the radix is sleuthed from the input.
-    Supports formats:
-        [(+|-)][0][OCTAL_DIGITS]
-        [(+|-)][0][(x|X)][HEX_DIGITS]
-        [(+|-)][DIGITS]
-
- */
-int64 mprParseNumber(cchar *str, int radix, int *err)
-{
-    cchar   *start;
-    int64   val;
-    int     n, c, negative;
-
-    mprAssert(err);
-
-    if (str == 0) {
-        *err = 1;
-        return 0;
-    }
-    *err = 0;
-
-    while (isspace((int) *str)) {
-        str++;
-    }
-    val = 0;
-    if (*str == '-') {
-        negative = 1;
-        str++;
-    } else {
-        negative = 0;
-    }
-
-    start = str;
-    if (radix <= 0) {
-        radix = 10;
-        if (*str == '0') {
-            if (tolower((int) str[1]) == 'x') {
-                radix = 16;
-                str += 2;
-            } else {
-                radix = 8;
-                str++;
-            }
-        }
-
-    } else if (radix == 16) {
-        if (*str == '0' && tolower((int) str[1]) == 'x') {
-            str += 2;
-        }
-
-    } else if (radix > 10) {
-        radix = 10;
-    }
-
-    if (radix == 16) {
-        while (*str) {
-            c = tolower((int) *str);
-            if (isdigit(c)) {
-                val = (val * radix) + c - '0';
-            } else if (c >= 'a' && c <= 'f') {
-                val = (val * radix) + c - 'a' + 10;
-            } else {
-                break;
-            }
-            str++;
-        }
-    } else {
-        while (*str && isdigit((int) *str)) {
-            n = *str - '0';
-            if (n >= radix) {
-                break;
-            }
-            val = (val * radix) + n;
-            str++;
-        }
-    }
-    if (str == start) {
-        /* No data */
-        *err = 1;
-    }
-    return (negative) ? -val: val;
-}
-
-
-/*
-    Parse a ascii. Supports radix 8, 10 or 16. If radix is <= 0, then the radix is sleuthed from the input.
-    Supports formats:
-        [(+|-)][0][OCTAL_DIGITS]
-        [(+|-)][0][(x|X)][HEX_DIGITS]
-        [(+|-)][DIGITS]
-
- */
-int64 mprAtoi(cchar *str, int radix)
-{
-    int     junk;
-
-    return mprParseNumber(str, radix, &junk);
-}
-
-
-/*
-    Make an argv array. Caller must free by calling mprFree(argv) to free everything.
- */
-int mprMakeArgv(MprCtx ctx, cchar *program, cchar *cmd, int *argcp, char ***argvp)
-{
-    char        *cp, **argv, *buf, *args;
-    int         size, argc;
-
-    /*
-     *  Allocate one buffer for argv and the actual args themselves
-     */
-    size = (int) strlen(cmd) + 1;
-
-    buf = (char*) mprAlloc(ctx, (MPR_MAX_ARGC * sizeof(char*)) + size);
-    if (buf == 0) {
-        return MPR_ERR_NO_MEMORY;
-    }
-
-    args = &buf[MPR_MAX_ARGC * sizeof(char*)];
-    strcpy(args, cmd);
-    argv = (char**) buf;
-
-    argc = 0;
-    if (program) {
-        argv[argc++] = (char*) mprStrdup(ctx, program);
-    }
-
-    for (cp = args; cp && *cp != '\0'; argc++) {
-        if (argc >= MPR_MAX_ARGC) {
-            mprAssert(argc < MPR_MAX_ARGC);
-            mprFree(buf);
-            *argvp = 0;
-            if (argcp) {
-                *argcp = 0;
-            }
-            return MPR_ERR_TOO_MANY;
-        }
-        while (isspace((int) *cp)) {
-            cp++;
-        }
-        if (*cp == '\0')  {
-            break;
-        }
-        if (*cp == '"') {
-            cp++;
-            argv[argc] = cp;
-            while ((*cp != '\0') && (*cp != '"')) {
-                cp++;
-            }
-        } else {
-            argv[argc] = cp;
-            while (*cp != '\0' && !isspace((int) *cp)) {
-                cp++;
-            }
-        }
-        if (*cp != '\0') {
-            *cp++ = '\0';
-        }
-    }
-    argv[argc] = 0;
-
-    if (argcp) {
-        *argcp = argc;
-    }
-    *argvp = argv;
-
-    return argc;
-}
-
-
-char *mprStrnstr(cchar *str, cchar *pattern, int len)
-{
-    cchar   *start, *p;
-    int     i;
-
-    if (str == 0 || pattern == 0 || len == 0) {
-        return 0;
-    }
-
-    while (*str && len-- > 0) {
-        if (*str++ == *pattern) {
-            start = str - 1;
-            for (p = pattern + 1, i = len; *p && *str && i >= 0; i--, p++) {
-                if (*p != *str++) {
-                    break;
-                }
-            }
-            if (*p == '\0') {
-                return (char*) start;
+    mprAssert(str);
+    if (str) {
+        for (cp = str; *cp; cp++) {
+            if (islower((int) *cp)) {
+                *cp = (char) toupper((int) *cp);
             }
         }
     }
-    return 0;
 }
 
 
@@ -16209,6 +17556,7 @@ static MprTestGroup *createTestGroup(MprTestService *sp, MprTestDef *def, MprTes
 static bool     filterTestGroup(MprTestGroup *gp);
 static bool     filterTestCast(MprTestGroup *gp, MprTestCase *tc);
 static char     *getErrorMessage(MprTestGroup *gp);
+static void     manageTestService(MprTestService *ts, int flags);
 static int      parseFilter(MprTestService *sp, cchar *str);
 static void     runTestGroup(MprTestGroup *gp);
 static void     runTestProc(MprTestGroup *gp, MprTestCase *test);
@@ -16222,7 +17570,7 @@ MprTestService *mprCreateTestService(MprCtx ctx)
 {
     MprTestService      *sp;
 
-    if ((sp = mprAllocObj(ctx, MprTestService, NULL)) == 0) {
+    if ((sp = mprAllocObj(ctx, MprTestService, manageTestService)) == 0) {
         return 0;
     }
     sp->iterations = 1;
@@ -16233,6 +17581,17 @@ MprTestService *mprCreateTestService(MprCtx ctx)
     sp->start = mprGetTime(sp);
     sp->mutex = mprCreateLock(sp);
     return sp;
+}
+
+
+static void manageTestService(MprTestService *ts, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(ts->commandLine);
+        mprMark(ts->groups);
+        mprMark(ts->mutex);
+        mprMark(ts->testFilter);
+    }
 }
 
 
@@ -16250,15 +17609,14 @@ int mprParseTestArgs(MprTestService *sp, int argc, char *argv[])
 
     mpr = mprGetMpr(sp);
     programName = mprGetPathBase(mpr, argv[0]);
-
     sp->name = BLD_PRODUCT;
 
     /*
         Save the command line
      */
-    sp->commandLine = mprStrcat(sp, -1, mprGetPathBase(mpr, argv[i++]), NULL);
+    sp->commandLine = sjoin(sp, NULL, mprGetPathBase(mpr, argv[i++]), NULL);
     for (; i < argc; i++) {
-        sp->commandLine = mprReallocStrcat(sp, -1, sp->commandLine, " ", argv[i], NULL);
+        sp->commandLine = sjoin(sp, sp->commandLine, " ", argv[i], NULL);
     }
 
     for (nextArg = 1; nextArg < argc; nextArg++) {
@@ -16420,13 +17778,13 @@ static int parseFilter(MprTestService *sp, cchar *filter)
     }
 
     tok = 0;
-    str = mprStrdup(sp, filter);
-    word = mprStrTok(str, " \t\r\n", &tok);
+    str = sclone(sp, filter);
+    word = stok(str, " \t\r\n", &tok);
     while (word) {
-        if (mprAddItem(sp->testFilter, mprStrdup(sp, word)) < 0) {
-            return MPR_ERR_NO_MEMORY;
+        if (mprAddItem(sp->testFilter, sclone(sp, word)) < 0) {
+            return MPR_ERR_MEMORY;
         }
-        word = mprStrTok(0, " \t\r\n", &tok);
+        word = stok(0, " \t\r\n", &tok);
     }
     mprFree(str);
     return 0;
@@ -16449,12 +17807,12 @@ static int loadModule(MprTestService *sp, cchar *fileName)
         return 0;
     }
                 
-    mprSprintf(sp, entry, sizeof(entry), "%sInit", base);
+    mprSprintf(entry, sizeof(entry), "%sInit", base);
 
     if (fileName[0] == '/' || (*fileName && fileName[1] == ':')) {
-        mprSprintf(sp, path, sizeof(path), "%s%s", fileName, BLD_BUILD_SHOBJ);
+        mprSprintf(path, sizeof(path), "%s%s", fileName, BLD_BUILD_SHOBJ);
     } else {
-        mprSprintf(sp, path, sizeof(path), "./%s%s", fileName, BLD_BUILD_SHOBJ);
+        mprSprintf(path, sizeof(path), "./%s%s", fileName, BLD_BUILD_SHOBJ);
     }
     if (mprLoadModule(sp, path, entry, (void*) sp) == 0) {
         mprError(sp, "Can't load module %s", path);
@@ -16495,13 +17853,11 @@ int mprRunTests(MprTestService *sp)
         MprList     *lp;
         char        tName[64];
 
-        mprSprintf(sp, tName, sizeof(tName), "test.%d", i);
-
+        mprSprintf(tName, sizeof(tName), "test.%d", i);
         lp = copyGroups(sp, sp->groups);
         if (lp == 0) {
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
-        
         /*
             Build the full names for all groups
          */
@@ -16511,7 +17867,7 @@ int mprRunTests(MprTestService *sp)
         }
         tp = mprCreateThread(sp, tName, (MprThreadProc) runTestThread, (void*) lp, 0);
         if (tp == 0) {
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
         if (mprStartThread(tp) < 0) {
             mprError(sp, "Can't start thread %d", i);
@@ -16523,8 +17879,11 @@ int mprRunTests(MprTestService *sp)
     /*
         Wait for all the threads to complete (simple but effective)
      */
+    mprCollectGarbage();
     while (sp->activeThreadCount > 0) {
         mprServiceEvents(sp, NULL, 250, 0);
+        //  MOB -- should do when idle?
+        mprCollectGarbage();
     }
     return (sp->totalFailedCount == 0) ? 0 : 1;
 }
@@ -16621,12 +17980,12 @@ static void buildFullNames(MprTestGroup *gp, cchar *name)
     for (np = gp->parent; np && np != np->parent && tos < MPR_TEST_MAX_STACK;  np = np->parent) {
         nameStack[tos++] = np->name;
     }
-    nameBuf = mprStrdup(gp, gp->service->name);
+    nameBuf = sclone(gp, gp->service->name);
     while (--tos >= 0) {
-        nameBuf = mprReallocStrcat(gp, -1, nameBuf, ".", nameStack[tos], NULL);
+        nameBuf = sjoin(gp, nameBuf, ".", nameStack[tos], NULL);
     }
     mprAssert(gp->fullName == 0);
-    gp->fullName = mprStrdup(gp, nameBuf);
+    gp->fullName = sclone(gp, nameBuf);
 
     /*
         Recurse for all test case groups
@@ -16663,7 +18022,7 @@ static MprTestGroup *createTestGroup(MprTestService *sp, MprTestDef *def, MprTes
     MprTestDef      **dp;
     MprTestCase     *tc;
 
-    gp = mprAllocCtx(sp, sizeof(MprTestGroup));
+    gp = mprAlloc(sp, sizeof(MprTestGroup));
     if (gp == 0) {
         return 0;
     }
@@ -16686,7 +18045,7 @@ static MprTestGroup *createTestGroup(MprTestService *sp, MprTestDef *def, MprTes
         return 0;
     }
     gp->def = def;
-    gp->name = mprStrdup(sp, def->name);
+    gp->name = sclone(sp, def->name);
     gp->success = 1;
 
     for (tc = def->caseDefs; tc->proc; tc++) {
@@ -16825,8 +18184,8 @@ static bool filterTestGroup(MprTestGroup *gp)
         next = 0;
         pattern = mprGetNextItem(testFilter, &next);
         while (pattern) {
-            len = min((int) strlen(pattern), (int) strlen(gp->fullName));
-            if (mprStrcmpAnyCaseCount(gp->fullName, pattern, len) == 0) {
+            len = min(strlen(pattern), strlen(gp->fullName));
+            if (sncasecmp(gp->fullName, pattern, len) == 0) {
                 break;
             }
             pattern = mprGetNextItem(testFilter, &next);
@@ -16860,12 +18219,12 @@ static bool filterTestCast(MprTestGroup *gp, MprTestCase *tc)
         See if this test has been filtered
      */
     if (mprGetListCount(testFilter) > 0) {
-        fullName = mprAsprintf(gp, -1, "%s.%s", gp->fullName, tc->name);
+        fullName = mprAsprintf(gp, "%s.%s", gp->fullName, tc->name);
         next = 0;
         pattern = mprGetNextItem(testFilter, &next);
         while (pattern) {
-            len = min((int) strlen(pattern), (int) strlen(fullName));
-            if (mprStrcmpAnyCaseCount(fullName, pattern, len) == 0) {
+            len = min(strlen(pattern), strlen(fullName));
+            if (sncasecmp(fullName, pattern, len) == 0) {
                 break;
             }
             pattern = mprGetNextItem(testFilter, &next);
@@ -16933,11 +18292,11 @@ static char *getErrorMessage(MprTestGroup *gp)
     int             nextItem;
 
     nextItem = 0;
-    errorMsg = mprStrdup(gp, "");
+    errorMsg = sclone(gp, "");
     fp = mprGetNextItem(gp->failures, &nextItem);
     while (fp) {
-        mprSprintf(gp, msg, sizeof(msg), "Failure in %s\nAssertion: \"%s\"\n", fp->loc, fp->message);
-        if ((errorMsg = mprStrcat(gp, -1, msg, NULL)) == NULL) {
+        mprSprintf(msg, sizeof(msg), "Failure in %s\nAssertion: \"%s\"\n", fp->loc, fp->message);
+        if ((errorMsg = sjoin(gp, errorMsg, msg, NULL)) == NULL) {
             break;
         }
         fp = mprGetNextItem(gp->failures, &nextItem);
@@ -16953,7 +18312,7 @@ static int addFailure(MprTestGroup *gp, cchar *loc, cchar *message)
     fp = createFailure(gp, loc, message);
     if (fp == 0) {
         mprAssert(fp);
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     mprAddItem(gp->failures, fp);
     return 0;
@@ -16964,12 +18323,12 @@ static MprTestFailure *createFailure(MprTestGroup *gp, cchar *loc, cchar *messag
 {
     MprTestFailure  *fp;
 
-    fp = mprAllocCtx(gp, sizeof(MprTestFailure));
+    fp = mprAlloc(gp, sizeof(MprTestFailure));
     if (fp == 0) {
         return 0;
     }
-    fp->loc = mprStrdup(fp, loc);
-    fp->message = mprStrdup(fp, message);
+    fp->loc = sclone(fp, loc);
+    fp->message = sclone(fp, message);
     return fp;
 }
 
@@ -17041,21 +18400,10 @@ static void logHandler(MprCtx ctx, int flags, int level, cchar *msg)
     }
     if (flags & MPR_LOG_SRC) {
         mprFprintf(file, "%s: %d: %s\n", prefix, level, msg);
-
     } else if (flags & MPR_ERROR_SRC) {
-        /*
-            Use static printing to avoid malloc when the messages are small.
-            This is important for memory allocation errors.
-         */
-        if (strlen(msg) < (MPR_MAX_STRING - 32)) {
-            mprStaticPrintf(file, "%s: Error: %s\n", prefix, msg);
-        } else {
-            mprFprintf(file, "%s: Error: %s\n", prefix, msg);
-        }
-
+        mprFprintf(file, "%s: Error: %s\n", prefix, msg);
     } else if (flags & MPR_FATAL_SRC) {
         mprFprintf(file, "%s: Fatal: %s\n", prefix, msg);
-        
     } else if (flags & MPR_RAW) {
         mprFprintf(file, "%s", msg);
     }
@@ -17155,10 +18503,12 @@ static int setLogging(Mpr *mpr, char *logSpec)
 static int changeState(MprWorker *worker, int state);
 static MprWorker *createWorker(MprWorkerService *ws, int stackSize);
 static int getNextThreadNum(MprWorkerService *ws);
-static int workerDestructor(MprWorker *worker);
-static void  pruneWorkers(MprWorkerService *ws, MprEvent *timer);
+static void manageThreadService(MprThreadService *ts, int flags);
+static void manageThread(MprThread *tp, int flags);
+static void manageWorker(MprWorker *worker, int flags);
+static void manageWorkerService(MprWorkerService *ws, int flags);
+static void pruneWorkers(MprWorkerService *ws, MprEvent *timer);
 static void threadProc(MprThread *tp);
-static int threadDestructor(MprThread *tp);
 static void workerMain(MprWorker *worker, MprThread *tp);
 
 
@@ -17168,18 +18518,17 @@ MprThreadService *mprCreateThreadService(Mpr *mpr)
 
     mprAssert(mpr);
 
-    ts = mprAllocObj(mpr, MprThreadService, NULL);
+    ts = mprAllocObj(mpr, MprThreadService, manageThreadService);
     if (ts == 0) {
         return 0;
     }
-    ts->mutex = mprCreateLock(ts);
-    if (ts->mutex == 0) {
-        mprFree(ts);
+    if ((ts->mutex = mprCreateLock(ts)) == 0) {
         return 0;
     }
-    ts->threads = mprCreateList(ts);
-    if (ts->threads == 0) {
-        mprFree(ts);
+    if ((ts->cond = mprCreateCond(ts)) == 0) {
+        return 0;
+    }
+    if ((ts->threads = mprCreateList(ts)) == 0) {
         return 0;
     }
     mpr->mainOsThread = mprGetCurrentOsThread();
@@ -17189,14 +18538,22 @@ MprThreadService *mprCreateThreadService(Mpr *mpr)
     /*
         Don't actually create the thread. Just create a thread object for this main thread.
      */
-    ts->mainThread = mprCreateThread(ts, "main", NULL, NULL, 0);
-    if (ts->mainThread == 0) {
-        mprFree(ts);
+    if ((ts->mainThread = mprCreateThread(ts, "main", NULL, NULL, 0)) == 0) {
         return 0;
     }
     ts->mainThread->isMain = 1;
     ts->mainThread->osThread = mprGetCurrentOsThread();
     return ts;
+}
+
+
+static void manageThreadService(MprThreadService *ts, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMarkList(ts->threads);
+        mprMark(ts->cond);
+        mprMark(ts->mutex);
+    }
 }
 
 
@@ -17206,7 +18563,93 @@ bool mprStopThreadService(MprThreadService *ts, int timeout)
         mprSleep(ts, 50);
         timeout -= 50;
     }
-    return ts->threads->length == 0;
+    return ts->threads->length <= 1;
+}
+
+
+/*
+    Called by thread code to signify that it is safe for GC. If the GC marker is synchronizing, this call will block at 
+    the GC sync point (should be brief).
+ */
+void mprYieldThread(MprThread *tp)
+{
+    if (tp == NULL) {
+        tp = mprGetCurrentThread(NULL);
+    }
+    tp->yielded = 1;
+    mprSignalCond(mprGetMpr()->threadService->cond);
+    while (tp->yielded && mprGCSyncup()) {
+        mprWaitForCond(tp->cond, -1);
+    }
+}
+
+
+/*
+    Called by worker thread code to signify that it is working and may have local object references that the marker
+    can't see. i.e. Can't do GC.
+ */
+void mprResumeThread(MprThread *tp)
+{
+    if (tp == NULL) {
+        tp = mprGetCurrentThread(NULL);
+    }
+    tp->yielded = 0;
+}
+
+
+/*
+    Pause until all threads have yielded. Called by the GC marker only.
+ */
+int mprPauseForGCSync(int timeout)
+{
+    MprThreadService    *ts;
+    MprThread           *tp;
+    int                 i, allYielded;
+
+    ts = mprGetMpr()->threadService;
+
+    //  MOB timeout
+    do {
+        allYielded = 1;
+        mprLock(ts->mutex);
+        for (i = 0; i < ts->threads->length; i++) {
+            tp = (MprThread*) mprGetItem(ts->threads, i);
+            if (!tp->yielded) {
+                allYielded = 0;
+                break;
+            }
+        }
+        mprUnlock(ts->mutex);
+        if (allYielded) {
+            break;
+        }
+        mprWaitForCond(ts->cond, MPR_GC_TIMEOUT);
+    } while (!allYielded);
+
+    //  MOB -- return if timeout failed
+    return (allYielded) ? 1 : 0;
+}
+
+
+/*
+    Resume all threads. Called by the GC marker only.
+ */
+void mprResumeThreadsAfterGC()
+{
+    MprThreadService    *ts;
+    MprThread           *tp;
+    int                 i;
+
+    ts = mprGetMpr()->threadService;
+
+    mprLock(ts->mutex);
+    for (i = 0; i < ts->threads->length; i++) {
+        tp = (MprThread*) mprGetItem(ts->threads, i);
+        if (tp->yielded) {
+            mprSignalCond(tp->cond);
+        }
+    }
+    mprUnlock(ts->mutex);
 }
 
 
@@ -17283,13 +18726,13 @@ MprThread *mprCreateThread(MprCtx ctx, cchar *name, MprThreadProc entry, void *d
     if (ts) {
         ctx = ts;
     }
-    tp = mprAllocObj(ctx, MprThread, threadDestructor);
+    tp = mprAllocObj(ctx, MprThread, manageThread);
     if (tp == 0) {
         return 0;
     }
     tp->data = data;
     tp->entry = entry;
-    tp->name = mprStrdup(tp, name);
+    tp->name = sclone(tp, name);
     tp->mutex = mprCreateLock(tp);
     tp->cond = mprCreateCond(tp);
     tp->pid = getpid();
@@ -17300,7 +18743,6 @@ MprThread *mprCreateThread(MprCtx ctx, cchar *name, MprThreadProc entry, void *d
     } else {
         tp->stackSize = stackSize;
     }
-
 #if BLD_WIN_LIKE
     tp->threadHandle = 0;
 #endif
@@ -17318,24 +18760,22 @@ MprThread *mprCreateThread(MprCtx ctx, cchar *name, MprThreadProc entry, void *d
 }
 
 
-/*
-    Destroy a thread
- */
-static int threadDestructor(MprThread *tp)
+static void manageThread(MprThread *tp, int flags)
 {
-    MprThreadService    *ts;
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(tp->name);
+        mprMark(tp->cond);
+        mprMark(tp->mutex);
 
-    mprLock(tp->mutex);
-
-    ts = mprGetMpr(tp)->threadService;
-    mprRemoveItem(ts->threads, tp);
-
+    } else if (flags & MPR_MANAGE_FREE) {
+        mprLock(tp->mutex);
+        mprRemoveItem(MPR->threadService->threads, tp);
 #if BLD_WIN_LIKE
-    if (tp->threadHandle) {
-        CloseHandle(tp->threadHandle);
-    }
+        if (tp->threadHandle) {
+            CloseHandle(tp->threadHandle);
+        }
 #endif
-    return 0;
+    }
 }
 
 
@@ -17475,18 +18915,21 @@ void mprSetThreadPriority(MprThread *tp, int newPriority)
 }
 
 
-static int threadLocalDestructor(MprThreadLocal *tls)
+static void manageThreadLocal(MprThreadLocal *tls, int flags)
 {
+    if (flags & MPR_MANAGE_MARK) {
+        ;
+    } else if (flags & MPR_MANAGE_FREE) {
 #if BLD_UNIX_LIKE
-    if (tls->key) {
-        pthread_key_delete(tls->key);
-    }
+        if (tls->key) {
+            pthread_key_delete(tls->key);
+        }
 #elif BLD_WIN_LIKE
-    if (tls->key >= 0) {
-        TlsFree(tls->key);
-    }
+        if (tls->key >= 0) {
+            TlsFree(tls->key);
+        }
 #endif
-    return 0;
+    }
 }
 
 
@@ -17494,7 +18937,7 @@ MprThreadLocal *mprCreateThreadLocal(MprCtx ctx)
 {
     MprThreadLocal      *tls;
 
-    tls = mprAllocObj(ctx, MprThreadLocal, threadLocalDestructor);
+    tls = mprAllocObj(ctx, MprThreadLocal, manageThreadLocal);
     if (tls == 0) {
         return 0;
     }
@@ -17672,7 +19115,7 @@ MprWorkerService *mprCreateWorkerService(MprCtx ctx)
 {
     MprWorkerService      *ws;
 
-    ws = mprAllocObj(ctx, MprWorkerService, NULL);
+    ws = mprAllocObj(ctx, MprWorkerService, manageWorkerService);
     if (ws == 0) {
         return 0;
     }
@@ -17688,6 +19131,16 @@ MprWorkerService *mprCreateWorkerService(MprCtx ctx)
     ws->busyThreads = mprCreateList(ws);
     mprSetListLimits(ws->busyThreads, ws->maxThreads, -1);
     return ws;
+}
+
+
+static void manageWorkerService(MprWorkerService *ws, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(ws->busyThreads);
+        mprMark(ws->idleThreads);
+        mprMark(ws->mutex);
+    }
 }
 
 
@@ -17714,26 +19167,23 @@ bool mprStopWorkerService(MprWorkerService *ws, int timeout)
         mprFree(ws->pruneTimer);
         ws->pruneTimer = 0;
     }
-
-    /*
-        Wake up all idle threads. Busy threads take care of themselves. An idle thread will wakeup, exit and be 
-        removed from the busy list and then delete the thread. We progressively remove the last thread in the idle
-        list. ChangeState will move the threads to the busy queue.
-     */
-    for (next = -1; (worker = (MprWorker*) mprGetPrevItem(ws->idleThreads, &next)) != 0; ) {
-        changeState(worker, MPR_WORKER_BUSY);
-    }
-
     /*
         Wait until all tasks and threads have exited
      */
     while (timeout > 0 && ws->numThreads > 0) {
+        /*
+            Wake up all idle threads. Busy threads take care of themselves. An idle thread will wakeup, exit and be 
+            removed from the busy list and then delete the thread. We progressively remove the last thread in the idle
+            list. ChangeState will move the threads to the busy queue.
+         */
+        for (next = -1; (worker = (MprWorker*) mprGetPrevItem(ws->idleThreads, &next)) != 0; ) {
+            changeState(worker, MPR_WORKER_BUSY);
+        }
         mprUnlock(ws->mutex);
         mprSleep(ws, 50);
         timeout -= 50;
         mprLock(ws->mutex);
     }
-
     mprAssert(ws->idleThreads->length == 0);
     mprAssert(ws->busyThreads->length == 0);
     mprUnlock(ws->mutex);
@@ -17859,7 +19309,6 @@ int mprStartWorker(MprCtx ctx, MprWorkerProc proc, void *data)
     int                 next;
 
     ws = mprGetMpr(ctx)->workerService;
-
     mprLock(ws->mutex);
 
     /*
@@ -17872,7 +19321,6 @@ int mprStartWorker(MprCtx ctx, MprWorkerProc proc, void *data)
             break;
         }
     }
-
     if (worker) {
         worker->proc = proc;
         worker->data = data;
@@ -17920,13 +19368,11 @@ static void pruneWorkers(MprWorkerService *ws, MprEvent *timer)
     MprWorker     *worker;
     int           index, toTrim;
 
-    if (mprIsExiting(ws) || mprGetDebugMode(ws)) {
+    if (mprGetDebugMode(ws)) {
         return;
     }
-
     /*
-        Prune half of what we could prune. This gives exponentional decay. We use the high water mark seen in 
-        the last period.
+        Prune half the idle threads for exponentional decay. Use the high water mark seen in the last period.
      */
     mprLock(ws->mutex);
     toTrim = (ws->pruneHighWater - ws->minThreads) / 2;
@@ -17998,7 +19444,7 @@ static MprWorker *createWorker(MprWorkerService *ws, int stackSize)
 
     char    name[16];
 
-    worker = mprAllocObj(ws, MprWorker, workerDestructor);
+    worker = mprAllocObj(ws, MprWorker, manageWorker);
     if (worker == 0) {
         return 0;
     }
@@ -18010,25 +19456,26 @@ static MprWorker *createWorker(MprWorkerService *ws, int stackSize)
     worker->workerService = ws;
     worker->idleCond = mprCreateCond(worker);
 
-    mprSprintf(ws, name, sizeof(name), "worker.%u", getNextThreadNum(ws));
+    mprSprintf(name, sizeof(name), "worker.%u", getNextThreadNum(ws));
     worker->thread = mprCreateThread(ws, name, (MprThreadProc) workerMain, (void*) worker, 0);
     return worker;
 }
 
 
-static int workerDestructor(MprWorker *worker)
+static void manageWorker(MprWorker *worker, int flags)
 {
-    if (worker->thread != 0) {
-        mprAssert(worker->thread);
-        return 1;
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(worker->thread);
+        mprMark(worker->idleCond);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        if (worker->thread != 0) {
+            mprAssert(worker->thread);
+        }
     }
-    return 0;
 }
 
 
-/*
-    Worker thread main service routine
- */
 static void workerMain(MprWorker *worker, MprThread *tp)
 {
     MprWorkerService    *ws;
@@ -18040,7 +19487,7 @@ static void workerMain(MprWorker *worker, MprThread *tp)
 
     mprLock(ws->mutex);
 
-    while (!mprIsExiting(worker) && !(worker->state & MPR_WORKER_PRUNED)) {
+    while (!(worker->state & MPR_WORKER_PRUNED) && !mprIsExiting(worker)) {
         if (worker->proc) {
             mprUnlock(ws->mutex);
             (*worker->proc)(worker->data, worker);
@@ -18049,6 +19496,7 @@ static void workerMain(MprWorker *worker, MprThread *tp)
         }
         changeState(worker, MPR_WORKER_SLEEPING);
 
+        //  MOB -- is this used?
         if (worker->cleanup) {
             (*worker->cleanup)(worker->data, worker);
             worker->cleanup = NULL;
@@ -18058,14 +19506,12 @@ static void workerMain(MprWorker *worker, MprThread *tp)
         /*
             Sleep till there is more work to do
          */
-        if (!mprIsExiting(worker)) {
-            rc = mprWaitForCond(worker->idleCond, -1);
-        }
+        mprYieldThread(NULL);
+        rc = mprWaitForCond(worker->idleCond, -1);
+        mprResumeThread(NULL);
         mprLock(ws->mutex);
     }
-
     changeState(worker, 0);
-
     worker->thread = 0;
     ws->numThreads--;
     mprUnlock(ws->mutex);
@@ -18120,19 +19566,23 @@ static int changeState(MprWorker *worker, int state)
         if (!(worker->flags & MPR_WORKER_DEDICATED)) {
             lp = ws->idleThreads;
         }
+#if UNUSED
+        if (mprGetListCount(ws->busyThreads) == 0) {
+            print("NOW IDLE");
+        }
+#endif
         break;
 
     case MPR_WORKER_PRUNED:
         /* Don't put on a queue and the thread will exit */
         break;
     }
-    
     worker->state = state;
 
     if (lp) {
         if (mprAddItem(lp, worker) < 0) {
             mprUnlock(ws->mutex);
-            return MPR_ERR_NO_MEMORY;
+            return MPR_ERR_MEMORY;
         }
     }
     mprUnlock(ws->mutex);
@@ -18379,7 +19829,7 @@ int mprCreateTimeService(MprCtx ctx)
     TimeToken           *tt;
 
     mpr = mprGetMpr(ctx);
-    mpr->timeTokens = mprCreateHash(mpr, -1, 0);
+    mpr->timeTokens = mprCreateHash(mpr, -1, MPR_HASH_PERM_KEYS);
     ctx = mpr->timeTokens;
 
     for (tt = days; tt->name; tt++) {
@@ -18486,6 +19936,7 @@ MprTime mprGetElapsedTime(MprCtx ctx, MprTime mark)
 
 /*
     Get the timezone offset including DST
+    Return the timezone offset (including DST) in msec. local == (UTC + offset)
  */
 int mprGetTimeZoneOffset(MprCtx ctx, MprTime when)
 {
@@ -18601,7 +20052,8 @@ static int getTimeZoneOffsetFromTm(MprCtx ctx, struct tm *tp)
     if ((tze = getenv("TIMEZONE")) != 0) {
         if ((p = strchr(tze, ':')) != 0) {
             if ((p = strchr(tze, ':')) != 0) {
-                offset = -mprAtoi(++p, 10) * MS_PER_MIN;
+                int64 value;
+                offset = - stoi(++p, 10, NULL) * MS_PER_MIN;
             }
         }
         if (tp->tm_isdst) {
@@ -18880,7 +20332,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
             case '+':
                 if (tp->tm_mday < 10) {
                     /* Some platforms don't support 'e' so avoid it here. Put a double space before %d */
-                    mprSprintf(ctx, dp, size, "%s  %d %s", "a %b", tp->tm_mday, "%H:%M:%S %Z %Y");
+                    mprSprintf(dp, size, "%s  %d %s", "a %b", tp->tm_mday, "%H:%M:%S %Z %Y");
                 } else {
                     strcpy(dp, "a %b %d %H:%M:%S %Z %Y");
                 }
@@ -18890,7 +20342,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
 
             case 'C':
                 dp--;
-                mprItoa(dp, size, (int64) (1900 + tp->tm_year) / 100, 10);
+                itos(dp, size, (int64) (1900 + tp->tm_year) / 100, 10);
                 dp += strlen(dp);
                 cp++;
                 break;
@@ -18906,7 +20358,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
                 if (tp->tm_mday < 10) {
                     *dp++ = ' ';
                 }
-                mprItoa(dp, size - 1, (int64) tp->tm_mday, 10);
+                itos(dp, size - 1, (int64) tp->tm_mday, 10);
                 dp += strlen(dp);
                 cp++;
                 break;
@@ -18932,7 +20384,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
                 if (tp->tm_hour < 10) {
                     *dp++ = ' ';
                 }
-                mprItoa(dp, size - 1, (int64) tp->tm_hour, 10);
+                itos(dp, size - 1, (int64) tp->tm_hour, 10);
                 dp += strlen(dp);
                 cp++;
                 break;
@@ -18946,7 +20398,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
                 if (value > 12) {
                     value -= 12;
                 }
-                mprItoa(dp, size - 1, (int64) value, 10);
+                itos(dp, size - 1, (int64) value, 10);
                 dp += strlen(dp);
                 cp++;
                 break;
@@ -18982,7 +20434,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
 
             case 's':
                 dp--;
-                mprItoa(dp, size, (int64) mprMakeTime(ctx, tp) / MS_PER_SEC, 10);
+                itos(dp, size, (int64) mprMakeTime(ctx, tp) / MS_PER_SEC, 10);
                 dp += strlen(dp);
                 cp++;
                 break;
@@ -19004,7 +20456,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
                 if (value == 0) {
                     value = 7;
                 }
-                mprItoa(dp, size, (int64) value, 10);
+                itos(dp, size, (int64) value, 10);
                 dp += strlen(dp);
                 cp++;
                 break;
@@ -19015,7 +20467,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
                 if (tp->tm_mday < 10) {
                     *dp++ = ' ';
                 }
-                mprItoa(dp, size - 1, (int64) tp->tm_mday, 10);
+                itos(dp, size - 1, (int64) tp->tm_mday, 10);
                 dp += strlen(dp);
                 cp++;
                 strcpy(dp, "-%b-%Y");
@@ -19029,7 +20481,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
                 if (value < 0) {
                     value = -value;
                 }
-                mprSprintf(ctx, dp, size, "%s%02d%02d", sign, value / 60, value % 60);
+                mprSprintf(dp, size, "%s%02d%02d", sign, value / 60, value % 60);
                 dp += strlen(dp);
                 cp++;
                 break;
@@ -19054,7 +20506,7 @@ char *mprFormatTime(MprCtx ctx, cchar *fmt, struct tm *tp)
     }
     if (strftime(buf, sizeof(buf) - 1, fmt, tp) > 0) {
         buf[sizeof(buf) - 1] = '\0';
-        return mprStrdup(ctx, buf);
+        return sclone(ctx, buf);
     }
     return 0;
 }
@@ -19095,10 +20547,10 @@ static char *getTimeZoneName(MprCtx ctx, struct tm *tp)
     WCHAR                   *wzone;
     GetTimeZoneInformation(&tz);
     wzone = tp->tm_isdst ? tz.DaylightName : tz.StandardName;
-    return mprToAsc(ctx, wzone);
+    return mprToMulti(ctx, wzone);
 #else
     tzset();
-    return mprStrdup(ctx, tp->tm_zone);
+    return sclone(ctx, tp->tm_zone);
 #endif
 }
 
@@ -19517,8 +20969,8 @@ int mprParseTime(MprCtx ctx, MprTime *time, cchar *dateString, int zoneFlags, st
      */
     tm.tm_isdst = -1;
 
-    str = mprStrdup(ctx, dateString);
-    mprStrLower(str);
+    str = sclone(ctx, dateString);
+    slower(str);
 
     /*
         Handle ISO dates: "2009-05-21t16:06:05.000z
@@ -19532,14 +20984,14 @@ int mprParseTime(MprCtx ctx, MprTime *time, cchar *dateString, int zoneFlags, st
             }
         }
     }
-    token = mprStrTok(str, sep, &next);
+    token = stok(str, sep, &next);
 
     while (token && *token) {
         if (allDigits(token)) {
             /*
                 Parse either day of month or year. Priority to day of month. Format: <29> Jan <15> <2010>
              */ 
-            value = mprAtoi(token, 10);
+            value = stoi(token, 10, NULL);
             if (value > 3000) {
                 *time = value;
                 mprFree(str);
@@ -19658,7 +21110,7 @@ int mprParseTime(MprCtx ctx, MprTime *time, cchar *dateString, int zoneFlags, st
                 }
             }
         }
-        token = mprStrTok(NULL, sep, &next);
+        token = stok(NULL, sep, &next);
     }
     mprFree(str);
 
@@ -19833,7 +21285,7 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
             if ((tze = getenv("TIMEZONE")) != 0) {
                 if ((p = strchr(tze, ':')) != 0) {
                     if ((p = strchr(tze, ':')) != 0) {
-                        tz->tz_minuteswest = mprAtoi(++p, 10);
+                        tz->tz_minuteswest = stoi(++p, 10, NULL);
                     }
                 }
                 t = tickGet();
@@ -19919,39 +21371,33 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
 
 #if BLD_UNIX_LIKE
 
-MprOsService *mprCreateOsService(MprCtx ctx)
+int mprCreateOsService()
 {
-    MprOsService    *os;
-
-    os = mprAllocObj(ctx, MprOsService, NULL);
-    if (os == 0) {
-        return 0;
-    }
     umask(022);
 
     /*
         Cleanup the environment. IFS is often a security hole
      */
     putenv("IFS=\t ");
-    return os;
+    return 0;
 }
 
 
-int mprStartOsService(MprOsService *os)
+int mprStartOsService()
 {
     /* 
         Open a syslog connection
      */
 #if SOLARIS
-    openlog(mprGetAppName(os), LOG_CONS, LOG_LOCAL0);
+    openlog(mprGetAppName(MPR), LOG_CONS, LOG_LOCAL0);
 #else
-    openlog(mprGetAppName(os), LOG_CONS || LOG_PERROR, LOG_LOCAL0);
+    openlog(mprGetAppName(MPR), LOG_CONS || LOG_PERROR, LOG_LOCAL0);
 #endif
     return 0;
 }
 
 
-void mprStopOsService(MprOsService *os)
+void mprStopOsService()
 {
 }
 
@@ -20047,6 +21493,9 @@ void mprSleep(MprCtx ctx, int milliseconds)
 
 void mprUnloadModule(MprModule *mp)
 {
+    /*
+        The Module stop entry point should have been called.
+     */
     if (mp->handle) {
         dlclose(mp->handle);
     }
@@ -20134,19 +21583,19 @@ void stubMprUnix() {}
 
 
 
-MprOsService *mprCreateOsService(MprCtx ctx)
-{
-    return mprAllocObj(ctx, MprOsService, NULL);
-}
-
-
-int mprStartOsService(MprOsService *os)
+int mprCreateOsService()
 {
     return 0;
 }
 
 
-void mprStopOsService(MprOsService *os)
+int mprStartOsService()
+{
+    return 0;
+}
+
+
+void mprStopOsService()
 {
 }
 
@@ -20209,7 +21658,7 @@ MprModule *mprLoadModule(MprCtx ctx, cchar *name, cchar *initFunction, void *dat
 #if BLD_HOST_CPU_ARCH == MPR_CPU_IX86 || BLD_HOST_CPU_ARCH == MPR_CPU_IX64
                     mprSprintf(ctx, entryPoint, sizeof(entryPoint), "_%s", initFunction);
 #else
-                    mprStrcpy(entryPoint, sizeof(entryPoint), initFunction);
+                    scopy(entryPoint, sizeof(entryPoint), initFunction);
 #endif
                     fn = 0;
                     if (symFindByName(sysSymTbl, entryPoint, (char**) &fn, &symType) == -1) {
@@ -20350,7 +21799,8 @@ void stubMprVxWorks() {}
 
 
 
-static int handlerDestructor(MprWaitHandler *wp);
+static void manageWaitService(MprWaitService *ws, int flags);
+static void manageWaitHandler(MprWaitHandler *wp, int flags);
 
 /*
     Initialize the service
@@ -20359,7 +21809,7 @@ MprWaitService *mprCreateWaitService(Mpr *mpr)
 {
     MprWaitService  *ws;
 
-    ws = mprAllocObj(mpr, MprWaitService, NULL);
+    ws = mprAllocObj(mpr, MprWaitService, manageWaitService);
     if (ws == 0) {
         return 0;
     }
@@ -20369,6 +21819,26 @@ MprWaitService *mprCreateWaitService(Mpr *mpr)
     ws->spin = mprCreateSpinLock(ws);
     mprCreateNotifierService(ws);
     return ws;
+}
+
+
+static void manageWaitService(MprWaitService *ws, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMarkList(ws->handlers);
+        mprMark(ws->handlerMap);
+        mprMark(ws->mutex);
+        mprMark(ws->spin);
+    }
+#if MPR_EVENT_KQUEUE
+    mprManageKqueue(ws, flags);
+#endif
+#if MPR_EVENT_POLL
+    mprManagePoll(ws, flags);
+#endif
+#if MPR_EVENT_SELECT
+    mprManageSelect(ws, flags);
+#endif
 }
 
 
@@ -20418,7 +21888,7 @@ MprWaitHandler *mprCreateWaitHandler(MprCtx ctx, int fd, int mask, MprDispatcher
     mprAssert(fd >= 0);
 
     ws = mprGetMpr(ctx)->waitService;
-    wp = mprAllocObj(ws, MprWaitHandler, handlerDestructor);
+    wp = mprAllocObj(ws, MprWaitHandler, manageWaitHandler);
     if (wp == 0) {
         return 0;
     }
@@ -20426,13 +21896,13 @@ MprWaitHandler *mprCreateWaitHandler(MprCtx ctx, int fd, int mask, MprDispatcher
 }
 
 
-/*
-    Wait handler Destructor. Called from mprFree.
- */
-static int handlerDestructor(MprWaitHandler *wp)
+static void manageWaitHandler(MprWaitHandler *wp, int flags)
 {
-    mprRemoveWaitHandler(wp);
-    return 0;
+    if (flags & MPR_MANAGE_MARK) {
+        ;
+    } else if (flags & MPR_MANAGE_FREE) {
+        mprRemoveWaitHandler(wp);
+    }
 }
 
 
@@ -20581,6 +22051,1128 @@ void mprDoWaitRecall(MprWaitService *ws)
 
 /************************************************************************/
 /*
+ *  Start of file "../src/mprWide.c"
+ */
+/************************************************************************/
+
+/**
+    mprUnicode.c - Memory Allocator and Garbage Collector. 
+
+    Copyright (c) All Rights Reserved. See details at the end of the file.
+ */
+
+
+
+#if BLD_CHAR_LEN > 1
+/*
+    Format a number as a string. Support radix 10 and 16.
+ */
+MprChar *itow(MprChar *buf, size_t count, int64 value, int radix)
+{
+    MprChar     numBuf[32];
+    MprChar     *cp, *dp, *endp;
+    char        digits[] = "0123456789ABCDEF";
+    int         negative;
+
+    if (radix != 10 && radix != 16) {
+        return 0;
+    }
+    cp = &numBuf[sizeof(numBuf)];
+    *--cp = '\0';
+
+    if (value < 0) {
+        negative = 1;
+        value = -value;
+        count--;
+    } else {
+        negative = 0;
+    }
+    do {
+        *--cp = digits[value % radix];
+        value /= radix;
+    } while (value > 0);
+
+    if (negative) {
+        *--cp = '-';
+    }
+    dp = buf;
+    endp = &buf[count];
+    while (dp < endp && *cp) {
+        *dp++ = *cp++;
+    }
+    *dp++ = '\0';
+    return buf;
+}
+
+
+MprChar *wchr(MprChar *str, int c)
+{
+    MprChar     *s;
+
+    if (str == NULL) {
+        return 0;
+    }
+    for (s = str; *s; ) {
+        if (*s == c) {
+            return s;
+        }
+    }
+    return 0;
+}
+
+
+int wcasecmp(MprChar *s1, MprChar *s2)
+{
+    if (s1 == 0 || s2 == 0) {
+        return -1;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    return wncasecmp(s1, s2, max(strlen(s1), strlen(s2)));
+}
+
+
+MprChar *wclone(MprCtx ctx, MprChar *str)
+{
+    MprChar     *result, nullBuf[1];
+    size_t      len, size;
+
+    if (str == NULL) {
+        nullBuf[0] = 0;
+        str = nullBuf;
+    }
+    len = wlen(str);
+    size = (len + 1) * sizeof(MprChar);
+    if ((result = mprAlloc(ctx, size)) != NULL) {
+        memcpy(result, str, len * sizeof(MprChar));
+    }
+    result[len] = '\0';
+    return result;
+}
+
+
+int wcmp(MprChar *s1, MprChar *s2)
+{
+    if (s1 == 0 || s2 == 0) {
+        return -1;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    return wncmp(s1, s2, max(strlen(s1), strlen(s2)));
+}
+
+
+MprChar *wcontains(MprChar *str, MprChar *pattern, size_t limit)
+{
+    MprChar     *cp, *s1, *s2;
+    size_t      lim;
+
+    mprAssert(0 <= limit && limit < MAXINT);
+
+#if UNUSED
+    if (limit < 0) {
+        limit = MAXINT;
+    }
+#endif
+    if (str == 0) {
+        return 0;
+    }
+    if (pattern == 0 || *pattern == '\0') {
+        return str;
+    }
+    for (cp = str; *cp; cp++) {
+        s1 = cp;
+        s2 = pattern;
+        for (lim = limit; *s1 && *s2 && (*s1 == *s2) && lim > 0; lim--) {
+            s1++;
+            s2++;
+        }
+        if (*s2 == '\0') {
+            return cp;
+        }
+    }
+    return 0;
+}
+
+
+/*
+    destMax and len are character counts, not sizes in bytes
+ */
+size_t wcopy(MprChar *dest, size_t destMax, MprChar *src)
+{
+    size_t      len;
+
+    mprAssert(src);
+    mprAssert(dest);
+    mprAssert(0 < destMax && destMax < MAXINT);
+
+    len = wlen(src);
+    if (destMax <= len) {
+        mprAssert(!MPR_ERR_WONT_FIT);
+        return MPR_ERR_WONT_FIT;
+    }
+    memcpy(dest, src, (len + 1) * sizeof(MprChar));
+    return len;
+}
+
+
+int wends(MprChar *str, MprChar *suffix)
+{
+    if (str == NULL || suffix == NULL) {
+        return 0;
+    }
+    if (wncmp(&str[wlen(str) - wlen(suffix) - 1], suffix, -1) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+
+MprChar *wfmt(MprCtx ctx, MprChar *fmt, ...)
+{
+    MprChar     *result;
+    va_list     ap;
+    char        *mfmt, *mresult;
+
+    mprAssert(fmt);
+
+    va_start(ap, fmt);
+    mfmt = awtom(ctx, fmt, NULL);
+    mresult = mprAsprintfv(ctx, mfmt, ap);
+    va_end(ap);
+    mprFree(mfmt);
+    result = amtow(ctx, mresult, NULL);
+    mprFree(mresult);
+    return result;
+}
+
+
+MprChar *wfmtv(MprCtx ctx, MprChar *fmt, va_list arg)
+{
+    MprChar     *result;
+    char        *mfmt, *mresult;
+
+    mprAssert(fmt);
+    mfmt = awtom(ctx, fmt, NULL);
+    mresult = mprAsprintfv(ctx, mfmt, arg);
+    mprFree(mfmt);
+    result = amtow(ctx, mresult, NULL);
+    mprFree(mresult);
+    return result;
+}
+
+
+/*
+    Compute a hash for a Unicode string 
+    (Based on work by Paul Hsieh, see http://www.azillionmonkeys.com/qed/hash.html)
+ */
+uint whash(MprChar *name, size_t len)
+{
+    uint    tmp, rem, hash;
+
+    mprAssert(name);
+    mprAssert(0 <= len && len < MAXINT);
+
+    if (len < 0) {
+        len = wlen(name);
+    }
+    hash = len;
+    rem = len & 3;
+
+    for (len >>= 2; len > 0; len--, name += 4) {
+        hash  += name[0] | (name[1] << 8);
+        tmp   =  ((name[2] | (name[3] << 8)) << 11) ^ hash;
+        hash  =  (hash << 16) ^ tmp;
+        hash  += hash >> 11;
+    }
+    switch (rem) {
+    case 3: 
+        hash += name[0] + (name[1] << 8);
+        hash ^= hash << 16;
+        hash ^= name[2] << 18;
+        hash += hash >> 11;
+        break;
+    case 2: 
+        hash += name[0] + (name[1] << 8);
+        hash ^= hash << 11;
+        hash += hash >> 17;
+        break;
+    case 1: 
+        hash += name[0];
+        hash ^= hash << 10;
+        hash += hash >> 1;
+    }
+    hash ^= hash << 3;
+    hash += hash >> 5;
+    hash ^= hash << 4;
+    hash += hash >> 17;
+    hash ^= hash << 25;
+    hash += hash >> 6;
+    return hash;
+}
+
+
+uint whashlower(MprChar *name, size_t len)
+{
+    uint    tmp, rem, hash;
+
+    mprAssert(name);
+    mprAssert(0 <= len && len < MAXINT);
+
+    if (len < 0) {
+        len = wlen(name);
+    }
+    hash = len;
+    rem = len & 3;
+
+    for (len >>= 2; len > 0; len--, name += 4) {
+        hash  += tolower(name[0]) | (tolower(name[1]) << 8);
+        tmp   =  ((tolower(name[2]) | (tolower(name[3]) << 8)) << 11) ^ hash;
+        hash  =  (hash << 16) ^ tmp;
+        hash  += hash >> 11;
+    }
+    switch (rem) {
+    case 3: 
+        hash += tolower(name[0]) + (tolower(name[1]) << 8);
+        hash ^= hash << 16;
+        hash ^= tolower(name[2]) << 18;
+        hash += hash >> 11;
+        break;
+    case 2: 
+        hash += tolower(name[0]) + (tolower(name[1]) << 8);
+        hash ^= hash << 11;
+        hash += hash >> 17;
+        break;
+    case 1: 
+        hash += tolower(name[0]);
+        hash ^= hash << 10;
+        hash += hash >> 1;
+    }
+    hash ^= hash << 3;
+    hash += hash >> 5;
+    hash ^= hash << 4;
+    hash += hash >> 17;
+    hash ^= hash << 25;
+    hash += hash >> 6;
+    return hash;
+}
+
+
+MprChar *wjoin(MprCtx ctx, MprChar *sep, ...)
+{
+    MprChar     *result;
+    va_list     ap;
+
+    mprAssert(ctx);
+
+    va_start(ap, sep);
+    result = wrejoinv(ctx, NULL, sep, ap);
+    va_end(ap);
+    return result;
+}
+
+
+MprChar *wjoinv(MprCtx ctx, MprChar *sep, va_list args)
+{
+    return wrejoin(ctx, NULL, sep, args);
+}
+
+
+size_t wlen(MprChar *s)
+{
+    size_t  i;
+
+    for (i = 0; *s; s++) ;
+    return i;
+}
+
+
+/*  
+    Map a string to lower case (overwrites original string)
+ */
+void wlower(MprChar *str)
+{
+    MprChar *cp;
+
+    mprAssert(str);
+
+    if (str) {
+        for (cp = str; *cp; cp++) {
+            if (isupper((int) *cp)) {
+                *cp = (MprChar) tolower((int) *cp);
+            }
+        }
+    }
+}
+
+
+int wncasecmp(MprChar *s1, MprChar *s2, size_t n)
+{
+    int     rc;
+
+    mprAssert(0 <= n && n < MAXINT);
+
+    if (s1 == 0 || s2 == 0) {
+        return -1;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
+        rc = tolower((int) *s1) - tolower((int) *s2);
+    }
+    if (rc) {
+        return (rc > 0) ? 1 : -1;
+    } else if (n == 0) {
+        return 0;
+    } else if (*s1 == '\0' && *s2 == '\0') {
+        return 0;
+    } else if (*s1 == '\0') {
+        return -1;
+    } else if (*s2 == '\0') {
+        return 1;
+    }
+    return 0;
+}
+
+
+int wncmp(MprChar *s1, MprChar *s2, size_t n)
+{
+    int     rc;
+
+    mprAssert(0 <= n && n < MAXINT);
+
+    if (s1 == 0 && s2 == 0) {
+        return 0;
+    } else if (s1 == 0) {
+        return -1;
+    } else if (s2 == 0) {
+        return 1;
+    }
+    for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
+        rc = *s1 - *s2;
+    }
+    if (rc) {
+        return (rc > 0) ? 1 : -1;
+    } else if (n == 0) {
+        return 0;
+    } else if (*s1 == '\0' && *s2 == '\0') {
+        return 0;
+    } else if (*s1 == '\0') {
+        return -1;
+    } else if (*s2 == '\0') {
+        return 1;
+    }
+    return 0;
+}
+
+
+/*
+    This routine copies at most "count" characters from a string. It ensures the result is always null terminated and 
+    the buffer does not overflow. Returns MPR_ERR_WONT_FIT if the buffer is too small.
+    destMax and len are character counts, not sizes in bytes
+ */
+size_t wncopy(MprChar *dest, size_t destMax, MprChar *src, size_t count)
+{
+    size_t      len;
+
+    mprAssert(dest);
+    mprAssert(src);
+    mprAssert(dest != src);
+    mprAssert(0 <= count && count < MAXINT);
+    mprAssert(0 < destMax && destMax < MAXINT);
+
+    len = wlen(src);
+    len = min(len, count);
+    if (destMax <= len) {
+        mprAssert(!MPR_ERR_WONT_FIT);
+        return MPR_ERR_WONT_FIT;
+    }
+    if (len > 0) {
+        memcpy(dest, src, len * sizeof(MprChar));
+        dest[len] = '\0';
+    } else {
+        *dest = '\0';
+        len = 0;
+    } 
+    return len;
+}
+
+
+MprChar *wpbrk(MprChar *str, MprChar *set)
+{
+    MprChar     *sp;
+    int         count;
+
+    if (str == NULL || set == NULL) {
+        return 0;
+    }
+    for (count = 0; *str; count++) {
+        for (sp = set; *sp; sp++) {
+            if (*str == *sp) {
+                return str;
+            }
+        }
+    }
+    return 0;
+}
+
+
+MprChar *wrchr(MprChar *str, int c)
+{
+    MprChar     *s;
+
+    if (str == NULL) {
+        return 0;
+    }
+    for (s = &str[wlen(str)]; *s; ) {
+        if (*s == c) {
+            return s;
+        }
+    }
+    return 0;
+}
+
+
+MprChar *wrejoin(MprCtx ctx, MprChar *buf, MprChar *sep, ...)
+{
+    MprChar     *result;
+    va_list     ap;
+
+    mprAssert(ctx);
+
+    va_start(ap, sep);
+    result = wrejoinv(ctx, buf, sep, ap);
+    va_end(ap);
+    return result;
+}
+
+
+MprChar *wrejoinv(MprCtx ctx, MprChar *buf, MprChar *sep, va_list args)
+{
+    va_list     ap;
+    MprChar     *dest, *str, *dp, nullBuf[1];
+    int         required, seplen, len;
+
+    mprAssert(ctx);
+
+    if (sep == 0) {
+        nullBuf[0] = 0;
+        sep = nullBuf;
+    } 
+    seplen = wlen(sep);
+    va_copy(ap, args);
+    required = 1;
+    str = va_arg(ap, MprChar*);
+    while (str) {
+        required += wlen(str);
+        required += seplen;
+        str = va_arg(ap, MprChar*);
+    }
+    if (buf && *buf) {
+        required += seplen;
+    }
+    if ((dest = mprRealloc(ctx, buf, required * sizeof(MprChar))) == 0) {
+        return 0;
+    }
+    dp = dest;
+    va_copy(ap, args);
+    str = va_arg(ap, MprChar*);
+    if (str && *sep) {
+        wcopy(dp, required, sep);
+        dp += seplen;
+        required -= seplen;
+    }
+    while (str) {
+        wcopy(dp, required, str);
+        len = wlen(str);
+        dp += len;
+        required -= len;
+        str = va_arg(ap, MprChar*);
+        if (str) {
+            wcopy(dp, required, sep);
+            dp += seplen;
+            required -= seplen;
+        }
+    }
+    *dp = '\0';
+    return dest;
+}
+
+
+size_t wspn(MprChar *str, MprChar *set)
+{
+    MprChar     *sp;
+    int         count;
+
+    if (str == NULL || set == NULL) {
+        return 0;
+    }
+    for (count = 0; *str; count++, str++) {
+        for (sp = set; *sp; sp++) {
+            if (*str == *sp) {
+                return break;
+            }
+        }
+        if (*str != *sp) {
+            return break;
+        }
+    }
+    return count;
+}
+ 
+
+int wstarts(MprChar *str, MprChar *prefix)
+{
+    if (str == NULL || prefix == NULL) {
+        return 0;
+    }
+    if (wncmp(str, prefix, wlen(prefix)) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+
+int64 wtoi(MprChar *str, int radix, int *err)
+{
+    char    *bp, buf[32];
+
+    for (bp = buf; bp < &buf[sizeof(buf)]; ) {
+        *bp++ = *str++;
+    }
+    buf[sizeof(buf) - 1] = 0;
+    return stoi(buf, radix, err);
+}
+
+
+MprChar *wtok(MprChar *str, MprChar *delim, MprChar **last)
+{
+    MprChar    *start, *end;
+    size_t     i;
+
+    start = str ? str : *last;
+
+    if (start == 0) {
+        *last = 0;
+        return 0;
+    }
+    i = wspn(start, delim);
+    start += i;
+    if (*start == '\0') {
+        *last = 0;
+        return 0;
+    }
+    end = wpbrk(start, delim);
+    if (end) {
+        *end++ = '\0';
+        i = wspn(end, delim);
+        end += i;
+    }
+    *last = end;
+    return start;
+}
+
+
+MprChar *wsub(MprCtx ctx, MprChar *str, size_t offset, size_t len)
+{
+    MprChar    *result;
+    size_t      size;
+
+    mprAssert(str);
+    mprAssert(offset >= 0);
+    mprAssert(0 <= len && len < MAXINT);
+
+    if (str == NULL) {
+        return NULL;
+    }
+#if UNUSED
+    if (len < 0) {
+        len = wlen(&str[offset]);
+    }
+#endif
+    size = (len + 1) * sizeof(MprChar);
+    if ((result = mprAlloc(ctx, size)) == NULL) {
+        return NULL;
+    }
+    wncopy(result, len + 1, &str[offset], len);
+    return result;
+}
+
+
+MprChar *wtrim(MprChar *str, MprChar *set, int where)
+{
+    size_t  len, i;
+
+    if (str == NULL || set == NULL) {
+        return str;
+    }
+    if (where & MPR_TRIM_START) {
+        i = wspn(str, set);
+    } else {
+        i = 0;
+    }
+    str += i;
+    if (where & MPR_TRIM_END) {
+        len = wlen(str);
+        while (len > 0 && wspn(&str[len - 1], set) > 0) {
+            str[len - 1] = '\0';
+            len--;
+        }
+    }
+    return str;
+}
+
+
+/*  
+    Map a string to upper case (overwrites buffer)
+ */
+void wupper(MprChar *str)
+{
+    MprChar     *cp;
+
+    mprAssert(str);
+    if (str) {
+        for (cp = str; *cp; cp++) {
+            if (islower((int) *cp)) {
+                *cp = (char) toupper((int) *cp);
+            }
+        }
+    }
+}
+
+/*
+    Convert a wide unicode string into a multibyte string buffer. If len is supplied, it is used as the source length. 
+    DestCount is the max size of the dest buffer. At most destCount - 1 characters will be stored. The dest buffer will
+    always have a trailing null appended.  If dest is NULL, don't copy the string, just return the length.  
+    Return a count of characters copied or -1 if an invalid multibyte sequence was provided in src.
+    NOTE: does not allocate.
+ */
+size_t wtom(char *dest, size_t destCount, MprChar *src, size_t len)
+{
+    size_t      size;
+
+    mprAssert(0 <= len && len < MAXINT);
+
+    if (destCount < 0) {
+        destCount = MAXSIZE;
+    }
+#if UNUSED
+    if (len < 0) {
+        len = MAXSIZE;
+    }
+#endif
+    size = min(destCount, len + 1);
+    if (size > 0) {
+#if BLD_CHAR_LEN == 1
+        if (dest) {
+            scopy(dest, size, src);
+        } else {
+            len = min(strlen(src), size - 1);
+        }
+#elif BLD_WIN_LIKE
+        //  MOB -- use destCount
+        len = WideCharToMultiByte(CP_ACP, 0, src, -1, dest, (DWORD) size, NULL, NULL);
+#else
+        len = wcstombs(dest, src, size);
+#endif
+        if (len >= destCount) {
+            mprAssert(!MPR_ERR_WONT_FIT);
+            return MPR_ERR_WONT_FIT;
+        }
+        if (len >= 0) {
+            dest[len] = 0;
+        }
+    }
+    return len;
+}
+
+
+/*
+    Convert a multibyte string to a unicode string. If len is supplied, it is used as the source length. 
+    If dest is NULL, don't copy the string, just return the length.
+    NOTE: does not allocate
+ */
+size_t mtow(MprChar *dest, size_t destCount, cchar *src, size_t len) 
+{
+    size_t      size;
+
+    mprAssert(0 < destCount && len < MAXINT);
+    mprAssert(0 <= len && len < MAXINT);
+
+    if (destCount < 0) {
+        destCount = MAXSIZE;
+    }
+    size = min(destCount, len + 1);
+    if (size > 0) {
+#if BLD_CHAR_LEN == 1
+        if (dest) {
+            scopy(dest, size, src);
+        } else {
+            len = min(strlen(src), size - 1);
+        }
+#elif BLD_WIN_LIKE
+        len = MultiByteToWideChar(CP_ACP, 0, src, -1, dest, size);
+#else
+        len = mbstowcs(dest, src, size);
+#endif
+        if (len >= destCount) {
+            mprAssert(!MPR_ERR_WONT_FIT);
+            return MPR_ERR_WONT_FIT;
+        }
+        if (len >= 0) {
+            dest[len] = 0;
+        }
+    }
+    return len;
+}
+
+
+MprChar *amtow(MprCtx ctx, cchar *src, size_t *lenp)
+{
+    MprChar     *dest;
+    size_t      len;
+
+    len = mtow(NULL, MAXSIZE, src, 0);
+    if (len < 0) {
+        return NULL;
+    }
+    if ((dest = mprAlloc(ctx, (len + 1) * sizeof(MprChar))) != NULL) {
+        mtow(dest, len + 1, src, len);
+    }
+    if (lenp) {
+        *lenp = len;
+    }
+    return dest;
+}
+
+
+char *awtom(MprCtx ctx, MprChar *src, size_t *lenp)
+{
+    char    *dest;
+    size_t  len;
+
+    len = wtom(NULL, MAXSIZE, src, 0);
+    if (len < 0) {
+        return NULL;
+    }
+    if ((dest = mprAlloc(ctx, len + 1)) != 0) {
+        wtom(dest, len + 1, src, len);
+    }
+    if (lenp) {
+        *lenp = len;
+    }
+    return dest;
+}
+
+
+#if FUTURE
+
+#define BOM_MSB_FIRST       0xFEFF
+#define BOM_LSB_FIRST       0xFFFE
+
+/*
+    Surrogate area  (0xD800 <= x && x <= 0xDFFF) => mapped into 0x10000 ... 0x10FFFF
+ */
+
+static int utf8Length(int c)
+{
+    if (c & 0x80) {
+        return 1;
+    }
+    if ((c & 0xc0) != 0xc0) {
+        return 0;
+    }
+    if ((c & 0xe0) != 0xe0) {
+        return 2;
+    }
+    if ((c & 0xf0) != 0xf0) {
+        return 3;
+    }
+    if ((c & 0xf8) != 0xf8) {
+        return 4;
+    }
+    return 0;
+}
+
+
+static int isValidUtf8(cuchar *src, int len)
+{
+    if (len == 4 && (src[4] < 0x80 || src[3] > 0xBF)) {
+        return 0;
+    }
+    if (len >= 3 && (src[3] < 0x80 || src[2] > 0xBF)) {
+        return 0;
+    }
+    if (len >= 2 && src[1] > 0xBF) {
+        return 0;
+    }
+    if (src[0]) {
+        if (src[0] == 0xE0) {
+            if (src[1] < 0xA0) {
+                return 0;
+            }
+        } else if (src[0] == 0xED) {
+            if (src[1] < 0xA0) {
+                return 0;
+            }
+        } else if (src[0] == 0xF0) {
+            if (src[1] < 0xA0) {
+                return 0;
+            }
+        } else if (src[0] == 0xF4) {
+            if (src[1] < 0xA0) {
+                return 0;
+            }
+        } else if (src[1] < 0x80) {
+            return 0;
+        }
+    }
+    if (len >= 1) {
+        if (src[0] >= 0x80 && src[0] < 0xC2) {
+            return 0;
+        }
+    }
+    if (src[0] >= 0xF4) {
+        return 0;
+    }
+    return 1;
+}
+
+
+//  MOB - CLEAN
+static int offsets[6] = { 0x00000000UL, 0x00003080UL, 0x000E2080UL, 0x03C82080UL, 0xFA082080UL, 0x82082080UL };
+
+size_t xmtow(MprChar *dest, size_t destMax, cchar *src, size_t len) 
+{
+    MprChar     *dp, *dend;
+    cchar       *sp, *send;
+    int         i, c, count;
+
+    mprAssert(0 <= len && len < MAXINT);
+
+#if UNUSED
+    if (len < 0) {
+        len = strlen(src);
+    }
+#endif
+    if (dest) {
+        dend = &dest[destMax];
+    }
+    count = 0;
+    for (sp = src, send = &src[len]; sp < send; ) {
+        len = utf8Length(*sp) - 1;
+        if (&sp[len] >= send) {
+            return MPR_ERR_BAD_FORMAT;
+        }
+        if (!isValidUtf8((uchar*) sp, len + 1)) {
+            return MPR_ERR_BAD_FORMAT;
+        }
+        for (c = 0, i = len; i >= 0; i--) {
+            c = *sp++;
+            c <<= 6;
+        }
+        c -= offsets[len];
+        count++;
+        if (dp >= dend) {
+            mprAssert(!MPR_ERR_WONT_FIT);
+            return MPR_ERR_WONT_FIT;
+        }
+        if (c <= 0xFFFF) {
+            if (dest) {
+                if (c >= 0xD800 && c <= 0xDFFF) {
+                    *dp++ = 0xFFFD;
+                } else {
+                    *dp++ = c;
+                }
+            }
+        } else if (c > 0x10FFFF) {
+            *dp++ = 0xFFFD;
+        } else {
+            c -= 0x0010000UL;
+            *dp++ = (c >> 10) + 0xD800;
+            if (dp >= dend) {
+                mprAssert(!MPR_ERR_WONT_FIT);
+                return MPR_ERR_WONT_FIT;
+            }
+            *dp++ = (c & 0x3FF) + 0xDC00;
+            count++;
+        }
+    }
+    return count;
+}
+
+//  MOB - CLEAN
+static cuchar marks[7] = { 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC };
+
+/*
+   if (c < 0x80) 
+      b1 = c >> 0  & 0x7F | 0x00
+      b2 = null
+      b3 = null
+      b4 = null
+   else if (c < 0x0800)
+      b1 = c >> 6  & 0x1F | 0xC0
+      b2 = c >> 0  & 0x3F | 0x80
+      b3 = null
+      b4 = null
+   else if (c < 0x010000)
+      b1 = c >> 12 & 0x0F | 0xE0
+      b2 = c >> 6  & 0x3F | 0x80
+      b3 = c >> 0  & 0x3F | 0x80
+      b4 = null
+   else if (c < 0x110000)
+      b1 = c >> 18 & 0x07 | 0xF0
+      b2 = c >> 12 & 0x3F | 0x80
+      b3 = c >> 6  & 0x3F | 0x80
+      b4 = c >> 0  & 0x3F | 0x80
+   end if
+*/
+
+size_t xwtom(char *dest, size_t destMax, MprChar *src, size_t len)
+{
+    MprChar     *sp, *send;
+    char        *dp, *dend;
+    int         i, c, c2, count, bytes, mark, mask;
+
+    mprAssert(0 <= len && len < MAXINT);
+
+#if UNUSED
+    if (len < 0) {
+        len = wlen(src);
+    }
+#endif
+    if (dest) {
+        dend = &dest[destMax];
+    }
+    count = 0;
+    mark = 0x80;
+    mask = 0xBF;
+    for (sp = src, send = &src[len]; sp < send; ) {
+        c = *sp++;
+        if (c >= 0xD800 && c <= 0xD8FF) {
+            if (sp < send) {
+                c2 = *sp++;
+                if (c2 >= 0xDC00 && c2 <= 0xDFFF) {
+                    c = ((c - 0xD800) << 10) + (c2 - 0xDC00) + 0x10000;
+                }
+            } else {
+                mprAssert(!MPR_ERR_WONT_FIT);
+                return MPR_ERR_WONT_FIT;
+            }
+        }
+        if (c < 0x80) {
+            bytes = 1;
+        } else if (c < 0x10000) {
+            bytes = 2;
+        } else if (c < 0x110000) {
+            bytes = 4;
+        } else {
+            bytes = 3;
+            c = 0xFFFD;
+        }
+        if (dest) {
+            dp += bytes;
+            if (dp >= dend) {
+                mprAssert(!MPR_ERR_WONT_FIT);
+                return MPR_ERR_WONT_FIT;
+            }
+            for (i = 1; i < bytes; i++) {
+                *--dp = (c | mark) & mask;
+                c >>= 6;
+            }
+            *--dp = (c | marks[bytes]);
+            dp += bytes;
+        }
+        count += bytes;
+    }
+    return count;
+}
+
+
+#endif /* FUTURE */
+
+#else /* BLD_CHAR_LEN == 1 */
+
+MprChar *amtow(MprCtx ctx, cchar *src, size_t *len)
+{
+    if (len) {
+        *len = strlen(src);
+    }
+    return sclone(ctx, src);
+}
+
+
+char *awtom(MprCtx ctx, MprChar *src, size_t *len)
+{
+    if (len) {
+        *len = strlen(src);
+    }
+    return sclone(ctx, src);
+}
+
+#if UNUSED
+MprChar *wfmt(MprCtx ctx, MprChar *fmt, ...)
+{
+    MprChar     *result;
+    va_list     ap;
+
+    mprAssert(fmt);
+
+    va_start(ap, fmt);
+    result = mprAsprintfv(ctx, fmt, ap);
+    va_end(ap);
+    return result;
+}
+#endif
+
+#endif /* BLD_CHAR_LEN > 1 */
+
+/*
+    @copy   default
+
+    Copyright (c) Embedthis Software LLC, 2003-2010. All Rights Reserved.
+    Copyright (c) Michael O'Brien, 1993-2010. All Rights Reserved.
+
+    This software is distributed under commercial and open source licenses.
+    You may use the GPL open source license described below or you may acquire
+    a commercial license from Embedthis Software. You agree to be fully bound
+    by the terms of either license. Consult the LICENSE.TXT distributed with
+    this software for full details.
+
+    This software is open source; you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the
+    Free Software Foundation; either version 2 of the License, or (at your
+    option) any later version. See the GNU General Public License for more
+    details at: http://www.embedthis.com/downloads/gplLicense.html
+
+    This program is distributed WITHOUT ANY WARRANTY; without even the
+    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+    This GPL license does NOT permit incorporating this software into
+    proprietary programs. If you are unable to comply with the GPL, you must
+    acquire a commercial license to use this software. Commercial licenses
+    for this software and support services are available from Embedthis
+    Software at http://www.embedthis.com
+
+    @end
+ */
+
+/************************************************************************/
+/*
+ *  End of file "../src/mprWide.c"
+ */
+/************************************************************************/
+
+
+
+/************************************************************************/
+/*
  *  Start of file "../src/mprWin.c"
  */
 /************************************************************************/
@@ -20601,13 +23193,13 @@ static cchar    *getHive(cchar *key, HKEY *root);
     Initialize the O/S platform layer
  */ 
 
-MprOsService *mprCreateOsService(MprCtx ctx)
+int mprCreateOsService()
 {
-    return mprAllocObj(ctx, MprOsService, NULL);
+    return 0;
 }
 
 
-int mprStartOsService(MprOsService *os)
+int mprStartOsService()
 {
     WSADATA     wsaData;
 
@@ -20618,7 +23210,7 @@ int mprStartOsService(MprOsService *os)
 }
 
 
-void mprStopOsService(MprOsService *os)
+void mprStopOsService()
 {
     WSACleanup();
 }
@@ -20736,6 +23328,7 @@ int mprReadRegistry(MprCtx ctx, char **buf, int max, cchar *key, cchar *name)
     value = (char*) mprAlloc(ctx, size);
     if ((int) size > max) {
         RegCloseKey(h);
+        mprAssert(!MPR_ERR_WONT_FIT);
         return MPR_ERR_WONT_FIT;
     }
     if (RegQueryValueEx(h, name, 0, &type, (uchar*) value, &size) != ERROR_SUCCESS) {
@@ -20780,21 +23373,22 @@ void mprSleep(MprCtx ctx, int milliseconds)
 }
 
 
-uni *mprToUni(MprCtx ctx, cchar* a)
+#if UNUSED
+uni *mprToUni(MprCtx ctx, cchar* a, int *len)
 {
     uni     *wstr;
-    int     len;
+    int     *len;
 
-    len = MultiByteToWideChar(CP_ACP, 0, a, -1, NULL, 0);
-    wstr = (uni*) mprAlloc(ctx, (len + 1) * sizeof(uni));
+    *len = MultiByteToWideChar(CP_ACP, 0, a, -1, NULL, 0);
+    wstr = (uni*) mprAlloc(ctx, (*len + 1) * sizeof(uni));
     if (wstr) {
-        MultiByteToWideChar(CP_ACP, 0, a, -1, wstr, len);
+        MultiByteToWideChar(CP_ACP, 0, a, -1, wstr, *len);
     }
     return wstr;
 }
 
 
-char *mprToAsc(MprCtx ctx, cuni *w)
+char *mprToMulti(MprCtx ctx, cuni *w)
 {
     char    *str;
     int     len;
@@ -20805,6 +23399,7 @@ char *mprToAsc(MprCtx ctx, cuni *w)
     }
     return str;
 }
+#endif
 
 
 void mprUnloadModule(MprModule *mp)
@@ -20829,7 +23424,7 @@ void mprWriteToOsLog(MprCtx ctx, cchar *message, int flags, int level)
     int         type;
     static int  once = 0;
 
-    mprStrcpy(buf, sizeof(buf), message);
+    scopy(buf, sizeof(buf), message);
     cp = &buf[strlen(buf) - 1];
     while (*cp == '\n' && cp > buf) {
         *cp-- = '\0';
@@ -20850,7 +23445,7 @@ void mprWriteToOsLog(MprCtx ctx, cchar *message, int flags, int level)
         if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, logName, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &hkey, &exists) == ERROR_SUCCESS) {
             value = "%SystemRoot%\\System32\\netmsg.dll";
             if (RegSetValueEx(hkey, "EventMessageFile", 0, REG_EXPAND_SZ, 
-                    (uchar*) value, (int) strlen(value) + 1) != ERROR_SUCCESS) {
+                    (uchar*) value, strlen(value) + 1) != ERROR_SUCCESS) {
                 RegCloseKey(hkey);
                 return;
             }
@@ -20898,7 +23493,7 @@ int mprWriteRegistry(MprCtx ctx, cchar *key, cchar *name, cchar *value)
         if (RegOpenKeyEx(top, key, 0, KEY_ALL_ACCESS, &h) != ERROR_SUCCESS) {
             return MPR_ERR_CANT_ACCESS;
         }
-        if (RegSetValueEx(h, name, 0, REG_SZ, value, (int) strlen(value) + 1) != ERROR_SUCCESS) {
+        if (RegSetValueEx(h, name, 0, REG_SZ, value, strlen(value) + 1) != ERROR_SUCCESS) {
             RegCloseKey(h);
             return MPR_ERR_CANT_READ;
         }
@@ -20934,7 +23529,7 @@ static cchar *getHive(cchar *keyPath, HKEY *hive)
 
     *hive = 0;
 
-    mprStrcpy(key, sizeof(key), keyPath);
+    scopy(key, sizeof(key), keyPath);
     key[sizeof(key) - 1] = '\0';
 
     if (cp = strchr(key, '\\')) {
@@ -20957,7 +23552,7 @@ static cchar *getHive(cchar *keyPath, HKEY *hive)
     if (*hive == 0) {
         return 0;
     }
-    len = (int) strlen(key) + 1;
+    len = strlen(key) + 1;
     return keyPath + len;
 }
 
@@ -21042,15 +23637,15 @@ static long getJulianDays(SYSTEMTIME *when);
 static void timeToFileTime(uint64 t, FILETIME *ft);
 
 
-MprOsService *mprCreateOsService(MprCtx ctx)
+int mprCreateOsService()
 {
-    files = mprCreateList(ctx);
-    currentDir = mprStrdup(ctx, "/");
-    return mprAllocObj(ctx, MprOsService, NULL);
+    files = mprCreateList(MPR);
+    currentDir = sclone(MPR, "/");
+    return 0;
 }
 
 
-int mprStartOsService(MprOsService *os)
+int mprStartOsService()
 {
     WSADATA     wsaData;
 
@@ -21061,7 +23656,7 @@ int mprStartOsService(MprOsService *os)
 }
 
 
-void mprStopOsService(MprOsService *os)
+void mprStopOsService()
 {
     WSACleanup();
 }
@@ -21149,7 +23744,7 @@ static cchar *getHive(cchar *keyPath, HKEY *hive)
 
     *hive = 0;
 
-    mprStrcpy(key, sizeof(key), keyPath);
+    scopy(key, sizeof(key), keyPath);
     key[sizeof(key) - 1] = '\0';
 
     if (cp = strchr(key, '\\')) {
@@ -21172,7 +23767,7 @@ static cchar *getHive(cchar *keyPath, HKEY *hive)
     if (*hive == 0) {
         return 0;
     }
-    len = (int) strlen(key) + 1;
+    len = strlen(key) + 1;
     return keyPath + len;
 }
 
@@ -21190,7 +23785,6 @@ int mprReadRegistry(MprCtx ctx, char **buf, int max, cchar *key, cchar *name)
     if ((key = getHive(key, &top)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
-
     wkey = mprToUni(ctx, key);
     if (RegOpenKeyEx(top, wkey, 0, KEY_READ, &h) != ERROR_SUCCESS) {
         mprFree(wkey);
@@ -21216,6 +23810,7 @@ int mprReadRegistry(MprCtx ctx, char **buf, int max, cchar *key, cchar *name)
     if ((int) size > max) {
         RegCloseKey(h);
         mprFree(wname);
+        mprAssert(!MPR_ERR_WONT_FIT);
         return MPR_ERR_WONT_FIT;
     }
     if (RegQueryValueEx(h, wname, 0, &type, (uchar*) value, &size) != ERROR_SUCCESS) {
@@ -21262,33 +23857,6 @@ void mprSleep(MprCtx ctx, int milliseconds)
 }
 
 
-uni *mprToUni(MprCtx ctx, cchar* a)
-{
-    uni     *wstr;
-    int     len;
-
-    len = MultiByteToWideChar(CP_ACP, 0, a, -1, NULL, 0);
-    wstr = (uni*) mprAlloc(ctx, (len+1)   sizeof(uni));
-    if (wstr) {
-        MultiByteToWideChar(CP_ACP, 0, a, -1, wstr, len);
-    }
-    return wstr;
-}
-
-
-char *mprToAsc(MprCtx ctx, cuni *w)
-{
-    char    *str;
-    int     len;
-
-    len = WideCharToMultiByte(CP_ACP, 0, w, -1, NULL, 0, NULL, NULL);
-    if ((str = mprAlloc(ctx, len + 1)) != 0) {
-        WideCharToMultiByte(CP_ACP, 0, w, -1, str, (DWORD) len, NULL, NULL);
-    }
-    return str;
-}
-
-
 void mprUnloadModule(MprModule *mp)
 {
     mprAssert(mp->handle);
@@ -21312,7 +23880,7 @@ void mprWriteToOsLog(MprCtx ctx, cchar *message, int flags, int level)
     int         type;
     static int  once = 0;
 
-    mprStrcpy(buf, sizeof(buf), message);
+    scopy(buf, sizeof(buf), message);
     cp = &buf[strlen(buf) - 1];
     while (*cp == '\n' && cp > buf) {
         *cp-- = '\0';
@@ -21335,7 +23903,7 @@ void mprWriteToOsLog(MprCtx ctx, cchar *message, int flags, int level)
         if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, logName, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &hkey, &exists) == ERROR_SUCCESS) {
             value = "%SystemRoot%\\System32\\netmsg.dll";
             if (RegSetValueEx(hkey, "EventMessageFile", 0, REG_EXPAND_SZ, 
-                    (uchar*) value, (int) strlen(value) + 1) != ERROR_SUCCESS) {
+                    (uchar*) value, strlen(value) + 1) != ERROR_SUCCESS) {
                 RegCloseKey(hkey);
                 return;
             }
@@ -21381,7 +23949,7 @@ int mprWriteRegistry(MprCtx ctx, cchar *key, cchar *name, cchar *value)
         if (RegOpenKeyEx(top, key, 0, KEY_ALL_ACCESS, &h) != ERROR_SUCCESS) {
             return MPR_ERR_CANT_ACCESS;
         }
-        if (RegSetValueEx(h, name, 0, REG_SZ, value, (int) strlen(value) + 1) != ERROR_SUCCESS) {
+        if (RegSetValueEx(h, name, 0, REG_SZ, value, strlen(value) + 1) != ERROR_SUCCESS) {
             RegCloseKey(h);
             return MPR_ERR_CANT_READ;
         }
@@ -21467,7 +24035,7 @@ char *getenv(cchar *key)
 
 char *getcwd(char *buf, int size)
 {
-    mprStrcpy(buf, size, currentDir);
+    scopy(buf, size, currentDir);
     return buf;
 }
 
@@ -21565,9 +24133,7 @@ uint open(cchar *path, int mode, va_list arg)
     } else {
         createFlags = OPEN_EXISTING;
     }
-
     wpath = mprToUni(MPR, path);
-
     h = CreateFileW(wpath, accessFlags, shareFlags, NULL, createFlags, FILE_ATTRIBUTE_NORMAL, NULL);
     mprFree(wpath);
     mprFree(tmpPath);
@@ -21601,10 +24167,8 @@ int rename(cchar *oldname, cchar *newname)
     } else {
         tmpNew = 0;
     }
-
     from = mprToUni(MPR, oldname);
     to = mprToUni(MPR, newname);
-
     rc = MoveFileW(from, to);
 
     mprFree(tmpOld);
@@ -21855,7 +24419,6 @@ int unlink(cchar *file)
     wpath = mprToUni(MPR, file);
     rc = DeleteFileW(wpath);
     mprFree(wpath);
-
     return rc == 0 ? 0 : -1;
 }
 
@@ -21870,7 +24433,6 @@ WINBASEAPI HANDLE WINAPI CreateFileA(LPCSTR path, DWORD access, DWORD sharing,
     wpath = mprToUni(MPR, path);
     h = CreateFileW(wpath, access, sharing, security, create, flags, template);
     mprFree(wpath);
-
     return h;
 }
 
@@ -21890,7 +24452,6 @@ BOOL WINAPI CreateProcessA(LPCSTR app, LPCSTR cmd, LPSECURITY_ATTRIBUTES att, LP
     mprFree(wapp);
     mprFree(wcmd);
     mprFree(wdir);
-
     return result;
 }
 
@@ -21906,7 +24467,7 @@ HANDLE FindFirstFileA(LPCSTR path, WIN32_FIND_DATAA *data)
     h = FindFirstFileW(wpath, &wdata);
     mprFree(wpath);
     
-    file = mprToAsc(MPR, wdata.cFileName);
+    file = mprToMulti(MPR, wdata.cFileName);
     strcpy(data->cFileName, file);
     mprFree(file);
     return h;
@@ -21920,7 +24481,7 @@ BOOL FindNextFileA(HANDLE handle, WIN32_FIND_DATAA *data)
     BOOL                result;
 
     result = FindNextFileW(handle, &wdata);
-    file = mprToAsc(MPR, wdata.cFileName);
+    file = mprToMulti(MPR, wdata.cFileName);
     strcpy(data->cFileName, file);
     mprFree(file);
     return result;
@@ -21947,7 +24508,7 @@ DWORD GetModuleFileNameA(HMODULE module, LPSTR buf, DWORD size)
 
     wpath = (LPWSTR) mprAlloc(MPR, size   sizeof(wchar_t));
     ret = GetModuleFileNameW(module, wpath, size);
-    mb = mprToAsc(MPR, wpath);
+    mb = mprToMulti(MPR, wpath);
     strcpy(buf, mb);
     mprFree(mb);
     mprFree(wpath);
@@ -22052,20 +24613,21 @@ void stubMprWince() {}
 
 
 
-static int       parseNext(MprXml *xp, int state);
 static MprXmlToken getToken(MprXml *xp, int state);
-static int       getNextChar(MprXml *xp);
-static int       scanFor(MprXml *xp, char *str);
-static int       putLastChar(MprXml *xp, int c);
-static void      xmlError(MprXml *xp, char *fmt, ...);
-static void      trimToken(MprXml *xp);
+static int  getNextChar(MprXml *xp);
+static void manageXml(MprXml *xml, int flags);
+static int  scanFor(MprXml *xp, char *str);
+static int  parseNext(MprXml *xp, int state);
+static int  putLastChar(MprXml *xp, int c);
+static void xmlError(MprXml *xp, char *fmt, ...);
+static void trimToken(MprXml *xp);
 
 
 MprXml *mprXmlOpen(MprCtx ctx, int initialSize, int maxSize)
 {
     MprXml  *xp;
 
-    xp = mprAllocObj(ctx, MprXml, NULL);
+    xp = mprAllocObj(ctx, MprXml, manageXml);
     
     xp->inBuf = mprCreateBuf(xp, MPR_XML_BUFSIZE, MPR_XML_BUFSIZE);
     xp->tokBuf = mprCreateBuf(xp, initialSize, maxSize);
@@ -22073,10 +24635,19 @@ MprXml *mprXmlOpen(MprCtx ctx, int initialSize, int maxSize)
 }
 
 
+static void manageXml(MprXml *xml, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(xml->inBuf);
+        mprMark(xml->tokBuf);
+        mprMark(xml->errMsg);
+    }
+}
+
+
 void mprXmlSetParserHandler(MprXml *xp, MprXmlHandler h)
 {
     mprAssert(xp);
-
     xp->handler = h;
 }
 
@@ -22205,9 +24776,9 @@ static int parseNext(MprXml *xp, int state)
 
             case MPR_XMLTOK_TEXT:
                 state = MPR_XML_NEW_ELT;
-                tname = mprStrdup(xp, mprGetBufStart(tokBuf));
+                tname = sclone(xp, mprGetBufStart(tokBuf));
                 if (tname == 0) {
-                    rc = MPR_ERR_NO_MEMORY;
+                    rc = MPR_ERR_MEMORY;
                     goto exit;
                 }
                 rc = (*handler)(xp, state, tname, 0, 0);
@@ -22232,7 +24803,7 @@ static int parseNext(MprXml *xp, int state)
                 /*
                     Must be an attribute name
                  */
-                aname = mprStrdup(xp, mprGetBufStart(tokBuf));
+                aname = sclone(xp, mprGetBufStart(tokBuf));
                 token = getToken(xp, state);
                 if (token != MPR_XMLTOK_EQ) {
                     xmlError(xp, "Missing assignment for attribute \"%s\"", aname);
@@ -22597,7 +25168,7 @@ static int scanFor(MprXml *xp, char *pattern)
             /*
                 Remove the pattern from the tokBuf
              */
-            mprAdjustBufEnd(tokBuf, -(int) strlen(pattern));
+            mprAdjustBufEnd(tokBuf, -strlen(pattern));
             trimToken(xp);
             return 1;
         }
@@ -22661,11 +25232,11 @@ static void xmlError(MprXml *xp, char *fmt, ...)
     mprAssert(fmt);
 
     va_start(args, fmt);
-    buf = mprVasprintf(xp, MPR_MAX_STRING, fmt, args);
+    buf = mprAsprintfv(xp, fmt, args);
     va_end(args);
 
     mprFree(xp->errMsg);
-    xp->errMsg = mprAsprintf(xp, MPR_MAX_STRING, "XML error: %s\nAt line %d\n", buf, xp->lineNumber);
+    xp->errMsg = mprAsprintf(xp, "XML error: %s\nAt line %d\n", buf, xp->lineNumber);
     mprFree(buf);
 }
 

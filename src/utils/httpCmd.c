@@ -308,8 +308,8 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
             if (nextArg >= argc) {
                 return 0;
             } else {
-                protocol = mprStrdup(mpr, argv[++nextArg]);
-                mprStrUpper(protocol);
+                protocol = sclone(mpr, argv[++nextArg]);
+                supper(protocol);
             }
 
         } else if (strcmp(argp, "--put") == 0) {
@@ -321,9 +321,9 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
             } else {
                 //  TODO - should allow multiple ranges
                 if (ranges == 0) {
-                    ranges = mprAsprintf(mpr, -1, "bytes=%s", argv[++nextArg]);
+                    ranges = mprAsprintf(mpr, "bytes=%s", argv[++nextArg]);
                 } else {
-                    ranges = mprStrcat(mpr, -1, ranges, ",", argv[++nextArg], NULL);
+                    ranges = sjoin(mpr, ranges, ",", argv[++nextArg], NULL);
                 }
             }
             
@@ -482,12 +482,12 @@ static void processing()
     int         j;
 
     if (chunkSize > 0) {
-        mprAddItem(headers, mprCreateKeyPair(headers, "X-Appweb-Chunk-Size", mprAsprintf(headers, -1, "%d", chunkSize)));
+        mprAddItem(headers, mprCreateKeyPair(headers, "X-Appweb-Chunk-Size", mprAsprintf(headers, "%d", chunkSize)));
     }
     activeLoadThreads = loadThreads;
     for (j = 0; j < loadThreads; j++) {
         char name[64];
-        mprSprintf(mpr, name, sizeof(name), "http.%d", j);
+        mprSprintf(name, sizeof(name), "http.%d", j);
         tp = mprCreateThread(mpr, name, threadMain, mpr, 0); 
         mprStartThread(tp);
     }
@@ -587,7 +587,7 @@ static int prepRequest(HttpConn *conn)
     }
     if (sequence) {
         static int next = 0;
-        mprItoa(seqBuf, sizeof(seqBuf), next++, 10);
+        itos(seqBuf, sizeof(seqBuf), next++, 10);
         httpSetHeader(conn, "X-Http-Seq", seqBuf);
     }
     if (ranges) {
@@ -929,10 +929,10 @@ static void addFormVars(MprCtx ctx, cchar *buf)
 {
     char    *pair, *tok;
 
-    pair = mprStrTok(mprStrdup(ctx, buf), "&", &tok);
+    pair = stok(sclone(ctx, buf), "&", &tok);
     while (pair != 0) {
         mprAddItem(formData, pair);
-        pair = mprStrTok(0, "&", &tok);
+        pair = stok(0, "&", &tok);
     }
 }
 
@@ -955,23 +955,23 @@ static char *resolveUrl(HttpConn *conn, cchar *url)
     //  TODO replace with Url join
     if (*url == '/') {
         if (host) {
-            if (mprStrcmpAnyCaseCount(host, "http://", 7) != 0 && mprStrcmpAnyCaseCount(host, "https://", 8) != 0) {
-                return mprAsprintf(http, -1, "http://%s%s", host, url);
+            if (sncasecmp(host, "http://", 7) != 0 && sncasecmp(host, "https://", 8) != 0) {
+                return mprAsprintf(http, "http://%s%s", host, url);
             } else {
-                return mprAsprintf(http, -1, "%s%s", host, url);
+                return mprAsprintf(http, "%s%s", host, url);
             }
         } else {
-            return mprAsprintf(http, -1, "http://127.0.0.1%s", url);
+            return mprAsprintf(http, "http://127.0.0.1%s", url);
         }
     } 
-    if (mprStrcmpAnyCaseCount(url, "http://", 7) != 0 && mprStrcmpAnyCaseCount(url, "https://", 8) != 0) {
+    if (sncasecmp(url, "http://", 7) != 0 && sncasecmp(url, "https://", 8) != 0) {
         if (isPort(url)) {
-            return mprAsprintf(http, -1, "http://127.0.0.1:%s", url);
+            return mprAsprintf(http, "http://127.0.0.1:%s", url);
         } else {
-            return mprAsprintf(http, -1, "http://%s", url);
+            return mprAsprintf(http, "http://%s", url);
         }
     }
-    return mprStrdup(http, url);
+    return sclone(http, url);
 }
 
 
@@ -1016,7 +1016,7 @@ static void showOutput(HttpConn *conn, cchar *buf, int count)
 
 static void trace(HttpConn *conn, cchar *url, int fetchCount, cchar *method, int status, int contentLen)
 {
-    if (mprStrcmpAnyCaseCount(url, "http://", 7) != 0) {
+    if (sncasecmp(url, "http://", 7) != 0) {
         url += 7;
     }
     if ((fetchCount % 200) == 1) {
@@ -1046,31 +1046,17 @@ static void logHandler(MprCtx ctx, int flags, int level, const char *msg)
         mprFprintf(file, "\n");
         msg++;
     }
-
     if (flags & MPR_LOG_SRC) {
         mprFprintf(file, "%s: %d: %s\n", prefix, level, msg);
-
     } else if (flags & MPR_ERROR_SRC) {
-        /*
-            Use static printing to avoid malloc when the messages are small.
-            This is important for memory allocation errors.
-         */
-        if (strlen(msg) < (MPR_MAX_STRING - 32)) {
-            mprStaticPrintf(file, "%s: Error: %s\n", prefix, msg);
-        } else {
-            mprFprintf(file, "%s: Error: %s\n", prefix, msg);
-        }
-
+        mprFprintf(file, "%s: Error: %s\n", prefix, msg);
     } else if (flags & MPR_FATAL_SRC) {
         mprFprintf(file, "%s: Fatal: %s\n", prefix, msg);
-        
     } else if (flags & MPR_ASSERT_SRC) {
         mprFprintf(file, "%s: Assertion %s, failed\n", prefix, msg);
-
     } else if (flags & MPR_RAW) {
         mprFprintf(file, "%s", msg);
     }
-    
     if (flags & (MPR_ERROR_SRC | MPR_FATAL_SRC | MPR_ASSERT_SRC)) {
         mprBreakpoint();
     }
@@ -1159,7 +1145,7 @@ static char *getPassword(MprCtx ctx)
 #else
     password = "no-user-interaction-support";
 #endif
-    return mprStrdup(ctx, password);
+    return sclone(ctx, password);
 }
 
 

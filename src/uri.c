@@ -33,7 +33,7 @@ HttpUri *httpCreateUri(MprCtx ctx, cchar *uri, int complete)
      */
     ulen = (int) strlen(uri);
     len = ulen *  2 + 3;
-    up->uri = mprStrdup(up, uri);
+    up->uri = sclone(up, uri);
     up->parsedUriBuf = (char*) mprAlloc(up, len *  sizeof(char));
 
     hostbuf = &up->parsedUriBuf[ulen+1];
@@ -71,7 +71,7 @@ HttpUri *httpCreateUri(MprCtx ctx, cchar *uri, int complete)
         if ((cp = strchr(tok, '/')) != NULL) {
             c = *cp;
             *cp = '\0';
-            mprStrcpy(hostbuf, ulen + 1, up->host);
+            scopy(hostbuf, ulen + 1, up->host);
             *cp = c;
             up->host = hostbuf;
             up->path = cp;
@@ -112,13 +112,13 @@ HttpUri *httpCreateUri(MprCtx ctx, cchar *uri, int complete)
             if (last_delim <= cp) {
                 up->ext = cp + 1;
 #if BLD_WIN_LIKE
-                mprStrLower(up->ext);
+                slower(up->ext);
 #endif
             }
         } else {
             up->ext = cp + 1;
 #if BLD_WIN_LIKE
-            mprStrLower(up->ext);
+            slower(up->ext);
 #endif
         }
     }
@@ -142,14 +142,14 @@ HttpUri *httpCreateUriFromParts(MprCtx ctx, cchar *scheme, cchar *host, int port
         return 0;
     }
     if (scheme) {
-        up->scheme = mprStrdup(up, scheme);
+        up->scheme = sclone(up, scheme);
     } else if (complete) {
         up->scheme = "http";
     }
     if (host) {
-        up->host = mprStrdup(up, host);
+        up->host = sclone(up, host);
         if ((cp = strchr(host, ':')) && port == 0) {
-            port = (int) mprAtoi(++cp, 10);
+            port = stoi(++cp, 10, NULL);
         }
     } else if (complete) {
         host = "localhost";
@@ -161,29 +161,29 @@ HttpUri *httpCreateUriFromParts(MprCtx ctx, cchar *scheme, cchar *host, int port
         while (path[0] == '/' && path[1] == '/') {
             path++;
         }
-        up->path = mprStrdup(up, path);
+        up->path = sclone(up, path);
     }
     if (up->path == 0) {
         up->path = "/";
     }
     if (reference) {
-        up->reference = mprStrdup(up, reference);
+        up->reference = sclone(up, reference);
     }
     if (query) {
-        up->query = mprStrdup(up, query);
+        up->query = sclone(up, query);
     }
     if ((cp = strrchr(up->path, '.')) != NULL) {
         if ((last_delim = strrchr(up->path, '/')) != NULL) {
             if (last_delim <= cp) {
                 up->ext = cp + 1;
 #if BLD_WIN_LIKE
-                mprStrLower(up->ext);
+                slower(up->ext);
 #endif
             }
         } else {
             up->ext = cp + 1;
 #if BLD_WIN_LIKE
-            mprStrLower(up->ext);
+            slower(up->ext);
 #endif
         }
     }
@@ -204,14 +204,14 @@ HttpUri *httpCloneUri(MprCtx ctx, HttpUri *base, int complete)
     path = base->path;
 
     if (base->scheme) {
-        up->scheme = mprStrdup(up, base->scheme);
+        up->scheme = sclone(up, base->scheme);
     } else if (complete) {
         up->scheme = "http";
     }
     if (base->host) {
-        up->host = mprStrdup(up, base->host);
+        up->host = sclone(up, base->host);
         if ((cp = strchr(base->host, ':')) && port == 0) {
-            port = (int) mprAtoi(++cp, 10);
+            port = (int) stoi(++cp, 10, NULL);
         }
     } else if (complete) {
         base->host = "localhost";
@@ -222,29 +222,29 @@ HttpUri *httpCloneUri(MprCtx ctx, HttpUri *base, int complete)
     if (path) {
         while (path[0] == '/' && path[1] == '/')
             path++;
-        up->path = mprStrdup(up, path);
+        up->path = sclone(up, path);
     }
     if (up->path == 0) {
         up->path = "/";
     }
     if (base->reference) {
-        up->reference = mprStrdup(up, base->reference);
+        up->reference = sclone(up, base->reference);
     }
     if (base->query) {
-        up->query = mprStrdup(up, base->query);
+        up->query = sclone(up, base->query);
     }
     if ((cp = strrchr(up->path, '.')) != NULL) {
         if ((last_delim = strrchr(up->path, '/')) != NULL) {
             if (last_delim <= cp) {
                 up->ext = cp + 1;
 #if BLD_WIN_LIKE
-                mprStrLower(up->ext);
+                slower(up->ext);
 #endif
             }
         } else {
             up->ext = cp + 1;
 #if BLD_WIN_LIKE
-            mprStrLower(up->ext);
+            slower(up->ext);
 #endif
         }
     }
@@ -257,8 +257,8 @@ HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing)
     char        *scheme, *host;
     int         port;
 
-    scheme = (missing) ? mprStrdup(uri, missing->scheme) : "http";
-    host = (missing) ? mprStrdup(uri, missing->host) : "localhost";
+    scheme = (missing) ? sclone(uri, missing->scheme) : "http";
+    host = (missing) ? sclone(uri, missing->host) : "localhost";
     port = (missing) ? missing->port : 0;
 
     if (uri->scheme == 0) {
@@ -305,7 +305,7 @@ char *httpFormatUri(MprCtx ctx, cchar *scheme, cchar *host, int port, cchar *pat
         portDelim = 0;
     } else {
         if (port != 0 && port != getDefaultPort(scheme)) {
-            mprItoa(portBuf, sizeof(portBuf), port, 10);
+            itos(portBuf, sizeof(portBuf), port, 10);
             portDelim = ":";
         } else {
             portBuf[0] = '\0';
@@ -335,11 +335,10 @@ char *httpFormatUri(MprCtx ctx, cchar *scheme, cchar *host, int port, cchar *pat
         queryDelim = query = "";
     }
     if (portDelim) {
-        uri = mprStrcat(ctx, -1, scheme, hostDelim, host, portDelim, portBuf, pathDelim, path, referenceDelim, 
+        uri = sjoin(ctx, NULL, scheme, hostDelim, host, portDelim, portBuf, pathDelim, path, referenceDelim, 
             reference, queryDelim, query, NULL);
     } else {
-        uri = mprStrcat(ctx, -1, scheme, hostDelim, host, pathDelim, path, referenceDelim, reference, queryDelim, 
-            query, NULL);
+        uri = sjoin(ctx, NULL, scheme, hostDelim, host, pathDelim, path, referenceDelim, reference, queryDelim, query, NULL);
     }
     return uri;
 }
@@ -451,11 +450,11 @@ HttpUri *httpJoinUriPath(HttpUri *result, HttpUri *base, HttpUri *other)
     char    *sep;
 
     if (other->path[0] == '/') {
-        result->path = mprStrdup(result, other->path);
+        result->path = sclone(result, other->path);
     } else {
         sep = ((base->path[0] == '\0' || base->path[strlen(base->path) - 1] == '/') || 
                (other->path[0] == '\0' || other->path[0] == '/'))  ? "" : "/";
-        result->path = mprStrcat(result, -1, base->path, sep, other->path, NULL);
+        result->path = sjoin(result, NULL, base->path, sep, other->path, NULL);
     }
     return result;
 }
@@ -471,10 +470,10 @@ HttpUri *httpJoinUri(MprCtx ctx, HttpUri *uri, int argc, HttpUri **others)
     for (i = 0; i < argc; i++) {
         other = others[i];
         if (other->scheme) {
-            uri->scheme = mprStrdup(uri, other->scheme);
+            uri->scheme = sclone(uri, other->scheme);
         }
         if (other->host) {
-            uri->host = mprStrdup(uri, other->host);
+            uri->host = sclone(uri, other->host);
         }
         if (other->port) {
             uri->port = other->port;
@@ -483,10 +482,10 @@ HttpUri *httpJoinUri(MprCtx ctx, HttpUri *uri, int argc, HttpUri **others)
             httpJoinUriPath(uri, uri, other);
         }
         if (other->reference) {
-            uri->reference = mprStrdup(uri, other->reference);
+            uri->reference = sclone(uri, other->reference);
         }
         if (other->query) {
-            uri->query = mprStrdup(uri, other->query);
+            uri->query = sclone(uri, other->query);
         }
     }
     uri->ext = (char*) mprGetPathExtension(uri, uri->path);
@@ -527,7 +526,7 @@ char *httpNormalizeUriPath(MprCtx ctx, cchar *pathArg)
     int     firstc, j, i, nseg, len;
 
     if (pathArg == 0 || *pathArg == '\0') {
-        return mprStrdup(ctx, "");
+        return sclone(ctx, "");
     }
     len = (int) strlen(pathArg);
     if ((dupPath = mprAlloc(ctx, len + 2)) == 0) {
@@ -619,10 +618,10 @@ HttpUri *httpResolveUri(MprCtx ctx, HttpUri *base, int argc, HttpUri **others, i
     for (i = 0; i < argc; i++) {
         other = others[i];
         if (other->scheme) {
-            current->scheme = mprStrdup(current, other->scheme);
+            current->scheme = sclone(current, other->scheme);
         }
         if (other->host) {
-            current->host = mprStrdup(current, other->host);
+            current->host = sclone(current, other->host);
         }
         if (other->port) {
             current->port = other->port;
@@ -632,10 +631,10 @@ HttpUri *httpResolveUri(MprCtx ctx, HttpUri *base, int argc, HttpUri **others, i
             httpJoinUriPath(current, current, other);
         }
         if (other->reference) {
-            current->reference = mprStrdup(current, other->reference);
+            current->reference = sclone(current, other->reference);
         }
         if (other->query) {
-            current->query = mprStrdup(current, other->query);
+            current->query = sclone(current, other->query);
         }
     }
     current->ext = (char*) mprGetPathExtension(current, current->path);

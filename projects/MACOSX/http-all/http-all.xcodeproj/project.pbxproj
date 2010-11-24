@@ -479,7 +479,14 @@
 			isa = PBXProject;
 			buildConfigurationList = C90A19DF0FD6DC5E006A9E86 /* Build configuration list for PBXProject "http-all" */;
 			compatibilityVersion = "Xcode 2.4";
+			developmentRegion = English;
 			hasScannedForEncodings = 0;
+			knownRegions = (
+				English,
+				Japanese,
+				French,
+				German,
+			);
 			mainGroup = C90A19DA0FD6DC5E006A9E86;
 			productRefGroup = C90A19EF0FD6DCAD006A9E86 /* Products */;
 			projectDirPath = "";

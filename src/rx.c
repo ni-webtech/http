@@ -38,8 +38,8 @@ HttpRx *httpCreateRx(HttpConn *conn)
     rx->ifModified = 1;
     rx->remainingContent = 0;
     rx->method = 0;
-    rx->pathInfo = mprStrdup(rx, "/");
-    rx->scriptName = mprStrdup(rx, "");
+    rx->pathInfo = sclone(rx, "/");
+    rx->scriptName = sclone(rx, "");
     rx->status = 0;
     rx->statusMessage = "";
     rx->mimeType = "";
@@ -51,6 +51,7 @@ HttpRx *httpCreateRx(HttpConn *conn)
 
 void httpDestroyRx(HttpConn *conn)
 {
+#if UNUSED
     if (conn->input) {
         if (!mprIsParent(conn, conn->input) && httpGetPacketLength(conn->input) > 0) {
             conn->input = httpSplitPacket(conn, conn->input, 0);
@@ -58,6 +59,7 @@ void httpDestroyRx(HttpConn *conn)
             conn->input = 0;
         }
     }
+#endif
     if (conn->rx) {
         if (conn->server) {
             httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
@@ -142,7 +144,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         return 0;
     }
     start = mprGetBufStart(packet->content);
-    if ((end = mprStrnstr(start, "\r\n\r\n", len)) == 0) {
+    if ((end = scontains(start, "\r\n\r\n", len)) == 0) {
         return 0;
     }
     len = (int) (end - start);
@@ -213,7 +215,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     traced = traceRequest(conn, packet);
 
     method = getToken(conn, " ");
-    mprStrUpper(method);
+    supper(method);
 
     switch (method[0]) {
     case 'D':
@@ -283,7 +285,8 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
     rx->flags |= methodFlags;
-    rx->method = mprStrUpper(method);
+    rx->method = method;
+    supper(rx->method);
 
     if (httpSetUri(conn, uri) < 0) {
         httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad URL format");
@@ -291,7 +294,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     httpSetState(conn, HTTP_STATE_FIRST);
 #if UNUSED
     if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) >= 0) {
-        mprLog(conn, level, "%s %s %s", method, uri, protocol);
+        mprLog(conn, level, "%s %s %s", rx->method, uri, protocol);
     }
 #endif
 }
@@ -377,7 +380,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         while (isspace((int) *value)) {
             value++;
         }
-        mprStrLower(key);
+        slower(key);
 
         LOG(rx, 8, "Key %s, value %s", key, value);
         if (strspn(key, "%<>/\\") > 0) {
@@ -385,7 +388,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
         }
         if ((oldValue = mprLookupHash(rx->headers, key)) != 0) {
-            mprAddHash(rx->headers, key, mprAsprintf(rx->headers, -1, "%s, %s", oldValue, value));
+            mprAddHash(rx->headers, key, mprAsprintf(rx->headers, "%s, %s", oldValue, value));
         } else {
             mprAddHash(rx->headers, key, value);
         }
@@ -393,8 +396,8 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         switch (key[0]) {
         case 'a':
             if (strcmp(key, "authorization") == 0) {
-                value = mprStrdup(rx, value);
-                rx->authType = mprStrTok(value, " \t", &tok);
+                value = sclone(rx, value);
+                rx->authType = stok(value, " \t", &tok);
                 rx->authDetails = tok;
 
             } else if (strcmp(key, "accept-charset") == 0) {
@@ -446,17 +449,16 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     sp++;
                 }
                 if (*sp) {
-                    start = (int) mprAtoi(sp, 10);
-
+                    start = (int) stoi(sp, 10, NULL);
                     if ((sp = strchr(sp, '-')) != 0) {
-                        end = (int) mprAtoi(++sp, 10);
+                        end = (int) stoi(++sp, 10, NULL);
                     }
                     if ((sp = strchr(sp, '/')) != 0) {
                         /*
                             Note this is not the content length transmitted, but the original size of the input of which
                             the client is transmitting only a portion.
                          */
-                        size = (int) mprAtoi(++sp, 10);
+                        size = (int) stoi(++sp, 10, NULL);
                     }
                 }
                 if (start < 0 || end < 0 || size < 0 || end <= start) {
@@ -471,16 +473,16 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
             } else if (strcmp(key, "cookie") == 0) {
                 if (rx->cookie && *rx->cookie) {
-                    rx->cookie = mprStrcat(rx, -1, rx->cookie, "; ", value, NULL);
+                    rx->cookie = sjoin(rx, NULL, rx->cookie, "; ", value, NULL);
                 } else {
                     rx->cookie = value;
                 }
 
             } else if (strcmp(key, "connection") == 0) {
                 rx->connection = value;
-                if (mprStrcmpAnyCase(value, "KEEP-ALIVE") == 0) {
+                if (scasecmp(value, "KEEP-ALIVE") == 0) {
                     keepAlive++;
-                } else if (mprStrcmpAnyCase(value, "CLOSE") == 0) {
+                } else if (scasecmp(value, "CLOSE") == 0) {
                     conn->keepAliveCount = -1;
                 }
             }
@@ -520,11 +522,11 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 rx->ifMatch = ifMatch;
                 rx->flags |= HTTP_REC_IF_MODIFIED;
-                value = mprStrdup(conn, value);
-                word = mprStrTok(value, " ,", &tok);
+                value = sclone(conn, value);
+                word = stok(value, " ,", &tok);
                 while (word) {
                     addMatchEtag(conn, word);
-                    word = mprStrTok(0, " ,", &tok);
+                    word = stok(0, " ,", &tok);
                 }
 
             } else if (strcmp(key, "if-range") == 0) {
@@ -535,11 +537,11 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 rx->ifMatch = 1;
                 rx->flags |= HTTP_REC_IF_MODIFIED;
-                value = mprStrdup(conn, value);
-                word = mprStrTok(value, " ,", &tok);
+                value = sclone(conn, value);
+                word = stok(value, " ,", &tok);
                 while (word) {
                     addMatchEtag(conn, word);
-                    word = mprStrTok(0, " ,", &tok);
+                    word = stok(0, " ,", &tok);
                 }
             }
             break;
@@ -585,7 +587,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 't':
             if (strcmp(key, "transfer-encoding") == 0) {
-                mprStrLower(value);
+                slower(value);
                 if (strcmp(value, "chunked") == 0) {
                     rx->flags |= HTTP_REC_CHUNKED;
                     /*  
@@ -624,9 +626,9 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     value++;
                 }
                 *value++ = '\0';
-                mprStrLower(tp);
+                slower(tp);
                 mprFree(conn->authType);
-                conn->authType = mprStrdup(conn, tp);
+                conn->authType = sclone(conn, tp);
                 if (!parseAuthenticate(conn, value)) {
                     httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad Authentication header");
                     break;
@@ -712,7 +714,7 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
          */
         switch (tolower((int) *key)) {
         case 'a':
-            if (mprStrcmpAnyCase(key, "algorithm") == 0) {
+            if (scasecmp(key, "algorithm") == 0) {
                 mprFree(rx->authAlgorithm);
                 rx->authAlgorithm = value;
                 break;
@@ -720,45 +722,45 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
             break;
 
         case 'd':
-            if (mprStrcmpAnyCase(key, "domain") == 0) {
+            if (scasecmp(key, "domain") == 0) {
                 mprFree(conn->authDomain);
-                conn->authDomain = mprStrdup(conn, value);
+                conn->authDomain = sclone(conn, value);
                 break;
             }
             break;
 
         case 'n':
-            if (mprStrcmpAnyCase(key, "nonce") == 0) {
+            if (scasecmp(key, "nonce") == 0) {
                 mprFree(conn->authNonce);
-                conn->authNonce = mprStrdup(conn, value);
+                conn->authNonce = sclone(conn, value);
                 conn->authNc = 0;
             }
             break;
 
         case 'o':
-            if (mprStrcmpAnyCase(key, "opaque") == 0) {
+            if (scasecmp(key, "opaque") == 0) {
                 mprFree(conn->authOpaque);
-                conn->authOpaque = mprStrdup(conn, value);
+                conn->authOpaque = sclone(conn, value);
             }
             break;
 
         case 'q':
-            if (mprStrcmpAnyCase(key, "qop") == 0) {
+            if (scasecmp(key, "qop") == 0) {
                 mprFree(conn->authQop);
-                conn->authQop = mprStrdup(conn, value);
+                conn->authQop = sclone(conn, value);
             }
             break;
 
         case 'r':
-            if (mprStrcmpAnyCase(key, "realm") == 0) {
+            if (scasecmp(key, "realm") == 0) {
                 mprFree(conn->authRealm);
-                conn->authRealm = mprStrdup(conn, value);
+                conn->authRealm = sclone(conn, value);
             }
             break;
 
         case 's':
-            if (mprStrcmpAnyCase(key, "stale") == 0) {
-                rx->authStale = mprStrdup(rx, value);
+            if (scasecmp(key, "stale") == 0) {
+                rx->authStale = sclone(rx, value);
                 break;
             }
 
@@ -876,8 +878,10 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         if (packet == rx->headerPacket) {
             /* Preserve headers if more data to come. Otherwise handlers may free the packet and destory the headers */
             packet = httpSplitPacket(conn, packet, 0);
+#if UNUSED
         } else {
             mprStealBlock(tx, packet);
+#endif
         }
         conn->input = 0;
         if (remaining == 0 && mprGetBufLength(packet->content) > nbytes) {
@@ -989,6 +993,7 @@ static bool processCompletion(HttpConn *conn)
 
     packet = conn->input;
     more = packet && !conn->connError && (mprGetBufLength(packet->content) > 0);
+#if UNUSED
     if (!mprIsParent(conn, packet)) {
         if (more) {
             conn->input = httpSplitPacket(conn, packet, 0);
@@ -996,6 +1001,7 @@ static bool processCompletion(HttpConn *conn)
             conn->input = 0;
         }
     }
+#endif
     if (conn->server) {
         httpDestroyRx(conn);
         return more;
@@ -1023,7 +1029,7 @@ static int getChunkPacketSize(HttpConn *conn, MprBuf *buf)
 {
     HttpRx      *rx;
     char        *start, *cp;
-    int         need, size;
+    size_t      need, size;
 
     rx = conn->rx;
     need = 0;
@@ -1054,8 +1060,8 @@ static int getChunkPacketSize(HttpConn *conn, MprBuf *buf)
             }
             return 0;
         }
-        need = (int) (cp - start + 1);
-        size = (int) mprAtoi(&start[2], 16);
+        need = (cp - start + 1);
+        size = stoi(&start[2], 16, NULL);
         if (size == 0 && &cp[2] < buf->end && cp[1] == '\r' && cp[2] == '\n') {
             /*
                 This is the last chunk (size == 0). Now need to consume the trailing "\r\n".
@@ -1148,8 +1154,8 @@ cchar *httpGetHeader(HttpConn *conn, cchar *key)
         mprAssert(conn->rx);
         return 0;
     }
-    lower = mprStrdup(conn, key);
-    mprStrLower(lower);
+    lower = sclone(conn, key);
+    slower(lower);
     value = mprLookupHash(conn->rx->headers, lower);
     mprFree(lower);
     return value;
@@ -1171,7 +1177,7 @@ char *httpGetHeaders(HttpConn *conn)
     rx = conn->rx;
     headers = 0;
     for (len = 0, hp = mprGetFirstHash(rx->headers); hp; ) {
-        headers = mprReallocStrcat(rx, -1, headers, hp->key, NULL);
+        headers = srejoin(rx, headers, hp->key, NULL);
         key = &headers[len];
         for (cp = &key[1]; *cp; cp++) {
             *cp = tolower((int) *cp);
@@ -1179,7 +1185,7 @@ char *httpGetHeaders(HttpConn *conn)
                 cp++;
             }
         }
-        headers = mprReallocStrcat(rx, -1, headers, ": ", hp->data, "\n", NULL);
+        headers = srejoin(rx, headers, ": ", hp->data, "\n", NULL);
         len = (int) strlen(headers);
         hp = mprGetNextHash(rx->headers, hp);
     }
@@ -1236,7 +1242,7 @@ int httpSetUri(HttpConn *conn, cchar *uri)
     conn->tx->extension = rx->parsedUri->ext;
     mprFree(rx->pathInfo);
     rx->pathInfo = httpNormalizeUriPath(rx, mprUriDecode(rx, rx->parsedUri->path));
-    rx->scriptName = mprStrdup(rx, "");
+    rx->scriptName = sclone(rx, "");
     return 0;
 }
 
@@ -1293,7 +1299,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
         conn->async = saveAsync;
     }
     if (conn->sock == 0 || conn->error) {
-        return MPR_ERR_CONNECTION;
+        return MPR_ERR_CANT_CONNECT;
     }
     if (conn->state < state) {
         return MPR_ERR_TIMEOUT;
@@ -1339,7 +1345,7 @@ static char *getToken(HttpConn *conn, cchar *delim)
 
     buf = conn->input->content;
     token = mprGetBufStart(buf);
-    nextToken = mprStrnstr(mprGetBufStart(buf), delim, mprGetBufLength(buf));
+    nextToken = scontains(mprGetBufStart(buf), delim, mprGetBufLength(buf));
     if (nextToken) {
         *nextToken = '\0';
         len = (int) strlen(delim);
@@ -1422,7 +1428,7 @@ static bool parseRange(HttpConn *conn, char *value)
 
     rx = conn->rx;
 
-    value = mprStrdup(conn, value);
+    value = sclone(conn, value);
     if (value == 0) {
         return 0;
     }
@@ -1430,7 +1436,7 @@ static bool parseRange(HttpConn *conn, char *value)
     /*  
         Step over the "bytes="
      */
-    tok = mprStrTok(value, "=", &value);
+    tok = stok(value, "=", &value);
 
     for (last = 0; value && *value; ) {
         if ((range = mprAllocObj(rx, HttpRange, NULL)) == 0) {
@@ -1439,9 +1445,9 @@ static bool parseRange(HttpConn *conn, char *value)
         /*  
             A range "-7" will set the start to -1 and end to 8
          */
-        tok = mprStrTok(value, ",", &value);
+        tok = stok(value, ",", &value);
         if (*tok != '-') {
-            range->start = (int) mprAtoi(tok, 10);
+            range->start = stoi(tok, 10, NULL);
         } else {
             range->start = -1;
         }
@@ -1452,7 +1458,7 @@ static bool parseRange(HttpConn *conn, char *value)
                 /*
                     End is one beyond the range. Makes the math easier.
                  */
-                range->end = (int) mprAtoi(ep, 10) + 1;
+                range->end = stoi(ep, 10, NULL) + 1;
             }
         }
         if (range->start >= 0 && range->end >= 0) {
@@ -1490,6 +1496,31 @@ static bool parseRange(HttpConn *conn, char *value)
     conn->tx->currentRange = rx->ranges;
     return (last) ? 1: 0;
 }
+
+
+void httpSetStageData(HttpConn *conn, cchar *key, cvoid *data)
+{
+    HttpRx      *rx;
+
+    rx = conn->rx;
+    if (rx->requestData == 0) {
+        rx->requestData = mprCreateHash(conn, -1, 0);
+    }
+    mprAddHash(rx->requestData, key, data);
+}
+
+
+cvoid *httpGetStageData(HttpConn *conn, cchar *key)
+{
+    HttpRx      *rx;
+
+    rx = conn->rx;
+    if (rx->requestData == 0) {
+        return NULL;
+    }
+    return mprLookupHash(rx->requestData, key);
+}
+
 
 /*
     @copy   default

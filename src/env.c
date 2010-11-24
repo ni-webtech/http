@@ -43,8 +43,8 @@ void httpCreateEnvVars(HttpConn *conn)
     if (conn->sock) {
         mprAddHash(vars, "REMOTE_ADDR", conn->ip);
     }
-    mprItoa(port, sizeof(port) - 1, conn->port, 10);
-    mprAddHash(vars, "REMOTE_PORT", mprStrdup(vars, port));
+    itos(port, sizeof(port) - 1, conn->port, 10);
+    mprAddHash(vars, "REMOTE_PORT", sclone(vars, port));
 
     /*  Same as AUTH_USER (yes this is right) */
     mprAddHash(vars, "REMOTE_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
@@ -54,8 +54,8 @@ void httpCreateEnvVars(HttpConn *conn)
     sock = conn->sock;
     mprAddHash(vars, "SERVER_ADDR", sock->acceptIp);
     mprAddHash(vars, "SERVER_NAME", server->name);
-    mprItoa(port, sizeof(port) - 1, sock->acceptPort, 10);
-    mprAddHash(vars, "SERVER_PORT", mprStrdup(rx, port));
+    itos(port, sizeof(port) - 1, sock->acceptPort, 10);
+    mprAddHash(vars, "SERVER_PORT", sclone(rx, port));
 
     /*  HTTP/1.0 or HTTP/1.1 */
     mprAddHash(vars, "SERVER_PROTOCOL", conn->protocol);
@@ -80,12 +80,12 @@ void httpCreateEnvVars(HttpConn *conn)
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextHash(conn->rx->files, hp)) != 0; index++) {
             up = (HttpUploadFile*) hp->data;
-            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_FILENAME", index), up->filename);
-            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
-            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_CONTENT_TYPE", index), up->contentType);
-            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_NAME", index), hp->key);
-            mprItoa(size, sizeof(size) - 1, up->size, 10);
-            mprAddHash(vars, mprAsprintf(vars, -1, "FILE_%d_SIZE", index), size);
+            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_FILENAME", index), up->filename);
+            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
+            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_CONTENT_TYPE", index), up->contentType);
+            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_NAME", index), hp->key);
+            itos(size, sizeof(size) - 1, up->size, 10);
+            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_SIZE", index), size);
         }
     }
 }
@@ -114,7 +114,7 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
     decoded[len] = '\0';
     memcpy(decoded, buf, len);
 
-    keyword = mprStrTok(decoded, "&", &tok);
+    keyword = stok(decoded, "&", &tok);
     while (keyword != 0) {
         if ((value = strchr(keyword, '=')) != 0) {
             *value++ = '\0';
@@ -131,7 +131,7 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
             oldValue = mprLookupHash(vars, keyword);
             if (oldValue != 0 && *oldValue) {
                 if (*value) {
-                    newValue = mprStrcat(vars, conn->limits->headerSize, oldValue, " ", value, NULL);
+                    newValue = sjoin(vars, NULL, oldValue, " ", value, NULL);
                     mprAddHash(vars, keyword, newValue);
                     mprFree(newValue);
                 }
@@ -139,7 +139,7 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
                 mprAddHash(vars, keyword, value);
             }
         }
-        keyword = mprStrTok(0, "&", &tok);
+        keyword = stok(0, "&", &tok);
     }
     /*  Must not free "decoded". This will be freed when the response completes */
 }
@@ -196,7 +196,7 @@ int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
     vars = conn->rx->formVars;
     if (vars) {
         value = mprLookupHash(vars, var);
-        return (value) ? (int) mprAtoi(value, 10) : defaultValue;
+        return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
     }
     return defaultValue;
 }
@@ -224,7 +224,7 @@ void httpSetIntFormVar(HttpConn *conn, cchar *var, int value)
         /* This is allowed. Upload filter uses this when uploading to the file handler */
         return;
     }
-    mprAddHash(vars, var, mprAsprintf(vars, -1, "%d", value));
+    mprAddHash(vars, var, mprAsprintf(vars, "%d", value));
 }
 
 

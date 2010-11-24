@@ -32,16 +32,17 @@ static int          verbose;                /* Run in verbose mode */
 
 /***************************** Forward Declarations ***************************/
 
-static void     angel();
-static void     catchSignal(int signo, siginfo_t *info, void *arg);
-static void     cleanup();
-static int      makeDaemon();
-static void     memoryFailure(MprCtx ctx, size_t size, size_t total, bool granted);
-static int      readAngelPid();
-static void     setAppDefaults(Mpr *mpr);
-static int      setupUnixSignals();
-static void     stopService(int timeout);
-static int      writeAngelPid(int pid);
+static void angel();
+static void catchSignal(int signo, siginfo_t *info, void *arg);
+static void cleanup();
+static int  makeDaemon();
+static void manageAngel(MprAny unused, int flags);
+static void memoryNotifier(int flags, size_t size);
+static int  readAngelPid();
+static void setAppDefaults(Mpr *mpr);
+static int  setupUnixSignals();
+static void stopService(int timeout);
+static int  writeAngelPid(int pid);
 
 /*********************************** Code *************************************/
 
@@ -50,7 +51,7 @@ int main(int argc, char *argv[])
     char    *argp;
     int     err, nextArg, i, len;
 
-    mpr = mprCreate(argc, argv, memoryFailure);
+    mpr = mprCreate(argc, argv, memoryNotifier);
 
     err = 0;
     exiting = 0;
@@ -169,14 +170,25 @@ int main(int argc, char *argv[])
         }
         serviceArgs[len] = '\0';
     }
-
     setupUnixSignals();
+
+    mprAddRoot(mprAllocObj(mpr, MprAny, manageAngel));
 
     if (runAsDaemon) {
         makeDaemon();
     }
     angel();
     return 0;
+}
+
+
+static void manageAngel(MprAny unused, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(serviceArgs);
+    } else {
+        ;
+    }
 }
 
 
@@ -196,7 +208,7 @@ static void setAppDefaults(Mpr *mpr)
     } else {
         pidDir = ".";
     }
-    pidPath = mprStrcat(mpr, -1, pidDir, "/angel-", serviceName, ".pid", NULL);
+    pidPath = sjoin(mpr, NULL, pidDir, "/angel-", serviceName, ".pid", NULL);
 }
 
 
@@ -224,13 +236,11 @@ static void angel()
     mark = mprGetTime(mpr);
 
     while (! exiting) {
-
         if (mprGetElapsedTime(mpr, mark) > (3600 * 1000)) {
             mark = mprGetTime(mpr);
             restartCount = 0;
             restartWarned = 0;
         }
-
         if (servicePid == 0) {
             if (restartCount >= RESTART_MAX) {
                 if (! restartWarned) {
@@ -264,16 +274,14 @@ static void angel()
                 for (i = 3; i < 128; i++) {
                     close(i);
                 }
-
                 if (serviceArgs && *serviceArgs) {
                     mprMakeArgv(mpr, "", serviceArgs, &ac, &av);
                 } else {
                     ac = 0;
                 }
-
                 argv = mprAlloc(mpr, sizeof(char*) * (6 + ac));
-                env[0] = mprStrcat(mpr, -1, "LD_LIBRARY_PATH=", homeDir, NULL);
-                env[1] = mprStrcat(mpr, -1, "PATH=", getenv("PATH"), NULL);
+                env[0] = sjoin(mpr, NULL, "LD_LIBRARY_PATH=", homeDir, NULL);
+                env[1] = sjoin(mpr, NULL, "PATH=", getenv("PATH"), NULL);
                 env[2] = 0;
 
                 next = 0;
@@ -282,7 +290,6 @@ static void angel()
                     argv[next++] = "--log";
                     argv[next++] = (char*) logSpec;
                 }
-
                 for (i = 1; i < ac; i++) {
                     argv[next++] = av[i];
                 }
@@ -449,7 +456,7 @@ static int makeDaemon()
      */
     if ((pid = fork()) < 0) {
         mprError(mpr, "Fork failed for background operation");
-        return MPR_ERR_GENERAL;
+        return MPR_ERR;
 
     } else if (pid == 0) {
         if ((pid = fork()) < 0) {
@@ -499,15 +506,16 @@ static int makeDaemon()
 /*
     Global memory allocation handler
  */
-static void memoryFailure(MprCtx ctx, size_t size, size_t total, bool granted)
+static void memoryNotifier(int flags, size_t size)
 {
-    if (!granted) {
-        mprPrintfError(ctx, "Can't allocate memory block of size %d\n", size);
-        mprPrintfError(ctx, "Total memory used %d\n", total);
+    if (flags & MPR_ALLOC_DEPLETED) {
+        mprPrintfError(mpr, "Can't allocate memory block of size %d\n", size);
+        mprPrintfError(mpr, "Total memory used %d\n", mprGetUsedMemory());
         exit(255);
+    } else if (flags & MPR_ALLOC_LOW) {
+        mprPrintf(mpr, "Memory request for %d bytes exceeds memory red-line\n", size);
+        mprPrintf(mpr, "Total memory used %d\n", mprGetUsedMemory());
     }
-    mprPrintf(ctx, "Memory request for %d bytes exceeds memory red-line\n", size);
-    mprPrintf(ctx, "Total memory used %d\n", total);
 }
 
 
@@ -695,7 +703,6 @@ int APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *args, int junk2)
         } else {
             err++;
         }
-
         if (err) {
             mprUserError(mpr, 
                 "Bad command line: %s\n"
@@ -714,7 +721,6 @@ int APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *args, int junk2)
             return -1;
         }
     }
-
     if (installFlag) {
         /*
             Install the angel
@@ -723,7 +729,6 @@ int APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *args, int junk2)
             return FALSE;
         }
     }
-
     if (argc <= 1) {
         /*
             This will block if we are a service and are being started by the
@@ -752,14 +757,12 @@ static void WINAPI serviceMain(ulong argc, char **argv)
         mprError(mpr, "Can't create wait events");
         return;
     }
-
     threadHandle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE) serviceThread, (void*) 0, 0, (ulong*) &threadId);
 
     if (threadHandle == 0) {
         mprError(mpr, "Can't create service thread");
         return;
     }
-
     WaitForSingleObject(serviceThreadEvent, INFINITE);
     CloseHandle(serviceThreadEvent);
 
@@ -828,17 +831,14 @@ static void angel()
     } else {
         mprSprintf(mpr, path, sizeof(path), "\"%s\"", serviceProgram);
     }
-
     if (serviceArgs && *serviceArgs) {
         mprSprintf(mpr, cmd, sizeof(cmd), "%s %s", path, serviceArgs);
     } else {
         mprSprintf(mpr, cmd, sizeof(cmd), "%s", path);
     }
-
     if (createConsole) {
         createFlags |= CREATE_NEW_CONSOLE;
     }
-
     mark = mprGetTime(mpr);
 
     while (! exiting) {
@@ -848,7 +848,6 @@ static void angel()
             restartCount = 0;
             restartWarned = 0;
         }
-
         if (servicePid == 0 && !serviceStopped) {
             if (restartCount >= RESTART_MAX) {
                 if (! restartWarned) {
@@ -861,7 +860,6 @@ static void angel()
                 WaitForSingleObject(heartBeatEvent, heartBeatPeriod);
                 continue;
             }
-
             memset(&startInfo, 0, sizeof(startInfo));
             startInfo.cb = sizeof(startInfo);
 
@@ -870,7 +868,6 @@ static void angel()
              */
             if (! CreateProcess(0, cmd, 0, 0, FALSE, createFlags, 0, homeDir, &startInfo, &procInfo)) {
                 mprError(mpr, "Can't create process: %s, %d", cmd, mprGetOsError());
-
             } else {
                 servicePid = (int) procInfo.hProcess;
             }
@@ -884,7 +881,6 @@ static void angel()
                     CloseHandle((HANDLE) servicePid);
                     servicePid = 0;
                 }
-
             } else {
                 CloseHandle((HANDLE) servicePid);
                 servicePid = 0;
@@ -910,7 +906,6 @@ static int startDispatcher(LPSERVICE_MAIN_FUNCTION svcMain)
         mprError(mpr, "Can't open service manager");
         return MPR_ERR_CANT_OPEN;
     }
-
     /*
         Is the service installed?
      */
@@ -919,7 +914,6 @@ static int startDispatcher(LPSERVICE_MAIN_FUNCTION svcMain)
         CloseServiceHandle(mgr);
         return MPR_ERR_CANT_READ;
     }
-
     /*
         Register this service with the SCM. This call will block and consume the main thread if the service is 
         installed and the app was started by the SCM. If started manually, this routine will return 0.
@@ -945,7 +939,6 @@ static int registerService()
         mprError(mpr, "Can't register handler: %x", GetLastError());
         return MPR_ERR_CANT_INITIALIZE;
     }
-
     /*
         Report the svcStatus to the service control manager.
      */
@@ -1018,7 +1011,6 @@ static int installService(char *homeDir, char *args)
         mprUserError(mpr, "Can't open service manager");
         return MPR_ERR_CANT_ACCESS;
     }
-
     /*
         Install this app as a service
      */
@@ -1231,7 +1223,7 @@ static void initService()
     serviceTitle = BLD_NAME;
     serviceStopped = 0;
 
-    serviceProgram = mprStrcat(mpr, -1, mprGetAppDir(mpr), "/", BLD_PRODUCT, ".exe", NULL);
+    serviceProgram = sjoin(mpr, NULL, mprGetAppDir(mpr), "/", BLD_PRODUCT, ".exe", NULL);
 }
 
 /*

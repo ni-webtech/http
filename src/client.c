@@ -84,7 +84,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
         return 0;
     }
     conn->sock = sp;
-    conn->ip = mprStrdup(conn, ip);
+    conn->ip = sclone(conn, ip);
     conn->port = port;
     conn->secure = uri->secure;
     conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
@@ -106,7 +106,8 @@ static int setClientHeaders(HttpConn *conn)
     HttpTx      *tx;
     HttpUri     *parsedUri;
     char        *encoded;
-    int         len, rc;
+    size_t      len;
+    int         rc;
 
     mprAssert(conn);
 
@@ -116,7 +117,7 @@ static int setClientHeaders(HttpConn *conn)
     parsedUri = tx->parsedUri;
     if (conn->authType && strcmp(conn->authType, "basic") == 0) {
         char    abuf[MPR_MAX_STRING];
-        mprSprintf(conn, abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
+        mprSprintf(abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
         encoded = mprEncode64(conn, abuf);
         httpAddHeader(conn, "Authorization", "basic %s", encoded);
         mprFree(encoded);
@@ -132,30 +133,30 @@ static int setClientHeaders(HttpConn *conn)
             return MPR_ERR_CANT_CREATE;
         }
         mprFree(conn->authCnonce);
-        conn->authCnonce = mprAsprintf(conn, -1, "%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime(conn)); 
+        conn->authCnonce = mprAsprintf(conn, "%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime(conn)); 
 
-        mprSprintf(conn, a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
-        len = (int) strlen(a1Buf);
+        mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
+        len = strlen(a1Buf);
         ha1 = mprGetMD5Hash(tx, a1Buf, len, NULL);
-        mprSprintf(conn, a2Buf, sizeof(a2Buf), "%s:%s", tx->method, parsedUri->path);
-        len = (int) strlen(a2Buf);
+        mprSprintf(a2Buf, sizeof(a2Buf), "%s:%s", tx->method, parsedUri->path);
+        len = strlen(a2Buf);
         ha2 = mprGetMD5Hash(tx, a2Buf, len, NULL);
         qop = (conn->authQop) ? conn->authQop : (char*) "";
 
         conn->authNc++;
-        if (mprStrcmpAnyCase(conn->authQop, "auth") == 0) {
-            mprSprintf(conn, digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
+        if (scasecmp(conn->authQop, "auth") == 0) {
+            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
                 ha1, conn->authNonce, conn->authNc, conn->authCnonce, conn->authQop, ha2);
-        } else if (mprStrcmpAnyCase(conn->authQop, "auth-int") == 0) {
-            mprSprintf(conn, digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
+        } else if (scasecmp(conn->authQop, "auth-int") == 0) {
+            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
                 ha1, conn->authNonce, conn->authNc, conn->authCnonce, conn->authQop, ha2);
         } else {
             qop = "";
-            mprSprintf(conn, digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, conn->authNonce, ha2);
+            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, conn->authNonce, ha2);
         }
         mprFree(ha1);
         mprFree(ha2);
-        digest = mprGetMD5Hash(tx, digestBuf, (int) strlen(digestBuf), NULL);
+        digest = mprGetMD5Hash(tx, digestBuf, strlen(digestBuf), NULL);
 
         if (*qop == '\0') {
             httpAddHeader(conn, "Authorization", "Digest user=\"%s\", realm=\"%s\", nonce=\"%s\", "
@@ -222,8 +223,8 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     conn->sentCredentials = 0;
 
     mprFree(tx->method);
-    method = tx->method = mprStrdup(tx, method);
-    mprStrUpper(tx->method);
+    method = tx->method = sclone(tx, method);
+    supper(tx->method);
     mprFree(tx->parsedUri);
     tx->parsedUri = httpCreateUri(tx, url, 0);
 
@@ -281,7 +282,7 @@ bool httpNeedRetry(HttpConn *conn, char **url)
 void httpEnableUpload(HttpConn *conn)
 {
     mprFree(conn->boundary);
-    conn->boundary = mprAsprintf(conn, -1, "--BOUNDARY--%Ld", conn->http->now);
+    conn->boundary = mprAsprintf(conn, "--BOUNDARY--%Ld", conn->http->now);
     httpSetHeader(conn, "Content-Type", "multipart/form-data; boundary=%s", &conn->boundary[2]);
 }
 
@@ -320,7 +321,7 @@ int httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
 
     if (formData) {
         for (rc = next = 0; rc >= 0 && (pair = mprGetNextItem(formData, &next)) != 0; ) {
-            key = mprStrTok(mprStrdup(conn, pair), "=", &value);
+            key = stok(sclone(conn, pair), "=", &value);
             rc += httpWrite(conn->writeq, "%s\r\nContent-Disposition: form-data; name=\"%s\";\r\n", conn->boundary, key);
             rc += httpWrite(conn->writeq, "Content-Type: application/x-www-form-urlencoded\r\n\r\n%s\r\n", value);
         }

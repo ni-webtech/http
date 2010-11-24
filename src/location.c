@@ -23,9 +23,10 @@ HttpLoc *httpCreateLocation(Http *http)
     loc->errorDocuments = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE, 0);
     loc->handlers = mprCreateList(loc);
     loc->extensions = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE, 0);
+    loc->expires = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE, 0);
     loc->inputStages = mprCreateList(loc);
     loc->outputStages = mprCreateList(loc);
-    loc->prefix = mprStrdup(loc, "");
+    loc->prefix = sclone(loc, "");
     loc->prefixLen = (int) strlen(loc->prefix);
     loc->auth = httpCreateAuth(loc, 0);
     return loc;
@@ -46,7 +47,7 @@ HttpLoc *httpCreateInheritedLocation(Http *http, HttpLoc *parent)
         return 0;
     }
     loc->http = http;
-    loc->prefix = mprStrdup(loc, parent->prefix);
+    loc->prefix = sclone(loc, parent->prefix);
     loc->parent = parent;
     loc->prefixLen = parent->prefixLen;
     loc->flags = parent->flags;
@@ -54,6 +55,7 @@ HttpLoc *httpCreateInheritedLocation(Http *http, HttpLoc *parent)
     loc->outputStages = parent->outputStages;
     loc->handlers = parent->handlers;
     loc->extensions = parent->extensions;
+    loc->expires = parent->expires;
     loc->connector = parent->connector;
     loc->errorDocuments = parent->errorDocuments;
     loc->sessionTimeout = parent->sessionTimeout;
@@ -66,6 +68,22 @@ HttpLoc *httpCreateInheritedLocation(Http *http, HttpLoc *parent)
     return loc;
 }
 
+
+/*
+    Separate from parent. Clone own configuration
+ */
+static void graduate(HttpLoc *loc) 
+{
+    if (loc->parent) {
+        loc->errorDocuments = mprCloneHash(loc, loc->parent->errorDocuments);
+        loc->expires = mprCloneHash(loc, loc->parent->expires);
+        loc->extensions = mprCloneHash(loc, loc->parent->extensions);
+        loc->handlers = mprCloneList(loc, loc->parent->handlers);
+        loc->inputStages = mprCloneList(loc, loc->parent->inputStages);
+        loc->outputStages = mprCloneList(loc, loc->parent->outputStages);
+        loc->parent = 0;
+    }
+}
 
 void httpFinalizeLocation(HttpLoc *loc)
 {
@@ -95,14 +113,11 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
     mprAssert(loc);
 
     http = loc->http;
-    if (mprIsParent(loc->parent, loc->handlers)) {
-        loc->extensions = mprCopyHash(loc, loc->parent->extensions);
-        loc->handlers = mprDupList(loc, loc->parent->handlers);
-    }
+    graduate(loc);
     handler = httpLookupStage(http, name);
     if (handler == 0) {
         mprError(loc, "Can't find stage %s", name); 
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     if (extensions && *extensions) {
         mprLog(loc, MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, extensions);
@@ -113,8 +128,8 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
         /*
             Add to the handler extension hash. Skip over "*." and "."
          */ 
-        extlist = mprStrdup(loc, extensions);
-        word = mprStrTok(extlist, " \t\r\n", &tok);
+        extlist = sclone(loc, extensions);
+        word = stok(extlist, " \t\r\n", &tok);
         while (word) {
             if (*word == '*' && word[1] == '.') {
                 word += 2;
@@ -124,7 +139,7 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
                 word = "";
             }
             mprAddHash(loc->extensions, word, handler);
-            word = mprStrTok(0, " \t\r\n", &tok);
+            word = stok(0, " \t\r\n", &tok);
         }
         mprFree(extlist);
 
@@ -150,14 +165,11 @@ int httpSetHandler(HttpLoc *loc, cchar *name)
 
     mprAssert(loc);
     
-    if (mprIsParent(loc->parent, loc->handlers)) {
-        loc->extensions = mprCopyHash(loc, loc->parent->extensions);
-        loc->handlers = mprDupList(loc, loc->parent->handlers);
-    }
+    graduate(loc);
     handler = httpLookupStage(loc->http, name);
     if (handler == 0) {
         mprError(loc, "Can't find handler %s", name); 
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     loc->handler = handler;
     return 0;
@@ -178,7 +190,7 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
     stage = httpLookupStage(loc->http, name);
     if (stage == 0) {
         mprError(loc, "Can't find filter %s", name); 
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     /*
         Clone an existing stage because each filter stores its own set of extensions to match against
@@ -187,8 +199,8 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
 
     if (extensions && *extensions) {
         filter->extensions = mprCreateHash(filter, 0, 0);
-        extlist = mprStrdup(loc, extensions);
-        word = mprStrTok(extlist, " \t\r\n", &tok);
+        extlist = sclone(loc, extensions);
+        word = stok(extlist, " \t\r\n", &tok);
         while (word) {
             if (*word == '*' && word[1] == '.') {
                 word += 2;
@@ -198,24 +210,35 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
                 word = "";
             }
             mprAddHash(filter->extensions, word, filter);
-            word = mprStrTok(0, " \t\r\n", &tok);
+            word = stok(0, " \t\r\n", &tok);
         }
         mprFree(extlist);
     }
-
+    graduate(loc);
     if (direction & HTTP_STAGE_INCOMING) {
-        if (mprIsParent(loc->parent, loc->inputStages)) {
-            loc->inputStages = mprDupList(loc, loc->parent->inputStages);
-        }
         mprAddItem(loc->inputStages, filter);
     }
     if (direction & HTTP_STAGE_OUTGOING) {
-        if (mprIsParent(loc->parent, loc->outputStages)) {
-            loc->outputStages = mprDupList(loc, loc->parent->outputStages);
-        }
         mprAddItem(loc->outputStages, filter);
     }
     return 0;
+}
+
+
+void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
+{
+    char    *types, *mime, *tok;
+
+    if (mimeTypes && *mimeTypes) {
+        graduate(loc);
+        types = sclone(loc, mimeTypes);
+        mime = stok(types, " ,\t\r\n", &tok);
+        while (mime) {
+            mprAddHash(loc->expires, mime, ITOP(when));
+            mime = stok(0, " \t\r\n", &tok);
+        }
+        mprFree(types);
+    }
 }
 
 
@@ -242,7 +265,7 @@ int httpSetConnector(HttpLoc *loc, cchar *name)
     stage = httpLookupStage(loc->http, name);
     if (stage == 0) {
         mprError(loc, "Can't find connector %s", name); 
-        return MPR_ERR_NOT_FOUND;
+        return MPR_ERR_CANT_FIND;
     }
     loc->connector = stage;
     mprLog(loc, MPR_CONFIG, "Set connector \"%s\"", name);
@@ -252,25 +275,29 @@ int httpSetConnector(HttpLoc *loc, cchar *name)
 
 void httpResetPipeline(HttpLoc *loc)
 {
-    if (mprIsParent(loc, loc->extensions)) {
+    if (loc->parent == 0) {
+        mprFree(loc->errorDocuments);
+        mprFree(loc->expires);
         mprFree(loc->extensions);
-    }
-    loc->extensions = mprCreateHash(loc, 0, 0);
-    
-    if (mprIsParent(loc, loc->handlers)) {
         mprFree(loc->handlers);
-    }
-    loc->handlers = mprCreateList(loc);
-    
-    if (mprIsParent(loc, loc->inputStages)) {
         mprFree(loc->inputStages);
-    }
-    loc->inputStages = mprCreateList(loc);
-    
-    if (mprIsParent(loc, loc->outputStages)) {
         mprFree(loc->outputStages);
+        loc->errorDocuments = mprCreateHash(loc, HTTP_SMALL_HASH_SIZE, 0);
+        loc->expires = mprCreateHash(loc, 0, 0);
+        loc->extensions = mprCreateHash(loc, 0, 0);
+        loc->handlers = mprCreateList(loc);
+        loc->inputStages = mprCreateList(loc);
+        loc->inputStages = mprCreateList(loc);
     }
     loc->outputStages = mprCreateList(loc);
+}
+
+
+void httpResetHandlers(HttpLoc *loc)
+{
+    graduate(loc);
+    mprFree(loc->handlers);
+    loc->handlers = mprCreateList(loc);
 }
 
 
@@ -285,7 +312,7 @@ void httpSetLocationPrefix(HttpLoc *loc, cchar *uri)
     mprAssert(loc);
 
     mprFree(loc->prefix);
-    loc->prefix = mprStrdup(loc, uri);
+    loc->prefix = sclone(loc, uri);
     loc->prefixLen = (int) strlen(loc->prefix);
 
     /*
@@ -312,16 +339,14 @@ void httpSetLocationAutoDelete(HttpLoc *loc, int enable)
 void httpSetLocationScript(HttpLoc *loc, cchar *script)
 {
     mprFree(loc->script);
-    loc->script = mprStrdup(loc, script);
+    loc->script = sclone(loc, script);
 }
 
 
 void httpAddErrorDocument(HttpLoc *loc, cchar *code, cchar *url)
 {
-    if (mprIsParent(loc->parent, loc->errorDocuments)) {
-        loc->errorDocuments = mprCopyHash(loc, loc->parent->errorDocuments);
-    }
-    mprAddHash(loc->errorDocuments, code, mprStrdup(loc, url));
+    graduate(loc);
+    mprAddHash(loc->errorDocuments, code, sclone(loc, url));
 }
 
 
@@ -332,7 +357,7 @@ cchar *httpLookupErrorDocument(HttpLoc *loc, int code)
     if (loc->errorDocuments == 0) {
         return 0;
     }
-    mprItoa(numBuf, sizeof(numBuf), code, 10);
+    itos(numBuf, sizeof(numBuf), code, 10);
     return (cchar*) mprLookupHash(loc->errorDocuments, numBuf);
 }
 

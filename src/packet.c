@@ -48,7 +48,9 @@ HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
         if ((packet = rx->freePackets) != NULL && size <= packet->content->buflen) {
             rx->freePackets = packet->next; 
             packet->next = 0;
+#if UNUSED
             mprStealBlock(conn, packet);
+#endif
             return packet;
         }
     }
@@ -221,7 +223,7 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 {
     if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), httpGetPacketLength(p)) < 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     return 0;
 }
@@ -323,14 +325,14 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, int size)
     }
     tail = httpSplitPacket(q->conn, packet, size);
     if (tail == 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     httpPutBackPacket(q, tail);
     return 0;
 }
 
 
-HttpPacket *httpDupPacket(MprCtx ctx, HttpPacket *orig)
+HttpPacket *httpClonePacket(MprCtx ctx, HttpPacket *orig)
 {
     HttpPacket  *packet;
     int         count, size;
@@ -343,13 +345,13 @@ HttpPacket *httpDupPacket(MprCtx ctx, HttpPacket *orig)
         return 0;
     }
     if (orig->content) {
-        packet->content = mprDupBuf(packet, orig->content);
+        packet->content = mprCloneBuf(packet, orig->content);
     }
     if (orig->prefix) {
-        packet->prefix = mprDupBuf(packet, orig->prefix);
+        packet->prefix = mprCloneBuf(packet, orig->prefix);
     }
     if (orig->suffix) {
-        packet->suffix = mprDupBuf(packet, orig->suffix);
+        packet->suffix = mprCloneBuf(packet, orig->suffix);
     }
     packet->flags = orig->flags;
     packet->entityLength = orig->entityLength;

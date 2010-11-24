@@ -96,7 +96,7 @@ HttpStage *httpCreateStage(Http *http, cchar *name, int flags)
         return 0;
     }
     stage->flags = flags;
-    stage->name = mprStrdup(stage, name);
+    stage->name = sclone(stage, name);
 
     stage->open = defaultOpen;
     stage->close = defaultClose;

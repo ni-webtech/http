@@ -79,6 +79,7 @@ Http *httpCreate(MprCtx ctx)
     if ((http = mprAllocObj(ctx, Http, NULL)) == 0) {
         return 0;
     }
+    mprGetMpr()->httpService = http;
     http->protocol = "HTTP/1.1";
     http->mutex = mprCreateLock(http);
     http->connections = mprCreateList(http);
@@ -101,12 +102,12 @@ Http *httpCreate(MprCtx ctx)
 
     http->clientLimits = httpCreateLimits(http, 0);
     http->serverLimits = httpCreateLimits(http, 1);
-    http->clientLocation = httpInitLocation(http, http, 0);
+    http->clientLocation = httpInitLocation(http, 0);
     return http;
 }
 
 
-HttpLoc *httpInitLocation(Http *http, MprCtx ctx, int serverSide)
+HttpLoc *httpInitLocation(Http *http, int serverSide)
 {
     HttpLoc     *loc;
 
@@ -149,15 +150,15 @@ void httpInitLimits(HttpLimits *limits, int serverSide)
 #if FUTURE
     mprSetMaxSocketClients(server, atoi(value));
 
-    if (mprStrcmpAnyCase(key, "LimitClients") == 0) {
+    if (scasecmp(key, "LimitClients") == 0) {
         mprSetMaxSocketClients(server, atoi(value));
         return 1;
     }
-    if (mprStrcmpAnyCase(key, "LimitMemoryMax") == 0) {
+    if (scasecmp(key, "LimitMemoryMax") == 0) {
         mprSetAllocLimits(server, -1, atoi(value));
         return 1;
     }
-    if (mprStrcmpAnyCase(key, "LimitMemoryRedline") == 0) {
+    if (scasecmp(key, "LimitMemoryRedline") == 0) {
         mprSetAllocLimits(server, atoi(value), -1);
         return 1;
     }
@@ -193,7 +194,7 @@ cchar *httpLookupStatus(Http *http, int status)
     HttpStatusCode  *ep;
     char            key[8];
     
-    mprItoa(key, sizeof(key), status, 10);
+    itos(key, sizeof(key), status, 10);
     ep = (HttpStatusCode*) mprLookupHash(http->statusCodes, key);
     if (ep == 0) {
         return "Custom error";
@@ -324,7 +325,7 @@ int httpCreateSecret(Http *http)
     }
     *ap = '\0';
     mprFree(http->secret);
-    http->secret = mprStrdup(http, ascii);
+    http->secret = sclone(http, ascii);
     return 0;
 }
 
@@ -408,14 +409,14 @@ void httpSetDefaultPort(Http *http, int port)
 void httpSetDefaultHost(Http *http, cchar *host)
 {
     mprFree(http->defaultHost);
-    http->defaultHost = mprStrdup(http, host);
+    http->defaultHost = sclone(http, host);
 }
 
 
 void httpSetProxy(Http *http, cchar *host, int port)
 {
     mprFree(http->proxyHost);
-    http->proxyHost = mprStrdup(http, host);
+    http->proxyHost = sclone(http, host);
     http->proxyPort = port;
 }
 
@@ -431,7 +432,7 @@ static void updateCurrentDate(Http *http)
     lock(http);
     http->now = mprGetTime(http);
     ds = httpGetDateString(http, NULL);
-    mprStrcpy(date[dateSelect], sizeof(date[0]) - 1, ds);
+    scopy(date[dateSelect], sizeof(date[0]) - 1, ds);
     http->currentDate = date[dateSelect];
     dateSelect = !dateSelect;
     mprFree(ds);
@@ -439,7 +440,7 @@ static void updateCurrentDate(Http *http)
     //  MOB - check. Could do this once per minute
     mprDecodeUniversalTime(http, &tm, http->now + (86400 * 1000));
     ds = mprFormatTime(http, HTTP_DATE_FORMAT, &tm);
-    mprStrcpy(expires[expiresSelect], sizeof(expires[0]) - 1, ds);
+    scopy(expires[expiresSelect], sizeof(expires[0]) - 1, ds);
     http->expiresDate = expires[expiresSelect];
     expiresSelect = !expiresSelect;
     unlock(http);

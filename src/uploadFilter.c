@@ -81,7 +81,7 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
     }
     pat = "multipart/form-data";
     len = (int) strlen(pat);
-    if (mprStrcmpAnyCaseCount(rx->mimeType, pat, len) == 0) {
+    if (sncasecmp(rx->mimeType, pat, len) == 0) {
         rx->upload = 1;
         return 1;
     } else {
@@ -115,12 +115,12 @@ static void openUpload(HttpQueue *q)
 #if BLD_WIN_LIKE
         rx->uploadDir = mprGetNormalizedPath(rx, getenv("TEMP"));
 #else
-        rx->uploadDir = mprStrdup(rx, "/tmp");
+        rx->uploadDir = sclone(rx, "/tmp");
 #endif
     }
     if ((boundary = strstr(rx->mimeType, "boundary=")) != 0) {
         boundary += 9;
-        up->boundary = mprStrcat(up, -1, "--", boundary, NULL);
+        up->boundary = sjoin(up, NULL, "--", boundary, NULL);
         up->boundaryLen = strlen(up->boundary);
     }
     if (up->boundaryLen == 0 || *up->boundary == '\0') {
@@ -201,14 +201,14 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
                 Parse the next input line
              */
             line = mprGetBufStart(content);
-            mprStrTok(line, "\n", &nextTok);
+            stok(line, "\n", &nextTok);
             if (nextTok == 0) {
                 /* Incomplete line */
                 done++;
                 break; 
             }
             mprAdjustBufStart(content, (int) (nextTok - line));
-            line = mprStrTrim(line, "\r");
+            line = strim(line, "\r", MPR_TRIM_END);
         }
 
         switch (up->contentState) {
@@ -313,9 +313,9 @@ static int processContentHeader(HttpQueue *q, char *line)
     mprLog(conn, 5, "Header line: %s", line);
 
     headerTok = line;
-    mprStrTok(line, ": ", &rest);
+    stok(line, ": ", &rest);
 
-    if (mprStrcmpAnyCase(headerTok, "Content-Disposition") == 0) {
+    if (scasecmp(headerTok, "Content-Disposition") == 0) {
 
         /*  
             The content disposition header describes either a form
@@ -334,26 +334,26 @@ static int processContentHeader(HttpQueue *q, char *line)
          */
         key = rest;
         up->id = up->clientFilename = 0;
-        while (key && mprStrTok(key, ";\r\n", &nextPair)) {
+        while (key && stok(key, ";\r\n", &nextPair)) {
 
-            key = mprStrTrim(key, " ");
-            mprStrTok(key, "= ", &value);
-            value = mprStrTrim(value, "\"");
+            key = strim(key, " ", MPR_TRIM_BOTH);
+            stok(key, "= ", &value);
+            value = strim(value, "\"", MPR_TRIM_BOTH);
 
-            if (mprStrcmpAnyCase(key, "form-data") == 0) {
+            if (scasecmp(key, "form-data") == 0) {
                 /* Nothing to do */
 
-            } else if (mprStrcmpAnyCase(key, "name") == 0) {
+            } else if (scasecmp(key, "name") == 0) {
                 mprFree(up->id);
-                up->id = mprStrdup(up, value);
+                up->id = sclone(up, value);
 
-            } else if (mprStrcmpAnyCase(key, "filename") == 0) {
+            } else if (scasecmp(key, "filename") == 0) {
                 if (up->id == 0) {
                     httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad upload state. Missing name field");
                     return MPR_ERR_BAD_STATE;
                 }
                 mprFree(up->clientFilename);
-                up->clientFilename = mprStrdup(up, value);
+                up->clientFilename = sclone(up, value);
                 /*  
                     Create the file to hold the uploaded data
                  */
@@ -374,16 +374,16 @@ static int processContentHeader(HttpQueue *q, char *line)
                     Create the files[id]
                  */
                 file = up->currentFile = mprAllocObj(up, HttpUploadFile, NULL);
-                file->clientFilename = mprStrdup(file, up->clientFilename);
-                file->filename = mprStrdup(file, up->tmpPath);
+                file->clientFilename = sclone(file, up->clientFilename);
+                file->filename = sclone(file, up->tmpPath);
             }
             key = nextPair;
         }
 
-    } else if (mprStrcmpAnyCase(headerTok, "Content-Type") == 0) {
+    } else if (scasecmp(headerTok, "Content-Type") == 0) {
         if (up->clientFilename) {
             mprLog(conn, 5, "Set files[%s][CONTENT_TYPE] = %s", up->id, rest);
-            up->currentFile->contentType = mprStrdup(up->currentFile, rest);
+            up->currentFile->contentType = sclone(up->currentFile, rest);
         }
     }
     return 1;
@@ -405,19 +405,19 @@ static void defineFileFields(HttpQueue *q, Upload *up)
     }
     up = q->queueData;
     file = up->currentFile;
-    key = mprStrcat(q, -1, "FILE_CLIENT_FILENAME_", up->id, NULL);
+    key = sjoin(q, NULL, "FILE_CLIENT_FILENAME_", up->id, NULL);
     httpSetFormVar(conn, key, file->clientFilename);
     mprFree(key);
 
-    key = mprStrcat(q, -1, "FILE_CONTENT_TYPE_", up->id, NULL);
+    key = sjoin(q, NULL, "FILE_CONTENT_TYPE_", up->id, NULL);
     httpSetFormVar(conn, key, file->contentType);
     mprFree(key);
 
-    key = mprStrcat(q, -1, "FILE_FILENAME_", up->id, NULL);
+    key = sjoin(q, NULL, "FILE_FILENAME_", up->id, NULL);
     httpSetFormVar(conn, key, file->filename);
     mprFree(key);
 
-    key = mprStrcat(q, -1, "FILE_SIZE_", up->id, NULL);
+    key = sjoin(q, NULL, "FILE_SIZE_", up->id, NULL);
     httpSetIntFormVar(conn, key, file->size);
     mprFree(key);
 }

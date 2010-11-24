@@ -147,7 +147,9 @@ void httpPrepClientConn(HttpConn *conn, int retry)
         }
         if (retry && (tx = conn->tx) != 0) {
             headers = tx->headers;
+#if UNUSED
             mprStealBlock(conn, headers);
+#endif
         }
         conn->abortPipeline = 0;
         conn->canProceed = 1;
@@ -256,7 +258,9 @@ static void readEvent(HttpConn *conn)
 
         } else if (nbytes < 0) {
             if (conn->state <= HTTP_STATE_CONNECTED) {
-                conn->connError = conn->error = 1;
+                if (mprIsSocketEof(conn->sock)) {
+                    conn->connError = conn->error = 1;
+                }
                 break;
             } else if (conn->state < HTTP_STATE_COMPLETE) {
                 httpProcess(conn, packet);
@@ -518,11 +522,11 @@ void httpSetRequestNotifier(HttpConn *conn, HttpNotifier notifier)
 void httpSetCredentials(HttpConn *conn, cchar *user, cchar *password)
 {
     httpResetCredentials(conn);
-    conn->authUser = mprStrdup(conn, user);
+    conn->authUser = sclone(conn, user);
     if (password == NULL && strchr(user, ':') != 0) {
-        conn->authUser = mprStrTok(conn->authUser, ":", &conn->authPassword);
+        conn->authUser = stok(conn->authUser, ":", &conn->authPassword);
     } else {
-        conn->authPassword = mprStrdup(conn, password);
+        conn->authPassword = sclone(conn, password);
     }
 }
 
@@ -642,7 +646,7 @@ void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
      */
     mprLock(conn->http->mutex);
     mprFree(conn->errorMsg);
-    conn->errorMsg = mprVasprintf(conn, HTTP_BUFSIZE, fmt, args);
+    conn->errorMsg = mprAsprintfv(conn, fmt, args);
     if (status) {
         if (conn->server && conn->tx) {
             conn->tx->status = status;

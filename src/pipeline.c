@@ -157,7 +157,7 @@ void httpSetSendConnector(HttpConn *conn, cchar *path)
 
     tx = conn->tx;
     tx->flags |= HTTP_TX_SENDFILE;
-    tx->filename = mprStrdup(tx, path);
+    tx->filename = sclone(tx, path);
     max = conn->limits->transmissionBodySize;
 
     qhead = &tx->queue[HTTP_QUEUE_TRANS];
@@ -287,7 +287,7 @@ static void setEnvironment(HttpConn *conn)
     if (tx->handler->flags & (HTTP_STAGE_VARS | HTTP_STAGE_ENV_VARS)) {
         rx->formVars = mprCreateHash(rx, HTTP_MED_HASH_SIZE, 0);
         if (rx->parsedUri->query) {
-            httpAddVars(conn, rx->parsedUri->query, (int) strlen(rx->parsedUri->query));
+            httpAddVars(conn, rx->parsedUri->query, strlen(rx->parsedUri->query));
         }
     }
     if (tx->handler && (tx->handler->flags & HTTP_STAGE_ENV_VARS)) {

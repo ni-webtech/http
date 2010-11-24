@@ -118,7 +118,7 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
 
             } else if (tx->pos < range->start) {
                 /*  Packets starts before range with some data in range so skip some data */
-                count = (int) (range->start - tx->pos);
+                count = (range->start - tx->pos);
                 bytes -= count;
                 tx->pos += count;
                 if (packet->content == 0) {
@@ -182,7 +182,7 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
     tx = conn->tx;
 
     if (tx->entityLength >= 0) {
-        mprItoa(lenBuf, sizeof(lenBuf), tx->entityLength, 10);
+        itos(lenBuf, sizeof(lenBuf), tx->entityLength, 10);
     } else {
         lenBuf[0] = '*';
         lenBuf[1] = '\0';
@@ -221,7 +221,7 @@ static void createRangeBoundary(HttpConn *conn)
 
     tx = conn->tx;
     mprAssert(tx->rangeBoundary == 0);
-    tx->rangeBoundary = mprAsprintf(tx, -1, "%08X%08X", PTOI(tx) + PTOI(conn) * (int) conn->time, (int) conn->time);
+    tx->rangeBoundary = mprAsprintf(tx, "%08X%08X", PTOI(tx) + PTOI(conn) * (int) conn->time, (int) conn->time);
 }
 
 

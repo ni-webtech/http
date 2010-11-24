@@ -258,7 +258,8 @@ static void freeNetPackets(HttpQueue *q, int bytes)
 static void adjustNetVec(HttpQueue *q, int written)
 {
     MprIOVec    *iovec;
-    int         i, j, len;
+    size_t      len;
+    int         i, j;
 
     /*
         Cleanup the IO vector
@@ -278,7 +279,7 @@ static void adjustNetVec(HttpQueue *q, int written)
         mprAssert(q->ioCount >= 0);
         iovec = q->iovec;
         for (i = 0; i < q->ioIndex; i++) {
-            len = (int) iovec[i].len;
+            len = iovec[i].len;
             if (written < len) {
                 iovec[i].start += written;
                 iovec[i].len -= written;

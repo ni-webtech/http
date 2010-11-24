@@ -89,11 +89,11 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
         return 1;
     }
-    if (mprStrcmpAnyCase(rx->authType, "basic") == 0) {
+    if (scasecmp(rx->authType, "basic") == 0) {
         decodeBasicAuth(conn, ad);
         actualAuthType = HTTP_AUTH_BASIC;
 
-    } else if (mprStrcmpAnyCase(rx->authType, "digest") == 0) {
+    } else if (scasecmp(rx->authType, "digest") == 0) {
         if (decodeDigestDetails(conn, ad) < 0) {
             httpError(conn, 400, "Bad authorization header");
             return 1;
@@ -165,12 +165,12 @@ static void decodeBasicAuth(HttpConn *conn, AuthData *ad)
         *cp++ = '\0';
     }
     if (cp) {
-        ad->userName = mprStrdup(rx, decoded);
-        ad->password = mprStrdup(rx, cp);
+        ad->userName = sclone(rx, decoded);
+        ad->password = sclone(rx, cp);
 
     } else {
-        ad->userName = mprStrdup(rx, "");
-        ad->password = mprStrdup(rx, "");
+        ad->userName = sclone(rx, "");
+        ad->password = sclone(rx, "");
     }
     httpSetAuthUser(conn, ad->userName);
     mprFree(decoded);
@@ -187,7 +187,7 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
     int         seenComma;
 
     rx = conn->rx;
-    key = authDetails = mprStrdup(rx, rx->authDetails);
+    key = authDetails = sclone(rx, rx->authDetails);
 
     while (*key) {
         while (*key && isspace((int) *key)) {
@@ -235,64 +235,64 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
          */
         switch (tolower((int) *key)) {
         case 'a':
-            if (mprStrcmpAnyCase(key, "algorithm") == 0) {
+            if (scasecmp(key, "algorithm") == 0) {
                 break;
-            } else if (mprStrcmpAnyCase(key, "auth-param") == 0) {
+            } else if (scasecmp(key, "auth-param") == 0) {
                 break;
             }
             break;
 
         case 'c':
-            if (mprStrcmpAnyCase(key, "cnonce") == 0) {
-                ad->cnonce = mprStrdup(rx, value);
+            if (scasecmp(key, "cnonce") == 0) {
+                ad->cnonce = sclone(rx, value);
             }
             break;
 
         case 'd':
-            if (mprStrcmpAnyCase(key, "domain") == 0) {
+            if (scasecmp(key, "domain") == 0) {
                 break;
             }
             break;
 
         case 'n':
-            if (mprStrcmpAnyCase(key, "nc") == 0) {
-                ad->nc = mprStrdup(rx, value);
-            } else if (mprStrcmpAnyCase(key, "nonce") == 0) {
-                ad->nonce = mprStrdup(rx, value);
+            if (scasecmp(key, "nc") == 0) {
+                ad->nc = sclone(rx, value);
+            } else if (scasecmp(key, "nonce") == 0) {
+                ad->nonce = sclone(rx, value);
             }
             break;
 
         case 'o':
-            if (mprStrcmpAnyCase(key, "opaque") == 0) {
-                ad->opaque = mprStrdup(rx, value);
+            if (scasecmp(key, "opaque") == 0) {
+                ad->opaque = sclone(rx, value);
             }
             break;
 
         case 'q':
-            if (mprStrcmpAnyCase(key, "qop") == 0) {
-                ad->qop = mprStrdup(rx, value);
+            if (scasecmp(key, "qop") == 0) {
+                ad->qop = sclone(rx, value);
             }
             break;
 
         case 'r':
-            if (mprStrcmpAnyCase(key, "realm") == 0) {
-                ad->realm = mprStrdup(rx, value);
-            } else if (mprStrcmpAnyCase(key, "response") == 0) {
+            if (scasecmp(key, "realm") == 0) {
+                ad->realm = sclone(rx, value);
+            } else if (scasecmp(key, "response") == 0) {
                 /* Store the response digest in the password field */
-                ad->password = mprStrdup(rx, value);
+                ad->password = sclone(rx, value);
             }
             break;
 
         case 's':
-            if (mprStrcmpAnyCase(key, "stale") == 0) {
+            if (scasecmp(key, "stale") == 0) {
                 break;
             }
         
         case 'u':
-            if (mprStrcmpAnyCase(key, "uri") == 0) {
-                ad->uri = mprStrdup(rx, value);
-            } else if (mprStrcmpAnyCase(key, "user") == 0) {
-                ad->userName = mprStrdup(rx, value);
+            if (scasecmp(key, "uri") == 0) {
+                ad->uri = sclone(rx, value);
+            } else if (scasecmp(key, "user") == 0) {
+                ad->userName = sclone(rx, value);
             }
             break;
 
@@ -318,7 +318,7 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
         return MPR_ERR_BAD_ARGS;
     }
     if (ad->qop == 0) {
-        ad->qop = mprStrdup(rx, "");
+        ad->qop = sclone(rx, "");
     }
     httpSetAuthUser(conn, ad->userName);
     return 0;
@@ -380,7 +380,7 @@ static char *createDigestNonce(MprCtx ctx, cchar *secret, cchar *etag, cchar *re
     mprAssert(realm && *realm);
 
     now = mprGetTime(ctx);
-    mprSprintf(ctx, nonce, sizeof(nonce), "%s:%s:%s:%Lx", secret, etag, realm, now);
+    mprSprintf(nonce, sizeof(nonce), "%s:%s:%s:%Lx", secret, etag, realm, now);
     return mprEncode64(ctx, nonce);
 }
 
@@ -392,18 +392,18 @@ static int parseDigestNonce(MprCtx ctx, char *nonce, cchar **secret, cchar **eta
     if ((decoded = mprDecode64(ctx, nonce)) == 0) {
         return MPR_ERR_CANT_READ;
     }
-    *secret = mprStrTok(decoded, ":", &tok);
-    *etag = mprStrTok(NULL, ":", &tok);
-    *realm = mprStrTok(NULL, ":", &tok);
-    whenStr = mprStrTok(NULL, ":", &tok);
-    *when = (MprTime) mprAtoi(whenStr, 16);
+    *secret = stok(decoded, ":", &tok);
+    *etag = stok(NULL, ":", &tok);
+    *realm = stok(NULL, ":", &tok);
+    whenStr = stok(NULL, ":", &tok);
+    *when = (MprTime) stoi(whenStr, 16, NULL); 
     return 0;
 }
 
 
 static char *md5(MprCtx ctx, cchar *string)
 {
-    return mprGetMD5Hash(ctx, string, (int) strlen(string), NULL);
+    return mprGetMD5Hash(ctx, string, strlen(string), NULL);
 }
 
 
@@ -423,29 +423,29 @@ static int calcDigest(MprCtx ctx, char **digest, cchar *userName, cchar *passwor
         (MD5(userName:realm:password).
      */
     if (userName == 0) {
-        ha1 = mprStrdup(ctx, password);
+        ha1 = sclone(ctx, password);
     } else {
-        mprSprintf(ctx, a1Buf, sizeof(a1Buf), "%s:%s:%s", userName, realm, password);
+        mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", userName, realm, password);
         ha1 = md5(ctx, a1Buf);
     }
 
     /*
         HA2
      */ 
-    mprSprintf(ctx, a2Buf, sizeof(a2Buf), "%s:%s", method, uri);
+    mprSprintf(a2Buf, sizeof(a2Buf), "%s:%s", method, uri);
     ha2 = md5(ctx, a2Buf);
 
     /*
         H(HA1:nonce:HA2)
      */
     if (strcmp(qop, "auth") == 0) {
-        mprSprintf(ctx, digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
+        mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
 
     } else if (strcmp(qop, "auth-int") == 0) {
-        mprSprintf(ctx, digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
+        mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
 
     } else {
-        mprSprintf(ctx, digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, nonce, ha2);
+        mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, nonce, ha2);
     }
     *digest = md5(ctx, digestBuf);
     mprFree(ha1);

@@ -30,7 +30,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     server->async = 1;
     server->http = http;
     server->port = port;
-    server->ip = mprStrdup(server, ip);
+    server->ip = sclone(server, ip);
     server->waitHandler.fd = -1;
     server->dispatcher = (dispatcher) ? dispatcher : mprGetDispatcher(http);
     if (server->ip && server->ip) {
@@ -38,7 +38,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     }
     server->software = HTTP_NAME;
     server->limits = httpCreateLimits(server, 1);
-    server->loc = httpInitLocation(http, server, 1);
+    server->loc = httpInitLocation(http, 1);
     return server;
 }
 
@@ -83,7 +83,7 @@ int httpStartServer(HttpServer *server)
     char        *ip;
 
     if ((server->sock = mprCreateSocket(server, server->ssl)) == 0) {
-        return MPR_ERR_NO_MEMORY;
+        return MPR_ERR_MEMORY;
     }
     if (mprOpenServerSocket(server->sock, server->ip, server->port, MPR_SOCKET_NODELAY | MPR_SOCKET_THREAD) < 0) {
         mprError(server, "Can't open a socket on %s, port %d", server->ip, server->port);
@@ -93,13 +93,15 @@ int httpStartServer(HttpServer *server)
         mprError(server, "Can't listen on %s, port %d", server->ip, server->port);
         return MPR_ERR_CANT_OPEN;
     }
-    proto = "HTTP";
-    if (mprIsSocketSecure(server->sock)) {
-        proto = "HTTPS";
-    }
+    proto = mprIsSocketSecure(server->sock) ? "HTTPS" : "HTTP";
     ip = server->ip;
     if (ip == 0 || *ip == '\0') {
         ip = "*";
+    }
+    if (server->listenCallback) {
+        if ((server->listenCallback)(server) < 0) {
+            return MPR_ERR_CANT_OPEN;
+        }
     }
     if (server->async) {
         mprInitWaitHandler(server, &server->waitHandler, server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
@@ -203,12 +205,14 @@ HttpConn *httpAcceptConn(HttpServer *server)
         mprFree(sock);
         return 0;
     }
+#if UNUSED
     mprStealBlock(conn, sock);
+#endif
     conn->async = server->async;
     conn->server = server;
     conn->sock = sock;
     conn->port = sock->port;
-    conn->ip = mprStrdup(conn, sock->ip);
+    conn->ip = sclone(conn, sock->ip);
     conn->secure = mprIsSocketSecure(sock);
 
     if (!httpValidateLimits(server, HTTP_VALIDATE_OPEN_CONN, conn)) {
@@ -250,7 +254,7 @@ int httpGetServerAsync(HttpServer *server)
 void httpSetDocumentRoot(HttpServer *server, cchar *documentRoot)
 {
     mprFree(server->documentRoot);
-    server->documentRoot = mprStrdup(server, documentRoot);
+    server->documentRoot = sclone(server, documentRoot);
 }
 
 
@@ -258,7 +262,7 @@ void httpSetIpAddr(HttpServer *server, cchar *ip, int port)
 {
     if (ip) {
         mprFree(server->ip);
-        server->ip = mprStrdup(server, ip);
+        server->ip = sclone(server, ip);
     }
     if (port >= 0) {
         server->port = port;
@@ -304,7 +308,7 @@ void httpSetServerLocation(HttpServer *server, HttpLoc *loc)
 
 void httpSetServerName(HttpServer *server, cchar *name)
 {
-    server->name = mprStrdup(server, name);
+    server->name = sclone(server, name);
 }
 
 
@@ -317,19 +321,25 @@ void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)
 void httpSetServerRoot(HttpServer *server, cchar *serverRoot)
 {
     mprFree(server->serverRoot);
-    server->serverRoot = mprStrdup(server, serverRoot);
+    server->serverRoot = sclone(server, serverRoot);
 }
 
 
 void httpSetServerSoftware(HttpServer *server, cchar *software)
 {
-    server->software = mprStrdup(server, software);
+    server->software = sclone(server, software);
 }
 
 
 void httpSetServerSsl(HttpServer *server, struct MprSsl *ssl)
 {
     server->ssl = ssl;
+}
+
+
+void httpSetListenCallback(HttpServer *server, HttpListenCallback fn)
+{
+    server->listenCallback = fn;
 }
 
 
