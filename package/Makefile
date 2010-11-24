@@ -8,7 +8,7 @@ include			.makedep
 
 STAGING			:= $(PWD)/staging
 TDIR			:= $(STAGING)/http-$(BLD_VERSION)
-REL_DIR			:= ../releases
+REL_DIR			:= $(BLD_OUT_DIR)/releases
 DIST_VER_NAME	:= http-$(BLD_VERSION)-dist.tgz
 DIST_PERM_NAME	:= http-dist.tgz
 DIST_VER		:= $(REL_DIR)/$(DIST_VER_NAME)
@@ -34,8 +34,7 @@ dist packageExtra: prep $(TARGETS) $(DIST_VER) $(FLAT_VER) cleanup
 
 prep:
 	rm -fr $(STAGING) $(DIST_VER) $(DIST_PERM) $(FLAT_VER) $(FLAT_PERM)
-	mkdir -p $(REL_DIR)
-	mkdir -p $(DEST) $(INC_DEST) $(DOC_DEST)/man $(DOC_DEST)/api
+	mkdir -p $(REL_DIR) $(DEST) $(INC_DEST) $(DOC_DEST)/man $(DOC_DEST)/api
 
 $(INC_DEST)/http.h: Makefile $(HEADERS)
 	dist $(HEADERS) | egrep -v '#include.*http|#inc.*config.h|#inc.*ucp.*\.h|#inc.*pcre' >$(INC_DEST)/http.h
