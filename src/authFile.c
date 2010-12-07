@@ -12,6 +12,8 @@
 /********************************** Forwards **********************************/
 
 static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user);
+static void manageGroup(HttpGroup *group, int flags);
+static void manageUser(HttpUser *user, int flags);
 
 /*********************************** Code *************************************/
 
@@ -21,7 +23,7 @@ cchar *httpGetNativePassword(HttpAuth *auth, cchar *realm, cchar *user)
     char        *key;
 
     up = 0;
-    key = sjoin(auth, NULL, realm, ":", user, NULL);
+    key = sjoin(realm, ":", user, NULL);
     if (auth->users) {
         up = (HttpUser*) mprLookupHash(auth->users, key);
     }
@@ -44,7 +46,7 @@ bool httpValidateNativeCredentials(HttpAuth *auth, cchar *realm, cchar *user, cc
     if (auth->type == HTTP_AUTH_BASIC) {
         mprSprintf(passbuf, sizeof(passbuf), "%s:%s:%s", user, realm, password);
         len = strlen(passbuf);
-        hashedPassword = mprGetMD5Hash(auth, passbuf, len, NULL);
+        hashedPassword = mprGetMD5Hash(passbuf, len, NULL);
         password = hashedPassword;
     }
     if (!isUserValid(auth, realm, user)) {
@@ -73,7 +75,7 @@ static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user)
     int             rc, next;
 
     if (auth->anyValidUser) {
-        key = sjoin(auth, NULL, realm, ":", user, NULL);
+        key = sjoin(realm, ":", user, NULL);
         if (auth->users == 0) {
             return 0;
         }
@@ -83,7 +85,7 @@ static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user)
     }
 
     if (auth->requiredUsers) {
-        requiredUsers = sclone(auth, auth->requiredUsers);
+        requiredUsers = sclone(auth->requiredUsers);
         tok = NULL;
         requiredUser = stok(requiredUsers, " \t", &tok);
         while (requiredUser) {
@@ -97,7 +99,7 @@ static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user)
 
     if (auth->requiredGroups) {
         gtok = NULL;
-        requiredGroups = sclone(auth, auth->requiredGroups);
+        requiredGroups = sclone(auth->requiredGroups);
         /*
             For each group, check all the users in the group.
          */
@@ -109,7 +111,7 @@ static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user)
                 gp = (HttpGroup*) mprLookupHash(auth->groups, group);
             }
             if (gp == 0) {
-                mprError(auth, "Can't find group %s", group);
+                mprError("Can't find group %s", group);
                 group = stok(NULL, " \t", &gtok);
                 continue;
             }
@@ -123,10 +125,10 @@ static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user)
         mprFree(requiredGroups);
     }
     if (auth->requiredAcl != 0) {
-        key = sjoin(auth, NULL, realm, ":", user, NULL);
+        key = sjoin(realm, ":", user, NULL);
         up = (HttpUser*) mprLookupHash(auth->users, key);
         if (up) {
-            mprLog(auth, 6, "UserRealm \"%s\" has ACL %lx, Required ACL %lx", key, up->acl, auth->requiredAcl);
+            mprLog(6, "UserRealm \"%s\" has ACL %lx, Required ACL %lx", key, up->acl, auth->requiredAcl);
             if (up->acl & auth->requiredAcl) {
                 mprFree(key);
                 return 1;
@@ -142,14 +144,25 @@ HttpGroup *httpCreateGroup(HttpAuth *auth, cchar *name, HttpAcl acl, bool enable
 {
     HttpGroup     *gp;
 
-    if ((gp = mprAllocObj(auth, HttpGroup, NULL)) == 0) {
+    if ((gp = mprAllocObj(HttpGroup, manageGroup)) == 0) {
         return 0;
     }
     gp->acl = acl;
-    gp->name = sclone(gp, name);
+    gp->name = sclone(name);
     gp->enabled = enabled;
     gp->users = mprCreateList(gp);
     return gp;
+}
+
+
+static void manageGroup(HttpGroup *group, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(group->name);
+        mprMarkList(group->users);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
 }
 
 
@@ -168,7 +181,7 @@ int httpAddGroup(HttpAuth *auth, cchar *group, HttpAcl acl, bool enabled)
         Create the index on demand
      */
     if (auth->groups == 0) {
-        auth->groups = mprCreateHash(auth, -1, 0);
+        auth->groups = mprCreateHash(-1, 0);
     }
     if (mprLookupHash(auth->groups, group)) {
         return MPR_ERR_ALREADY_EXISTS;
@@ -184,14 +197,26 @@ HttpUser *httpCreateUser(HttpAuth *auth, cchar *realm, cchar *user, cchar *passw
 {
     HttpUser      *up;
 
-    if ((up = mprAllocObj(auth, HttpUser, NULL)) == 0) {
+    if ((up = mprAllocObj(HttpUser, manageUser)) == 0) {
         return 0;
     }
-    up->name = sclone(up, user);
-    up->realm = sclone(up, realm);
-    up->password = sclone(up, password);
+    up->name = sclone(user);
+    up->realm = sclone(realm);
+    up->password = sclone(password);
     up->enabled = enabled;
     return up;
+}
+
+
+static void manageUser(HttpUser *user, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(user->password);
+        mprMark(user->realm);
+        mprMark(user->name);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
 }
 
 
@@ -206,9 +231,9 @@ int httpAddUser(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, bool
         return MPR_ERR_MEMORY;
     }
     if (auth->users == 0) {
-        auth->users = mprCreateHash(auth, -1, 0);
+        auth->users = mprCreateHash(-1, 0);
     }
-    key = sjoin(auth, NULL, realm, ":", user, NULL);
+    key = sjoin(realm, ":", user, NULL);
     if (mprLookupHash(auth->users, key)) {
         mprFree(key);
         return MPR_ERR_ALREADY_EXISTS;
@@ -233,7 +258,7 @@ int httpAddUserToGroup(HttpAuth *auth, HttpGroup *gp, cchar *user)
             return MPR_ERR_ALREADY_EXISTS;
         }
     }
-    mprAddItem(gp->users, sclone(gp, user));
+    mprAddItem(gp->users, sclone(user));
     return 0;
 }
 
@@ -249,7 +274,7 @@ int httpAddUsersToGroup(HttpAuth *auth, cchar *group, cchar *userList)
         return MPR_ERR_CANT_ACCESS;
     }
     tok = NULL;
-    users = sclone(auth, userList);
+    users = sclone(userList);
     user = stok(users, " \t", &tok);
     while (user) {
         /* Ignore already exists errors */
@@ -281,7 +306,7 @@ int httpDisableUser(HttpAuth *auth, cchar *realm, cchar *user)
     char        *key;
 
     up = 0;
-    key = sjoin(auth, NULL, realm, ":", user, NULL);
+    key = sjoin(realm, ":", user, NULL);
     if (auth->users == 0 || (up = (HttpUser*) mprLookupHash(auth->users, key)) == 0) {
         mprFree(key);
         return MPR_ERR_CANT_ACCESS;
@@ -311,7 +336,7 @@ int httpEnableUser(HttpAuth *auth, cchar *realm, cchar *user)
     char        *key;
 
     up = 0;
-    key = sjoin(auth, NULL, realm, ":", user, NULL);    
+    key = sjoin(realm, ":", user, NULL);    
     if (auth->users == 0 || (up = (HttpUser*) mprLookupHash(auth->users, key)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
@@ -350,7 +375,7 @@ bool httpIsUserEnabled(HttpAuth *auth, cchar *realm, cchar *user)
     char    *key;
 
     up = 0;
-    key = sjoin(auth, NULL, realm, ":", user, NULL);
+    key = sjoin(realm, ":", user, NULL);
     if (auth->users == 0 || (up = (HttpUser*) mprLookupHash(auth->users, key)) == 0) {
         mprFree(key);
         return 0;
@@ -437,7 +462,7 @@ int httpRemoveUser(HttpAuth *auth, cchar *realm, cchar *user)
 {
     char    *key;
 
-    key = sjoin(auth, NULL, realm, ":", user, NULL);
+    key = sjoin(realm, ":", user, NULL);
     if (auth->users == 0 || !mprLookupHash(auth->users, key)) {
         mprFree(key);
         return MPR_ERR_CANT_ACCESS;
@@ -458,7 +483,7 @@ int httpRemoveUsersFromGroup(HttpAuth *auth, cchar *group, cchar *userList)
         return MPR_ERR_CANT_ACCESS;
     }
     tok = NULL;
-    users = sclone(auth, userList);
+    users = sclone(userList);
     user = stok(users, " \t", &tok);
     while (user) {
         httpRemoveUserFromGroup(gp, user);
@@ -511,12 +536,11 @@ int httpReadGroupFile(Http *http, HttpAuth *auth, char *path)
     char        *users, *group, *enabled, *aclSpec, *tok, *cp;
 
     mprFree(auth->groupFile);
-    auth->groupFile = sclone(http, path);
+    auth->groupFile = sclone(path);
 
-    if ((file = mprOpen(auth, path, O_RDONLY | O_TEXT, 0444)) == 0) {
+    if ((file = mprOpen(path, O_RDONLY | O_TEXT, 0444)) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-
     while ((buf = mprGets(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
         for (cp = enabled; isspace((int) *cp); cp++) {
@@ -546,9 +570,9 @@ int httpReadUserFile(Http *http, HttpAuth *auth, char *path)
     char        *enabled, *user, *password, *realm, *tok, *cp;
 
     mprFree(auth->userFile);
-    auth->userFile = sclone(auth, path);
+    auth->userFile = sclone(path);
 
-    if ((file = mprOpen(auth, path, O_RDONLY | O_TEXT, 0444)) == 0) {
+    if ((file = mprOpen(path, O_RDONLY | O_TEXT, 0444)) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
     while ((buf = mprGets(file, MPR_BUFSIZE, NULL)) != NULL) {
@@ -583,9 +607,9 @@ int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
     char            buf[HTTP_MAX_PASS * 2];
     char            *tempFile;
 
-    tempFile = mprGetTempPath(auth, NULL);
-    if ((file = mprOpen(auth, tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
-        mprError(http, "Can't open %s", tempFile);
+    tempFile = mprGetTempPath(NULL);
+    if ((file = mprOpen(tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
+        mprError("Can't open %s", tempFile);
         mprFree(tempFile);
         return MPR_ERR_CANT_OPEN;
     }
@@ -601,7 +625,7 @@ int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
     mprFree(file);
     unlink(path);
     if (rename(tempFile, path) < 0) {
-        mprError(http, "Can't create new %s", path);
+        mprError("Can't create new %s", path);
         return MPR_ERR_CANT_WRITE;
     }
     return 0;
@@ -616,9 +640,9 @@ int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
     char            buf[MPR_MAX_STRING], *tempFile, *name;
     int             next;
 
-    tempFile = mprGetTempPath(http, NULL);
-    if ((file = mprOpen(auth, tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
-        mprError(http, "Can't open %s", tempFile);
+    tempFile = mprGetTempPath(NULL);
+    if ((file = mprOpen(tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
+        mprError("Can't open %s", tempFile);
         mprFree(tempFile);
         return MPR_ERR_CANT_OPEN;
     }
@@ -639,7 +663,7 @@ int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
 
     unlink(path);
     if (rename(tempFile, path) < 0) {
-        mprError(http, "Can't create new %s", path);
+        mprError("Can't create new %s", path);
         return MPR_ERR_CANT_WRITE;
     }
     return 0;

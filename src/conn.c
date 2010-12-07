@@ -9,7 +9,7 @@
 
 /***************************** Forward Declarations ***************************/
 
-static int connectionDestructor(HttpConn *conn);
+static void manageConn(HttpConn *conn, int flags);
 static inline HttpPacket *getPacket(HttpConn *conn, int *bytesToRead);
 static void readEvent(HttpConn *conn);
 static void writeEvent(HttpConn *conn);
@@ -22,7 +22,7 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
 {
     HttpConn    *conn;
 
-    if ((conn = mprAllocObj(http, HttpConn, connectionDestructor)) == 0) {
+    if ((conn = mprAllocObj(HttpConn, manageConn)) == 0) {
         return 0;
     }
     conn->http = http;
@@ -52,27 +52,65 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
 }
 
 
-/*  
-    Cleanup a connection. Invoked automatically whenever the connection is freed.
- */
-static int connectionDestructor(HttpConn *conn)
+static void manageConn(HttpConn *conn, int flags)
 {
     mprAssert(conn);
 
-    if (conn->server) {
-        httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_CONN, conn);
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(conn->callbackArg);
+        mprMark(conn->fillHeadersArg);
+        mprMark(conn->limits);
+        mprMark(conn->stages);
+        mprMark(conn->dispatcher);
+        mprMark(conn->sock);
+        mprMark(conn->documentRoot);
+        mprMark(conn->rx);
+        mprMark(conn->tx);
+
+        httpManageQueue(&conn->serviceq, flags);
+        if (conn->readq) {
+            httpManageQueue(conn->readq, flags);
+        }
+        if (conn->writeq) {
+            httpManageQueue(conn->writeq, flags);
+        }
+
+        mprMark(conn->input);
+        mprMark(conn->context);
+        mprMark(conn->boundary);
+        mprMark(conn->errorMsg);
+        mprMark(conn->host);
+        mprMark(conn->ip);
+
+        httpManageTrace(&conn->trace[0], flags);
+        httpManageTrace(&conn->trace[1], flags);
+
+        mprMark(conn->authCnonce);
+        mprMark(conn->authDomain);
+        mprMark(conn->authNonce);
+        mprMark(conn->authOpaque);
+        mprMark(conn->authRealm);
+        mprMark(conn->authQop);
+        mprMark(conn->authType);
+        mprMark(conn->authGroup);
+        mprMark(conn->authUser);
+        mprMark(conn->authPassword);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        if (conn->server) {
+            httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_CONN, conn);
+        }
+        if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
+            HTTP_NOTIFY(conn, HTTP_STATE_COMPLETE, 0);
+        }
+        HTTP_NOTIFY(conn, -1, 0);
+        httpRemoveConn(conn->http, conn);
+        if (conn->sock) {
+            httpCloseConn(conn);
+        }
+        conn->input = 0;
+        httpDestroyRx(conn);
     }
-    if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
-        HTTP_NOTIFY(conn, HTTP_STATE_COMPLETE, 0);
-    }
-    HTTP_NOTIFY(conn, -1, 0);
-    httpRemoveConn(conn->http, conn);
-    if (conn->sock) {
-        httpCloseConn(conn);
-    }
-    conn->input = 0;
-    httpDestroyRx(conn);
-    return 0;
 }
 
 
@@ -93,7 +131,7 @@ void httpCloseConn(HttpConn *conn)
     mprAssert(conn);
 
     if (conn->sock) {
-        mprLog(conn, 6, "Closing connection");
+        mprLog(6, "Closing connection");
         if (conn->waitHandler.fd >= 0) {
             mprRemoveWaitHandler(&conn->waitHandler);
         }
@@ -185,7 +223,7 @@ void httpConsumeLastRequest(HttpConn *conn)
     }
     mark = mprGetTime(conn);
     requestTimeout = conn->limits->requestTimeout ? conn->limits->requestTimeout : INT_MAX;
-    while (!httpIsEof(conn) && mprGetRemainingTime(conn, mark, requestTimeout) > 0) {
+    while (!httpIsEof(conn) && mprGetRemainingTime(mark, requestTimeout) > 0) {
         if ((rc = httpRead(conn, junk, sizeof(junk))) <= 0) {
             break;
         }
@@ -214,7 +252,7 @@ void httpCallEvent(HttpConn *conn, int mask)
  */
 void httpEvent(HttpConn *conn, MprEvent *event)
 {
-    LOG(conn, 7, "httpEvent for fd %d, mask %d\n", conn->sock->fd, event->mask);
+    LOG(7, "httpEvent for fd %d, mask %d\n", conn->sock->fd, event->mask);
 
     conn->lastActivity = conn->time = event->timestamp;
     mprAssert(conn->time);
@@ -250,7 +288,7 @@ static void readEvent(HttpConn *conn)
 
     while ((packet = getPacket(conn, &len)) != 0) {
         nbytes = mprReadSocket(conn->sock, mprGetBufEnd(packet->content), len);
-        LOG(conn, 8, "http: read event. Got %d", nbytes);
+        LOG(8, "http: read event. Got %d", nbytes);
        
         if (nbytes > 0) {
             mprAdjustBufEnd(packet->content, nbytes);
@@ -280,7 +318,7 @@ static void readEvent(HttpConn *conn)
 
 static void writeEvent(HttpConn *conn)
 {
-    LOG(conn, 6, "httpProcessWriteEvent, state %d", conn->state);
+    LOG(6, "httpProcessWriteEvent, state %d", conn->state);
 
     conn->writeBlocked = 0;
     if (conn->tx) {
@@ -329,10 +367,10 @@ void httpEnableConnEvents(HttpConn *conn)
                 conn->waitHandler.fd = -1;
             }
         }
-        mprLog(conn, 7, "EnableConnEvents mask %x", eventMask);
+        mprLog(7, "EnableConnEvents mask %x", eventMask);
         if (eventMask) {
             if (conn->waitHandler.fd < 0) {
-                mprInitWaitHandler(conn, &conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher, 
+                mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher, 
                     (MprEventProc) conn->callback, conn->callbackArg);
             } else if (eventMask != conn->waitHandler.desiredMask) {
                 mprEnableWaitEvents(&conn->waitHandler, eventMask);
@@ -522,11 +560,11 @@ void httpSetRequestNotifier(HttpConn *conn, HttpNotifier notifier)
 void httpSetCredentials(HttpConn *conn, cchar *user, cchar *password)
 {
     httpResetCredentials(conn);
-    conn->authUser = sclone(conn, user);
+    conn->authUser = sclone(user);
     if (password == NULL && strchr(user, ':') != 0) {
         conn->authUser = stok(conn->authUser, ":", &conn->authPassword);
     } else {
-        conn->authPassword = sclone(conn, password);
+        conn->authPassword = sclone(password);
     }
 }
 
@@ -606,7 +644,7 @@ void httpSetState(HttpConn *conn, int state)
         return;
     }
     conn->state = state;
-    LOG(conn, 6, "Connection state change to %s", notifyState[state]);
+    LOG(6, "Connection state change to %s", notifyState[state]);
     HTTP_NOTIFY(conn, state, 0);
 }
 
@@ -626,7 +664,7 @@ HttpLimits *httpSetUniqueConnLimits(HttpConn *conn)
 {
     HttpLimits      *limits;
 
-    limits = mprAllocObj(conn, HttpLimits, NULL);
+    limits = mprAllocObj(HttpLimits, NULL);
     *limits = *conn->limits;
     conn->limits = limits;
     return limits;
@@ -646,7 +684,7 @@ void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
      */
     mprLock(conn->http->mutex);
     mprFree(conn->errorMsg);
-    conn->errorMsg = mprAsprintfv(conn, fmt, args);
+    conn->errorMsg = mprAsprintfv(fmt, args);
     if (status) {
         if (conn->server && conn->tx) {
             conn->tx->status = status;
@@ -689,9 +727,9 @@ static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
         conn->error = 1;
         httpFormatErrorV(conn, status, fmt, args);
         if (rx == 0) {
-            mprLog(conn, 2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
+            mprLog(2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
         } else {
-            mprLog(conn, 2, "Error: \"%s\", status %d for URI \"%s\": %s.",
+            mprLog(2, "Error: \"%s\", status %d for URI \"%s\": %s.",
                 httpLookupStatus(conn->http, status), status, rx->uri ? rx->uri : "", conn->errorMsg);
         }
         tx = conn->tx;

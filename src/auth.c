@@ -7,13 +7,17 @@
 
 #include    "http.h"
 
+/********************************* Forwards ***********************************/
+
+static void manageAuth(HttpAuth *auth, int flags);
+
 /*********************************** Code *************************************/
 
-HttpAuth *httpCreateAuth(MprCtx ctx, HttpAuth *parent)
+HttpAuth *httpCreateAuth(HttpAuth *parent)
 {
     HttpAuth      *auth;
 
-    auth = mprAllocObj(ctx, HttpAuth, NULL);
+    auth = mprAllocObj(HttpAuth, manageAuth);
     if (parent) {
         auth->allow = parent->allow;
         auth->anyValidUser = parent->anyValidUser;
@@ -40,10 +44,29 @@ HttpAuth *httpCreateAuth(MprCtx ctx, HttpAuth *parent)
 }
 
 
+static void manageAuth(HttpAuth *auth, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(auth->allow);
+        mprMark(auth->deny);
+        mprMark(auth->requiredRealm);
+        mprMark(auth->requiredGroups);
+        mprMark(auth->requiredUsers);
+        mprMark(auth->qop);
+        mprMark(auth->userFile);
+        mprMark(auth->groupFile);
+        mprMarkHash(auth->users);
+        mprMarkHash(auth->groups);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
+}
+
+
 void httpSetAuthAllow(HttpAuth *auth, cchar *allow)
 {
     mprFree(auth->allow);
-    auth->allow = sclone(auth, allow);
+    auth->allow = sclone(allow);
 }
 
 
@@ -57,14 +80,14 @@ void httpSetAuthAnyValidUser(HttpAuth *auth)
 void httpSetAuthDeny(HttpAuth *auth, cchar *deny)
 {
     mprFree(auth->deny);
-    auth->deny = sclone(auth, deny);
+    auth->deny = sclone(deny);
 }
 
 
 void httpSetAuthGroup(HttpConn *conn, cchar *group)
 {
     mprFree(conn->authGroup);
-    conn->authGroup = sclone(conn, group);
+    conn->authGroup = sclone(group);
 }
 
 
@@ -78,9 +101,9 @@ void httpSetAuthQop(HttpAuth *auth, cchar *qop)
 {
     mprFree(auth->qop);
     if (strcmp(qop, "auth") == 0 || strcmp(qop, "auth-int") == 0) {
-        auth->qop = sclone(auth, qop);
+        auth->qop = sclone(qop);
     } else {
-        auth->qop = sclone(auth, "");
+        auth->qop = sclone("");
     }
 }
 
@@ -88,14 +111,14 @@ void httpSetAuthQop(HttpAuth *auth, cchar *qop)
 void httpSetAuthRealm(HttpAuth *auth, cchar *realm)
 {
     mprFree(auth->requiredRealm);
-    auth->requiredRealm = sclone(auth, realm);
+    auth->requiredRealm = sclone(realm);
 }
 
 
 void httpSetAuthRequiredGroups(HttpAuth *auth, cchar *groups)
 {
     mprFree(auth->requiredGroups);
-    auth->requiredGroups = sclone(auth, groups);
+    auth->requiredGroups = sclone(groups);
     auth->flags |= HTTP_AUTH_REQUIRED;
 }
 
@@ -103,7 +126,7 @@ void httpSetAuthRequiredGroups(HttpAuth *auth, cchar *groups)
 void httpSetAuthRequiredUsers(HttpAuth *auth, cchar *users)
 {
     mprFree(auth->requiredUsers);
-    auth->requiredUsers = sclone(auth, users);
+    auth->requiredUsers = sclone(users);
     auth->flags |= HTTP_AUTH_REQUIRED;
 }
 
@@ -111,7 +134,7 @@ void httpSetAuthRequiredUsers(HttpAuth *auth, cchar *users)
 void httpSetAuthUser(HttpConn *conn, cchar *user)
 {
     mprFree(conn->authUser);
-    conn->authUser = sclone(conn, user);
+    conn->authUser = sclone(user);
 }
 
 

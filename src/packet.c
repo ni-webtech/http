@@ -8,27 +8,44 @@
 
 #include    "http.h"
 
+/********************************** Forwards **********************************/
+
+static void managePacket(HttpPacket *packet, int flags);
+
 /************************************ Code ************************************/
 /*  
     Create a new packet. If size is -1, then also create a default growable buffer -- 
     used for incoming body content. If size > 0, then create a non-growable buffer 
     of the requested size.
  */
-HttpPacket *httpCreatePacket(MprCtx ctx, int size)
+HttpPacket *httpCreatePacket(int size)
 {
     HttpPacket  *packet;
 
-    if ((packet = mprAllocObj(ctx, HttpPacket, NULL)) == 0) {
+    if ((packet = mprAllocObj(HttpPacket, managePacket)) == 0) {
         return 0;
     }
     if (size != 0) {
-        packet->content = mprCreateBuf(packet, size < 0 ? HTTP_BUFSIZE: size, -1);
+        packet->content = mprCreateBuf(size < 0 ? HTTP_BUFSIZE: size, -1);
         if (packet->content == 0) {
             mprFree(packet);
             return 0;
         }
     }
     return packet;
+}
+
+
+static void managePacket(HttpPacket *packet, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(packet->prefix);
+        mprMark(packet->content);
+        mprMark(packet->suffix);
+        mprMark(packet->next);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
 }
 
 
@@ -41,20 +58,17 @@ HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
     HttpRx      *rx;
 
     if (conn->state >= HTTP_STATE_COMPLETE) {
-        return httpCreatePacket((MprCtx) conn, size);
+        return httpCreatePacket(size);
     }
     rx = conn->rx;
     if (rx) {
         if ((packet = rx->freePackets) != NULL && size <= packet->content->buflen) {
             rx->freePackets = packet->next; 
             packet->next = 0;
-#if UNUSED
-            mprStealBlock(conn, packet);
-#endif
             return packet;
         }
     }
-    return httpCreatePacket(conn->rx ? (MprCtx) conn->rx: (MprCtx) conn, size);
+    return httpCreatePacket(size);
 }
 
 
@@ -95,11 +109,11 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
 } 
 
 
-HttpPacket *httpCreateDataPacket(MprCtx ctx, int size)
+HttpPacket *httpCreateDataPacket(int size)
 {
     HttpPacket    *packet;
 
-    packet = httpCreatePacket(ctx, size);
+    packet = httpCreatePacket(size);
     if (packet == 0) {
         return 0;
     }
@@ -108,11 +122,11 @@ HttpPacket *httpCreateDataPacket(MprCtx ctx, int size)
 }
 
 
-HttpPacket *httpCreateEndPacket(MprCtx ctx)
+HttpPacket *httpCreateEndPacket()
 {
     HttpPacket    *packet;
 
-    packet = httpCreatePacket(ctx, 0);
+    packet = httpCreatePacket(0);
     if (packet == 0) {
         return 0;
     }
@@ -121,11 +135,11 @@ HttpPacket *httpCreateEndPacket(MprCtx ctx)
 }
 
 
-HttpPacket *httpCreateHeaderPacket(MprCtx ctx)
+HttpPacket *httpCreateHeaderPacket()
 {
     HttpPacket    *packet;
 
-    packet = httpCreatePacket(ctx, HTTP_BUFSIZE);
+    packet = httpCreatePacket(HTTP_BUFSIZE);
     if (packet == 0) {
         return 0;
     }
@@ -323,7 +337,7 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, int size)
     if (size == len) {
         return 0;
     }
-    tail = httpSplitPacket(q->conn, packet, size);
+    tail = httpSplitPacket(packet, size);
     if (tail == 0) {
         return MPR_ERR_MEMORY;
     }
@@ -332,7 +346,7 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, int size)
 }
 
 
-HttpPacket *httpClonePacket(MprCtx ctx, HttpPacket *orig)
+HttpPacket *httpClonePacket(HttpPacket *orig)
 {
     HttpPacket  *packet;
     int         count, size;
@@ -341,17 +355,17 @@ HttpPacket *httpClonePacket(MprCtx ctx, HttpPacket *orig)
     size = max(count, HTTP_BUFSIZE);
     size = HTTP_PACKET_ALIGN(size);
 
-    if ((packet = httpCreatePacket(ctx, 0)) == 0) {
+    if ((packet = httpCreatePacket(0)) == 0) {
         return 0;
     }
     if (orig->content) {
-        packet->content = mprCloneBuf(packet, orig->content);
+        packet->content = mprCloneBuf(orig->content);
     }
     if (orig->prefix) {
-        packet->prefix = mprCloneBuf(packet, orig->prefix);
+        packet->prefix = mprCloneBuf(orig->prefix);
     }
     if (orig->suffix) {
-        packet->suffix = mprCloneBuf(packet, orig->suffix);
+        packet->suffix = mprCloneBuf(orig->suffix);
     }
     packet->flags = orig->flags;
     packet->entityLength = orig->entityLength;
@@ -397,7 +411,7 @@ void httpSendPackets(HttpQueue *q)
     Split a packet at a given offset and return a new packet containing the data after the offset.
     The suffix data migrates to the new packet. 
  */
-HttpPacket *httpSplitPacket(MprCtx ctx, HttpPacket *orig, int offset)
+HttpPacket *httpSplitPacket(HttpPacket *orig, int offset)
 {
     HttpPacket  *packet;
     int         count, size;
@@ -410,7 +424,7 @@ HttpPacket *httpSplitPacket(MprCtx ctx, HttpPacket *orig, int offset)
     size = max(count, HTTP_BUFSIZE);
     size = HTTP_PACKET_ALIGN(size);
 
-    if ((packet = httpCreatePacket(ctx, orig->entityLength ? 0 : size)) == 0) {
+    if ((packet = httpCreatePacket(orig->entityLength ? 0 : size)) == 0) {
         return 0;
     }
     packet->flags = orig->flags;

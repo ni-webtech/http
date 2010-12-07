@@ -9,7 +9,7 @@
 
 /********************************** Forwards **********************************/
 
-static int destroyServer(HttpServer *server);
+static int manageServer(HttpServer *server, int flags);
 static int destroyServerConnections(HttpServer *server);
 
 /************************************ Code ************************************/
@@ -23,34 +23,52 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     mprAssert(ip);
     mprAssert(port > 0);
 
-    if ((server = mprAllocObj(http, HttpServer, destroyServer)) == 0) {
+    if ((server = mprAllocObj(HttpServer, manageServer)) == 0) {
         return 0;
     }
-    server->clients = mprCreateHash(server, HTTP_CLIENTS_HASH, 0);
+    server->clients = mprCreateHash(HTTP_CLIENTS_HASH, 0);
     server->async = 1;
     server->http = http;
     server->port = port;
-    server->ip = sclone(server, ip);
+    server->ip = sclone(ip);
     server->waitHandler.fd = -1;
     server->dispatcher = (dispatcher) ? dispatcher : mprGetDispatcher(http);
     if (server->ip && server->ip) {
         server->name = server->ip;
     }
     server->software = HTTP_NAME;
-    server->limits = httpCreateLimits(server, 1);
+    server->limits = httpCreateLimits(1);
     server->loc = httpInitLocation(http, 1);
     return server;
 }
 
 
-static int destroyServer(HttpServer *server)
+static int manageServer(HttpServer *server, int flags)
 {
-    mprLog(server, 4, "Destroy server %s", server->name);
-    if (server->waitHandler.fd >= 0) {
-        mprRemoveWaitHandler(&server->waitHandler);
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(server->http);
+        mprMark(server->loc);
+        mprMark(server->limits);
+        mprMark(server->clients);
+        mprMark(server->serverRoot);
+        mprMark(server->documentRoot);
+        mprMark(server->name);
+        mprMark(server->ip);
+        mprMark(server->context);
+        mprMark(server->meta);
+        mprMark(server->software);
+        mprMark(server->sock);
+        mprMark(server->dispatcher);
+        mprMark(server->ssl);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        mprLog(4, "Destroy server %s", server->name);
+        if (server->waitHandler.fd >= 0) {
+            mprRemoveWaitHandler(&server->waitHandler);
+        }
+        destroyServerConnections(server);
+        mprFree(server->sock);
     }
-    destroyServerConnections(server);
-    mprFree(server->sock);
     return 0;
 }
 
@@ -82,15 +100,15 @@ int httpStartServer(HttpServer *server)
     cchar       *proto;
     char        *ip;
 
-    if ((server->sock = mprCreateSocket(server, server->ssl)) == 0) {
+    if ((server->sock = mprCreateSocket(server->ssl)) == 0) {
         return MPR_ERR_MEMORY;
     }
     if (mprOpenServerSocket(server->sock, server->ip, server->port, MPR_SOCKET_NODELAY | MPR_SOCKET_THREAD) < 0) {
-        mprError(server, "Can't open a socket on %s, port %d", server->ip, server->port);
+        mprError("Can't open a socket on %s, port %d", server->ip, server->port);
         return MPR_ERR_CANT_OPEN;
     }
     if (mprListenOnSocket(server->sock) < 0) {
-        mprError(server, "Can't listen on %s, port %d", server->ip, server->port);
+        mprError("Can't listen on %s, port %d", server->ip, server->port);
         return MPR_ERR_CANT_OPEN;
     }
     proto = mprIsSocketSecure(server->sock) ? "HTTPS" : "HTTP";
@@ -104,12 +122,12 @@ int httpStartServer(HttpServer *server)
         }
     }
     if (server->async) {
-        mprInitWaitHandler(server, &server->waitHandler, server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
+        mprInitWaitHandler(&server->waitHandler, server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
             (MprEventProc) httpAcceptConn, server);
     } else {
         mprSetSocketBlockingMode(server->sock, 1);
     }
-    mprLog(server, MPR_CONFIG, "Started %s server on %s:%d", proto, ip, server->port);
+    mprLog(MPR_CONFIG, "Started %s server on %s:%d", proto, ip, server->port);
     return 0;
 }
 
@@ -149,7 +167,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
             mprRemoveHash(server->clients, conn->ip);
         }
         server->clientCount = mprGetHashCount(server->clients);
-        mprLog(server, 4, "Close connection %d. Active requests %d, active clients %d", 
+        mprLog(4, "Close connection %d. Active requests %d, active clients %d", 
             conn->seqno, server->requestCount, server->clientCount);
         break;
     
@@ -165,10 +183,10 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     case HTTP_VALIDATE_CLOSE_REQUEST:
         server->requestCount--;
         mprAssert(server->requestCount >= 0);
-        mprLog(server, 4, "Close request. Active requests %d, active clients %d", server->requestCount, server->clientCount);
+        mprLog(4, "Close request. Active requests %d, active clients %d", server->requestCount, server->clientCount);
         break;
     }
-    mprLog(server, 6, "Validate request. Counts: requests: %d/%d, clients %d/%d", 
+    mprLog(6, "Validate request. Counts: requests: %d/%d, clients %d/%d", 
         server->requestCount, limits->requestCount, server->clientCount, limits->clientCount);
     return 1;
 }
@@ -197,11 +215,11 @@ HttpConn *httpAcceptConn(HttpServer *server)
     if (sock == 0) {
         return 0;
     }
-    mprLog(server, 4, "New connection from %s:%d to %s:%d %s",
+    mprLog(4, "New connection from %s:%d to %s:%d %s",
         sock->ip, sock->port, sock->acceptIp, sock->acceptPort, server->sock->sslSocket ? "(secure)" : "");
 
     if ((conn = httpCreateConn(server->http, server)) == 0) {
-        mprError(server, "Can't create connect object. Insufficient memory.");
+        mprError("Can't create connect object. Insufficient memory.");
         mprFree(sock);
         return 0;
     }
@@ -212,7 +230,7 @@ HttpConn *httpAcceptConn(HttpServer *server)
     conn->server = server;
     conn->sock = sock;
     conn->port = sock->port;
-    conn->ip = sclone(conn, sock->ip);
+    conn->ip = sclone(sock->ip);
     conn->secure = mprIsSocketSecure(sock);
 
     if (!httpValidateLimits(server, HTTP_VALIDATE_OPEN_CONN, conn)) {
@@ -223,7 +241,7 @@ HttpConn *httpAcceptConn(HttpServer *server)
     httpSetState(conn, HTTP_STATE_CONNECTED);
 
     if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_CONN, NULL)) >= 0) {
-        mprLog(conn, level, "### Incoming connection from %s:%d to %s:%d", 
+        mprLog(level, "### Incoming connection from %s:%d to %s:%d", 
             conn->ip, conn->port, conn->sock->ip, conn->sock->port);
     }
     e.mask = MPR_READABLE;
@@ -254,7 +272,7 @@ int httpGetServerAsync(HttpServer *server)
 void httpSetDocumentRoot(HttpServer *server, cchar *documentRoot)
 {
     mprFree(server->documentRoot);
-    server->documentRoot = sclone(server, documentRoot);
+    server->documentRoot = sclone(documentRoot);
 }
 
 
@@ -262,7 +280,7 @@ void httpSetIpAddr(HttpServer *server, cchar *ip, int port)
 {
     if (ip) {
         mprFree(server->ip);
-        server->ip = sclone(server, ip);
+        server->ip = sclone(ip);
     }
     if (port >= 0) {
         server->port = port;
@@ -308,7 +326,7 @@ void httpSetServerLocation(HttpServer *server, HttpLoc *loc)
 
 void httpSetServerName(HttpServer *server, cchar *name)
 {
-    server->name = sclone(server, name);
+    server->name = sclone(name);
 }
 
 
@@ -321,13 +339,13 @@ void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)
 void httpSetServerRoot(HttpServer *server, cchar *serverRoot)
 {
     mprFree(server->serverRoot);
-    server->serverRoot = sclone(server, serverRoot);
+    server->serverRoot = sclone(serverRoot);
 }
 
 
 void httpSetServerSoftware(HttpServer *server, cchar *software)
 {
-    server->software = sclone(server, software);
+    server->software = sclone(software);
 }
 
 

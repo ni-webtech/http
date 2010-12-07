@@ -15,7 +15,7 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, Http
 {
     HttpQueue   *q;
 
-    if ((q = mprAllocObj(conn->tx, HttpQueue, NULL)) == 0) {
+    if ((q = mprAllocObj(HttpQueue, httpManageQueue)) == 0) {
         return 0;
     }
     httpInitQueue(conn, q, stage->name);
@@ -40,6 +40,17 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, Http
         httpInsertQueue(prev, q);
     }
     return q;
+}
+
+
+void httpManageQueue(HttpQueue *q, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(q->first);
+        mprMark(q->queueData);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
 }
 
 
@@ -72,7 +83,7 @@ void httpAppendQueue(HttpQueue *head, HttpQueue *q)
 
 void httpDisableQueue(HttpQueue *q)
 {
-    mprLog(q, 7, "Disable q %s", q->owner);
+    mprLog(7, "Disable q %s", q->owner);
     q->flags |= HTTP_QUEUE_DISABLED;
 }
 
@@ -127,7 +138,7 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
     HttpQueue   *next;
     int         oldMode;
 
-    LOG(q, 6, "httpFlushQueue blocking %d", blocking);
+    LOG(6, "httpFlushQueue blocking %d", blocking);
 
     if (q->flags & HTTP_QUEUE_DISABLED) {
         return 0;
@@ -149,7 +160,7 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
 
 void httpEnableQueue(HttpQueue *q)
 {
-    mprLog(q, 7, "Enable q %s", q->owner);
+    mprLog(7, "Enable q %s", q->owner);
     q->flags &= ~HTTP_QUEUE_DISABLED;
     httpScheduleQueue(q);
 }
@@ -257,7 +268,7 @@ int httpRead(HttpConn *conn, char *buf, int size)
                 break;
             }
             inactivityTimeout = conn->limits->inactivityTimeout ? conn->limits->inactivityTimeout : INT_MAX;
-            events = mprWaitForSingleIO(conn, conn->sock->fd, MPR_READABLE, inactivityTimeout);
+            events = mprWaitForSingleIO(conn->sock->fd, MPR_READABLE, inactivityTimeout);
         }
         if (events) {
             httpCallEvent(conn, MPR_READABLE);
@@ -301,7 +312,7 @@ char *httpReadString(HttpConn *conn)
     rx = conn->rx;
 
     if (rx->length > 0) {
-        content = mprAlloc(rx, rx->length + 1);
+        content = mprAlloc(rx->length + 1);
         remaining = rx->length;
         sofar = 0;
         while (remaining > 0) {
@@ -313,7 +324,7 @@ char *httpReadString(HttpConn *conn)
             remaining -= nbytes;
         }
     } else {
-        content = mprAlloc(rx, HTTP_BUFSIZE);
+        content = mprAlloc(HTTP_BUFSIZE);
         sofar = 0;
         while (1) {
             nbytes = httpRead(conn, &content[sofar], HTTP_BUFSIZE);
@@ -323,7 +334,7 @@ char *httpReadString(HttpConn *conn)
                 break;
             }
             sofar += nbytes;
-            content = mprRealloc(conn, content, sofar + HTTP_BUFSIZE);
+            content = mprRealloc(content, sofar + HTTP_BUFSIZE);
         }
     }
     content[sofar] = '\0';
@@ -435,7 +446,7 @@ size_t httpWriteBlock(HttpQueue *q, cchar *buf, size_t size)
         return MPR_ERR_CANT_WRITE;
     }
     for (written = 0; size > 0; ) {
-        LOG(q, 6, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);
+        LOG(6, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);
         if (conn->state >= HTTP_STATE_COMPLETE) {
             return MPR_ERR_CANT_WRITE;
         }
@@ -447,7 +458,7 @@ size_t httpWriteBlock(HttpQueue *q, cchar *buf, size_t size)
         }
         if (packet == 0 || mprGetBufSpace(packet->content) == 0) {
             packetSize = (tx->chunkSize > 0) ? tx->chunkSize : q->packetSize;
-            if ((packet = httpCreateDataPacket(q, packetSize)) != 0) {
+            if ((packet = httpCreateDataPacket(packetSize)) != 0) {
                 httpPutForService(q, packet, 0);
             }
         }
@@ -480,7 +491,7 @@ size_t httpWrite(HttpQueue *q, cchar *fmt, ...)
     size_t      rc;
     
     va_start(vargs, fmt);
-    buf = mprAsprintfv(q, fmt, vargs);
+    buf = mprAsprintfv(fmt, vargs);
     va_end(vargs);
     rc = httpWriteString(q, buf);
     mprFree(buf);

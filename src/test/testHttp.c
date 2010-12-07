@@ -45,7 +45,7 @@ MAIN(testMain, int argc, char *argv[])
 
     ts = mprCreateTestService(mpr);
     if (ts == 0) {
-        mprError(mpr, "Can't create test service");
+        mprError("Can't create test service");
         exit(2);
     }
     
@@ -60,7 +60,7 @@ MAIN(testMain, int argc, char *argv[])
     }
 
 #if BLD_FEATURE_SSL && (BLD_FEATURE_MATRIXSSL || BLD_FEATURE_OPENSSL)
-    if (!mprLoadSsl(mpr, 0)) {
+    if (!mprLoadSsl(0)) {
         exit(5);
     }
 #endif
@@ -69,7 +69,7 @@ MAIN(testMain, int argc, char *argv[])
         Need a background event thread as we use the main thread to run the tests.
      */
     if (mprStart(mpr)) {
-        mprError(mpr, "Can't start mpr services");
+        mprError("Can't start mpr services");
         exit(4);
     }
 

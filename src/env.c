@@ -44,7 +44,7 @@ void httpCreateEnvVars(HttpConn *conn)
         mprAddHash(vars, "REMOTE_ADDR", conn->ip);
     }
     itos(port, sizeof(port) - 1, conn->port, 10);
-    mprAddHash(vars, "REMOTE_PORT", sclone(vars, port));
+    mprAddHash(vars, "REMOTE_PORT", sclone(port));
 
     /*  Same as AUTH_USER (yes this is right) */
     mprAddHash(vars, "REMOTE_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
@@ -55,7 +55,7 @@ void httpCreateEnvVars(HttpConn *conn)
     mprAddHash(vars, "SERVER_ADDR", sock->acceptIp);
     mprAddHash(vars, "SERVER_NAME", server->name);
     itos(port, sizeof(port) - 1, sock->acceptPort, 10);
-    mprAddHash(vars, "SERVER_PORT", sclone(rx, port));
+    mprAddHash(vars, "SERVER_PORT", sclone(port));
 
     /*  HTTP/1.0 or HTTP/1.1 */
     mprAddHash(vars, "SERVER_PROTOCOL", conn->protocol);
@@ -80,12 +80,12 @@ void httpCreateEnvVars(HttpConn *conn)
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextHash(conn->rx->files, hp)) != 0; index++) {
             up = (HttpUploadFile*) hp->data;
-            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_FILENAME", index), up->filename);
-            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
-            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_CONTENT_TYPE", index), up->contentType);
-            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_NAME", index), hp->key);
+            mprAddHash(vars, mprAsprintf("FILE_%d_FILENAME", index), up->filename);
+            mprAddHash(vars, mprAsprintf("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
+            mprAddHash(vars, mprAsprintf("FILE_%d_CONTENT_TYPE", index), up->contentType);
+            mprAddHash(vars, mprAsprintf("FILE_%d_NAME", index), hp->key);
             itos(size, sizeof(size) - 1, up->size, 10);
-            mprAddHash(vars, mprAsprintf(vars, "FILE_%d_SIZE", index), size);
+            mprAddHash(vars, mprAsprintf("FILE_%d_SIZE", index), size);
         }
     }
 }
@@ -110,7 +110,7 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
     if (vars == 0) {
         return;
     }
-    decoded = (char*) mprAlloc(tx, len + 1);
+    decoded = mprAlloc(len + 1);
     decoded[len] = '\0';
     memcpy(decoded, buf, len);
 
@@ -118,11 +118,11 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
     while (keyword != 0) {
         if ((value = strchr(keyword, '=')) != 0) {
             *value++ = '\0';
-            value = mprUriDecode(rx, value);
+            value = mprUriDecode(value);
         } else {
             value = "";
         }
-        keyword = mprUriDecode(rx, keyword);
+        keyword = mprUriDecode(keyword);
 
         if (*keyword) {
             /*  
@@ -131,7 +131,7 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
             oldValue = mprLookupHash(vars, keyword);
             if (oldValue != 0 && *oldValue) {
                 if (*value) {
-                    newValue = sjoin(vars, NULL, oldValue, " ", value, NULL);
+                    newValue = sjoin(oldValue, " ", value, NULL);
                     mprAddHash(vars, keyword, newValue);
                     mprFree(newValue);
                 }
@@ -156,7 +156,7 @@ void httpAddVarsFromQueue(HttpQueue *q)
     if (conn->rx->form && q->first && q->first->content) {
         content = q->first->content;
         mprAddNullToBuf(content);
-        mprLog(q, 3, "Form body data: length %d, \"%s\"", mprGetBufLength(content), mprGetBufStart(content));
+        mprLog(3, "Form body data: length %d, \"%s\"", mprGetBufLength(content), mprGetBufStart(content));
         httpAddVars(conn, mprGetBufStart(content), mprGetBufLength(content));
     }
 }
@@ -226,7 +226,7 @@ void httpSetIntFormVar(HttpConn *conn, cchar *var, int value)
         /* This is allowed. Upload filter uses this when uploading to the file handler */
         return;
     }
-    mprAddHash(vars, var, mprAsprintf(vars, "%d", value));
+    mprAddHash(vars, var, mprAsprintf("%d", value));
 }
 
 
@@ -252,7 +252,7 @@ void httpAddUploadFile(HttpConn *conn, cchar *id, HttpUploadFile *upfile)
 
     rx = conn->rx;
     if (rx->files == 0) {
-        rx->files = mprCreateHash(rx, -1, 0);
+        rx->files = mprCreateHash(-1, 0);
     }
     mprAddHash(rx->files, id, upfile);
 }
@@ -267,7 +267,7 @@ void httpRemoveUploadFile(HttpConn *conn, cchar *id)
 
     upfile = (HttpUploadFile*) mprLookupHash(rx->files, id);
     if (upfile) {
-        mprDeletePath(conn, upfile->filename);
+        mprDeletePath(upfile->filename);
         upfile->filename = 0;
     }
 }
@@ -284,7 +284,7 @@ void httpRemoveAllUploadedFiles(HttpConn *conn)
     for (hp = 0; rx->files && (hp = mprGetNextHash(rx->files, hp)) != 0; ) {
         upfile = (HttpUploadFile*) hp->data;
         if (upfile->filename) {
-            mprDeletePath(conn, upfile->filename);
+            mprDeletePath(upfile->filename);
             upfile->filename = 0;
         }
     }

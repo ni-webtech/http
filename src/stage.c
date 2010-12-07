@@ -11,6 +11,10 @@
 
 #include    "http.h"
 
+/********************************* Forwards ***********************************/
+
+static void manageStage(HttpStage *stage, int flags);
+
 /*********************************** Code *************************************/
 
 static void defaultOpen(HttpQueue *q)
@@ -92,12 +96,11 @@ HttpStage *httpCreateStage(Http *http, cchar *name, int flags)
     mprAssert(http);
     mprAssert(name && *name);
 
-    if ((stage = mprAllocObj(http, HttpStage, NULL)) == 0) {
+    if ((stage = mprAllocObj(HttpStage, manageStage)) == 0) {
         return 0;
     }
     stage->flags = flags;
-    stage->name = sclone(stage, name);
-
+    stage->name = sclone(name);
     stage->open = defaultOpen;
     stage->close = defaultClose;
     stage->incomingData = incomingData;
@@ -109,11 +112,23 @@ HttpStage *httpCreateStage(Http *http, cchar *name, int flags)
 }
 
 
+static void manageStage(HttpStage *stage, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(stage->name);
+        mprMark(stage->stageData);
+        mprMarkHash(stage->extensions);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
+}
+
+
 HttpStage *httpCloneStage(Http *http, HttpStage *stage)
 {
     HttpStage   *clone;
 
-    if ((clone = mprAllocObj(http, HttpStage, NULL)) == 0) {
+    if ((clone = mprAllocObj(HttpStage, manageStage)) == 0) {
         return 0;
     }
     *clone = *stage;

@@ -58,7 +58,7 @@ void httpSendOpen(HttpQueue *q)
     q->packetSize = conn->limits->transmissionBodySize;
 
     if (!(tx->flags & HTTP_TX_NO_BODY)) {
-        tx->file = mprOpen(q, tx->filename, O_RDONLY | O_BINARY, 0);
+        tx->file = mprOpen(tx->filename, O_RDONLY | O_BINARY, 0);
         if (tx->file == 0) {
             httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
         }
@@ -115,14 +115,14 @@ void httpSendOutgoingService(HttpQueue *q)
         ioCount = q->ioIndex - q->ioFileEntry;
         mprAssert(ioCount >= 0);
         written = (int) mprSendFileToSocket(conn->sock, tx->file, tx->pos, q->ioCount, q->iovec, ioCount, NULL, 0);
-        mprLog(q, 5, "Send connector written %d", written);
+        mprLog(5, "Send connector written %d", written);
         if (written < 0) {
             errCode = mprGetError(q);
             if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
                 break;
             }
             if (errCode != EPIPE && errCode != ECONNRESET) {
-                mprLog(conn, 7, "SendFileToSocket failed, errCode %d", errCode);
+                mprLog(7, "SendFileToSocket failed, errCode %d", errCode);
             }
             httpConnError(conn, HTTP_CODE_COMMS_ERROR, "SendFileToSocket failed, errCode %d", errCode);
             httpCompleteWriting(conn);

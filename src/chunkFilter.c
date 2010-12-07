@@ -135,12 +135,12 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
         }
         mprAssert(mprGetBufLength(buf) == 0);
         httpFreePacket(q, packet);
-        mprLog(q, 5, "chunkFilter: start incoming chunk of %d bytes", rx->chunkSize);
+        mprLog(5, "chunkFilter: start incoming chunk of %d bytes", rx->chunkSize);
         break;
 
     case HTTP_CHUNK_DATA:
         mprAssert(httpGetPacketLength(packet) <= rx->chunkSize);
-        mprLog(q, 5, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), 
+        mprLog(5, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), 
             rx->remainingContent);
         httpSendPacketToNext(q, packet);
         if (rx->remainingContent == 0) {
@@ -152,7 +152,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
     case HTTP_CHUNK_EOF:
         mprAssert(httpGetPacketLength(packet) == 0);
         httpSendPacketToNext(q, packet);
-        mprLog(q, 5, "chunkFilter: last chunk");
+        mprLog(5, "chunkFilter: last chunk");
         break;    
 
     default:
@@ -224,7 +224,7 @@ static void setChunkPrefix(HttpQueue *q, HttpPacket *packet)
     if (packet->prefix) {
         return;
     }
-    packet->prefix = mprCreateBuf(packet, 32, 32);
+    packet->prefix = mprCreateBuf(32, 32);
     /*  
         NOTE: prefixes don't count in the queue length. No need to adjust q->count
      */

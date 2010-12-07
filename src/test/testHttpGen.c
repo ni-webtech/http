@@ -17,7 +17,7 @@ static int initHttp(MprTestGroup *gp)
         gp->skip = 1;
         return 0;
     }
-    sp = mprCreateSocket(gp, NULL);
+    sp = mprCreateSocket(NULL);
     
     /*
         Test if we have network connectivity. If not, then skip these tests.
@@ -25,7 +25,7 @@ static int initHttp(MprTestGroup *gp)
     if (mprOpenClientSocket(sp, "www.google.com", 80, 0) < 0) {
         static int once = 0;
         if (once++ == 0) {
-            mprPrintf(gp, "%12s Disabling tests %s.*: no internet connection. %d\n", "[Notice]", gp->fullName, once);
+            mprPrintf("%12s Disabling tests %s.*: no internet connection. %d\n", "[Notice]", gp->fullName, once);
         }
         gp->skip = 1;
     }
@@ -62,7 +62,7 @@ static void testBasicHttpGet(MprTestGroup *gp)
         assert(rc == status);
         assert(status == 200 || status == 302);
         if (status != 200 && status != 302) {
-            mprLog(gp, 0, "HTTP response status %d", status);
+            mprLog(0, "HTTP response status %d", status);
         }
         assert(httpGetError(conn) != 0);
         length = httpGetContentLength(conn);
@@ -90,7 +90,7 @@ static void testSecureHttpGet(MprTestGroup *gp)
         assert(rc == status);
         assert(status == 200 || status == 302);
         if (status != 200 && status != 302) {
-            mprLog(gp, 0, "HTTP response status %d", status);
+            mprLog(0, "HTTP response status %d", status);
         }
     }
     mprFree(http);

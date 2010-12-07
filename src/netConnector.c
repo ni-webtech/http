@@ -88,14 +88,14 @@ static void netOutgoingService(HttpQueue *q)
          */
         mprAssert(q->ioIndex > 0);
         written = mprWriteSocketVector(conn->sock, q->iovec, q->ioIndex);
-        LOG(q, 5, "Net connector written %d", written);
+        LOG(5, "Net connector written %d", written);
         if (written < 0) {
             errCode = mprGetError(q);
             if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
                 break;
             }
             if (errCode != EPIPE && errCode != ECONNRESET) {
-                LOG(conn, 5, "netOutgoingService write failed, error %d", errCode);
+                LOG(5, "netOutgoingService write failed, error %d", errCode);
             }
             httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
             httpCompleteWriting(conn);

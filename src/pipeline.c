@@ -81,7 +81,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     mprSetItem(tx->outputPipeline, 0, tx->handler);
     if (tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
         /* Start with dispatcher disabled. Conn.c will enable */
-        conn->dispatcher = mprCreateDispatcher(conn, tx->handler->name, 0);
+        conn->dispatcher = mprCreateDispatcher(tx->handler->name, 0);
     }
 
     /*  Create the outgoing queue heads and open the queues */
@@ -101,7 +101,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     conn->writeq = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
     conn->readq = conn->tx->queue[HTTP_QUEUE_RECEIVE].prevQ;
 
-    httpPutForService(conn->writeq, httpCreateHeaderPacket(conn->writeq), 0);
+    httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
 
     /*  
         Pair up the send and receive queues
@@ -157,7 +157,7 @@ void httpSetSendConnector(HttpConn *conn, cchar *path)
 
     tx = conn->tx;
     tx->flags |= HTTP_TX_SENDFILE;
-    tx->filename = sclone(tx, path);
+    tx->filename = sclone(path);
     max = conn->limits->transmissionBodySize;
 
     qhead = &tx->queue[HTTP_QUEUE_TRANS];
@@ -285,7 +285,7 @@ static void setEnvironment(HttpConn *conn)
     tx = conn->tx;
 
     if (tx->handler->flags & (HTTP_STAGE_VARS | HTTP_STAGE_ENV_VARS)) {
-        rx->formVars = mprCreateHash(rx, HTTP_MED_HASH_SIZE, 0);
+        rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
         if (rx->parsedUri->query) {
             httpAddVars(conn, rx->parsedUri->query, strlen(rx->parsedUri->query));
         }

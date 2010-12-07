@@ -11,13 +11,14 @@
 
 static int getPort(HttpUri *uri);
 static int getDefaultPort(cchar *scheme);
+static void manageUri(HttpUri *uri, int flags);
 static void trimPathToDirname(HttpUri *uri);
 
 /************************************ Code ************************************/
 
 /*  Create and initialize a URI. This accepts full URIs with schemes (http:) and partial URLs
  */
-HttpUri *httpCreateUri(MprCtx ctx, cchar *uri, int complete)
+HttpUri *httpCreateUri(cchar *uri, int complete)
 {
     HttpUri     *up;
     char        *tok, *cp, *last_delim, *hostbuf;
@@ -25,16 +26,15 @@ HttpUri *httpCreateUri(MprCtx ctx, cchar *uri, int complete)
 
     mprAssert(uri);
 
-    if ((up = mprAllocObj(ctx, HttpUri, NULL)) == 0) {
+    if ((up = mprAllocObj(HttpUri, manageUri)) == 0) {
         return 0;
     }
-    /*  
-        Allocate a single buffer to hold all the cracked fields.
-     */
+
+    /*  Allocate a single buffer to hold all the cracked fields.  */
     ulen = (int) strlen(uri);
     len = ulen *  2 + 3;
-    up->uri = sclone(up, uri);
-    up->parsedUriBuf = (char*) mprAlloc(up, len *  sizeof(char));
+    up->uri = sclone(uri);
+    up->parsedUriBuf = mprAlloc(len *  sizeof(char));
 
     hostbuf = &up->parsedUriBuf[ulen+1];
     strcpy(up->parsedUriBuf, uri);
@@ -129,25 +129,44 @@ HttpUri *httpCreateUri(MprCtx ctx, cchar *uri, int complete)
 }
 
 
+static void manageUri(HttpUri *uri, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+#if UNUSED
+        mprMark(uri->scheme);
+        mprMark(uri->host);
+        mprMark(uri->path);
+        mprMark(uri->ext);
+        mprMark(uri->reference);
+        mprMark(uri->query);
+#endif
+        mprMark(uri->uri);
+        mprMark(uri->parsedUriBuf);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
+}
+
+
 /*  
     Create and initialize a URI. This accepts full URIs with schemes (http:) and partial URLs
  */
-HttpUri *httpCreateUriFromParts(MprCtx ctx, cchar *scheme, cchar *host, int port, cchar *path, cchar *reference, 
-        cchar *query, int complete)
+HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *path, cchar *reference, cchar *query, 
+        int complete)
 {
     HttpUri     *up;
     char        *cp, *last_delim;
 
-    if ((up = mprAllocObj(ctx, HttpUri, NULL)) == 0) {
+    if ((up = mprAllocObj(HttpUri, NULL)) == 0) {
         return 0;
     }
     if (scheme) {
-        up->scheme = sclone(up, scheme);
+        up->scheme = sclone(scheme);
     } else if (complete) {
         up->scheme = "http";
     }
     if (host) {
-        up->host = sclone(up, host);
+        up->host = sclone(host);
         if ((cp = strchr(host, ':')) && port == 0) {
             port = stoi(++cp, 10, NULL);
         }
@@ -161,16 +180,16 @@ HttpUri *httpCreateUriFromParts(MprCtx ctx, cchar *scheme, cchar *host, int port
         while (path[0] == '/' && path[1] == '/') {
             path++;
         }
-        up->path = sclone(up, path);
+        up->path = sclone(path);
     }
     if (up->path == 0) {
         up->path = "/";
     }
     if (reference) {
-        up->reference = sclone(up, reference);
+        up->reference = sclone(reference);
     }
     if (query) {
-        up->query = sclone(up, query);
+        up->query = sclone(query);
     }
     if ((cp = strrchr(up->path, '.')) != NULL) {
         if ((last_delim = strrchr(up->path, '/')) != NULL) {
@@ -191,25 +210,25 @@ HttpUri *httpCreateUriFromParts(MprCtx ctx, cchar *scheme, cchar *host, int port
 }
 
 
-HttpUri *httpCloneUri(MprCtx ctx, HttpUri *base, int complete)
+HttpUri *httpCloneUri(HttpUri *base, int complete)
 {
     HttpUri     *up;
     char        *path, *cp, *last_delim;
     int         port;
 
-    if ((up = mprAllocObj(ctx, HttpUri, NULL)) == 0) {
+    if ((up = mprAllocObj(HttpUri, NULL)) == 0) {
         return 0;
     }
     port = base->port;
     path = base->path;
 
     if (base->scheme) {
-        up->scheme = sclone(up, base->scheme);
+        up->scheme = sclone(base->scheme);
     } else if (complete) {
         up->scheme = "http";
     }
     if (base->host) {
-        up->host = sclone(up, base->host);
+        up->host = sclone(base->host);
         if ((cp = strchr(base->host, ':')) && port == 0) {
             port = (int) stoi(++cp, 10, NULL);
         }
@@ -222,16 +241,16 @@ HttpUri *httpCloneUri(MprCtx ctx, HttpUri *base, int complete)
     if (path) {
         while (path[0] == '/' && path[1] == '/')
             path++;
-        up->path = sclone(up, path);
+        up->path = sclone(path);
     }
     if (up->path == 0) {
         up->path = "/";
     }
     if (base->reference) {
-        up->reference = sclone(up, base->reference);
+        up->reference = sclone(base->reference);
     }
     if (base->query) {
-        up->query = sclone(up, base->query);
+        up->query = sclone(base->query);
     }
     if ((cp = strrchr(up->path, '.')) != NULL) {
         if ((last_delim = strrchr(up->path, '/')) != NULL) {
@@ -257,8 +276,8 @@ HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing)
     char        *scheme, *host;
     int         port;
 
-    scheme = (missing) ? sclone(uri, missing->scheme) : "http";
-    host = (missing) ? sclone(uri, missing->host) : "localhost";
+    scheme = (missing) ? sclone(missing->scheme) : "http";
+    host = (missing) ? sclone(missing->host) : "localhost";
     port = (missing) ? missing->port : 0;
 
     if (uri->scheme == 0) {
@@ -281,8 +300,7 @@ HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing)
     Format a fully qualified URI
     If complete is true, missing elements are completed
  */
-char *httpFormatUri(MprCtx ctx, cchar *scheme, cchar *host, int port, cchar *path, cchar *reference, cchar *query, 
-        int complete)
+char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *reference, cchar *query, int complete)
 {
     char    portBuf[16], *uri;
     cchar   *hostDelim, *portDelim, *pathDelim, *queryDelim, *referenceDelim;
@@ -335,10 +353,10 @@ char *httpFormatUri(MprCtx ctx, cchar *scheme, cchar *host, int port, cchar *pat
         queryDelim = query = "";
     }
     if (portDelim) {
-        uri = sjoin(ctx, NULL, scheme, hostDelim, host, portDelim, portBuf, pathDelim, path, referenceDelim, 
-            reference, queryDelim, query, NULL);
+        uri = sjoin(scheme, hostDelim, host, portDelim, portBuf, pathDelim, path, referenceDelim, reference, 
+            queryDelim, query, NULL);
     } else {
-        uri = sjoin(ctx, NULL, scheme, hostDelim, host, pathDelim, path, referenceDelim, reference, queryDelim, query, NULL);
+        uri = sjoin(scheme, hostDelim, host, pathDelim, path, referenceDelim, reference, queryDelim, query, NULL);
     }
     return uri;
 }
@@ -349,32 +367,32 @@ char *httpFormatUri(MprCtx ctx, cchar *scheme, cchar *host, int port, cchar *pat
 
     uri = target.relative(base)
  */
-HttpUri *httpGetRelativeUri(MprCtx ctx, HttpUri *base, HttpUri *target, int dup)
+HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int dup)
 {
     HttpUri     *uri;
     char        *targetPath, *basePath, *bp, *cp, *tp, *startDiff;
     int         i, baseSegments, commonSegments;
 
     if (target == 0) {
-        return (dup) ? httpCloneUri(ctx, base, 0) : base;
+        return (dup) ? httpCloneUri(base, 0) : base;
     }
     if (!(target->path && target->path[0] == '/') || !((base->path && base->path[0] == '/'))) {
         /* If target is relative, just use it. If base is relative, can't use it because we don't know where it is */
-        return (dup) ? httpCloneUri(ctx, target, 0) : target;
+        return (dup) ? httpCloneUri(target, 0) : target;
     }
     if (base->scheme && target->scheme && strcmp(base->scheme, target->scheme) != 0) {
-        return (dup) ? httpCloneUri(ctx, target, 0) : target;
+        return (dup) ? httpCloneUri(target, 0) : target;
     }
     if (base->host && target->host && (base->host && strcmp(base->host, target->host) != 0)) {
-        return (dup) ? httpCloneUri(ctx, target, 0) : target;
+        return (dup) ? httpCloneUri(target, 0) : target;
     }
     if (getPort(base) != getPort(target)) {
-        return (dup) ? httpCloneUri(ctx, target, 0) : target;
+        return (dup) ? httpCloneUri(target, 0) : target;
     }
 
     //  OPT -- Could avoid free if already normalized
-    targetPath = httpNormalizeUriPath(ctx, target->path);
-    basePath = httpNormalizeUriPath(ctx, base->path);
+    targetPath = httpNormalizeUriPath(target->path);
+    basePath = httpNormalizeUriPath(base->path);
 
     /* Count trailing "/" */
     for (baseSegments = 0, bp = basePath; *bp; bp++) {
@@ -412,14 +430,14 @@ HttpUri *httpGetRelativeUri(MprCtx ctx, HttpUri *base, HttpUri *target, int dup)
         startDiff++;
     }
     
-    if ((uri = httpCloneUri(ctx, target, 0)) == 0) {
+    if ((uri = httpCloneUri(target, 0)) == 0) {
         return 0;
     }
     uri->host = 0;
     uri->scheme = 0;
     uri->port = 0;
 
-    uri->path = cp = mprAlloc(ctx, baseSegments * 3 + (int) strlen(target->path) + 2);
+    uri->path = cp = mprAlloc(baseSegments * 3 + (int) strlen(target->path) + 2);
     for (i = commonSegments; i < baseSegments; i++) {
         *cp++ = '.';
         *cp++ = '.';
@@ -450,30 +468,30 @@ HttpUri *httpJoinUriPath(HttpUri *result, HttpUri *base, HttpUri *other)
     char    *sep;
 
     if (other->path[0] == '/') {
-        result->path = sclone(result, other->path);
+        result->path = sclone(other->path);
     } else {
         sep = ((base->path[0] == '\0' || base->path[strlen(base->path) - 1] == '/') || 
                (other->path[0] == '\0' || other->path[0] == '/'))  ? "" : "/";
-        result->path = sjoin(result, NULL, base->path, sep, other->path, NULL);
+        result->path = sjoin(base->path, sep, other->path, NULL);
     }
     return result;
 }
 
 
-HttpUri *httpJoinUri(MprCtx ctx, HttpUri *uri, int argc, HttpUri **others)
+HttpUri *httpJoinUri(HttpUri *uri, int argc, HttpUri **others)
 {
     HttpUri     *other;
     int         i;
 
-    uri = httpCloneUri(ctx, uri, 0);
+    uri = httpCloneUri(uri, 0);
 
     for (i = 0; i < argc; i++) {
         other = others[i];
         if (other->scheme) {
-            uri->scheme = sclone(uri, other->scheme);
+            uri->scheme = sclone(other->scheme);
         }
         if (other->host) {
-            uri->host = sclone(uri, other->host);
+            uri->host = sclone(other->host);
         }
         if (other->port) {
             uri->port = other->port;
@@ -482,13 +500,13 @@ HttpUri *httpJoinUri(MprCtx ctx, HttpUri *uri, int argc, HttpUri **others)
             httpJoinUriPath(uri, uri, other);
         }
         if (other->reference) {
-            uri->reference = sclone(uri, other->reference);
+            uri->reference = sclone(other->reference);
         }
         if (other->query) {
-            uri->query = sclone(uri, other->query);
+            uri->query = sclone(other->query);
         }
     }
-    uri->ext = (char*) mprGetPathExtension(uri, uri->path);
+    uri->ext = (char*) mprGetPathExtension(uri->path);
     return uri;
 }
 
@@ -509,7 +527,7 @@ void httpNormalizeUri(HttpUri *uri)
     char    *old;
 
     old = uri->path;
-    uri->path = httpNormalizeUriPath(uri, uri->path);
+    uri->path = httpNormalizeUriPath(uri->path);
     if (mprIsValid(old)) {
         mprFree(old);
     }
@@ -520,21 +538,21 @@ void httpNormalizeUri(HttpUri *uri)
     Normalize a URI path to remove redundant "./" and cleanup "../" and make separator uniform. Does not make an abs path.
     It does not map separators nor change case. 
  */
-char *httpNormalizeUriPath(MprCtx ctx, cchar *pathArg)
+char *httpNormalizeUriPath(cchar *pathArg)
 {
     char    *dupPath, *path, *sp, *dp, *mark, **segments;
     int     firstc, j, i, nseg, len;
 
     if (pathArg == 0 || *pathArg == '\0') {
-        return sclone(ctx, "");
+        return sclone("");
     }
     len = (int) strlen(pathArg);
-    if ((dupPath = mprAlloc(ctx, len + 2)) == 0) {
+    if ((dupPath = mprAlloc(len + 2)) == 0) {
         return NULL;
     }
     strcpy(dupPath, pathArg);
 
-    if ((segments = mprAlloc(ctx, sizeof(char*) * (len + 1))) == 0) {
+    if ((segments = mprAlloc(sizeof(char*) * (len + 1))) == 0) {
         mprFree(dupPath);
         return NULL;
     }
@@ -579,7 +597,7 @@ char *httpNormalizeUriPath(MprCtx ctx, cchar *pathArg)
     }
     nseg = j;
     mprAssert(nseg >= 0);
-    if ((path = mprAlloc(ctx, len + nseg + 1)) != 0) {
+    if ((path = mprAlloc(len + nseg + 1)) != 0) {
         for (i = 0, dp = path; i < nseg; ) {
             strcpy(dp, segments[i]);
             len = (int) strlen(segments[i]);
@@ -596,12 +614,12 @@ char *httpNormalizeUriPath(MprCtx ctx, cchar *pathArg)
 }
 
 
-HttpUri *httpResolveUri(MprCtx ctx, HttpUri *base, int argc, HttpUri **others, int local)
+HttpUri *httpResolveUri(HttpUri *base, int argc, HttpUri **others, int local)
 {
     HttpUri     *current, *other;
     int         i;
 
-    if ((current = httpCloneUri(ctx, base, 0)) == 0) {
+    if ((current = httpCloneUri(base, 0)) == 0) {
         return 0;
     }
     if (local) {
@@ -618,10 +636,10 @@ HttpUri *httpResolveUri(MprCtx ctx, HttpUri *base, int argc, HttpUri **others, i
     for (i = 0; i < argc; i++) {
         other = others[i];
         if (other->scheme) {
-            current->scheme = sclone(current, other->scheme);
+            current->scheme = sclone(other->scheme);
         }
         if (other->host) {
-            current->host = sclone(current, other->host);
+            current->host = sclone(other->host);
         }
         if (other->port) {
             current->port = other->port;
@@ -631,20 +649,20 @@ HttpUri *httpResolveUri(MprCtx ctx, HttpUri *base, int argc, HttpUri **others, i
             httpJoinUriPath(current, current, other);
         }
         if (other->reference) {
-            current->reference = sclone(current, other->reference);
+            current->reference = sclone(other->reference);
         }
         if (other->query) {
-            current->query = sclone(current, other->query);
+            current->query = sclone(other->query);
         }
     }
-    current->ext = (char*) mprGetPathExtension(current, current->path);
+    current->ext = (char*) mprGetPathExtension(current->path);
     return current;
 }
 
 
-char *httpUriToString(MprCtx ctx, HttpUri *uri, int complete)
+char *httpUriToString(HttpUri *uri, int complete)
 {
-    return httpFormatUri(ctx, uri->scheme, uri->host, uri->port, uri->path, uri->reference, uri->query, complete);
+    return httpFormatUri(uri->scheme, uri->host, uri->port, uri->path, uri->reference, uri->query, complete);
 }
 
 

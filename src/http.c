@@ -67,26 +67,27 @@ HttpStatusCode HttpStatusCodes[] = {
 /****************************** Forward Declarations **************************/
 
 static int httpTimer(Http *http, MprEvent *event);
+static void manageHttp(Http *http, int flags);
 static void updateCurrentDate(Http *http);
 
 /*********************************** Code *************************************/
 
-Http *httpCreate(MprCtx ctx)
+Http *httpCreate()
 {
     Http            *http;
     HttpStatusCode  *code;
 
-    if ((http = mprAllocObj(ctx, Http, NULL)) == 0) {
+    if ((http = mprAllocObj(Http, manageHttp)) == 0) {
         return 0;
     }
     mprGetMpr()->httpService = http;
     http->protocol = "HTTP/1.1";
     http->mutex = mprCreateLock(http);
     http->connections = mprCreateList(http);
-    http->stages = mprCreateHash(http, 31, 0);
+    http->stages = mprCreateHash(31, 0);
 
     updateCurrentDate(http);
-    http->statusCodes = mprCreateHash(http, 41, 0);
+    http->statusCodes = mprCreateHash(41, 0);
     for (code = HttpStatusCodes; code->code; code++) {
         mprAddHash(http->statusCodes, code->codeString, code);
     }
@@ -100,10 +101,34 @@ Http *httpCreate(MprCtx ctx)
     httpOpenUploadFilter(http);
     httpOpenPassHandler(http);
 
-    http->clientLimits = httpCreateLimits(http, 0);
-    http->serverLimits = httpCreateLimits(http, 1);
+    http->clientLimits = httpCreateLimits(0);
+    http->serverLimits = httpCreateLimits(1);
     http->clientLocation = httpInitLocation(http, 0);
     return http;
+}
+
+
+static void manageHttp(Http *http, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMarkList(http->connections);
+
+        //  MOB -- make these eternal?
+        mprMarkHash(http->stages);
+        mprMarkHash(http->mimeTypes);
+        mprMark(http->statusCodes);
+        mprMark(http->clientLimits);
+        mprMark(http->serverLimits);
+        mprMark(http->clientLocation);
+        mprMark(http->timer);
+        mprMark(http->mutex);
+        mprMark(http->context);
+        mprMark(http->secret);
+        mprMark(http->defaultHost);
+        mprMark(http->proxyHost);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
 }
 
 
@@ -166,11 +191,11 @@ void httpInitLimits(HttpLimits *limits, int serverSide)
 }
 
 
-HttpLimits *httpCreateLimits(MprCtx ctx, int serverSide)
+HttpLimits *httpCreateLimits(int serverSide)
 {
     HttpLimits  *limits;
 
-    if ((limits = mprAllocObj(ctx, HttpLimits, NULL)) != 0) {
+    if ((limits = mprAllocObj(HttpLimits, NULL)) != 0) {
         httpInitLimits(limits, serverSide);
     }
     return limits;
@@ -259,7 +284,7 @@ static int httpTimer(Http *http, MprEvent *event)
                         "Request timed out, exceeded timeout %d sec", requestTimeout / 1000);
                 }
             } else {
-                mprLog(http, 4, "Idle connection timed out");
+                mprLog(4, "Idle connection timed out");
                 conn->complete = 1;
                 mprDisconnectSocket(conn->sock);
             }
@@ -301,8 +326,8 @@ int httpCreateSecret(Http *http)
     char        bytes[HTTP_MAX_SECRET], ascii[HTTP_MAX_SECRET * 2 + 1], *ap, *cp, *bp;
     int         i, pid;
 
-    if (mprGetRandomBytes(http, bytes, sizeof(bytes), 0) < 0) {
-        mprError(http, "Can't get sufficient random data for secure SSL operation. If SSL is used, it may not be secure.");
+    if (mprGetRandomBytes(bytes, sizeof(bytes), 0) < 0) {
+        mprError("Can't get sufficient random data for secure SSL operation. If SSL is used, it may not be secure.");
         now = mprGetTime(http); 
         pid = (int) getpid();
         cp = (char*) &now;
@@ -325,7 +350,7 @@ int httpCreateSecret(Http *http)
     }
     *ap = '\0';
     mprFree(http->secret);
-    http->secret = sclone(http, ascii);
+    http->secret = sclone(ascii);
     return 0;
 }
 
@@ -336,18 +361,18 @@ void httpEnableTraceMethod(HttpLimits *limits, bool on)
 }
 
 
-char *httpGetDateString(MprCtx ctx, MprPath *sbuf)
+char *httpGetDateString(MprPath *sbuf)
 {
     MprTime     when;
     struct tm   tm;
 
     if (sbuf == 0) {
-        when = mprGetTime(ctx);
+        when = mprGetTime();
     } else {
         when = (MprTime) sbuf->mtime * MPR_TICKS_PER_SEC;
     }
-    mprDecodeUniversalTime(ctx, &tm, when);
-    return mprFormatTime(ctx, HTTP_DATE_FORMAT, &tm);
+    mprDecodeUniversalTime(&tm, when);
+    return mprFormatTime(HTTP_DATE_FORMAT, &tm);
 }
 
 
@@ -379,14 +404,14 @@ int httpLoadSsl(Http *http)
 {
 #if BLD_FEATURE_SSL
     if (!http->sslLoaded) {
-        if (!mprLoadSsl(http, 0)) {
-            mprError(http, "Can't load SSL provider");
+        if (!mprLoadSsl(0)) {
+            mprError("Can't load SSL provider");
             return MPR_ERR_CANT_LOAD;
         }
         http->sslLoaded = 1;
     }
 #else
-    mprError(http, "SSL communications support not included in build");
+    mprError("SSL communications support not included in build");
 #endif
     return 0;
 }
@@ -409,14 +434,14 @@ void httpSetDefaultPort(Http *http, int port)
 void httpSetDefaultHost(Http *http, cchar *host)
 {
     mprFree(http->defaultHost);
-    http->defaultHost = sclone(http, host);
+    http->defaultHost = sclone(host);
 }
 
 
 void httpSetProxy(Http *http, cchar *host, int port)
 {
     mprFree(http->proxyHost);
-    http->proxyHost = sclone(http, host);
+    http->proxyHost = sclone(host);
     http->proxyPort = port;
 }
 
@@ -430,16 +455,16 @@ static void updateCurrentDate(Http *http)
     char        *ds;
 
     lock(http);
-    http->now = mprGetTime(http);
-    ds = httpGetDateString(http, NULL);
+    http->now = mprGetTime();
+    ds = httpGetDateString(NULL);
     scopy(date[dateSelect], sizeof(date[0]) - 1, ds);
     http->currentDate = date[dateSelect];
     dateSelect = !dateSelect;
     mprFree(ds);
 
     //  MOB - check. Could do this once per minute
-    mprDecodeUniversalTime(http, &tm, http->now + (86400 * 1000));
-    ds = mprFormatTime(http, HTTP_DATE_FORMAT, &tm);
+    mprDecodeUniversalTime(&tm, http->now + (86400 * 1000));
+    ds = mprFormatTime(HTTP_DATE_FORMAT, &tm);
     scopy(expires[expiresSelect], sizeof(expires[0]) - 1, ds);
     http->expiresDate = expires[expiresSelect];
     expiresSelect = !expiresSelect;

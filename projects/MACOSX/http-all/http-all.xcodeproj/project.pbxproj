@@ -30,9 +30,6 @@
 		C90A1B090FD6E335006A9E86 /* libhttp.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C90A19EE0FD6DCAD006A9E86 /* libhttp.dylib */; };
 		C923DFBD1112560600A2422E /* location.c in Sources */ = {isa = PBXBuildFile; fileRef = C923DFBB1112560600A2422E /* location.c */; };
 		C923DFBE1112560600A2422E /* passHandler.c in Sources */ = {isa = PBXBuildFile; fileRef = C923DFBC1112560600A2422E /* passHandler.c */; };
-		C93A68B610FD82ED006B6C41 /* buildConfig.h in Headers */ = {isa = PBXBuildFile; fileRef = C93A68B510FD82ED006B6C41 /* buildConfig.h */; };
-		C93A68B710FD82ED006B6C41 /* buildConfig.h in Headers */ = {isa = PBXBuildFile; fileRef = C93A68B510FD82ED006B6C41 /* buildConfig.h */; };
-		C93A68B810FD82ED006B6C41 /* buildConfig.h in Headers */ = {isa = PBXBuildFile; fileRef = C93A68B510FD82ED006B6C41 /* buildConfig.h */; };
 		C93A68BE10FD8311006B6C41 /* auth.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68B910FD8311006B6C41 /* auth.c */; };
 		C93A68BF10FD8311006B6C41 /* authFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BA10FD8311006B6C41 /* authFilter.c */; };
 		C93A68C010FD8311006B6C41 /* chunkFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BB10FD8311006B6C41 /* chunkFilter.c */; };
@@ -160,7 +157,6 @@
 		C90A1AEA0FD6E319006A9E86 /* testHttp.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = testHttp.c; path = ../../../src/test/testHttp.c; sourceTree = SOURCE_ROOT; };
 		C923DFBB1112560600A2422E /* location.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = location.c; path = ../../../src/location.c; sourceTree = SOURCE_ROOT; };
 		C923DFBC1112560600A2422E /* passHandler.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = passHandler.c; path = ../../../src/passHandler.c; sourceTree = SOURCE_ROOT; };
-		C93A68B510FD82ED006B6C41 /* buildConfig.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = buildConfig.h; path = ../../../src/include/buildConfig.h; sourceTree = SOURCE_ROOT; };
 		C93A68B910FD8311006B6C41 /* auth.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = auth.c; path = ../../../src/auth.c; sourceTree = SOURCE_ROOT; };
 		C93A68BA10FD8311006B6C41 /* authFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authFilter.c; path = ../../../src/authFilter.c; sourceTree = SOURCE_ROOT; };
 		C93A68BB10FD8311006B6C41 /* chunkFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = chunkFilter.c; path = ../../../src/chunkFilter.c; sourceTree = SOURCE_ROOT; };
@@ -257,7 +253,6 @@
 		C90A19E50FD6DC67006A9E86 /* Headers */ = {
 			isa = PBXGroup;
 			children = (
-				C93A68B510FD82ED006B6C41 /* buildConfig.h */,
 				C9513DEF10E98CE200F9E006 /* http.h */,
 				C90A1A0F0FD6DD2D006A9E86 /* mpr.h */,
 				C90A1A110FD6DD2D006A9E86 /* mprSsl.h */,
@@ -360,7 +355,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				C9513DF010E98CE200F9E006 /* http.h in Headers */,
-				C93A68B710FD82ED006B6C41 /* buildConfig.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -368,7 +362,6 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C93A68B810FD82ED006B6C41 /* buildConfig.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -376,7 +369,6 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C93A68B610FD82ED006B6C41 /* buildConfig.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -495,9 +487,9 @@
 				C90A1A010FD6DCEE006A9E86 /* All */,
 				C90A19ED0FD6DCAD006A9E86 /* libhttp */,
 				C9513DD210E98C7E00F9E006 /* libmpr */,
+				C9513E4710E98E7200F9E006 /* libmprssl */,
 				C90A1AC00FD6E28B006A9E86 /* http */,
 				C90A1ACD0FD6E2A4006A9E86 /* testHttp */,
-				C9513E4710E98E7200F9E006 /* libmprssl */,
 			);
 		};
 /* End PBXProject section */
@@ -639,6 +631,11 @@
 					"DEBUG_IDE=1",
 					"STATIC_OVERRIDE=0",
 				);
+				HEADER_SEARCH_PATHS = (
+					../../../out/include,
+					../../../src/include,
+				);
+				LIBRARY_SEARCH_PATHS = ../../../out/lib;
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_LDFLAGS = (
 					"-lcrypto",
@@ -679,10 +676,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				HEADER_SEARCH_PATHS = (
-					../../..,
-					../../../src/include,
-				);
+				HEADER_SEARCH_PATHS = "$(inherited)";
 				INSTALL_PATH = /usr/local/lib;
 				PREBINDING = NO;
 				PRODUCT_NAME = libhttp;
@@ -736,10 +730,7 @@
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../../lib\"";
 				PREBINDING = NO;
 				PRODUCT_NAME = http;
@@ -806,10 +797,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				HEADER_SEARCH_PATHS = (
-					../../..,
-					../../../src/include,
-				);
+				HEADER_SEARCH_PATHS = "$(inherited)";
 				INSTALL_PATH = /usr/local/lib;
 				PREBINDING = NO;
 				PRODUCT_NAME = libmpr;
@@ -845,14 +833,11 @@
 				HEADER_SEARCH_PATHS = (
 					../../../extensions/matrixssl/latest,
 					../../../extensions/openssl/latest,
-					../../..,
+					../../../out/include,
 					../../../src/include,
 				);
 				INSTALL_PATH = /usr/local/lib;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../../lib\"";
 				PREBINDING = NO;
 				PRODUCT_NAME = libmprssl;

@@ -46,7 +46,7 @@ defineComponent() {
         #       iflags="-I$path/include"
         path=`probe --path "$path" --partial "extensions/$name/$ver" --search "$search" $name`
         imports="$path/libssl $path/libcrypto"
-        extensions="so a"
+        extensions="dylib a"
         libs="ssl crypto"
         iflags="-I$path/include"
 
@@ -64,12 +64,12 @@ defineComponent() {
     CFG_HOST_SSL_MANDATORY=1
 
     resolved=
-    for i in $imports
+    for f in $imports
     do
         for ext in $extensions
         do
             file="${f}.${ext}"
-            if [ -f "$i" ] ; then
+            if [ -f "$file" ] ; then
                 break
             fi
         done

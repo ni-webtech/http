@@ -36,7 +36,7 @@ static void angel();
 static void catchSignal(int signo, siginfo_t *info, void *arg);
 static void cleanup();
 static int  makeDaemon();
-static void manageAngel(MprAny unused, int flags);
+static void manageAngel(void *unused, int flags);
 static void memoryNotifier(int flags, size_t size);
 static int  readAngelPid();
 static void setAppDefaults(Mpr *mpr);
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
                 err++;
             } else {
                 serviceProgram = argv[++nextArg];
-                serviceName = mprGetPathBase(mpr, serviceProgram);
+                serviceName = mprGetPathBase(serviceProgram);
             }
 #endif
 
@@ -138,8 +138,7 @@ int main(int argc, char *argv[])
             err++;
         }
         if (err) {
-            mprUserError(mpr,
-                "Bad command line: \n"
+            mprUserError("Bad command line: \n"
                 "  Usage: %s [options] [program args ...]\n"
                 "  Switches:\n"
                 "    --args               # Args to pass to service\n"
@@ -162,7 +161,7 @@ int main(int argc, char *argv[])
         for (len = 0, i = nextArg; i < argc; i++) {
             len += strlen(argv[i]) + 1;
         }
-        serviceArgs = mprAlloc(mpr, len + 1);
+        serviceArgs = mprAlloc(len + 1);
         for (len = 0, i = nextArg; i < argc; i++) {
             strcpy(&serviceArgs[len], argv[i]);
             len += strlen(argv[i]);
@@ -172,7 +171,7 @@ int main(int argc, char *argv[])
     }
     setupUnixSignals();
 
-    mprAddRoot(mprAllocObj(mpr, MprAny, manageAngel));
+    mprAddRoot(mprAllocObj(void*, manageAngel));
 
     if (runAsDaemon) {
         makeDaemon();
@@ -182,7 +181,7 @@ int main(int argc, char *argv[])
 }
 
 
-static void manageAngel(MprAny unused, int flags)
+static void manageAngel(void *ptr, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(serviceArgs);
@@ -194,21 +193,21 @@ static void manageAngel(MprAny unused, int flags)
 
 static void setAppDefaults(Mpr *mpr)
 {
-    appName = mprGetAppName(mpr);
-    homeDir = mprGetAppDir(mpr);
-    serviceProgram = mprJoinPath(mpr, homeDir, BLD_PRODUCT);
-    serviceName = mprGetPathBase(mpr, serviceProgram);
+    appName = mprGetAppName();
+    homeDir = mprGetAppDir();
+    serviceProgram = mprJoinPath(homeDir, BLD_PRODUCT);
+    serviceName = mprGetPathBase(serviceProgram);
 
-    if (mprPathExists(mpr, "/var/run", X_OK)) {
+    if (mprPathExists("/var/run", X_OK)) {
         pidDir = "/var/run";
-    } else if (mprPathExists(mpr, "/tmp", X_OK)) {
+    } else if (mprPathExists("/tmp", X_OK)) {
         pidDir = "/tmp";
-    } else if (mprPathExists(mpr, "/Temp", X_OK)) {
+    } else if (mprPathExists("/Temp", X_OK)) {
         pidDir = "/Temp";
     } else {
         pidDir = ".";
     }
-    pidPath = sjoin(mpr, NULL, pidDir, "/angel-", serviceName, ".pid", NULL);
+    pidPath = sjoin(pidDir, "/angel-", serviceName, ".pid", NULL);
 }
 
 
@@ -224,28 +223,28 @@ static void angel()
     atexit(cleanup);
 
     if (verbose) {
-        mprPrintf(mpr, "%s: Watching over %s\n", appName, serviceProgram);
+        mprPrintf("%s: Watching over %s\n", appName, serviceProgram);
     }
     if (access(serviceProgram, X_OK) < 0) {
-        mprError(mpr, "start: can't access %s, errno %d", serviceProgram, mprGetOsError());
+        mprError("start: can't access %s, errno %d", serviceProgram, mprGetOsError());
         return;
     }
     if (writeAngelPid(getpid()) < 0) {
         return;
     }
-    mark = mprGetTime(mpr);
+    mark = mprGetTime();
 
     while (! exiting) {
-        if (mprGetElapsedTime(mpr, mark) > (3600 * 1000)) {
-            mark = mprGetTime(mpr);
+        if (mprGetElapsedTime(mark) > (3600 * 1000)) {
+            mark = mprGetTime();
             restartCount = 0;
             restartWarned = 0;
         }
         if (servicePid == 0) {
             if (restartCount >= RESTART_MAX) {
                 if (! restartWarned) {
-                    mprError(mpr, "Too many restarts for %s, %d in ths last hour", serviceProgram, restartCount);
-                    mprError(mpr, "Suspending restarts for one hour");
+                    mprError("Too many restarts for %s, %d in ths last hour", serviceProgram, restartCount);
+                    mprError("Suspending restarts for one hour");
                     restartWarned++;
                 }
                 continue;
@@ -256,7 +255,7 @@ static void angel()
              */
             servicePid = vfork();
             if (servicePid < 0) {
-                mprError(mpr, "Can't fork new process to run %s", serviceProgram);
+                mprError("Can't fork new process to run %s", serviceProgram);
                 continue;
 
             } else if (servicePid == 0) {
@@ -267,7 +266,7 @@ static void angel()
                 setsid();
 
                 if (verbose) {
-                    mprPrintf(mpr, "%s: Change dir to %s\n", appName, homeDir);
+                    mprPrintf("%s: Change dir to %s\n", appName, homeDir);
                 }
                 rc = chdir(homeDir);
 
@@ -275,17 +274,17 @@ static void angel()
                     close(i);
                 }
                 if (serviceArgs && *serviceArgs) {
-                    mprMakeArgv(mpr, "", serviceArgs, &ac, &av);
+                    mprMakeArgv("", serviceArgs, &ac, &av);
                 } else {
                     ac = 0;
                 }
-                argv = mprAlloc(mpr, sizeof(char*) * (6 + ac));
-                env[0] = sjoin(mpr, NULL, "LD_LIBRARY_PATH=", homeDir, NULL);
-                env[1] = sjoin(mpr, NULL, "PATH=", getenv("PATH"), NULL);
+                argv = mprAlloc(sizeof(char*) * (6 + ac));
+                env[0] = sjoin("LD_LIBRARY_PATH=", homeDir, NULL);
+                env[1] = sjoin("PATH=", getenv("PATH"), NULL);
                 env[2] = 0;
 
                 next = 0;
-                argv[next++] = (char*) mprGetPathBase(mpr, serviceProgram);
+                argv[next++] = (char*) mprGetPathBase(serviceProgram);
                 if (logSpec) {
                     argv[next++] = "--log";
                     argv[next++] = (char*) logSpec;
@@ -296,16 +295,16 @@ static void angel()
                 argv[next++] = 0;
 
                 if (verbose) {
-                    mprPrintf(mpr, "%s: Running %s\n", appName, serviceProgram);
+                    mprPrintf("%s: Running %s\n", appName, serviceProgram);
                     for (i = 1; argv[i]; i++) {
-                        mprPrintf(mpr, "%s: argv[%d] = %s\n", appName, i, argv[i]);
+                        mprPrintf("%s: argv[%d] = %s\n", appName, i, argv[i]);
                     }
                 }
                 execve(serviceProgram, argv, (char**) &env);
 
                 /* Should not get here */
                 err = errno;
-                mprError(mpr, "%s: Can't exec %s, err %d, cwd %s", appName, serviceProgram, err, homeDir);
+                mprError("%s: Can't exec %s, err %d, cwd %s", appName, serviceProgram, err, homeDir);
                 exit(MPR_ERR_CANT_INITIALIZE);
             }
 
@@ -313,13 +312,13 @@ static void angel()
                 Parent
              */
             if (verbose) {
-                mprPrintf(mpr, "%s: create child %s at pid %d\n", appName, serviceProgram, servicePid);
+                mprPrintf("%s: create child %s at pid %d\n", appName, serviceProgram, servicePid);
             }
             restartCount++;
 
             waitpid(servicePid, &status, 0);
             if (verbose) {
-                mprPrintf(mpr, "%s: %s has exited with status %d, restarting ...\n", appName, serviceProgram, 
+                mprPrintf("%s: %s has exited with status %d, restarting ...\n", appName, serviceProgram, 
                     WEXITSTATUS(status));
             }
             servicePid = 0;
@@ -383,7 +382,7 @@ static void cleanup()
 {
     if (servicePid > 0) {
         if (verbose) {
-            mprPrintf(mpr, "\n%s: Killing %s at pid %d\n", appName, serviceProgram, servicePid);
+            mprPrintf("\n%s: Killing %s at pid %d\n", appName, serviceProgram, servicePid);
         }
         kill(servicePid, SIGTERM);
         servicePid = 0;
@@ -418,11 +417,11 @@ static int writeAngelPid(int pid)
     int     fd;
 
     if ((fd = open(pidPath, O_CREAT | O_RDWR | O_TRUNC, 0666)) < 0) {
-        mprError(mpr, "Could not create pid file %s\n", pidPath);
+        mprError("Could not create pid file %s\n", pidPath);
         return MPR_ERR_CANT_CREATE;
     }
     if (write(fd, &pid, sizeof(pid)) != sizeof(pid)) {
-        mprError(mpr, "Write to file %s failed\n", pidPath);
+        mprError("Write to file %s failed\n", pidPath);
         return MPR_ERR_CANT_WRITE;
     }
     close(fd);
@@ -447,7 +446,7 @@ static int makeDaemon()
     act.sa_flags = SA_NOCLDSTOP | SA_RESTART | SA_SIGINFO /* | SA_NOMASK */;
 
     if (sigaction(SIGCHLD, &act, &old) < 0) {
-        mprError(mpr, "Can't initialize signals");
+        mprError("Can't initialize signals");
         return MPR_ERR_BAD_STATE;
     }
 
@@ -455,12 +454,12 @@ static int makeDaemon()
         Fork twice to get a free child with no parent
      */
     if ((pid = fork()) < 0) {
-        mprError(mpr, "Fork failed for background operation");
+        mprError("Fork failed for background operation");
         return MPR_ERR;
 
     } else if (pid == 0) {
         if ((pid = fork()) < 0) {
-            mprError(mpr, "Second fork failed");
+            mprError("Second fork failed");
             exit(127);
 
         } else if (pid > 0) {
@@ -473,10 +472,10 @@ static int makeDaemon()
          */
         setsid();
         if (sigaction(SIGCHLD, &old, 0) < 0) {
-            mprError(mpr, "Can't restore signals");
+            mprError("Can't restore signals");
             return MPR_ERR_BAD_STATE;
         }
-        mprLog(mpr, 2, "Switching to background operation\n");
+        mprLog(2, "Switching to background operation\n");
         return 0;
     }
 
@@ -485,18 +484,18 @@ static int makeDaemon()
      */
     while (waitpid(pid, &status, 0) != pid) {
         if (errno == EINTR) {
-            mprSleep(mpr, 100);
+            mprSleep(100);
             continue;
         }
-        mprError(mpr, "Can't wait for daemon parent.");
+        mprError("Can't wait for daemon parent.");
         exit(0);
     }
     if (WEXITSTATUS(status) != 0) {
-        mprError(mpr, "Daemon parent had bad exit status.");
+        mprError("Daemon parent had bad exit status.");
         exit(0);
     }
     if (sigaction(SIGCHLD, &old, 0) < 0) {
-        mprError(mpr, "Can't restore signals");
+        mprError("Can't restore signals");
         return MPR_ERR_BAD_STATE;
     }
     exit(0);
@@ -509,12 +508,12 @@ static int makeDaemon()
 static void memoryNotifier(int flags, size_t size)
 {
     if (flags & MPR_ALLOC_DEPLETED) {
-        mprPrintfError(mpr, "Can't allocate memory block of size %d\n", size);
-        mprPrintfError(mpr, "Total memory used %d\n", mprGetUsedMemory());
+        mprPrintfError("Can't allocate memory block of size %d\n", size);
+        mprPrintfError("Total memory used %d\n", mprGetUsedMemory());
         exit(255);
     } else if (flags & MPR_ALLOC_LOW) {
-        mprPrintf(mpr, "Memory request for %d bytes exceeds memory red-line\n", size);
-        mprPrintf(mpr, "Total memory used %d\n", mprGetUsedMemory());
+        mprPrintf("Memory request for %d bytes exceeds memory red-line\n", size);
+        mprPrintf("Total memory used %d\n", mprGetUsedMemory());
     }
 }
 
@@ -557,7 +556,7 @@ static SERVICE_TABLE_ENTRY      svcTable[] = {
 static void     WINAPI serviceCallback(ulong code);
 static void     initService();
 static int      installService(char *homeDir, char *args);
-static void     logHandler(MprCtx ctx, int flags, int level, cchar *msg);
+static void     logHandler(int flags, int level, cchar *msg);
 static int      registerService();
 static int      removeService(int removeFromScmDb);
 static void     shutdownAppweb(int timeout);
@@ -597,24 +596,24 @@ int APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *args, int junk2)
 
     initService();
 
-    mprSetAppName(mpr, BLD_PRODUCT "Angel", BLD_NAME "Angel", BLD_VERSION);
-    appName = mprGetAppName(mpr);
+    mprSetAppName(BLD_PRODUCT "Angel", BLD_NAME "Angel", BLD_VERSION);
+    appName = mprGetAppName();
     appTitle = mprGetAppTitle(mpr);
 
-    mprSetLogHandler(mpr, logHandler, NULL);
+    mprSetLogHandler(logHandler, NULL);
 
     /*
         Create the window 
      */
     if (initWindow() < 0) {
-        mprError(mpr, "Can't initialize application Window");
+        mprError("Can't initialize application Window");
         return FALSE;
     }
 
     /*
         Parse command line arguments
      */
-    if (mprMakeArgv(mpr, "", args, &argc, &argv) < 0) {
+    if (mprMakeArgv("", args, &argc, &argv) < 0) {
         return FALSE;
     }
     for (nextArg = 1; nextArg < argc; nextArg++) {
@@ -679,7 +678,7 @@ int APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *args, int junk2)
             if (startService() < 0) {
                 return FALSE;
             }
-            mprSleep(mpr, 2000);    /* Time for service to really start */
+            mprSleep(2000);    /* Time for service to really start */
 
         } else if (strcmp(argp, "--stop") == 0) {
             /*
@@ -704,8 +703,7 @@ int APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *args, int junk2)
             err++;
         }
         if (err) {
-            mprUserError(mpr, 
-                "Bad command line: %s\n"
+            mprUserError("Bad command line: %s\n"
                 "  Usage: %s [options] [program args]\n"
                 "  Switches:\n"
                 "    --args               # Args to pass to service\n"
@@ -754,13 +752,13 @@ static void WINAPI serviceMain(ulong argc, char **argv)
     heartBeatEvent = CreateEvent(0, TRUE, FALSE, 0);
 
     if (serviceThreadEvent == 0 || heartBeatEvent == 0) {
-        mprError(mpr, "Can't create wait events");
+        mprError("Can't create wait events");
         return;
     }
     threadHandle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE) serviceThread, (void*) 0, 0, (ulong*) &threadId);
 
     if (threadHandle == 0) {
-        mprError(mpr, "Can't create service thread");
+        mprError("Can't create service thread");
         return;
     }
     WaitForSingleObject(serviceThreadEvent, INFINITE);
@@ -778,7 +776,7 @@ static void WINAPI serviceMain(ulong argc, char **argv)
 static void serviceThread(void *data)
 {
     if (registerService() < 0) {
-        mprError(mpr, "Can't register service");
+        mprError("Can't register service");
         ExitThread(0);
         return;
     }
@@ -816,42 +814,42 @@ static void angel()
      */
     homeDir = 0;
     serviceArgs = 0;
-    mprSprintf(mpr, key, sizeof(key), "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\%s", serviceName);
-    mprReadRegistry(mpr, &homeDir, MPR_MAX_FNAME, key, "HomeDir");
-    mprReadRegistry(mpr, &serviceArgs, MPR_MAX_FNAME, key, "Args");
+    mprSprintf(key, sizeof(key), "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\%s", serviceName);
+    mprReadRegistry(&homeDir, MPR_MAX_FNAME, key, "HomeDir");
+    mprReadRegistry(&serviceArgs, MPR_MAX_FNAME, key, "Args");
 
     /*
         Expect to find the service executable in the same directory as this angel program.
      */
     if (serviceProgram == 0) {
         GetModuleFileName(0, path, sizeof(path));
-        dir = mprGetPathDir(mpr, path);
-        mprSprintf(mpr, path, sizeof(path), "\"%s\\%s.exe\"", dir, BLD_PRODUCT);
+        dir = mprGetPathDir(path);
+        mprSprintf(path, sizeof(path), "\"%s\\%s.exe\"", dir, BLD_PRODUCT);
         mprFree(dir);
     } else {
-        mprSprintf(mpr, path, sizeof(path), "\"%s\"", serviceProgram);
+        mprSprintf(path, sizeof(path), "\"%s\"", serviceProgram);
     }
     if (serviceArgs && *serviceArgs) {
-        mprSprintf(mpr, cmd, sizeof(cmd), "%s %s", path, serviceArgs);
+        mprSprintf(cmd, sizeof(cmd), "%s %s", path, serviceArgs);
     } else {
-        mprSprintf(mpr, cmd, sizeof(cmd), "%s", path);
+        mprSprintf(cmd, sizeof(cmd), "%s", path);
     }
     if (createConsole) {
         createFlags |= CREATE_NEW_CONSOLE;
     }
-    mark = mprGetTime(mpr);
+    mark = mprGetTime();
 
     while (! exiting) {
 
-        if (mprGetElapsedTime(mpr, mark) > (3600 * 1000)) {
-            mark = mprGetTime(mpr);
+        if (mprGetElapsedTime(mark) > (3600 * 1000)) {
+            mark = mprGetTime();
             restartCount = 0;
             restartWarned = 0;
         }
         if (servicePid == 0 && !serviceStopped) {
             if (restartCount >= RESTART_MAX) {
                 if (! restartWarned) {
-                    mprError(mpr, "Too many restarts for %s, %d in ths last hour", appTitle, restartCount);
+                    mprError("Too many restarts for %s, %d in ths last hour", appTitle, restartCount);
                     restartWarned++;
                 }
                 /*
@@ -867,7 +865,7 @@ static void angel()
                 Launch the process
              */
             if (! CreateProcess(0, cmd, 0, 0, FALSE, createFlags, 0, homeDir, &startInfo, &procInfo)) {
-                mprError(mpr, "Can't create process: %s, %d", cmd, mprGetOsError());
+                mprError("Can't create process: %s, %d", cmd, mprGetOsError());
             } else {
                 servicePid = (int) procInfo.hProcess;
             }
@@ -887,8 +885,8 @@ static void angel()
             }
         }
         if (verbose) {
-            mprPrintf(mpr, "%s has exited with status %d\n", serviceProgram, status);
-            mprPrintf(mpr, "%s will be restarted in 10 seconds\n", serviceProgram);
+            mprPrintf("%s has exited with status %d\n", serviceProgram, status);
+            mprPrintf("%s will be restarted in 10 seconds\n", serviceProgram);
         }
     }
     mprFree(homeDir);
@@ -903,7 +901,7 @@ static int startDispatcher(LPSERVICE_MAIN_FUNCTION svcMain)
     ulong           len;
 
     if (!(mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS))) {
-        mprError(mpr, "Can't open service manager");
+        mprError("Can't open service manager");
         return MPR_ERR_CANT_OPEN;
     }
     /*
@@ -920,7 +918,7 @@ static int startDispatcher(LPSERVICE_MAIN_FUNCTION svcMain)
      */
     svcTable[0].lpServiceProc = svcMain;
     if (StartServiceCtrlDispatcher(svcTable) == 0) {
-        mprError(mpr, "Could not start the service control dispatcher");
+        mprError("Could not start the service control dispatcher");
         return MPR_ERR_CANT_INITIALIZE;
     }
     return 0;
@@ -936,7 +934,7 @@ static int registerService()
 {
     svcHandle = RegisterServiceCtrlHandler(serviceName, serviceCallback);
     if (svcHandle == 0) {
-        mprError(mpr, "Can't register handler: %x", GetLastError());
+        mprError("Can't register handler: %x", GetLastError());
         return MPR_ERR_CANT_INITIALIZE;
     }
     /*
@@ -1008,7 +1006,7 @@ static int installService(char *homeDir, char *args)
 
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (! mgr) {
-        mprUserError(mpr, "Can't open service manager");
+        mprUserError("Can't open service manager");
         return MPR_ERR_CANT_ACCESS;
     }
     /*
@@ -1023,7 +1021,7 @@ static int installService(char *homeDir, char *args)
         svc = CreateService(mgr, serviceName, serviceTitle, SERVICE_ALL_ACCESS, serviceType, SERVICE_AUTO_START, 
             SERVICE_ERROR_NORMAL, cmd, NULL, NULL, "", NULL, NULL);
         if (! svc) {
-            mprUserError(mpr, "Can't create service: 0x%x == %d", GetLastError(), GetLastError());
+            mprUserError("Can't create service: 0x%x == %d", GetLastError(), GetLastError());
             CloseServiceHandle(mgr);
             return MPR_ERR_CANT_CREATE;
         }
@@ -1034,9 +1032,9 @@ static int installService(char *homeDir, char *args)
     /*
         Write a service description
      */
-    mprSprintf(mpr, key, sizeof(key), "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\" "Services\\%s", serviceName);
+    mprSprintf(key, sizeof(key), "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\" "Services\\%s", serviceName);
 
-    if (mprWriteRegistry(mpr, key, "Description", SERVICE_DESCRIPTION) < 0) {
+    if (mprWriteRegistry(key, "Description", SERVICE_DESCRIPTION) < 0) {
         return MPR_ERR_CANT_WRITE;
     }
 
@@ -1044,9 +1042,9 @@ static int installService(char *homeDir, char *args)
         Write the home directory
      */
     if (homeDir == 0) {
-        homeDir = mprGetPathParent(mpr, mprGetAppDir(mpr));
+        homeDir = mprGetPathParent(mprGetAppDir(mpr));
     }
-    if (mprWriteRegistry(mpr, key, "HomeDir", homeDir) < 0) {
+    if (mprWriteRegistry(key, "HomeDir", homeDir) < 0) {
         return MPR_ERR_CANT_WRITE;
     }
 
@@ -1054,7 +1052,7 @@ static int installService(char *homeDir, char *args)
         Write the service args
      */
     if (args && *args) {
-        if (mprWriteRegistry(mpr, key, "Args", args) < 0) {
+        if (mprWriteRegistry(key, "Args", args) < 0) {
             return MPR_ERR_CANT_WRITE;
         }
     }
@@ -1073,13 +1071,13 @@ static int removeService(int removeFromScmDb)
 
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (! mgr) {
-        mprError(mpr, "Can't open service manager");
+        mprError("Can't open service manager");
         return MPR_ERR_CANT_ACCESS;
     }
     svc = OpenService(mgr, serviceName, SERVICE_ALL_ACCESS);
     if (! svc) {
         CloseServiceHandle(mgr);
-        mprError(mpr, "Can't open service");
+        mprError("Can't open service");
         return MPR_ERR_CANT_OPEN;
     }
 
@@ -1089,21 +1087,21 @@ static int removeService(int removeFromScmDb)
     shutdownAppweb(0);
 
     if (ControlService(svc, SERVICE_CONTROL_STOP, &svcStatus)) {
-        mprSleep(mpr, 500);
+        mprSleep(500);
 
         while (QueryServiceStatus(svc, &svcStatus)) {
             if (svcStatus.dwCurrentState == SERVICE_STOP_PENDING) {
-                mprSleep(mpr, 250);
+                mprSleep(250);
             } else {
                 break;
             }
         }
         if (svcStatus.dwCurrentState != SERVICE_STOPPED) {
-            mprError(mpr, "Can't stop service: %x", GetLastError());
+            mprError("Can't stop service: %x", GetLastError());
         }
     }
     if (removeFromScmDb && !DeleteService(svc)) {
-        mprError(mpr, "Can't delete service: %x", GetLastError());
+        mprError("Can't delete service: %x", GetLastError());
     }
     CloseServiceHandle(svc);
     CloseServiceHandle(mgr);
@@ -1123,20 +1121,20 @@ static int startService()
 
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (! mgr) {
-        mprError(mpr, "Can't open service manager");
+        mprError("Can't open service manager");
         return MPR_ERR_CANT_ACCESS;
     }
 
     svc = OpenService(mgr, serviceName, SERVICE_ALL_ACCESS);
     if (! svc) {
-        mprError(mpr, "Can't open service");
+        mprError("Can't open service");
         CloseServiceHandle(mgr);
         return MPR_ERR_CANT_OPEN;
     }
 
     rc = StartService(svc, 0, NULL);
     if (rc == 0) {
-        mprError(mpr, "Can't start %s service: %d", serviceName, GetLastError());
+        mprError("Can't start %s service: %d", serviceName, GetLastError());
         return MPR_ERR_CANT_INITIALIZE;
     }
     CloseServiceHandle(svc);
@@ -1177,7 +1175,7 @@ static int stopService(int cmd)
 
     while (exitCode == STILL_ACTIVE) {
         GetExitCodeThread(threadHandle, (ulong*) &exitCode);
-        mprSleep(mpr, 100);
+        mprSleep(100);
         tellSCM(svcStatus.dwCurrentState, NO_ERROR, 125);
     }
     svcStatus.dwCurrentState = SERVICE_STOPPED;
@@ -1223,7 +1221,7 @@ static void initService()
     serviceTitle = BLD_NAME;
     serviceStopped = 0;
 
-    serviceProgram = sjoin(mpr, NULL, mprGetAppDir(mpr), "/", BLD_PRODUCT, ".exe", NULL);
+    serviceProgram = sjoin(mprGetAppDir(mpr), "/", BLD_PRODUCT, ".exe", NULL);
 }
 
 /*
@@ -1246,12 +1244,12 @@ static int initWindow()
 
     rc = RegisterClass(&wc);
     if (rc == 0) {
-        mprError(mpr, "Can't register windows class");
+        mprError("Can't register windows class");
         return -1;
     }
     appHwnd = CreateWindow(appName, appTitle, WS_OVERLAPPED, CW_USEDEFAULT, 0, 0, 0, NULL, NULL, appInst, NULL);
     if (! appHwnd) {
-        mprError(mpr, "Can't create window");
+        mprError("Can't create window");
         return -1;
     }
     return 0;
@@ -1281,12 +1279,12 @@ static LRESULT msgProc(HWND hwnd, uint msg, uint wp, long lp)
 /*
     Default log output is just to the console
  */
-static void logHandler(MprCtx ctx, int flags, int level, cchar *msg)
+static void logHandler(int flags, int level, cchar *msg)
 {
     if (flags & MPR_USER_MSG) {
-        MessageBoxEx(NULL, msg, mprGetAppTitle(ctx), MB_OK, 0);
+        MessageBoxEx(NULL, msg, mprGetAppTitle(), MB_OK, 0);
     }
-    mprWriteToOsLog(mpr, msg, 0, 0);
+    mprWriteToOsLog(msg, 0, 0);
 }
 
 
@@ -1305,7 +1303,7 @@ static void shutdownAppweb(int timeout)
             Wait for up to ten seconds while the service exits
          */
         while (timeout > 0 && hwnd) {
-            mprSleep(mpr, 100);
+            mprSleep(100);
             timeout -= 100;
             hwnd = FindWindow(BLD_PRODUCT, BLD_NAME);
             if (hwnd == 0) {

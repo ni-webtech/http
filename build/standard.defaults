@@ -64,22 +64,16 @@ BLD_FEATURE_AUTH_FILE=1
 BLD_FEATURE_AUTH_PAM=0
 
 #
-#   Do a complete cross-build of everything including dev tools.
-#
-BLD_FEATURE_COMPLETE_CROSS=0
-
-#
-#   Do a complete build of everything for the native (build system).
-#   This includes programs that normally only run on the target.
-#
-BLD_FEATURE_COMPLETE_NATIVE=1
-
-#
 #	Device or emulator. (PocketPC2003, Smartphone2003)
 #
 if [ "$BLD_FEATURE_DEVICE" = "" ] ; then
     BLD_FEATURE_DEVICE=PocketPC2003
 fi
+
+#
+#   Floating point support
+#
+BLD_FEATURE_FLOAT=1
 
 #
 #   Disable the Legacy code for backward compatibility (back one major revision).

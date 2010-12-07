@@ -9,6 +9,17 @@
 
 /*********************************** Code *************************************/
 
+void httpManageTrace(HttpTrace *trace, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMarkHash(trace->include);
+        mprMarkHash(trace->exclude);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
+}
+
+
 void httpInitTrace(HttpTrace *trace)
 {
     int     dir;
@@ -79,16 +90,16 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
         seqno = rxSeq++;
     }
     if (printable) {
-        data = mprAlloc(conn, len + 1);
+        data = mprAlloc(len + 1);
         memcpy(data, buf, len);
         data[len] = '\0';
-        mprRawLog(conn, level, "\n>>>>>>>>>> %s %s packet %d, len %d (conn %d) >>>>>>>>>>\n%s", tag, msg, seqno, 
+        mprRawLog(level, "\n>>>>>>>>>> %s %s packet %d, len %d (conn %d) >>>>>>>>>>\n%s", tag, msg, seqno, 
             len, conn->seqno, data);
         mprFree(data);
     } else {
-        mprRawLog(conn, level, "\n>>>>>>>>>> %s %s packet %d, len %d (conn %d) >>>>>>>>>> (binary)\n", tag, msg, seqno, 
+        mprRawLog(level, "\n>>>>>>>>>> %s %s packet %d, len %d (conn %d) >>>>>>>>>> (binary)\n", tag, msg, seqno, 
             len, conn->seqno);
-        data = mprAlloc(conn, len * 3 + ((len / 16) + 1) + 1);
+        data = mprAlloc(len * 3 + ((len / 16) + 1) + 1);
         digits = "0123456789ABCDEF";
         for (i = 0, cp = buf, dp = data; cp < &buf[len]; cp++) {
             *dp++ = digits[(*cp >> 4) & 0x0f];
@@ -100,9 +111,9 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
         }
         *dp++ = '\n';
         *dp = '\0';
-        mprRawLog(conn, level, "%s", data);
+        mprRawLog(level, "%s", data);
     }
-    mprRawLog(conn, level, "<<<<<<<<<< %s packet, conn %d\n\n", tag, conn->seqno);
+    mprRawLog(level, "<<<<<<<<<< %s packet, conn %d\n\n", tag, conn->seqno);
 }
 
 
@@ -115,7 +126,7 @@ void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, int
     level = trace->levels[item];
 
     if (trace->size >= 0 && total >= trace->size) {
-        mprLog(conn, level, "Abbreviating response trace for conn %d", conn->seqno);
+        mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
         trace->disable = 1;
         return;
     }

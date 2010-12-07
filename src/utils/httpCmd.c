@@ -51,14 +51,14 @@ static MprMutex *mutex;
 
 /***************************** Forward Declarations ***************************/
 
-static void     addFormVars(MprCtx ctx, cchar *buf);
+static void     addFormVars(cchar *buf);
 static void     processing();
 static int      doRequest(HttpConn *conn, cchar *url);
 static void     finishThread(MprThread *tp);
-static char     *getPassword(MprCtx ctx);
+static char     *getPassword();
 static void     initSettings(Mpr *mpr);
 static bool     isPort(cchar *name);
-static bool     iterationsComplete(MprCtx ctx);
+static bool     iterationsComplete();
 static bool     parseArgs(Mpr *mpr, int argc, char **argv);
 static int      processThread(HttpConn *conn, MprEvent *event);
 static void     threadMain(void *data, MprThread *tp);
@@ -68,7 +68,7 @@ static void     showOutput(HttpConn *conn, cchar *content, int contentLen);
 static void     showUsage(Mpr *mpr);
 static int      startLogging(Mpr *mpr, char *logSpec);
 static void     trace(HttpConn *conn, cchar *url, int fetchCount, cchar *method, int status, int contentLen);
-static void     waitForUser(MprCtx ctx);
+static void     waitForUser();
 static int      writeBody(HttpConn *conn);
 
 /*********************************** Code *************************************/
@@ -98,11 +98,11 @@ MAIN(httpMain, int argc, char *argv[])
         showUsage(mpr);
         return MPR_ERR_BAD_ARGS;
     }
-    mprSetMaxWorkers(mpr, workers);
+    mprSetMaxWorkers(workers);
 
 #if BLD_FEATURE_SSL
-    if (!mprLoadSsl(mpr, 1)) {
-        mprError(mpr, "Can't load SSL");
+    if (!mprLoadSsl(1)) {
+        mprError("Can't load SSL");
         exit(1);
     }
 #endif
@@ -111,7 +111,7 @@ MAIN(httpMain, int argc, char *argv[])
         Start the Timer, Socket and Worker services
      */
     if (mprStart(mpr) < 0) {
-        mprError(mpr, "Can't start MPR for %s", mprGetAppTitle(mpr));
+        mprError("Can't start MPR for %s", mprGetAppTitle(mpr));
         exit(2);
     }
     start = mprGetTime(mpr);
@@ -122,7 +122,7 @@ MAIN(httpMain, int argc, char *argv[])
         Wait for all the threads to complete (simple but effective). Keep servicing events as we wind down.
      */
     while (activeLoadThreads > 0) {
-        mprServiceEvents(mpr, NULL, 10, 0);
+        mprServiceEvents(NULL, 10, 0);
     }
     if (benchmark) {
         elapsed = (double) (mprGetTime(mpr) - start);
@@ -130,15 +130,15 @@ MAIN(httpMain, int argc, char *argv[])
             elapsed = 0;
             fetchCount = 1;
         }
-        mprPrintf(mpr, "\nRequest Count:       %13d\n", fetchCount);
-        mprPrintf(mpr, "Time elapsed:        %13.4f sec\n", elapsed / 1000.0);
-        mprPrintf(mpr, "Time per request:    %13.4f sec\n", elapsed / 1000.0 / fetchCount);
-        mprPrintf(mpr, "Requests per second: %13.4f\n", fetchCount * 1.0 / (elapsed / 1000.0));
-        mprPrintf(mpr, "Load threads:        %13d\n", loadThreads);
-        mprPrintf(mpr, "Worker threads:      %13d\n", workers);
+        mprPrintf("\nRequest Count:       %13d\n", fetchCount);
+        mprPrintf("Time elapsed:        %13.4f sec\n", elapsed / 1000.0);
+        mprPrintf("Time per request:    %13.4f sec\n", elapsed / 1000.0 / fetchCount);
+        mprPrintf("Requests per second: %13.4f\n", fetchCount * 1.0 / (elapsed / 1000.0));
+        mprPrintf("Load threads:        %13d\n", loadThreads);
+        mprPrintf("Worker threads:      %13d\n", workers);
     }
     if (!success && verbose) {
-        mprError(mpr, "Request failed");
+        mprError("Request failed");
     }
     return (success) ? 0 : 255;
 }
@@ -188,7 +188,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
                 value = argv[++nextArg];
                 chunkSize = atoi(value);
                 if (chunkSize < 0) {
-                    mprError(mpr, "Bad chunksize %d", chunkSize);
+                    mprError("Bad chunksize %d", chunkSize);
                     return 0;
                 }
             }
@@ -200,7 +200,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
             if (nextArg >= argc) {
                 return 0;
             } else {
-                mprAddItem(headers, mprCreateKeyPair(headers, "Cookie", argv[++nextArg]));
+                mprAddItem(headers, mprCreateKeyPair("Cookie", argv[++nextArg]));
             }
 
         } else if (strcmp(argp, "--data") == 0) {
@@ -208,13 +208,13 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
                 return 0;
             } else {
                 if (bodyData == 0) {
-                    bodyData = mprCreateBuf(mpr, -1, -1);
+                    bodyData = mprCreateBuf(-1, -1);
                 }
                 mprPutStringToBuf(bodyData, argv[++nextArg]);
             }
 
         } else if (strcmp(argp, "--debugger") == 0 || strcmp(argp, "-D") == 0) {
-            mprSetDebugMode(mpr, 1);
+            mprSetDebugMode(1);
             retries = 0;
             timeout = INT_MAX / MPR_TICKS_PER_SEC;
 
@@ -228,7 +228,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
                 if (formData == 0) {
                     formData = mprCreateList(mpr);
                 }
-                addFormVars(mpr, argv[++nextArg]);
+                addFormVars(argv[++nextArg]);
             }
 
         } else if (strcmp(argp, "--header") == 0) {
@@ -237,14 +237,14 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
             } else {
                 key = argv[++nextArg];
                 if ((value = strchr(key, ':')) == 0) {
-                    mprError(mpr, "Bad header format. Must be \"key: value\"");
+                    mprError("Bad header format. Must be \"key: value\"");
                     return 0;
                 }
                 *value++ = '\0';
                 while (isspace((int) *value)) {
                     value++;
                 }
-                mprAddItem(headers, mprCreateKeyPair(headers, key, value));
+                mprAddItem(headers, mprCreateKeyPair(key, value));
             }
 
         } else if (strcmp(argp, "--host") == 0) {
@@ -308,7 +308,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
             if (nextArg >= argc) {
                 return 0;
             } else {
-                protocol = sclone(mpr, argv[++nextArg]);
+                protocol = sclone(argv[++nextArg]);
                 supper(protocol);
             }
 
@@ -321,9 +321,9 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
             } else {
                 //  TODO - should allow multiple ranges
                 if (ranges == 0) {
-                    ranges = mprAsprintf(mpr, "bytes=%s", argv[++nextArg]);
+                    ranges = mprAsprintf("bytes=%s", argv[++nextArg]);
                 } else {
-                    ranges = sjoin(mpr, ranges, ",", argv[++nextArg], NULL);
+                    ranges = sjoin(ranges, ",", argv[++nextArg], NULL);
                 }
             }
             
@@ -374,7 +374,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
             verbose++;
 
         } else if (strcmp(argp, "--version") == 0 || strcmp(argp, "-V") == 0) {
-            mprPrintfError(mpr, "%s %s\n"
+            mprPrintfError("%s %s\n"
                 "Copyright (C) Embedthis Software 2003-2010\n"
                 "Copyright (C) Michael O'Brien 2003-2010\n",
                BLD_NAME, BLD_VERSION);
@@ -434,8 +434,7 @@ static bool parseArgs(Mpr *mpr, int argc, char **argv)
 
 static void showUsage(Mpr *mpr)
 {
-    mprPrintfError(mpr,
-        "usage: %s [options] [files] url\n"
+    mprPrintfError("usage: %s [options] [files] url\n"
         "  Options:\n"
         "  --benchmark           # Compute benchmark results.\n"
         "  --chunk size          # Request response data to use this chunk size.\n"
@@ -482,13 +481,13 @@ static void processing()
     int         j;
 
     if (chunkSize > 0) {
-        mprAddItem(headers, mprCreateKeyPair(headers, "X-Appweb-Chunk-Size", mprAsprintf(headers, "%d", chunkSize)));
+        mprAddItem(headers, mprCreateKeyPair("X-Appweb-Chunk-Size", mprAsprintf("%d", chunkSize)));
     }
     activeLoadThreads = loadThreads;
     for (j = 0; j < loadThreads; j++) {
         char name[64];
         mprSprintf(name, sizeof(name), "http.%d", j);
-        tp = mprCreateThread(mpr, name, threadMain, mpr, 0); 
+        tp = mprCreateThread(name, threadMain, mpr, 0); 
         mprStartThread(tp);
     }
 }
@@ -503,7 +502,7 @@ static void threadMain(void *data, MprThread *tp)
     MprDispatcher   *dispatcher;
     MprEvent        e;
 
-    dispatcher = mprCreateDispatcher(http, tp->name, 1);
+    dispatcher = mprCreateDispatcher(tp->name, 1);
     conn = httpCreateClient(http, dispatcher);
 
     /*  
@@ -530,16 +529,16 @@ static int processThread(HttpConn *conn, MprEvent *event)
     }
     if (username) {
         if (password == 0 && !strchr(username, ':')) {
-            password = getPassword(conn);
+            password = getPassword();
         }
         httpSetCredentials(conn, username, password);
     }
     while (!mprIsExiting(conn) && (success || continueOnErrors)) {
-        if (singleStep) waitForUser(conn);
+        if (singleStep) waitForUser();
         if (files && !upload) {
             for (next = 0; (path = mprGetNextItem(files, &next)) != 0; ) {
                 if (target[strlen(target) - 1] == '/') {
-                    url = mprJoinPath(conn, target, mprGetPathBase(conn, path));
+                    url = mprJoinPath(target, mprGetPathBase(path));
                 } else {
                     url = target;
                 }
@@ -547,7 +546,7 @@ static int processThread(HttpConn *conn, MprEvent *event)
                 mprAddItem(files, path);
                 url = resolveUrl(conn, url);
                 if (verbose) {
-                    mprPrintf(conn, "putting: %s to %s\n", path, url);
+                    mprPrintf("putting: %s to %s\n", path, url);
                 }
                 if (doRequest(conn, url) < 0) {
                     success = 0;
@@ -566,7 +565,7 @@ static int processThread(HttpConn *conn, MprEvent *event)
                 break;
             }
         }
-        if (iterationsComplete(conn)) {
+        if (iterationsComplete()) {
             break;
         }
     }
@@ -609,7 +608,7 @@ static int prepRequest(HttpConn *conn)
 static int sendRequest(HttpConn *conn, cchar *method, cchar *url)
 {
     if (httpConnect(conn, method, url) < 0) {
-        mprError(conn, "Can't process request for \"%s\". %s.", url, httpGetError(conn));
+        mprError("Can't process request for \"%s\". %s.", url, httpGetError(conn));
         return MPR_ERR_CANT_OPEN;
     }
     /*  
@@ -618,7 +617,7 @@ static int sendRequest(HttpConn *conn, cchar *method, cchar *url)
      */
     if (bodyData || formData || files) {
         if (writeBody(conn) < 0) {
-            mprError(conn, "Can't write body data to \"%s\". %s", url, httpGetError(conn));
+            mprError("Can't write body data to \"%s\". %s", url, httpGetError(conn));
             return MPR_ERR_CANT_WRITE;
         }
     }
@@ -640,7 +639,7 @@ static int retryRequest(HttpConn *conn, cchar *url)
 
     for (redirectCount = count = 0; count <= conn->retries && redirectCount < 16 && !mprIsExiting(conn); count++) {
         if (count > 0) {
-            mprLog(conn, MPR_DEBUG, "retry %d of %d for: %s %s", count, conn->retries, method, url);
+            mprLog(MPR_DEBUG, "retry %d of %d for: %s %s", count, conn->retries, method, url);
             httpSetKeepAliveCount(conn, -1);
             httpPrepClientConn(conn, HTTP_RETRY_REQUEST);
         }
@@ -653,9 +652,9 @@ static int retryRequest(HttpConn *conn, cchar *url)
         if (httpWait(conn, conn->dispatcher, HTTP_STATE_PARSED, conn->limits->requestTimeout) == 0) {
             if (httpNeedRetry(conn, &redirect)) {
                 if (redirect) {
-                    location = httpCreateUri(conn, redirect, 0);
-                    target = httpJoinUri(conn, conn->tx->parsedUri, 1, &location);
-                    url = httpUriToString(conn, target, 1);
+                    location = httpCreateUri(redirect, 0);
+                    target = httpJoinUri(conn->tx->parsedUri, 1, &location);
+                    url = httpUriToString(target, 1);
                     mprFree(location);
                     mprFree(target);
                     httpPrepClientConn(conn, HTTP_NEW_REQUEST);
@@ -681,7 +680,7 @@ static int retryRequest(HttpConn *conn, cchar *url)
     if (conn->error || conn->errorMsg) {
         msg = (conn->errorMsg) ? conn->errorMsg : "";
         sep = (msg && *msg) ? "\n" : "";
-        mprError(conn, "http: failed \"%s\" request for %s after %d attempt(s).%s%s", method, url, count, sep, msg);
+        mprError("http: failed \"%s\" request for %s after %d attempt(s).%s%s", method, url, count, sep, msg);
         return MPR_ERR_CANT_CONNECT;
     }
     return 0;
@@ -707,20 +706,20 @@ static int reportResponse(HttpConn *conn, cchar *url)
     }
     if (conn->rx && success) {
         if (showStatus) {
-            mprPrintf(http, "%d\n", status);
+            mprPrintf("%d\n", status);
         }
         if (showHeaders) {
             responseHeaders = httpGetHeaders(conn);
             rx = conn->rx;
-            mprPrintfError(conn, "\nHeaders\n-------\n%s %d %s\n", conn->protocol, rx->status, rx->statusMessage);
+            mprPrintfError("\nHeaders\n-------\n%s %d %s\n", conn->protocol, rx->status, rx->statusMessage);
             if (responseHeaders) {
-                mprPrintfError(conn, "%s\n", responseHeaders);
+                mprPrintfError("%s\n", responseHeaders);
                 mprFree(responseHeaders);
             }
         }
     }
     if (status < 0) {
-        mprError(conn, "Can't process request for \"%s\" %s", url, httpGetError(conn));
+        mprError("Can't process request for \"%s\" %s", url, httpGetError(conn));
         httpDestroyRx(conn);
         return MPR_ERR_CANT_READ;
 
@@ -729,7 +728,7 @@ static int reportResponse(HttpConn *conn, cchar *url)
 
     } else if (!(200 <= status && status <= 206) && !(301 <= status && status <= 304)) {
         if (!showStatus) {
-            mprError(conn, "Can't process request for \"%s\" (%d) %s", url, status, httpGetError(conn));
+            mprError("Can't process request for \"%s\" (%d) %s", url, status, httpGetError(conn));
             httpDestroyRx(conn);
             return MPR_ERR_CANT_READ;
         }
@@ -765,13 +764,13 @@ static int doRequest(HttpConn *conn, cchar *url)
     file = 0;
     limits = conn->limits;
 
-    mprLog(conn, MPR_DEBUG, "fetch: %s %s", method, url);
+    mprLog(MPR_DEBUG, "fetch: %s %s", method, url);
     mark = mprGetTime(mpr);
 
     if (retryRequest(conn, url) < 0) {
         return MPR_ERR_CANT_CONNECT;
     }
-    while (!conn->error && conn->state < HTTP_STATE_COMPLETE && mprGetElapsedTime(conn, mark) <= limits->requestTimeout) {
+    while (!conn->error && conn->state < HTTP_STATE_COMPLETE && mprGetElapsedTime(mark) <= limits->requestTimeout) {
         httpWait(conn, conn->dispatcher, HTTP_STATE_COMPLETE, 10);
         readBody(conn);
     }
@@ -781,7 +780,7 @@ static int doRequest(HttpConn *conn, cchar *url)
     } else {
         readBody(conn);
     }
-    mprLog(http, 6, "Response status %d, elapsed %d", httpGetStatus(conn), ((int) mprGetTime(mpr)) - mark);
+    mprLog(6, "Response status %d, elapsed %d", httpGetStatus(conn), ((int) mprGetTime(mpr)) - mark);
     reportResponse(conn, url);
     return 0;
 }
@@ -800,8 +799,8 @@ static int setContentLength(HttpConn *conn)
     }
     for (next = 0; (path = mprGetNextItem(files, &next)) != 0; ) {
         if (strcmp(path, "-") != 0) {
-            if (mprGetPathInfo(http, path, &info) < 0) {
-                mprError(http, "Can't access file %s", path);
+            if (mprGetPathInfo(path, &info) < 0) {
+                mprError("Can't access file %s", path);
                 return MPR_ERR_CANT_ACCESS;
             }
             len += (int) info.size;
@@ -833,7 +832,7 @@ static int writeBody(HttpConn *conn)
     rc = 0;
     if (upload) {
         if (httpWriteUploadData(conn, files, formData) < 0) {
-            mprError(http, "Can't write upload data %s", httpGetError(conn));
+            mprError("Can't write upload data %s", httpGetError(conn));
             return MPR_ERR_CANT_WRITE;
         }
     } else {
@@ -857,17 +856,17 @@ static int writeBody(HttpConn *conn)
             mprAssert(mprGetListCount(files) == 1);
             for (rc = next = 0; !rc && (path = mprGetNextItem(files, &next)) != 0; ) {
                 if (strcmp(path, "-") == 0) {
-                    file = mprAttachFd(conn, 0, "stdin", O_RDONLY | O_BINARY);
+                    file = mprAttachFd(0, "stdin", O_RDONLY | O_BINARY);
                 } else {
-                    file = mprOpen(conn, path, O_RDONLY | O_BINARY, 0);
+                    file = mprOpen(path, O_RDONLY | O_BINARY, 0);
                 }
                 if (file == 0) {
-                    mprError(conn, "Can't open \"%s\"", path);
+                    mprError("Can't open \"%s\"", path);
                     return MPR_ERR_CANT_OPEN;
                 }
                 if (verbose) {
                     //  MOB - should this be to stdout or stderr?
-                    mprPrintf(conn, "uploading: %s\n", path);
+                    mprPrintf("uploading: %s\n", path);
                 }
                 while ((bytes = mprRead(file, buf, sizeof(buf))) > 0) {
                     if (httpWriteBlock(conn->writeq, buf, bytes) != bytes) {
@@ -891,10 +890,10 @@ static int writeBody(HttpConn *conn)
 }
 
 
-static bool iterationsComplete(MprCtx ctx)
+static bool iterationsComplete()
 {
     mprLock(mutex);
-    if (verbose > 1) mprPrintf(ctx, ".");
+    if (verbose > 1) mprPrintf(".");
     if (++fetchCount >= iterations) {
         mprUnlock(mutex);
         return 1;
@@ -914,22 +913,22 @@ static void finishThread(MprThread *tp)
 }
 
 
-static void waitForUser(MprCtx ctx)
+static void waitForUser()
 {
     int     c, rc;
 
     mprLock(mutex);
-    mprPrintf(ctx, "Pause: ");
+    mprPrintf("Pause: ");
     rc = read(0, (char*) &c, 1);
     mprUnlock(mutex);
 }
 
 
-static void addFormVars(MprCtx ctx, cchar *buf)
+static void addFormVars(cchar *buf)
 {
     char    *pair, *tok;
 
-    pair = stok(sclone(ctx, buf), "&", &tok);
+    pair = stok(sclone(buf), "&", &tok);
     while (pair != 0) {
         mprAddItem(formData, pair);
         pair = stok(0, "&", &tok);
@@ -956,22 +955,22 @@ static char *resolveUrl(HttpConn *conn, cchar *url)
     if (*url == '/') {
         if (host) {
             if (sncasecmp(host, "http://", 7) != 0 && sncasecmp(host, "https://", 8) != 0) {
-                return mprAsprintf(http, "http://%s%s", host, url);
+                return mprAsprintf("http://%s%s", host, url);
             } else {
-                return mprAsprintf(http, "%s%s", host, url);
+                return mprAsprintf("%s%s", host, url);
             }
         } else {
-            return mprAsprintf(http, "http://127.0.0.1%s", url);
+            return mprAsprintf("http://127.0.0.1%s", url);
         }
     } 
     if (sncasecmp(url, "http://", 7) != 0 && sncasecmp(url, "https://", 8) != 0) {
         if (isPort(url)) {
-            return mprAsprintf(http, "http://127.0.0.1:%s", url);
+            return mprAsprintf("http://127.0.0.1:%s", url);
         } else {
-            return mprAsprintf(http, "http://%s", url);
+            return mprAsprintf("http://%s", url);
         }
     }
-    return sclone(http, url);
+    return sclone(url);
 }
 
 
@@ -1006,9 +1005,9 @@ static void showOutput(HttpConn *conn, cchar *buf, int count)
     for (i = 0; i < count; i++) {
         c = (uchar) buf[i];
         if (printable && isBinary) {
-            mprPrintf(http, "%02x ", c & 0xff);
+            mprPrintf("%02x ", c & 0xff);
         } else {
-            mprPrintf(http, "%c", (int) buf[i]);
+            mprPrintf("%c", (int) buf[i]);
         }
     }
 }
@@ -1022,23 +1021,23 @@ static void trace(HttpConn *conn, cchar *url, int fetchCount, cchar *method, int
     if ((fetchCount % 200) == 1) {
         if (fetchCount == 1 || (fetchCount % 5000) == 1) {
             if (fetchCount > 1) {
-                mprPrintf(http, "\n");
+                mprPrintf("\n");
             }
-            mprPrintf(http, "  Count  Thread   Op  Code   Bytes  Url\n");
+            mprPrintf("  Count  Thread   Op  Code   Bytes  Url\n");
         }
-        mprPrintf(http, "%7d %7s %4s %5d %7d  %s\n", fetchCount - 1,
+        mprPrintf("%7d %7s %4s %5d %7d  %s\n", fetchCount - 1,
             mprGetCurrentThreadName(conn), method, status, contentLen, url);
     }
 }
 
 
-static void logHandler(MprCtx ctx, int flags, int level, const char *msg)
+static void logHandler(int flags, int level, const char *msg)
 {
     Mpr         *mpr;
     MprFile     *file;
     char        *prefix;
 
-    mpr = mprGetMpr(ctx);
+    mpr = mprGetMpr();
     file = (MprFile*) mpr->logData;
     prefix = mpr->name;
 
@@ -1080,13 +1079,13 @@ static int startLogging(Mpr *mpr, char *logSpec)
     if (strcmp(logSpec, "stdout") == 0) {
         file = mpr->fileSystem->stdOutput;
     } else {
-        if ((file = mprOpen(mpr, logSpec, O_CREAT | O_WRONLY | O_TRUNC | O_TEXT, 0664)) == 0) {
-            mprPrintfError(mpr, "Can't open log file %s\n", logSpec);
+        if ((file = mprOpen(logSpec, O_CREAT | O_WRONLY | O_TRUNC | O_TEXT, 0664)) == 0) {
+            mprPrintfError("Can't open log file %s\n", logSpec);
             return -1;
         }
     }
-    mprSetLogLevel(mpr, level);
-    mprSetLogHandler(mpr, logHandler, (void*) file);
+    mprSetLogLevel(level);
+    mprSetLogHandler(logHandler, (void*) file);
     return 0;
 }
 
@@ -1136,7 +1135,7 @@ static char *getpass(char *prompt)
 #endif /* WIN */
 
 
-static char *getPassword(MprCtx ctx)
+static char *getPassword()
 {
 #if !WINCE
     char    *password;
@@ -1145,7 +1144,7 @@ static char *getPassword(MprCtx ctx)
 #else
     password = "no-user-interaction-support";
 #endif
-    return sclone(ctx, password);
+    return sclone(password);
 }
 
 

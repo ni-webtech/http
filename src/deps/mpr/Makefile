@@ -29,9 +29,7 @@ ifeq ($(BLD_FEATURE_SSL),1)
 	SSL_OBJECTS		+= mprSsl
 endif
 TARGETS				+= $(BLD_BIN_DIR)/angel$(BLD_EXE)
-ifeq ($(BUILD_NATIVE_OR_COMPLETE_CROSS),1)
-	TARGETS			+= $(BLD_BIN_DIR)/makerom$(BLD_EXE)
-endif
+TARGETS				+= $(BLD_BIN_DIR)/makerom$(BLD_EXE)
 
 compileTargets: imports $(TARGETS)
 

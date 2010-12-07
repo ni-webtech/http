@@ -36,13 +36,13 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     mprAssert(conn);
 
     http = conn->http;
-    uri = httpCreateUri(conn, url, 0);
+    uri = httpCreateUri(url, 0);
 
     if (uri->secure) {
 #if BLD_FEATURE_SSL
         if (!http->sslLoaded) {
-            if (!mprLoadSsl(http, 0)) {
-                mprError(http, "Can't load SSL provider");
+            if (!mprLoadSsl(0)) {
+                mprError("Can't load SSL provider");
                 return 0;
             }
             http->sslLoaded = 1;
@@ -66,13 +66,13 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
         if (conn->keepAliveCount < 0 || port != conn->port || strcmp(ip, conn->ip) != 0) {
             httpCloseClientConn(conn);
         } else {
-            mprLog(http, 4, "Http: reusing keep-alive socket on: %s:%d", ip, port);
+            mprLog(4, "Http: reusing keep-alive socket on: %s:%d", ip, port);
         }
     }
     if (conn->sock) {
         return conn;
     }
-    if ((sp = mprCreateSocket(conn, (uri->secure) ? MPR_SECURE_CLIENT: NULL)) == 0) {
+    if ((sp = mprCreateSocket((uri->secure) ? MPR_SECURE_CLIENT: NULL)) == 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
         mprFree(sp);
         return 0;
@@ -84,13 +84,13 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
         return 0;
     }
     conn->sock = sp;
-    conn->ip = sclone(conn, ip);
+    conn->ip = sclone(ip);
     conn->port = port;
     conn->secure = uri->secure;
     conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
 
     if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_CONN, NULL)) >= 0) {
-        mprLog(conn, level, "### Outgoing connection from %s:%d to %s:%d", 
+        mprLog(level, "### Outgoing connection from %s:%d to %s:%d", 
             conn->ip, conn->port, conn->sock->ip, conn->sock->port);
     }
     return conn;
@@ -118,7 +118,7 @@ static int setClientHeaders(HttpConn *conn)
     if (conn->authType && strcmp(conn->authType, "basic") == 0) {
         char    abuf[MPR_MAX_STRING];
         mprSprintf(abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
-        encoded = mprEncode64(conn, abuf);
+        encoded = mprEncode64(abuf);
         httpAddHeader(conn, "Authorization", "basic %s", encoded);
         mprFree(encoded);
         conn->sentCredentials = 1;
@@ -127,20 +127,20 @@ static int setClientHeaders(HttpConn *conn)
         char    a1Buf[256], a2Buf[256], digestBuf[256];
         char    *ha1, *ha2, *digest, *qop;
         if (http->secret == 0 && httpCreateSecret(http) < 0) {
-            mprLog(tx, MPR_ERROR, "Http: Can't create secret for digest authentication");
+            mprLog(MPR_ERROR, "Http: Can't create secret for digest authentication");
             mprFree(tx);
             conn->tx = 0;
             return MPR_ERR_CANT_CREATE;
         }
         mprFree(conn->authCnonce);
-        conn->authCnonce = mprAsprintf(conn, "%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime(conn)); 
+        conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime(conn)); 
 
         mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
         len = strlen(a1Buf);
-        ha1 = mprGetMD5Hash(tx, a1Buf, len, NULL);
+        ha1 = mprGetMD5Hash(a1Buf, len, NULL);
         mprSprintf(a2Buf, sizeof(a2Buf), "%s:%s", tx->method, parsedUri->path);
         len = strlen(a2Buf);
-        ha2 = mprGetMD5Hash(tx, a2Buf, len, NULL);
+        ha2 = mprGetMD5Hash(a2Buf, len, NULL);
         qop = (conn->authQop) ? conn->authQop : (char*) "";
 
         conn->authNc++;
@@ -156,7 +156,7 @@ static int setClientHeaders(HttpConn *conn)
         }
         mprFree(ha1);
         mprFree(ha2);
-        digest = mprGetMD5Hash(tx, digestBuf, strlen(digestBuf), NULL);
+        digest = mprGetMD5Hash(digestBuf, strlen(digestBuf), NULL);
 
         if (*qop == '\0') {
             httpAddHeader(conn, "Authorization", "Digest user=\"%s\", realm=\"%s\", nonce=\"%s\", "
@@ -208,7 +208,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
         httpError(conn, HTTP_CODE_BAD_GATEWAY, "Can't call connect in a server");
         return MPR_ERR_BAD_STATE;
     }
-    mprLog(conn, 4, "Http: client request: %s %s", method, url);
+    mprLog(4, "Http: client request: %s %s", method, url);
 
     if (conn->sock) {
         /* 
@@ -223,10 +223,10 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     conn->sentCredentials = 0;
 
     mprFree(tx->method);
-    method = tx->method = sclone(tx, method);
+    method = tx->method = sclone(method);
     supper(tx->method);
     mprFree(tx->parsedUri);
-    tx->parsedUri = httpCreateUri(tx, url, 0);
+    tx->parsedUri = httpCreateUri(url, 0);
 
     if (openConnection(conn, url) == 0) {
         return MPR_ERR_CANT_OPEN;
@@ -282,7 +282,7 @@ bool httpNeedRetry(HttpConn *conn, char **url)
 void httpEnableUpload(HttpConn *conn)
 {
     mprFree(conn->boundary);
-    conn->boundary = mprAsprintf(conn, "--BOUNDARY--%Ld", conn->http->now);
+    conn->boundary = mprAsprintf("--BOUNDARY--%Ld", conn->http->now);
     httpSetHeader(conn, "Content-Type", "multipart/form-data; boundary=%s", &conn->boundary[2]);
 }
 
@@ -293,9 +293,9 @@ static int blockingFileCopy(HttpConn *conn, cchar *path)
     char        buf[MPR_BUFSIZE];
     int         bytes;
 
-    file = mprOpen(conn, path, O_RDONLY | O_BINARY, 0);
+    file = mprOpen(path, O_RDONLY | O_BINARY, 0);
     if (file == 0) {
-        mprError(conn, "Can't open %s", path);
+        mprError("Can't open %s", path);
         return MPR_ERR_CANT_OPEN;
     }
     while ((bytes = mprRead(file, buf, sizeof(buf))) > 0) {
@@ -321,18 +321,18 @@ int httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
 
     if (formData) {
         for (rc = next = 0; rc >= 0 && (pair = mprGetNextItem(formData, &next)) != 0; ) {
-            key = stok(sclone(conn, pair), "=", &value);
+            key = stok(sclone(pair), "=", &value);
             rc += httpWrite(conn->writeq, "%s\r\nContent-Disposition: form-data; name=\"%s\";\r\n", conn->boundary, key);
             rc += httpWrite(conn->writeq, "Content-Type: application/x-www-form-urlencoded\r\n\r\n%s\r\n", value);
         }
     }
     if (fileData) {
         for (rc = next = 0; rc >= 0 && (path = mprGetNextItem(fileData, &next)) != 0; ) {
-            name = mprGetPathBase(conn, path);
+            name = mprGetPathBase(path);
             rc += httpWrite(conn->writeq, "%s\r\nContent-Disposition: form-data; name=\"file%d\"; filename=\"%s\"\r\n", 
                 conn->boundary, next - 1, name);
             mprFree(name);
-            rc += httpWrite(conn->writeq, "Content-Type: %s\r\n\r\n", mprLookupMimeType(conn->http, path));
+            rc += httpWrite(conn->writeq, "Content-Type: %s\r\n\r\n", mprLookupMimeType(path));
             rc += blockingFileCopy(conn, path);
             rc += httpWrite(conn->writeq, "\r\n", value);
         }

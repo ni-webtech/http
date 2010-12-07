@@ -9,7 +9,7 @@
 
 /***************************** Forward Declarations ***************************/
 
-static int destroyTx(HttpTx *tx);
+static void manageTx(HttpTx *tx, int flags);
 static void setDefaultHeaders(HttpConn *conn);
 
 /*********************************** Code *************************************/
@@ -21,7 +21,7 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
 
     http = conn->http;
 
-    if ((tx = mprAllocObj(conn->rx, HttpTx, destroyTx)) == 0) {
+    if ((tx = mprAllocObj(HttpTx, manageTx)) == 0) {
         return 0;
     }
     conn->tx = tx;
@@ -38,7 +38,7 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
         mprStealBlock(tx, headers);
 #endif
     } else {
-        tx->headers = mprCreateHash(tx, HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
+        tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
         setDefaultHeaders(conn);
     }
     httpInitQueue(conn, &tx->queue[HTTP_QUEUE_TRANS], "TxHead");
@@ -47,11 +47,26 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
 }
 
 
-static int destroyTx(HttpTx *tx)
+static void manageTx(HttpTx *tx, int flags)
 {
-    httpDestroyPipeline(tx->conn);
-    tx->conn->tx = 0;
-    return 0;
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(tx->outputPipeline);
+        httpManageQueue(&tx->queue[0], flags);
+        httpManageQueue(&tx->queue[1], flags);
+        mprMark(tx->parsedUri);
+        mprMark(tx->currentRange);
+        mprMark(tx->rangeBoundary);
+        mprMark(tx->etag);
+        mprMark(tx->method);
+        mprMark(tx->altBody);
+        mprMark(tx->file);
+        mprMark(tx->filename);
+        mprMark(tx->extension);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        httpDestroyPipeline(tx->conn);
+        tx->conn->tx = 0;
+    }
 }
 
 
@@ -98,7 +113,7 @@ void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 
     tx = conn->tx;
     va_start(vargs, fmt);
-    value = mprAsprintfv(tx, fmt, vargs);
+    value = mprAsprintfv(fmt, vargs);
     va_end(vargs);
 
     if (!mprLookupHash(tx->headers, key)) {
@@ -140,12 +155,12 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 
     tx = conn->tx;
     va_start(vargs, fmt);
-    value = mprAsprintfv(tx, fmt, vargs);
+    value = mprAsprintfv(fmt, vargs);
     va_end(vargs);
 
     oldValue = mprLookupHash(tx->headers, key);
     if (oldValue) {
-        addHeader(conn, key, mprAsprintf(tx->headers, "%s, %s", oldValue, value));
+        addHeader(conn, key, mprAsprintf("%s, %s", oldValue, value));
     } else {
         addHeader(conn, key, value);
     }
@@ -166,7 +181,7 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 
     tx = conn->tx;
     va_start(vargs, fmt);
-    value = mprAsprintfv(tx, fmt, vargs);
+    value = mprAsprintfv(fmt, vargs);
     va_end(vargs);
     addHeader(conn, key, value);
 }
@@ -180,7 +195,7 @@ void httpSetSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
     mprAssert(value);
 
     tx = conn->tx;
-    addHeader(conn, key, sclone(tx, value));
+    addHeader(conn, key, sclone(value));
 }
 
 
@@ -190,7 +205,7 @@ void httpClearHeaders(HttpConn *conn)
 
     tx = conn->tx;
     mprFree(tx->headers);
-    tx->headers = mprCreateHash(tx, HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
+    tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     setDefaultHeaders(conn);
 }
 
@@ -210,7 +225,7 @@ void httpFinalize(HttpConn *conn)
         return;
     }
     tx->finalized = 1;
-    httpPutForService(conn->writeq, httpCreateEndPacket(tx), 1);
+    httpPutForService(conn->writeq, httpCreateEndPacket(), 1);
     httpServiceQueues(conn);
     if (conn->state == HTTP_STATE_RUNNING && conn->writeComplete && !conn->advancing) {
         httpProcess(conn, NULL);
@@ -246,8 +261,8 @@ int httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
     mprAssert(tx->altBody == 0);
 
     va_start(args, fmt);
-    body = mprAsprintfv(tx, fmt, args);
-    tx->altBody = mprAsprintf(tx,
+    body = mprAsprintfv(fmt, args);
+    tx->altBody = mprAsprintf(
         "<!DOCTYPE html>\r\n"
         "<html><head><title>%s</title></head>\r\n"
         "<body>\r\n%s\r\n</body>\r\n</html>\r\n",
@@ -272,7 +287,7 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
     tx = conn->tx;
 
     if (tx->flags & HTTP_TX_HEADERS_CREATED) {
-        mprError(conn, "Can't set response body if headers have already been created");
+        mprError("Can't set response body if headers have already been created");
         /* Connectors will detect this also and disconnect */
     } else {
         httpDiscardTransmitData(conn);
@@ -280,7 +295,7 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
     tx->status = status;
     if (tx->altBody == 0) {
         statusMsg = httpLookupStatus(conn->http, status);
-        emsg = mprEscapeHtml(tx, msg);
+        emsg = mprEscapeHtml(msg);
         httpFormatBody(conn, statusMsg, "<h2>Access Error: %d -- %s</h2>\r\n<p>%s</p>\r\n", status, statusMsg, emsg);
     }
 }
@@ -317,14 +332,14 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
 
     mprAssert(targetUri);
 
-    mprLog(conn, 3, "redirect %d %s", status, targetUri);
+    mprLog(3, "redirect %d %s", status, targetUri);
 
     rx = conn->rx;
     tx = conn->tx;
     uri = 0;
     tx->status = status;
     prev = rx->parsedUri;
-    target = httpCreateUri(tx, targetUri, 0);
+    target = httpCreateUri(targetUri, 0);
 
     if (tx->redirectCallback) {
         targetUri = (tx->redirectCallback)(conn, &status, target);
@@ -335,25 +350,25 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
             /*
                 Absolute URL. If hostName has a port specifier, it overrides prev->port.
              */
-            uri = httpFormatUri(tx, prev->scheme, rx->hostName, port, target->path, target->reference, target->query, 1);
+            uri = httpFormatUri(prev->scheme, rx->hostName, port, target->path, target->reference, target->query, 1);
         } else {
             /*
                 Relative file redirection to a file in the same directory as the previous request.
              */
-            dir = sclone(tx, rx->pathInfo);
+            dir = sclone(rx->pathInfo);
             if ((cp = strrchr(dir, '/')) != 0) {
                 /* Remove basename */
                 *cp = '\0';
             }
-            path = sjoin(tx, NULL, dir, "/", target->path, NULL);
-            uri = httpFormatUri(tx, prev->scheme, rx->hostName, port, path, target->reference, target->query, 1);
+            path = sjoin(dir, "/", target->path, NULL);
+            uri = httpFormatUri(prev->scheme, rx->hostName, port, path, target->reference, target->query, 1);
         }
         targetUri = uri;
     }
     httpSetHeader(conn, "Location", "%s", targetUri);
     mprAssert(tx->altBody == 0);
     msg = httpLookupStatus(conn->http, status);
-    tx->altBody = mprAsprintf(tx,
+    tx->altBody = mprAsprintf(
         "<!DOCTYPE html>\r\n"
         "<html><head><title>%s</title></head>\r\n"
         "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p>\r\n"
@@ -408,7 +423,7 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         }
     }
     if (webkitVersion >= 312) {
-        domain = sclone(tx, rx->hostName);
+        domain = sclone(rx->hostName);
         if ((cp = strchr(domain, ':')) != 0) {
             *cp = '\0';
         }
@@ -426,9 +441,9 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         domainAtt = "";
     }
     if (lifetime > 0) {
-        mprDecodeUniversalTime(tx, &tm, conn->time + (lifetime * MPR_TICKS_PER_SEC));
+        mprDecodeUniversalTime(&tm, conn->time + (lifetime * MPR_TICKS_PER_SEC));
         expiresAtt = "; expires=";
-        expires = mprFormatTime(tx, MPR_HTTP_DATE, &tm);
+        expires = mprFormatTime(MPR_HTTP_DATE, &tm);
 
     } else {
         expires = expiresAtt = "";
@@ -442,7 +457,7 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
        Allow multiple cookie headers. Even if the same name. Later definitions take precedence
      */
     httpAppendHeader(conn, "Set-Cookie", 
-        sjoin(tx, NULL, name, "=", value, "; path=", path, domainAtt, domain, expiresAtt, expires, secure, NULL));
+        sjoin(name, "=", value, "; path=", path, domainAtt, domain, expiresAtt, expires, secure, NULL));
     httpAppendHeader(conn, "Cache-control", "no-cache=\"set-cookie\"");
 }
 
@@ -485,7 +500,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             tx->status = HTTP_CODE_NOT_ACCEPTABLE;
             httpFormatBody(conn, "Trace Request Denied", "<p>The TRACE method is disabled on this server.</p>");
         } else {
-            tx->altBody = mprAsprintf(tx, "%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
+            tx->altBody = mprAsprintf("%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
         }
     } else if (rx->flags & HTTP_OPTIONS) {
         handlerFlags = tx->traceMethods;
@@ -510,8 +525,8 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             expires = PTOL(mprLookupHash(rx->loc->expires, ""));
         }
         if (expires) {
-            mprDecodeUniversalTime(conn, &tm, mprGetTime(conn) + (expires * MPR_TICKS_PER_SEC));
-            hdr = mprFormatTime(conn, MPR_HTTP_DATE, &tm);
+            mprDecodeUniversalTime(&tm, mprGetTime(conn) + (expires * MPR_TICKS_PER_SEC));
+            hdr = mprFormatTime(MPR_HTTP_DATE, &tm);
             httpAddHeader(conn, "Cache-Control", "max-age=%d", expires);
             httpAddHeader(conn, "Expires", "%s", hdr);
             mprFree(hdr);
@@ -544,7 +559,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         httpAddHeader(conn, "Accept-Ranges", "bytes");
     }
     if (tx->extension) {
-        if ((mimeType = (char*) mprLookupMimeType(http, tx->extension)) != 0) {
+        if ((mimeType = (char*) mprLookupMimeType(tx->extension)) != 0) {
             httpAddSimpleHeader(conn, "Content-Type", mimeType);
         }
     }
@@ -583,7 +598,7 @@ void httpSetStatus(HttpConn *conn, int status)
 
 void httpSetMimeType(HttpConn *conn, cchar *mimeType)
 {
-    httpSetSimpleHeader(conn, "Content-Type", sclone(conn->tx, mimeType));
+    httpSetSimpleHeader(conn, "Content-Type", sclone(mimeType));
 }
 
 
@@ -671,7 +686,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     tx->flags |= HTTP_TX_HEADERS_CREATED;
 
     if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) == mprGetLogLevel(tx)) {
-        mprLog(conn, level, "%s %s %d", rx->method, rx->uri, tx->status);
+        mprLog(level, "%s %s %d", rx->method, rx->uri, tx->status);
     }
 }
 

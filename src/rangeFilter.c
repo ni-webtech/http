@@ -187,7 +187,7 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
         lenBuf[0] = '*';
         lenBuf[1] = '\0';
     }
-    packet = httpCreatePacket(tx, HTTP_RANGE_BUFSIZE);
+    packet = httpCreatePacket(HTTP_RANGE_BUFSIZE);
     packet->flags |= HTTP_PACKET_RANGE;
     mprPutFmtToBuf(packet->content, 
         "\r\n--%s\r\n"
@@ -206,7 +206,7 @@ static HttpPacket *createFinalRangePacket(HttpConn *conn)
 
     tx = conn->tx;
 
-    packet = httpCreatePacket(tx, HTTP_RANGE_BUFSIZE);
+    packet = httpCreatePacket(HTTP_RANGE_BUFSIZE);
     packet->flags |= HTTP_PACKET_RANGE;
     mprPutFmtToBuf(packet->content, "\r\n--%s--\r\n", tx->rangeBoundary);
     return packet;
@@ -221,7 +221,7 @@ static void createRangeBoundary(HttpConn *conn)
 
     tx = conn->tx;
     mprAssert(tx->rangeBoundary == 0);
-    tx->rangeBoundary = mprAsprintf(tx, "%08X%08X", PTOI(tx) + PTOI(conn) * (int) conn->time, (int) conn->time);
+    tx->rangeBoundary = mprAsprintf("%08X%08X", PTOI(tx) + PTOI(conn) * (int) conn->time, (int) conn->time);
 }
 
 

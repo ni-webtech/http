@@ -33,11 +33,14 @@ typedef struct Upload {
     char            *id;                /* Current name keyword value */
 } Upload;
 
+
 /********************************** Forwards **********************************/
 
 static void closeUpload(HttpQueue *q);
 static char *getBoundary(void *buf, int bufLen, void *boundary, int boundaryLen);
 static void incomingUploadData(HttpQueue *q, HttpPacket *packet);
+static void manageHttpUploadFile(HttpUploadFile *file, int flags);
+static void manageUpload(Upload *up, int flags);
 static bool matchUpload(HttpConn *conn, HttpStage *filter);
 static void openUpload(HttpQueue *q);
 static int  processContentBoundary(HttpQueue *q, char *line);
@@ -105,7 +108,7 @@ static void openUpload(HttpQueue *q)
     tx = conn->tx;
     rx = conn->rx;
 
-    if ((up = mprAllocObj(tx, Upload, NULL)) == 0) {
+    if ((up = mprAllocObj(Upload, manageUpload)) == 0) {
         return;
     }
     q->queueData = up;
@@ -115,12 +118,12 @@ static void openUpload(HttpQueue *q)
 #if BLD_WIN_LIKE
         rx->uploadDir = mprGetNormalizedPath(rx, getenv("TEMP"));
 #else
-        rx->uploadDir = sclone(rx, "/tmp");
+        rx->uploadDir = sclone("/tmp");
 #endif
     }
     if ((boundary = strstr(rx->mimeType, "boundary=")) != 0) {
         boundary += 9;
-        up->boundary = sjoin(up, NULL, "--", boundary, NULL);
+        up->boundary = sjoin("--", boundary, NULL);
         up->boundaryLen = strlen(up->boundary);
     }
     if (up->boundaryLen == 0 || *up->boundary == '\0') {
@@ -128,6 +131,21 @@ static void openUpload(HttpQueue *q)
         return;
     }
     httpSetFormVar(conn, "UPLOAD_DIR", rx->uploadDir);
+}
+
+
+static void manageUpload(Upload *up, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(up->currentFile);
+        mprMark(up->file);
+        mprMark(up->boundary);
+        mprMark(up->clientFilename);
+        mprMark(up->tmpPath);
+        mprMark(up->id);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
 }
 
 
@@ -145,7 +163,7 @@ static void closeUpload(HttpQueue *q)
     
     if (up->currentFile) {
         file = up->currentFile;
-        mprDeletePath(q->conn, file->filename);
+        mprDeletePath(file->filename);
         file->filename = 0;
         mprFree(up->file);
     }
@@ -182,7 +200,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
         httpSendPacketToNext(q, packet);
         return;
     }
-    mprLog(conn, 5, "uploadIncomingData: %d bytes", httpGetPacketLength(packet));
+    mprLog(5, "uploadIncomingData: %d bytes", httpGetPacketLength(packet));
     
     /*  
         Put the packet data onto the service queue for buffering. This aggregates input data incase we don't have
@@ -310,7 +328,7 @@ static int processContentHeader(HttpQueue *q, char *line)
         up->contentState = HTTP_UPLOAD_CONTENT_DATA;
         return 0;
     }
-    mprLog(conn, 5, "Header line: %s", line);
+    mprLog(5, "Header line: %s", line);
 
     headerTok = line;
     stok(line, ": ", &rest);
@@ -345,7 +363,7 @@ static int processContentHeader(HttpQueue *q, char *line)
 
             } else if (scasecmp(key, "name") == 0) {
                 mprFree(up->id);
-                up->id = sclone(up, value);
+                up->id = sclone(value);
 
             } else if (scasecmp(key, "filename") == 0) {
                 if (up->id == 0) {
@@ -353,19 +371,19 @@ static int processContentHeader(HttpQueue *q, char *line)
                     return MPR_ERR_BAD_STATE;
                 }
                 mprFree(up->clientFilename);
-                up->clientFilename = sclone(up, value);
+                up->clientFilename = sclone(value);
                 /*  
                     Create the file to hold the uploaded data
                  */
-                up->tmpPath = mprGetTempPath(up, rx->uploadDir);
+                up->tmpPath = mprGetTempPath(rx->uploadDir);
                 if (up->tmpPath == 0) {
                     httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, 
                         "Can't create upload temp file %s. Check upload temp dir %s", up->tmpPath, rx->uploadDir);
                     return MPR_ERR_CANT_OPEN;
                 }
-                mprLog(conn, 5, "File upload of: %s stored as %s", up->clientFilename, up->tmpPath);
+                mprLog(5, "File upload of: %s stored as %s", up->clientFilename, up->tmpPath);
 
-                up->file = mprOpen(up, up->tmpPath, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0600);
+                up->file = mprOpen(up->tmpPath, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0600);
                 if (up->file == 0) {
                     httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't open upload temp file %s", up->tmpPath);
                     return MPR_ERR_BAD_STATE;
@@ -373,20 +391,32 @@ static int processContentHeader(HttpQueue *q, char *line)
                 /*  
                     Create the files[id]
                  */
-                file = up->currentFile = mprAllocObj(up, HttpUploadFile, NULL);
-                file->clientFilename = sclone(file, up->clientFilename);
-                file->filename = sclone(file, up->tmpPath);
+                file = up->currentFile = mprAllocObj(HttpUploadFile, manageHttpUploadFile);
+                file->clientFilename = sclone(up->clientFilename);
+                file->filename = sclone(up->tmpPath);
             }
             key = nextPair;
         }
 
     } else if (scasecmp(headerTok, "Content-Type") == 0) {
         if (up->clientFilename) {
-            mprLog(conn, 5, "Set files[%s][CONTENT_TYPE] = %s", up->id, rest);
-            up->currentFile->contentType = sclone(up->currentFile, rest);
+            mprLog(5, "Set files[%s][CONTENT_TYPE] = %s", up->id, rest);
+            up->currentFile->contentType = sclone(rest);
         }
     }
     return 1;
+}
+
+
+static void manageHttpUploadFile(HttpUploadFile *file, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(file->filename);
+        mprMark(file->clientFilename);
+        mprMark(file->contentType);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+    }
 }
 
 
@@ -405,19 +435,19 @@ static void defineFileFields(HttpQueue *q, Upload *up)
     }
     up = q->queueData;
     file = up->currentFile;
-    key = sjoin(q, NULL, "FILE_CLIENT_FILENAME_", up->id, NULL);
+    key = sjoin("FILE_CLIENT_FILENAME_", up->id, NULL);
     httpSetFormVar(conn, key, file->clientFilename);
     mprFree(key);
 
-    key = sjoin(q, NULL, "FILE_CONTENT_TYPE_", up->id, NULL);
+    key = sjoin("FILE_CONTENT_TYPE_", up->id, NULL);
     httpSetFormVar(conn, key, file->contentType);
     mprFree(key);
 
-    key = sjoin(q, NULL, "FILE_FILENAME_", up->id, NULL);
+    key = sjoin("FILE_FILENAME_", up->id, NULL);
     httpSetFormVar(conn, key, file->filename);
     mprFree(key);
 
-    key = sjoin(q, NULL, "FILE_SIZE_", up->id, NULL);
+    key = sjoin("FILE_SIZE_", up->id, NULL);
     httpSetIntFormVar(conn, key, file->size);
     mprFree(key);
 }
@@ -452,7 +482,7 @@ static int writeToFile(HttpQueue *q, char *data, int len)
             return MPR_ERR_CANT_WRITE;
         }
         file->size += len;
-        mprLog(q, 6, "uploadFilter: Wrote %d bytes to %s", len, up->tmpPath);
+        mprLog(6, "uploadFilter: Wrote %d bytes to %s", len, up->tmpPath);
     }
     return 0;
 }
@@ -489,7 +519,7 @@ static int processContentData(HttpQueue *q)
     }
     bp = getBoundary(mprGetBufStart(content), size, up->boundary, up->boundaryLen);
     if (bp == 0) {
-        mprLog(q, 6, "uploadFilter: Got boundary filename %x", up->clientFilename);
+        mprLog(6, "uploadFilter: Got boundary filename %x", up->clientFilename);
         if (up->clientFilename) {
             /*  
                 No signature found yet. probably more data to come. Must handle split boundaries.
@@ -532,12 +562,12 @@ static int processContentData(HttpQueue *q)
                 Normal string form data variables
              */
             data[dataLen] = '\0'; 
-            mprLog(conn, 5, "uploadFilter: form[%s] = %s", up->id, data);
-            key = mprUriDecode(q, up->id);
-            data = mprUriDecode(q, data);
+            mprLog(5, "uploadFilter: form[%s] = %s", up->id, data);
+            key = mprUriDecode(up->id);
+            data = mprUriDecode(data);
             httpSetFormVar(conn, key, data);
             if (packet == 0) {
-                packet = httpCreatePacket(q, HTTP_BUFSIZE);
+                packet = httpCreatePacket(HTTP_BUFSIZE);
             }
             if (mprGetBufLength(packet->content) > 0) {
                 /*
