@@ -347,12 +347,6 @@ typedef intptr_t pint;
     #define BLD_HAS_SPINLOCK    1
 #endif
 
-#if VXWORKS && (_WRS_VXWORKS_MAJOR <= 5 || _DIAB_TOOL)
-    #define BLD_HAS_UNNAMED_UNIONS 0
-#else
-    #define BLD_HAS_UNNAMED_UNIONS 1
-#endif
-
 #if BLD_CC_DOUBLE_BRACES
     #define  NULL_INIT    {{0}}
 #else
@@ -1656,8 +1650,9 @@ typedef struct MprMem {
     Flags for MprMemNotifier
  */
 #define MPR_ALLOC_GC                0x1         /**< System would benefit from a garbage collection */
-#define MPR_ALLOC_LOW               0x2         /**< Memory is low, no errors yet */
-#define MPR_ALLOC_DEPLETED          0x4         /**< Memory depleted. Cannot satisfy current request */
+#define MPR_ALLOC_YIELD             0x2         /**< GC complete, threads must yield to sync new generation */
+#define MPR_ALLOC_LOW               0x4         /**< Memory is low, no errors yet */
+#define MPR_ALLOC_DEPLETED          0x8         /**< Memory depleted. Cannot satisfy current request */
 
 /*
     GC Object generations
@@ -1676,7 +1671,9 @@ typedef struct MprMem {
  */
 typedef void (*MprMemNotifier)(int flags, size_t size);
 
+#if UNUSED
 typedef void (*MprMemCollect)();
+#endif
 
 /**
     Mpr memory block manager prototype
@@ -1770,6 +1767,7 @@ typedef struct MprHeap {
     int             active;                 /**< Active generation for new and active blocks */
     int             allocPolicy;            /**< Memory allocation depletion policy */
     int             chunkSize;              /**< O/S memory allocation chunk size */
+    uint            cleanup;                /**< Garbage collection needed */
     int             collecting;             /**< GC is running */
     int             destroying;             /**< Destroying the heap */
     int             enabled;                /**< GC is enabled */
@@ -4093,6 +4091,7 @@ typedef struct MprFile {
     int             mode;               /**< File open mode */
     int             perms;              /**< File permissions */
     int             fd;                 /**< File handle */
+    int             attached;           /**< Attached to existing descriptor */
 #if BLD_FEATURE_ROMFS
     MprRomInode     *inode;             /**< Reference to ROM file */
 #endif
@@ -6608,7 +6607,7 @@ extern int mprWriteCmdPipe(MprCmd *cmd, int channel, char *buf, int bufsize);
 #define MPR_ALLOC_POLICY_EXIT       0x1     /* Exit the app */
 #define MPR_ALLOC_POLICY_RESTART    0x2     /* Restart the app */
 #define MPR_ALLOC_POLICY_NULL       0x4     /* Do nothing */
-#define MPR_ALLOOC_POLICY_WARN      0x8     /* Warn to log */
+#define MPR_ALLOC_POLICY_WARN       0x8     /* Warn to log */
 
 typedef bool (*MprIdleCallback)();
 

@@ -34,7 +34,7 @@
 #						in buildConfig.make and buildConfig.sh
 #		PRE_DIRS		Directories to recurse before the current directory
 #		POST_DIRS		Directories to recurse after the current directory
-#		MAKE_XXFLAGS    These are specified in user makes. Valid for IFLAGS,
+#		MAKE_XXFLAGS    These are specified in user makefiles. Valid for IFLAGS,
 #                       CFLAGS and LDFLAGS
 #       _XXFLAGS        Flags from the make.* per O/S configuration files.
 #
@@ -53,7 +53,7 @@ COMPILE     ?= *.c
 #
 #	These exports may be defined by users make files and are passed to bld
 #
-export 	MAKE_CFLAGS MAKE_DFLAGS MAKE_IFLAGS MAKE_LDFLAGS EXPORT_OBJECTS BUILDING_NATIVE TRACE
+export 	MAKE_CFLAGS MAKE_DFLAGS MAKE_IFLAGS MAKE_LDFLAGS EXPORT_OBJECTS BUILDING_NATIVE TRACE TEMP
 
 #
 #	Compute the directory path for display purposes
@@ -63,6 +63,7 @@ BUILD_DEPTH     ?= 2
 BUILDING_NATIVE := 0
 MAKE			:= $(BLD_MAKE)
 MAKE			?= make
+TEMP			?= /tmp
 ifeq ($(TRACE),)
     MAKEFLAGS   += -s TRACE=0 MOB=$(TRACE)
 endif
