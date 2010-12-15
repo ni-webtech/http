@@ -112,13 +112,17 @@ HttpUri *httpCreateUri(cchar *uri, int complete)
             if (last_delim <= cp) {
                 up->ext = cp + 1;
 #if BLD_WIN_LIKE
-                slower(up->ext);
+                for (cp = up->ext; *cp; cp++) {
+                    *cp = (char) tolower((int) *cp);
+                }
 #endif
             }
         } else {
             up->ext = cp + 1;
 #if BLD_WIN_LIKE
-            slower(up->ext);
+            for (cp = up->ext; *cp; cp++) {
+                *cp = (char) tolower((int) *cp);
+            }
 #endif
         }
     }
@@ -196,13 +200,17 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
             if (last_delim <= cp) {
                 up->ext = cp + 1;
 #if BLD_WIN_LIKE
-                slower(up->ext);
+                for (cp = up->ext; *cp; cp++) {
+                    *cp = (char) tolower((int) *cp);
+                }
 #endif
             }
         } else {
             up->ext = cp + 1;
 #if BLD_WIN_LIKE
-            slower(up->ext);
+            for (cp = up->ext; *cp; cp++) {
+                *cp = (char) tolower((int) *cp);
+            }
 #endif
         }
     }
@@ -257,13 +265,17 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
             if (last_delim <= cp) {
                 up->ext = cp + 1;
 #if BLD_WIN_LIKE
-                slower(up->ext);
+                for (cp = up->ext; *cp; cp++) {
+                    *cp = (char) tolower((int) *cp);
+                }
 #endif
             }
         } else {
             up->ext = cp + 1;
 #if BLD_WIN_LIKE
-            slower(up->ext);
+            for (cp = up->ext; *cp; cp++) {
+                *cp = (char) tolower((int) *cp);
+            }
 #endif
         }
     }
@@ -454,8 +466,6 @@ HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int dup)
     } else {
         strcpy(uri->path, ".");
     }
-    mprFree(targetPath);
-    mprFree(basePath);
     return uri;
 }
 
@@ -524,13 +534,7 @@ HttpUri *httpMakeUriLocal(HttpUri *uri)
 
 void httpNormalizeUri(HttpUri *uri)
 {
-    char    *old;
-
-    old = uri->path;
     uri->path = httpNormalizeUriPath(uri->path);
-    if (mprIsValid(old)) {
-        mprFree(old);
-    }
 }
 
 
@@ -553,7 +557,6 @@ char *httpNormalizeUriPath(cchar *pathArg)
     strcpy(dupPath, pathArg);
 
     if ((segments = mprAlloc(sizeof(char*) * (len + 1))) == 0) {
-        mprFree(dupPath);
         return NULL;
     }
     nseg = len = 0;
@@ -608,8 +611,6 @@ char *httpNormalizeUriPath(cchar *pathArg)
         }
         *dp = '\0';
     }
-    mprFree(dupPath);
-    mprFree(segments);
     return path;
 }
 

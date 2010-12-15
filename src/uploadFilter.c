@@ -165,7 +165,6 @@ static void closeUpload(HttpQueue *q)
         file = up->currentFile;
         mprDeletePath(file->filename);
         file->filename = 0;
-        mprFree(up->file);
     }
     if (rx->autoDelete) {
         httpRemoveAllUploadedFiles(q->conn);
@@ -362,7 +361,6 @@ static int processContentHeader(HttpQueue *q, char *line)
                 /* Nothing to do */
 
             } else if (scasecmp(key, "name") == 0) {
-                mprFree(up->id);
                 up->id = sclone(value);
 
             } else if (scasecmp(key, "filename") == 0) {
@@ -370,7 +368,6 @@ static int processContentHeader(HttpQueue *q, char *line)
                     httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad upload state. Missing name field");
                     return MPR_ERR_BAD_STATE;
                 }
-                mprFree(up->clientFilename);
                 up->clientFilename = sclone(value);
                 /*  
                     Create the file to hold the uploaded data
@@ -437,19 +434,15 @@ static void defineFileFields(HttpQueue *q, Upload *up)
     file = up->currentFile;
     key = sjoin("FILE_CLIENT_FILENAME_", up->id, NULL);
     httpSetFormVar(conn, key, file->clientFilename);
-    mprFree(key);
 
     key = sjoin("FILE_CONTENT_TYPE_", up->id, NULL);
     httpSetFormVar(conn, key, file->contentType);
-    mprFree(key);
 
     key = sjoin("FILE_FILENAME_", up->id, NULL);
     httpSetFormVar(conn, key, file->filename);
-    mprFree(key);
 
     key = sjoin("FILE_SIZE_", up->id, NULL);
     httpSetIntFormVar(conn, key, file->size);
-    mprFree(key);
 }
 
 
@@ -584,7 +577,6 @@ static int processContentData(HttpQueue *q)
          */
         mprFree(up->file);
         up->file = 0;
-        mprFree(up->clientFilename);
         up->clientFilename = 0;
     }
     if (packet) {

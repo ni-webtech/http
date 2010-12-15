@@ -223,9 +223,6 @@ HttpConn *httpAcceptConn(HttpServer *server)
         mprFree(sock);
         return 0;
     }
-#if UNUSED
-    mprStealBlock(conn, sock);
-#endif
     conn->async = server->async;
     conn->server = server;
     conn->sock = sock;

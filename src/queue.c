@@ -431,12 +431,12 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
     Write a block of data. This is the lowest level write routine for data. This will buffer the data and flush if
     the queue buffer is full.
  */
-size_t httpWriteBlock(HttpQueue *q, cchar *buf, size_t size)
+ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
 {
     HttpPacket  *packet;
     HttpConn    *conn;
     HttpTx      *tx;
-    size_t      bytes, written, packetSize;
+    ssize       bytes, written, packetSize;
 
     mprAssert(q == q->conn->writeq);
                
@@ -478,24 +478,21 @@ size_t httpWriteBlock(HttpQueue *q, cchar *buf, size_t size)
 }
 
 
-size_t httpWriteString(HttpQueue *q, cchar *s)
+ssize httpWriteString(HttpQueue *q, cchar *s)
 {
     return httpWriteBlock(q, s, strlen(s));
 }
 
 
-size_t httpWrite(HttpQueue *q, cchar *fmt, ...)
+ssize httpWrite(HttpQueue *q, cchar *fmt, ...)
 {
     va_list     vargs;
     char        *buf;
-    size_t      rc;
     
     va_start(vargs, fmt);
     buf = mprAsprintfv(fmt, vargs);
     va_end(vargs);
-    rc = httpWriteString(q, buf);
-    mprFree(buf);
-    return rc;
+    return httpWriteString(q, buf);
 }
 
 

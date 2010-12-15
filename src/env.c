@@ -133,7 +133,6 @@ void httpAddVars(HttpConn *conn, cchar *buf, int len)
                 if (*value) {
                     newValue = sjoin(oldValue, " ", value, NULL);
                     mprAddHash(vars, keyword, newValue);
-                    mprFree(newValue);
                 }
             } else {
                 mprAddHash(vars, keyword, value);

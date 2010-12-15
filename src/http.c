@@ -228,13 +228,20 @@ cchar *httpLookupStatus(Http *http, int status)
 }
 
 
+void httpSetForkCallback(Http *http, MprForkCallback callback, void *data)
+{
+    http->forkCallback = callback;
+    http->forkData = data;
+}
+
+
 /*  
     Start the http timer. This may create multiple timers -- no worry. httpAddConn does its best to only schedule one.
  */
 static void startTimer(Http *http)
 {
     updateCurrentDate(http);
-    http->timer = mprCreateTimerEvent(mprGetDispatcher(http), "httpTimer", HTTP_TIMER_PERIOD, (MprEventProc) httpTimer, 
+    http->timer = mprCreateTimerEvent(mprGetDispatcher(), "httpTimer", HTTP_TIMER_PERIOD, (MprEventProc) httpTimer, 
         http, MPR_EVENT_CONTINUOUS);
 }
 
@@ -349,7 +356,6 @@ int httpCreateSecret(Http *http)
         *ap++ = hex[((uchar) bytes[i]) & 0xf];
     }
     *ap = '\0';
-    mprFree(http->secret);
     http->secret = sclone(ascii);
     return 0;
 }
@@ -433,14 +439,12 @@ void httpSetDefaultPort(Http *http, int port)
 
 void httpSetDefaultHost(Http *http, cchar *host)
 {
-    mprFree(http->defaultHost);
     http->defaultHost = sclone(host);
 }
 
 
 void httpSetProxy(Http *http, cchar *host, int port)
 {
-    mprFree(http->proxyHost);
     http->proxyHost = sclone(host);
     http->proxyPort = port;
 }
@@ -460,7 +464,6 @@ static void updateCurrentDate(Http *http)
     scopy(date[dateSelect], sizeof(date[0]) - 1, ds);
     http->currentDate = date[dateSelect];
     dateSelect = !dateSelect;
-    mprFree(ds);
 
     //  MOB - check. Could do this once per minute
     mprDecodeUniversalTime(&tm, http->now + (86400 * 1000));

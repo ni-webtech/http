@@ -102,9 +102,9 @@ $(BLD_OBJ_DIR)/%${BLD_OBJ}: %.c
         $(call log) "[Preprocess]" "cl -E $< >$*.pre" ; \
 		"$(BLD_CC)" -E $(MAKE_DFLAGS) $(_DFLAGS) $(BLD_DFLAGS) $(MAKE_CFLAGS) $(_CFLAGS) $(BLD_CFLAGS) $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $< > `basename $@ | sed 's/$(BLD_OBJ)$$/.pre/'` ; \
     fi
-	@if [ "$(TRACE)" = 1 ] ; then echo "$(BLD_CC)" -c $(MAKE_DFLAGS) $(_DFLAGS) $(BLD_DFLAGS) $(MAKE_CFLAGS) $(_CFLAGS) $(BLD_CFLAGS) $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $< -Fo$@ ; \
+	@if [ "$(TRACE)" = 1 ] ; then echo "$(BLD_CC)" -c $(MAKE_DFLAGS) $(_DFLAGS) $(BLD_DFLAGS) $(MAKE_CFLAGS) $(_CFLAGS) $(BLD_CFLAGS) $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $< -Fo$@ -Fd$(BLD_OBJ_DIR)/ ; \
 	else d=$(_DPATH_)/$< ; d=$${d#./} ; $(call log) "[Compile]" $$d ; fi
-	@"$(BLD_CC)" -c $(MAKE_DFLAGS) $(_DFLAGS) $(BLD_DFLAGS) $(MAKE_CFLAGS) $(_CFLAGS) $(BLD_CFLAGS) $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $< -Fo$@ >.$$$$.cltmp ; \
+	@"$(BLD_CC)" -c $(MAKE_DFLAGS) $(_DFLAGS) $(BLD_DFLAGS) $(MAKE_CFLAGS) $(_CFLAGS) $(BLD_CFLAGS) $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $< -Fo$@ -Fd$(BLD_OBJ_DIR)/ >.$$$$.cltmp ; \
 	status=$$? ; \
 	if [ $$status -ne 0 -o "$(TRACE)" = "1" ] ; then cat .$$$$.cltmp ; rm -f .$$$$.cltmp ; \
     else true ; fi ; rm -f .$$$$.cltmp ; \

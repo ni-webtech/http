@@ -28,10 +28,10 @@ HttpPacket *httpCreatePacket(int size)
     if (size != 0) {
         packet->content = mprCreateBuf(size < 0 ? HTTP_BUFSIZE: size, -1);
         if (packet->content == 0) {
-            mprFree(packet);
             return 0;
         }
     }
+    mprLog(5, "DEBUG: httpCreate new packet %d\n", packet->entityLength);
     return packet;
 }
 
@@ -63,6 +63,7 @@ HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
     rx = conn->rx;
     if (rx) {
         if ((packet = rx->freePackets) != NULL && size <= packet->content->buflen) {
+            mprLog(5, "DEBUG: httpCreateConnPacket got free packet from rx->freePackets");
             rx->freePackets = packet->next; 
             packet->next = 0;
             return packet;
@@ -86,7 +87,6 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
             Don't bother recycling non-content, small packets or packets owned by the connection
             We only store packets owned by the request and not by the connection on the free list.
          */
-        mprFree(packet);
         return;
     }
     /*  
@@ -95,16 +95,12 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
      */
     mprAssert(packet->content);
     mprFlushBuf(packet->content);
-    mprFree(packet->prefix);
     packet->prefix = 0;
-    mprFree(packet->suffix);
     packet->suffix = 0;
     packet->entityLength = 0;
     packet->flags = 0;
     packet->next = rx->freePackets;
     rx->freePackets = packet;
-#else
-    mprFree(packet);
 #endif
 } 
 
@@ -440,7 +436,6 @@ HttpPacket *httpSplitPacket(HttpPacket *orig, int offset)
      */
     if (packet->suffix) {
         packet->suffix = orig->suffix;
-        mprStealBlock(packet, packet->suffix);
         orig->suffix = 0;
     }
 #endif

@@ -107,9 +107,9 @@ DO_RECURSE=$(RECURSE)
 #
 ifneq ($(BLD_OS),WIN)
     ifeq ($(BLD_OS),MACOSX)
-        setlibpath = export DYLD_LIBRARY_PATH="$(BLD_BUILD_LIB_DIR):$(BLD_BUILD_MOD_DIR)"
+        setlibpath = export DYLD_LIBRARY_PATH="$(BLD_BIN_DIR):$(BLD_BUILD_LIB_DIR):$(BLD_BUILD_MOD_DIR)"
     else
-        setlibpath = export LD_LIBRARY_PATH="$(BLD_BUILD_LIB_DIR):$(BLD_BUILD_MOD_DIR)"
+        setlibpath = export LD_LIBRARY_PATH="$(BLD_BIN_DIR):$(BLD_BUILD_LIB_DIR):$(BLD_BUILD_MOD_DIR)"
     endif
     ifeq ($(BLD_OS),CYGWIN)
         export PATH:="$(BLD_TOP)/modules:$(PATH)"
@@ -144,7 +144,7 @@ all: compile
 compile: check $(BUILD_CHECK) compileFirst compileDirs files compileTargets compileExtra compileAdirs compileFinal
 
 check:
-	mkdir -p $(BLD_OUT_DIR) $(BLD_BIN_DIR) $(BLD_OBJ_DIR) $(BLD_MOD_DIR) $(BLD_LIB_DIR) $(BLD_INC_DIR)
+	@mkdir -p $(BLD_OUT_DIR) $(BLD_BIN_DIR) $(BLD_OBJ_DIR) $(BLD_MOD_DIR) $(BLD_LIB_DIR) $(BLD_INC_DIR)
 
 $(BUILD_CHECK):
 
@@ -159,10 +159,10 @@ compileTargets:
 compileFinal:
 
 compileDirs:
-	T=compile ; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
+	@T=compile ; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
 
 compileAdirs:
-	T=compile ; D="$(POST_DIRS)" ; $(DO_RECURSE) 
+	@T=compile ; D="$(POST_DIRS)" ; $(DO_RECURSE) 
 
 depend: check $(BUILD_CHECK) dependExtra dependDirs dependCwd dependAfter
 
@@ -171,15 +171,16 @@ dependCwd:
 		$(MAKE) -S --no-print-directory TRACE=$(TRACE) -C $(BLD_TOP)/build/src tools ; \
 	fi
 	[ "$(TRACE)" = 1 ] && \
-        echo $(TRACE) edep$(BLD_BUILD_EXE) --out $(BLD_OUT_DIR) $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $(COMPILE) ; true
-	edep$(BLD_BUILD_EXE) --out "$(BLD_OUT_DIR)" $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $(COMPILE)
+        echo $(TRACE) $(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) --out $(BLD_OUT_DIR) $(MAKE_IFLAGS) $(BLD_IFLAGS) \
+            $(_IFLAGS) $(COMPILE) ; true
+	$(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) --out "$(BLD_OUT_DIR)" $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $(COMPILE)
 
 dependDirs:
 	if [ ! -f .makedep ] ; then \
 		echo "  makedep" ; \
 	    cd $(BLD_TOP) >/dev/null 2>&1 ; makedep ; make depend ; cd - >/dev/null 2>&1 ; \
 	fi
-	T=depend ; D="$(PRE_DIRS) $(MID_DIRS) $(POST_DIRS)" ; $(DO_RECURSE)
+	@T=depend ; D="$(PRE_DIRS) $(MID_DIRS) $(POST_DIRS)" ; $(DO_RECURSE)
 
 dependExtra:
 
@@ -191,7 +192,7 @@ dependAfter:
 test: $(BUILD_CHECK) testDirs testExtra testExtraExtra testFinal testCleanup
 
 testDirs:
-	T=test ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=test ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 testExtra testExtraExtra testFinal testCleanup:
 
@@ -202,7 +203,7 @@ testExtra testExtraExtra testFinal testCleanup:
 loadTest: $(BUILD_CHECK) loadTestDirs loadTestExtra
 
 loadTestDirs:
-	T=loadTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=loadTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 loadTestExtra:
 
@@ -213,7 +214,7 @@ loadTestExtra:
 leakTest: $(BUILD_CHECK) leakTestDirs leakTestExtra
 
 leakTestDirs:
-	T=leakTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=leakTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 leakTestExtra:
 
@@ -224,7 +225,7 @@ leakTestExtra:
 longevityTest: $(BUILD_CHECK) longevityTestDirs longevityTestExtra
 
 longevityTestDirs:
-	T=longevityTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=longevityTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 longevityTestExtra:
 
@@ -235,7 +236,7 @@ longevityTestExtra:
 bench: $(BUILD_CHECK) benchDirs benchExtra
 
 benchDirs:
-	T=bench ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=bench ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 benchExtra:
 
@@ -243,7 +244,7 @@ benchExtra:
 buildFarmTest: $(BUILD_CHECK) buildFarmTestDirs buildFarmTestExtra
 
 buildFarmTestDirs:
-	T=buildFarmTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=buildFarmTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 buildFarmTestExtra:
 
@@ -255,7 +256,7 @@ clean: $(BUILD_CHECK) cleanDirs cleanExtra
 	rm -f $(CLEANIT) $(TARGETS) $(OBJECTS)
 
 cleanDirs:
-	T=clean ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=clean ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 cleanExtra:
 
@@ -269,7 +270,7 @@ clobber: $(BUILD_CHECK) clobberDirs cleanExtra clobberExtra
 clobberExtra:
 
 clobberDirs:
-	T=clobber ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=clobber ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 #
 #	Generate project files
@@ -277,7 +278,7 @@ clobberDirs:
 projects: $(BUILD_CHECK) projectsDirs projectsExtra
 
 projectsDirs:
-	T=projects ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
+	@T=projects ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
 projectsExtra:
 

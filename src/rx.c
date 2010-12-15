@@ -53,12 +53,13 @@ HttpRx *httpCreateRx(HttpConn *conn)
 
 static void manageRx(HttpRx *rx, int flags)
 {
+    HttpPacket  *packet;
+
     if (flags & MPR_MANAGE_MARK) {
         mprMark(rx->method);
         mprMark(rx->uri);
         mprMark(rx->scriptName);
         mprMark(rx->pathInfo);
-        mprMark(rx->freePackets);
         mprMarkList(rx->etags);
         mprMark(rx->headerPacket);
         mprMarkHash(rx->headers);
@@ -83,6 +84,10 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->alias);
         mprMark(rx->dir);
 
+        for (packet = rx->freePackets; packet; packet = packet->next) {
+            mprMark(packet);
+        }
+
     } else if (flags & MPR_MANAGE_FREE) {
     }
 }
@@ -90,19 +95,11 @@ static void manageRx(HttpRx *rx, int flags)
 
 void httpDestroyRx(HttpConn *conn)
 {
-#if UNUSED
-    if (conn->input) {
-        if (!mprIsParent(conn, conn->input) && httpGetPacketLength(conn->input) > 0) {
-            conn->input = httpSplitPacket(conn->input, 0);
-        } else {
-            conn->input = 0;
-        }
-    }
-#endif
     if (conn->rx) {
         if (conn->server) {
             httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
         }
+        /* Force destructor to run now */
         mprFree(conn->rx);
         conn->rx = 0;
     }
@@ -254,7 +251,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     traced = traceRequest(conn, packet);
 
     method = getToken(conn, " ");
-    supper(method);
+    method = supper(method);
 
     switch (method[0]) {
     case 'D':
@@ -324,8 +321,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
     rx->flags |= methodFlags;
-    rx->method = method;
-    supper(rx->method);
+    rx->method = supper(method);
 
     if (httpSetUri(conn, uri) < 0) {
         httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad URL format");
@@ -394,7 +390,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpLimits  *limits;
     MprBuf      *content;
-    char        *key, *value, *tok, *tp;
+    char        *key, *value, *tok;
     cchar       *oldValue;
     int         len, count, keepAlive;
 
@@ -419,7 +415,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         while (isspace((int) *value)) {
             value++;
         }
-        slower(key);
+        key = slower(key);
 
         LOG(8, "Key %s, value %s", key, value);
         if (strspn(key, "%<>/\\") > 0) {
@@ -626,8 +622,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 't':
             if (strcmp(key, "transfer-encoding") == 0) {
-                slower(value);
-                if (strcmp(value, "chunked") == 0) {
+                if (scasecmp(value, "chunked") == 0) {
                     rx->flags |= HTTP_REC_CHUNKED;
                     /*  
                         This will be revised by the chunk filter as chunks are processed and will be set to zero when the
@@ -660,14 +655,11 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'w':
             if (strcmp(key, "www-authenticate") == 0) {
-                tp = value;
+                conn->authType = value = slower(value);
                 while (*value && !isspace((int) *value)) {
                     value++;
                 }
                 *value++ = '\0';
-                slower(tp);
-                mprFree(conn->authType);
-                conn->authType = sclone(tp);
                 if (!parseAuthenticate(conn, value)) {
                     httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad Authentication header");
                     break;
@@ -754,7 +746,6 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
         switch (tolower((int) *key)) {
         case 'a':
             if (scasecmp(key, "algorithm") == 0) {
-                mprFree(rx->authAlgorithm);
                 rx->authAlgorithm = value;
                 break;
             }
@@ -762,7 +753,6 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 
         case 'd':
             if (scasecmp(key, "domain") == 0) {
-                mprFree(conn->authDomain);
                 conn->authDomain = sclone(value);
                 break;
             }
@@ -770,7 +760,6 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 
         case 'n':
             if (scasecmp(key, "nonce") == 0) {
-                mprFree(conn->authNonce);
                 conn->authNonce = sclone(value);
                 conn->authNc = 0;
             }
@@ -778,21 +767,18 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 
         case 'o':
             if (scasecmp(key, "opaque") == 0) {
-                mprFree(conn->authOpaque);
                 conn->authOpaque = sclone(value);
             }
             break;
 
         case 'q':
             if (scasecmp(key, "qop") == 0) {
-                mprFree(conn->authQop);
                 conn->authQop = sclone(value);
             }
             break;
 
         case 'r':
             if (scasecmp(key, "realm") == 0) {
-                mprFree(conn->authRealm);
                 conn->authRealm = sclone(value);
             }
             break;
@@ -917,10 +903,6 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         if (packet == rx->headerPacket) {
             /* Preserve headers if more data to come. Otherwise handlers may free the packet and destory the headers */
             packet = httpSplitPacket(packet, 0);
-#if UNUSED
-        } else {
-            mprStealBlock(tx, packet);
-#endif
         }
         conn->input = 0;
         if (remaining == 0 && mprGetBufLength(packet->content) > nbytes) {
@@ -935,17 +917,11 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             */
             return 0;
         }
-        if (conn->error) {
-            /* Discard input data if the request has an error */
-            mprFree(packet);
-        } else {
+        if (!conn->error) {
             httpSendPacketToNext(q, packet);
         }
 
     } else {
-        if (conn->input != rx->headerPacket) {
-            mprFree(packet);
-        }
         conn->input = 0;
     }
     return 1;
@@ -1068,7 +1044,7 @@ static int getChunkPacketSize(HttpConn *conn, MprBuf *buf)
 {
     HttpRx      *rx;
     char        *start, *cp;
-    size_t      need, size;
+    ssize       need, size;
 
     rx = conn->rx;
     need = 0;
@@ -1136,10 +1112,6 @@ bool httpContentNotModified(HttpConn *conn)
         modified = (MprTime) tx->fileInfo.mtime * MPR_TICKS_PER_SEC;
         same = httpMatchModified(conn, modified) && httpMatchEtag(conn, tx->etag);
         if (rx->ranges && !same) {
-            /*
-                Need to transfer the entire resource
-             */
-            mprFree(rx->ranges);
             rx->ranges = 0;
         }
         return same;
@@ -1194,18 +1166,11 @@ cchar *httpGetCookies(HttpConn *conn)
 
 cchar *httpGetHeader(HttpConn *conn, cchar *key)
 {
-    cchar   *value;
-    char    *lower;
-
     if (conn->rx == 0) {
         mprAssert(conn->rx);
         return 0;
     }
-    lower = sclone(key);
-    slower(lower);
-    value = mprLookupHash(conn->rx->headers, lower);
-    mprFree(lower);
-    return value;
+    return mprLookupHash(conn->rx->headers, slower(key));
 }
 
 
@@ -1287,7 +1252,6 @@ int httpSetUri(HttpConn *conn, cchar *uri)
      */
     rx->uri = rx->parsedUri->uri;
     conn->tx->extension = sclone(rx->parsedUri->ext);
-    mprFree(rx->pathInfo);
     rx->pathInfo = httpNormalizeUriPath(mprUriDecode(rx->parsedUri->path));
     rx->scriptName = sclone("");
     return 0;
@@ -1298,6 +1262,11 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 {
     httpCallEvent(conn, event->mask);
     httpEnableConnEvents(conn);
+#if UNUSED
+    if (conn->cond) {
+        mprSignalCond(conn->cond);
+    }
+#endif
 }
 
 
@@ -1308,7 +1277,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
 {
     Http        *http;
     MprTime     expire;
-    int         eventMask, remainingTime, addedHandler, saveAsync;
+    int         eventMask, remainingTime, addedHandler, saveAsync, flags;
 
     http = conn->http;
 
@@ -1326,11 +1295,16 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
         if (!conn->writeComplete) {
             eventMask |= MPR_WRITABLE;
         }
-        mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher,
-            (MprEventProc) waitHandler, conn);
+        mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher, (MprEventProc)waitHandler, conn);
         addedHandler = 1;
-    } else addedHandler = 0;
-
+    } else {
+        addedHandler = 0;
+    }
+#if UNUSED
+    if (conn->cond == 0) {
+        conn->cond = mprCreateCond();
+    }
+#endif
     http->now = mprGetTime(conn);
     expire = http->now + timeout;
     while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
@@ -1339,7 +1313,16 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
             break;
         }
         mprAssert(!mprSocketHasPendingData(conn->sock));
-        mprServiceEvents(dispatcher, remainingTime, MPR_SERVICE_ONE_THING);
+#if UNUSED
+        if (0 && mprHasEventsThread()) {
+            mprWaitForCond(conn->cond, remainingTime);
+        } else {
+            mprServiceEvents(dispatcher, remainingTime, MPR_SERVICE_ONE_THING);
+        }
+#else
+        flags = mprHasEventsThread() ? MPR_SERVICE_ONLY : 0;
+        mprServiceEvents(dispatcher, remainingTime, MPR_SERVICE_ONE_THING | flags);
+#endif
     }
     if (addedHandler && conn->waitHandler.fd >= 0) {
         mprRemoveWaitHandler(&conn->waitHandler);

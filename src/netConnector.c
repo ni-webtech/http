@@ -258,7 +258,7 @@ static void freeNetPackets(HttpQueue *q, int bytes)
 static void adjustNetVec(HttpQueue *q, int written)
 {
     MprIOVec    *iovec;
-    size_t      len;
+    ssize       len;
     int         i, j;
 
     /*
