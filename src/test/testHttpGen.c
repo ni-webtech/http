@@ -49,7 +49,8 @@ static void testBasicHttpGet(MprTestGroup *gp)
 {
     Http        *http;
     HttpConn    *conn;
-    int         rc, status, length;
+    ssize       length;
+    int         rc, status;
 
     http = httpCreate(gp);
     assert(http != 0);

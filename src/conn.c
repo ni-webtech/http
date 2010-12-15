@@ -10,7 +10,7 @@
 /***************************** Forward Declarations ***************************/
 
 static void manageConn(HttpConn *conn, int flags);
-static inline HttpPacket *getPacket(HttpConn *conn, int *bytesToRead);
+static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead);
 static void readEvent(HttpConn *conn);
 static void writeEvent(HttpConn *conn);
 
@@ -211,7 +211,7 @@ void httpConsumeLastRequest(HttpConn *conn)
 {
     MprTime     mark;
     char        junk[4096];
-    int         requestTimeout, rc;
+    int         requestTimeout;
 
     if (!conn->sock || conn->state < HTTP_STATE_FIRST) {
         return;
@@ -219,7 +219,7 @@ void httpConsumeLastRequest(HttpConn *conn)
     mark = mprGetTime(conn);
     requestTimeout = conn->limits->requestTimeout ? conn->limits->requestTimeout : INT_MAX;
     while (!httpIsEof(conn) && mprGetRemainingTime(mark, requestTimeout) > 0) {
-        if ((rc = httpRead(conn, junk, sizeof(junk))) <= 0) {
+        if (httpRead(conn, junk, sizeof(junk)) <= 0) {
             break;
         }
     }
@@ -280,7 +280,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
 static void readEvent(HttpConn *conn)
 {
     HttpPacket  *packet;
-    int         nbytes, len;
+    ssize       nbytes, len;
 
     while ((packet = getPacket(conn, &len)) != 0) {
         nbytes = mprReadSocket(conn->sock, mprGetBufEnd(packet->content), len);
@@ -392,12 +392,12 @@ void httpFollowRedirects(HttpConn *conn, bool follow)
     Get the packet into which to read data. This may be owned by the connection or if mid-request, may be owned by the
     request. Also return in *bytesToRead the length of data to attempt to read.
  */
-static inline HttpPacket *getPacket(HttpConn *conn, int *bytesToRead)
+static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
 {
     HttpPacket  *packet;
     MprBuf      *content;
     HttpRx      *req;
-    int         len;
+    ssize       len;
 
     req = conn->rx;
     len = HTTP_BUFSIZE;
@@ -476,7 +476,7 @@ int httpGetAsync(HttpConn *conn)
 }
 
 
-int httpGetChunkSize(HttpConn *conn)
+ssize httpGetChunkSize(HttpConn *conn)
 {
     if (conn->tx) {
         return conn->tx->chunkSize;
@@ -576,7 +576,7 @@ void httpSetFillHeaders(HttpConn *conn, HttpFillHeadersProc fn, void *arg)
 }
 
 
-void httpSetChunkSize(HttpConn *conn, int size)
+void httpSetChunkSize(HttpConn *conn, ssize size)
 {
     if (conn->tx) {
         conn->tx->chunkSize = size;

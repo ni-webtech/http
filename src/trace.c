@@ -69,7 +69,7 @@ int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext)
 }
 
 
-static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf, int len)
+static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf, ssize len)
 {
     cchar       *cp, *tag, *digits;
     char        *data, *dp;
@@ -116,10 +116,11 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
 }
 
 
-void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, int len, int total)
+void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, ssize total)
 {
     HttpTrace   *trace;
-    int         size, level;
+    ssize       size;
+    int         level;
 
     trace = &conn->trace[dir];
     level = trace->levels[item];

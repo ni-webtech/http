@@ -96,7 +96,7 @@ void httpCreateEnvVars(HttpConn *conn)
     Make variables for each keyword in a query string. The buffer must be url encoded (ie. key=value&key2=value2..., 
     spaces converted to '+' and all else should be %HEX encoded).
  */
-void httpAddVars(HttpConn *conn, cchar *buf, int len)
+void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
 {
     HttpTx          *tx;
     HttpRx          *rx;

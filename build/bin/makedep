@@ -54,7 +54,7 @@ TOP=.
 level=0
 while [ $level -lt 30 ] 
 do
-    if [ -d $TOP/build -a -d $TOP/build/bin -a -d $TOP/src ] ; then
+    if [ -d $TOP/build -a -d $TOP/build/bin -a -d $TOP/build/src ] ; then
         break
     fi
     TOP=$TOP/..
@@ -63,7 +63,7 @@ done
 TOP=${TOP#./}
 
 if [ $level -ge 30 ] ; then
-    echo "Can't find top level directory with build and src directories"
+    echo "Can't find top level directory with build directory"
     exit 255
 fi
 

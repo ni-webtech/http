@@ -279,7 +279,7 @@ static int blockingFileCopy(HttpConn *conn, cchar *path)
 {
     MprFile     *file;
     char        buf[MPR_BUFSIZE];
-    int         bytes;
+    ssize       bytes;
 
     file = mprOpen(path, O_RDONLY | O_BINARY, 0);
     if (file == 0) {
@@ -300,13 +300,13 @@ static int blockingFileCopy(HttpConn *conn, cchar *path)
 /*  
     Write upload data. This routine blocks. If you need non-blocking ... cut and paste.
  */
-int httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
+ssize httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
 {
     char    *path, *pair, *key, *value, *name;
-    int     next, rc;
+    ssize   rc;
+    int     next;
 
     rc = 0;
-
     if (formData) {
         for (rc = next = 0; rc >= 0 && (pair = mprGetNextItem(formData, &next)) != 0; ) {
             key = stok(sclone(pair), "=", &value);

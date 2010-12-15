@@ -153,17 +153,17 @@ void httpSetSendConnector(HttpConn *conn, cchar *path)
 {
     HttpTx      *tx;
     HttpQueue   *q, *qhead;
-    int         max;
+    ssize       maxBody;
 
     tx = conn->tx;
     tx->flags |= HTTP_TX_SENDFILE;
     tx->filename = sclone(path);
-    max = conn->limits->transmissionBodySize;
+    maxBody = conn->limits->transmissionBodySize;
 
     qhead = &tx->queue[HTTP_QUEUE_TRANS];
     for (q = conn->writeq; q != qhead; q = q->nextQ) {
-        q->max = max;
-        q->packetSize = max;
+        q->max = maxBody;
+        q->packetSize = maxBody;
     }
 }
 

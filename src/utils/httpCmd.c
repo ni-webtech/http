@@ -69,10 +69,10 @@ static int      processThread(HttpConn *conn, MprEvent *event);
 static void     threadMain(void *data, MprThread *tp);
 static char     *resolveUrl(HttpConn *conn, cchar *url);
 static int      setContentLength(HttpConn *conn);
-static void     showOutput(HttpConn *conn, cchar *content, int contentLen);
+static void     showOutput(HttpConn *conn, cchar *content, ssize contentLen);
 static void     showUsage();
 static int      startLogging(char *logSpec);
-static void     trace(HttpConn *conn, cchar *url, int fetchCount, cchar *method, int status, int contentLen);
+static void     trace(HttpConn *conn, cchar *url, int fetchCount, cchar *method, int status, ssize contentLen);
 static void     waitForUser();
 static int      writeBody(HttpConn *conn);
 
@@ -696,7 +696,8 @@ static int reportResponse(HttpConn *conn, cchar *url)
     HttpRx      *rx;
     cchar       *msg;
     char        *responseHeaders;
-    int         status, contentLen;
+    ssize       contentLen;
+    int         status;
 
     if (mprIsExiting(conn)) {
         return 0;
@@ -753,7 +754,7 @@ static int reportResponse(HttpConn *conn, cchar *url)
 static void readBody(HttpConn *conn)
 {
     char    buf[HTTP_BUFSIZE];
-    int     bytes;
+    ssize   bytes;
 
     while (!conn->error && conn->sock && (bytes = httpRead(conn, buf, sizeof(buf))) > 0) {
         showOutput(conn, buf, bytes);
@@ -796,7 +797,7 @@ static int setContentLength(HttpConn *conn)
 {
     MprPath     info;
     char        *path, *pair;
-    int         len;
+    ssize       len;
     int         next, count;
 
     len = 0;
@@ -834,7 +835,8 @@ static int writeBody(HttpConn *conn)
 {
     MprFile     *file;
     char        buf[HTTP_BUFSIZE], *path, *pair;
-    int         bytes, next, count, rc, len;
+    ssize       bytes, len;
+    int         next, count, rc;
 
     rc = 0;
     if (app->upload) {
@@ -984,10 +986,11 @@ static char *resolveUrl(HttpConn *conn, cchar *url)
 }
 
 
-static void showOutput(HttpConn *conn, cchar *buf, int count)
+static void showOutput(HttpConn *conn, cchar *buf, ssize count)
 {
     HttpRx      *rx;
-    int         i, c, rc;
+    ssize       rc;
+    int         i, c;
     
     rx = conn->rx;
 
@@ -998,7 +1001,7 @@ static void showOutput(HttpConn *conn, cchar *buf, int count)
         return;
     }
     if (!app->printable) {
-        rc = write(1, (char*) buf, count);
+        rc = write(1, (char*) buf, (uint) count);
         return;
     }
 
@@ -1009,7 +1012,7 @@ static void showOutput(HttpConn *conn, cchar *buf, int count)
         }
     }
     if (!app->isBinary) {
-        rc = write(1, (char*) buf, count);
+        rc = write(1, (char*) buf, (uint) count);
         return;
     }
     for (i = 0; i < count; i++) {
@@ -1023,7 +1026,7 @@ static void showOutput(HttpConn *conn, cchar *buf, int count)
 }
 
 
-static void trace(HttpConn *conn, cchar *url, int fetchCount, cchar *method, int status, int contentLen)
+static void trace(HttpConn *conn, cchar *url, int fetchCount, cchar *method, int status, ssize contentLen)
 {
     if (sncasecmp(url, "http://", 7) != 0) {
         url += 7;

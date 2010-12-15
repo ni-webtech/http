@@ -172,7 +172,7 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
     if (host) {
         up->host = sclone(host);
         if ((cp = strchr(host, ':')) && port == 0) {
-            port = stoi(++cp, 10, NULL);
+            port = (int) stoi(++cp, 10, NULL);
         }
     } else if (complete) {
         host = "localhost";

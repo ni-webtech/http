@@ -80,7 +80,7 @@ checkSetup() {
     #
     #   Ensure we can write to key directories
     #
-    for d in . build build/bin src
+    for d in . build build/bin build/src
     do
         if [ ! -d $d ] ; then
             echo "Missing required directory \"$d\"" 1>&2

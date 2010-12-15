@@ -55,12 +55,19 @@
 #define MPR_CPU_UNIVERSAL   11          /* MAC OS X universal binaries */
 #define MPR_CPU_SH4         12
 
-
+/*
+    Out-of-order definitions and includes. Order really matters in this section
+ */
 #if WIN
     #define     _CRT_SECURE_NO_DEPRECATE 1
     #ifndef     _WIN32_WINNT
         #define _WIN32_WINNT 0x501
     #endif
+#endif
+
+#if VXWORKS
+    #include    <vxWorks.h>
+    #define     HAS_USHORT 1
 #endif
 
 #if BLD_WIN_LIKE
@@ -72,6 +79,7 @@
     #include    <shellapi.h>
     #include    <wincrypt.h>
 #endif
+
 #if WIN
     #include    <ws2tcpip.h>
     #include    <conio.h>
@@ -84,67 +92,92 @@
 #endif
 #undef     _WIN32_WINNT
 
-#if UNUSED
+/*
+    Includes in alphabetic order
+ */
+#if CYGWIN
     #include    <arpa/inet.h>
 #endif
+
     #include    <ctype.h>
+
 #if BLD_WIN_LIKE
     #include    <direct.h>
 #else
     #include    <dirent.h>
+#if !VXWORKS
     #include    <dlfcn.h>
 #endif
+#endif
+
     #include    <fcntl.h>
     #include    <errno.h>
+
 #if BLD_FEATURE_FLOAT || 1
     #include    <float.h>
     #define __USE_ISOC99 1
     #include    <math.h>
 #endif
-#if !BLD_WIN_LIKE
+
+#if BLD_UNIX_LIKE
     #include    <grp.h> 
 #endif
+
 #if BLD_WIN_LIKE
     #include    <io.h>
 #endif
+
 #if MACOSX
     #include    <libgen.h>
 #endif
+
     #include    <limits.h>
+
 #if UNUSED && BLD_WIN_LIKE
     #include    <malloc.h>
 #endif
-#if !BLD_WIN_LIKE
+
+#if BLD_UNIX_LIKE || VXWORKS
     #include    <netdb.h>
     #include    <net/if.h>
     #include    <netinet/in.h>
     #include    <netinet/tcp.h>
     #include    <netinet/ip.h>
+#endif
+
+#if BLD_UNIX_LIKE
     #include    <pthread.h> 
     #include    <pwd.h> 
 #if !CYGWIN
     #include    <resolv.h>
 #endif
 #endif
+
     #include    <setjmp.h>
     #include    <signal.h>
     #include    <stdarg.h>
+
 #if UNUSED && WINCE
     #include    <stddef.h>
 #endif
+
 #if BLD_UNIX_LIKE
     #include    <stdint.h>
 #endif
+
     #include    <stdio.h>
     #include    <stdlib.h>
     #include    <string.h>
+
 #if BLD_UNIX_LIKE
     #include    <syslog.h>
 #endif
+
 #if LINUX
     #include    <sys/epoll.h>
 #endif
-#if !BLD_WIN_LIKE
+
+#if BLD_UNIX_LIKE
     #include    <sys/ioctl.h>
     #include    <sys/mman.h>
 #if UNUSED && MACOSX
@@ -152,12 +185,16 @@
 #endif
     #include    <sys/poll.h>
 #endif
+
     #include    <sys/stat.h>
+
 #if LINUX
     #include    <sys/prctl.h>
 #endif
+
     #include    <sys/types.h>
-#if !BLD_WIN_LIKE
+
+#if BLD_UNIX_LIKE
     #include    <sys/resource.h>
     #include    <sys/sem.h>
 #if UNUSED
@@ -174,14 +211,24 @@
 #endif
     #include    <sys/wait.h>
 #endif
+
     #include    <time.h>
-#if !BLD_WIN_LIKE
+
+#if BLD_UNIX_LIKE
     #include    <unistd.h>
 #endif
+
 #if UNUSED && LINUX
     #include    <values.h>
 #endif
+
+#if !VXWORKS
     #include    <wchar.h>
+#endif
+
+/*
+    Extra includes per O/S
+ */
 #if LINUX && !__UCLIBC__
     #include    <sys/sendfile.h>
 #endif
@@ -216,7 +263,7 @@
 #if _WRS_VXWORKS_MAJOR >= 6
     #include    <wait.h>
 #endif
-#endif /* VXWORKS */
+#endif
 
 /*
     Standard types
@@ -285,7 +332,7 @@
 
 #ifndef HAS_SSIZE
     #define HAS_SSIZE 1
-    #if BLD_UNIX_LIKE
+    #if BLD_UNIX_LIKE || VXWORKS
         typedef ssize_t ssize;
     #else
         typedef SSIZE_T ssize;
@@ -295,6 +342,8 @@
 #ifndef HAS_INT64
     #if BLD_UNIX_LIKE
         __extension__ typedef long long int int64;
+    #elif VXWORKS
+        typedef long long int int64;
     #elif BLD_WIN_LIKE
         typedef __int64 int64;
     #else
@@ -305,6 +354,8 @@
 #ifndef HAS_UINT64
     #if BLD_UNIX_LIKE
         __extension__ typedef unsigned long long int uint64;
+    #elif VXWORKS
+        typedef unsigned long long int uint64;
     #elif BLD_WIN_LIKE
         typedef unsigned __int64 uint64;
     #else
@@ -450,8 +501,6 @@ typedef off_t MprOffset;
     #define closesocket(x)  close(x)
     #define MPR_BINARY      ""
     #define MPR_TEXT        ""
-    #define O_BINARY        0
-    #define O_TEXT          0
     #define SOCKET_ERROR    -1
     #ifndef PTHREAD_MUTEX_RECURSIVE_NP
         #define PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
@@ -461,9 +510,16 @@ typedef off_t MprOffset;
     #endif
 #endif
 
-#if MACOSX || VXWORKS || CYGWIN || BLD_WIN_LIKE
+#if !BLD_WIN_LIKE && !CYGWIN
+    #define O_BINARY        0
+    #define O_TEXT          0
+#endif
+
+#if !LINUX
     #define __WALL          0
+#if !CYGWIN
     #define MSG_NOSIGNAL    0
+#endif
 #endif
 
 #if FREEBSD
@@ -502,6 +558,8 @@ typedef off_t MprOffset;
     #if _DIAB_TOOL
         #define inline __inline__
     #endif
+    #define closesocket(x)  close(x)
+    #define va_copy(d, s) ((d) = (s))
 #endif
 
 #if BLD_WIN_LIKE
@@ -1787,12 +1845,12 @@ typedef void (*MprManager)(void *ptr, int flags);
  */
 typedef struct MprFreeMem {
     union {
-        MprMem          hdr;
+        MprMem          blk;
         struct {
             int         minSize;            /* Min size of block in queue */
             uint        count;              /* Number of blocks on the queue */
         } stats;
-    };
+    } info;
     struct MprFreeMem *next;                /* Next free block */
     struct MprFreeMem *prev;                /* Previous free block */
 } MprFreeMem;
@@ -1806,14 +1864,13 @@ typedef struct MprMemStats {
     uint            errors;                 /* Allocation errors */
     uint            numCpu;                 /* Number of CPUs */
     uint            pageSize;               /* System page size */
-    ssize          bytesAllocated;         /* Bytes currently allocated */
-    ssize          bytesFree;              /* Bytes currently free */
-    ssize          redLine;                /* Warn if allocation exceeds this level */
-    ssize          maxMemory;              /* Max memory that can be allocated */
-    ssize          rss;                    /* OS calculated resident stack size in bytes */
-    ssize          ram;                    /* System RAM size in bytes */
-    ssize          user;                   /* System user RAM size in bytes (excludes kernel) */
-
+    ssize           bytesAllocated;         /* Bytes currently allocated */
+    ssize           bytesFree;              /* Bytes currently free */
+    ssize           redLine;                /* Warn if allocation exceeds this level */
+    ssize           maxMemory;              /* Max memory that can be allocated */
+    ssize           rss;                    /* OS calculated resident stack size in bytes */
+    ssize           ram;                    /* System RAM size in bytes */
+    ssize           user;                   /* System user RAM size in bytes (excludes kernel) */
     int             markVisited;
     int             marked;
     int             sweepVisited;
@@ -2066,7 +2123,7 @@ extern void mprSetMemError();
     @param maxMemory Hard memory limit. If exceeded, the request will not be granted, and the memory handler will be invoked.
     @ingroup MprMem
  */
-extern void mprSetMemLimits(int redline, int maxMemory);
+extern void mprSetMemLimits(ssize redline, ssize maxMemory);
 
 /**
     Set the memory allocation policy for when allocations fail.
@@ -2112,10 +2169,7 @@ extern void mprVirtFree(void *ptr, ssize size);
     In debug mode, all memory blocks can have a debug name
  */
 #if BLD_MEMORY_DEBUG
-    static MPR_INLINE void *mprSetName(void *ptr, cchar *name) {
-        MPR_GET_MEM(ptr)->name = name;
-        return ptr;
-    }
+    extern void *mprSetName(void *ptr, cchar *name);
     #define mprGetName(ptr) (MPR_GET_MEM(ptr)->name)
     #define mprPassName(ptr, name) mprSetName(ptr, name)
 #else
@@ -2805,7 +2859,7 @@ extern int mprIsNan(double value);
     @return Returns the number of bytes written
     @ingroup MprString
  */
-extern int mprPrintfError(cchar *fmt, ...);
+extern ssize mprPrintfError(cchar *fmt, ...);
 
 /**
     Formatted print. This is a secure verion of printf that can handle null args.
@@ -2815,7 +2869,7 @@ extern int mprPrintfError(cchar *fmt, ...);
     @return Returns the number of bytes written
     @ingroup MprString
  */
-extern int mprPrintf(cchar *fmt, ...);
+extern ssize mprPrintf(cchar *fmt, ...);
 
 /**
     Print a formatted message to a file descriptor
@@ -2827,7 +2881,7 @@ extern int mprPrintf(cchar *fmt, ...);
     @return Returns the number of bytes written
     @ingroup MprString
  */
-extern int mprFprintf(struct MprFile *file, cchar *fmt, ...);
+extern ssize mprFprintf(struct MprFile *file, cchar *fmt, ...);
 
 /**
     Format a string into a statically allocated buffer.
@@ -2840,7 +2894,7 @@ extern int mprFprintf(struct MprFile *file, cchar *fmt, ...);
     @return Returns the buffer.
     @ingroup MprString
  */
-extern char *mprSprintf(char *buf, int maxSize, cchar *fmt, ...);
+extern char *mprSprintf(char *buf, ssize maxSize, cchar *fmt, ...);
 
 /**
     Format a string into a statically allocated buffer.
@@ -2853,7 +2907,7 @@ extern char *mprSprintf(char *buf, int maxSize, cchar *fmt, ...);
     @return Returns the buffer;
     @ingroup MprString
  */
-extern char *mprSprintfv(char *buf, int maxSize, cchar *fmt, va_list args);
+extern char *mprSprintfv(char *buf, ssize maxSize, cchar *fmt, va_list args);
 
 /**
     Format a string into an allocated buffer.
@@ -2947,7 +3001,7 @@ extern MprBuf *mprCloneBuf(MprBuf *orig);
     @param maxSize New maximum size the buffer can grow to
     @ingroup MprBuf
  */
-extern void mprSetBufMax(MprBuf *buf, int maxSize);
+extern void mprSetBufMax(MprBuf *buf, ssize maxSize);
 
 /**
     Get a reference to the the buffer memory.
@@ -3629,7 +3683,7 @@ extern int mprInsertItemAtPos(MprList *list, int index, cvoid *item);
         Existing items are not freed, they are only removed from the list.
     @param list List pointer returned from mprCreateList.
     @param item Item pointer to remove. 
-    @return Returns zero if successful, otherwise a negative MPR error code.
+    @return Returns the positive index of the removed item, otherwise a negative MPR error code.
     @ingroup MprList
  */
 extern int mprRemoveItem(MprList *list, void *item);
@@ -3638,7 +3692,7 @@ extern int mprRemoveItem(MprList *list, void *item);
     Remove an item from the list
     @description Removes the element specified by \a index, from the list. The
         list index is provided by mprInsertItem.
-    @return Returns zero if successful, otherwise a negative MPR error code.
+    @return Returns the positive index of the removed item, otherwise a negative MPR error code.
     @ingroup MprList
  */
 extern int mprRemoveItemAtPos(MprList *list, int index);
@@ -3648,7 +3702,7 @@ extern int mprRemoveItemAtPos(MprList *list, int index);
     @description Remove the item at the highest index position.
         Existing items are not freed, they are only removed from the list.
     @param list List pointer returned from mprCreateList.
-    @return Returns zero if successful, otherwise a negative MPR error code.
+    @return Returns the positive index of the removed item, otherwise a negative MPR error code.
     @ingroup MprList
  */
 extern int mprRemoveLastItem(MprList *list);
@@ -4043,7 +4097,7 @@ typedef int             (*MprMakeLinkProc)(struct MprFileSystem *fs, cchar *path
 typedef int             (*MprCloseFileProc)(struct MprFile *file);
 typedef ssize          (*MprReadFileProc)(struct MprFile *file, void *buf, ssize size);
 typedef MprOffset       (*MprSeekFileProc)(struct MprFile *file, int seekType, MprOffset distance);
-typedef int             (*MprSetBufferedProc)(struct MprFile *file, int initialSize, int maxSize);
+typedef int             (*MprSetBufferedProc)(struct MprFile *file, ssize initialSize, ssize maxSize);
 typedef int             (*MprTruncateFileProc)(struct MprFileSystem *fs, cchar *path, MprOffset size);
 typedef ssize          (*MprWriteFileProc)(struct MprFile *file, cvoid *buf, ssize count);
 
@@ -4252,7 +4306,7 @@ extern void mprDisableFileBuffering(MprFile *file);
     @param maxSize Maximum size the data buffer can grow to
     @ingroup MprFile
  */
-extern int mprEnableFileBuffering(MprFile *file, int size, int maxSize);
+extern int mprEnableFileBuffering(MprFile *file, ssize size, ssize maxSize);
 
 /**
     Flush any buffered write data
@@ -5283,7 +5337,7 @@ typedef struct MprXml {
 } MprXml;
 
 //MOB MARK
-extern MprXml *mprXmlOpen(int initialSize, int maxSize);
+extern MprXml *mprXmlOpen(ssize initialSize, ssize maxSize);
 extern void mprXmlSetParserHandler(MprXml *xp, MprXmlHandler h);
 extern void mprXmlSetInputStream(MprXml *xp, MprXmlInputStream s, void *arg);
 extern int mprXmlParse(MprXml *xp);
@@ -6061,7 +6115,7 @@ extern int mprGetSocketError(MprSocket *sp);
     @return A count of bytes actually written. Return a negative MPR error code on errors.
     @ingroup MprSocket
  */
-extern ssize mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOffset offset, int bytes, MprIOVec *beforeVec, 
+extern ssize mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOffset offset, ssize bytes, MprIOVec *beforeVec, 
     int beforeCount, MprIOVec *afterVec, int afterCount);
 #endif
 
@@ -7036,7 +7090,7 @@ extern void mprSetAltLogData(void *data);
 extern void mprSleep(int msec);
 
 #if BLD_WIN_LIKE
-extern int mprReadRegistry(char **buf, int max, cchar *key, cchar *val);
+extern int mprReadRegistry(char **buf, ssize max, cchar *key, cchar *val);
 extern int mprWriteRegistry(cchar *key, cchar *name, cchar *value);
 #endif
 

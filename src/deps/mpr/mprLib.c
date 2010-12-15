@@ -494,7 +494,7 @@ void mprSetMemNotifier(MprMemNotifier cback)
 }
 
 
-void mprSetMemLimits(int redLine, int maxMemory)
+void mprSetMemLimits(ssize redLine, ssize maxMemory)
 {
     if (redLine > 0) {
         heap->stats.redLine = redLine;
@@ -592,7 +592,7 @@ static int initFree()
         bucketBits = ((ssize) bucket) << (max(0, group - 1));
 
         size = groupBits | bucketBits;
-        freeq->stats.minSize = (int) (size << MPR_ALIGN_SHIFT);
+        freeq->info.stats.minSize = (int) (size << MPR_ALIGN_SHIFT);
 #endif
         freeq->next = freeq->prev = freeq;
     }
@@ -647,7 +647,8 @@ static int getQueueIndex(ssize size, int roundup)
     mprAssert(index < (heap->freeEnd - heap->freeq));
     
 #if BLD_MEMORY_STATS
-    mprAssert(heap->freeq[index].stats.minSize <= (int) usize && (int) usize < heap->freeq[index + 1].stats.minSize);
+    mprAssert(heap->freeq[index].info.stats.minSize <= (int) usize && 
+        (int) usize < heap->freeq[index + 1].info.stats.minSize);
 #endif
     
     if (roundup) {
@@ -804,7 +805,7 @@ static void linkFreeBlock(MprMem *mp)
 
     heap->stats.bytesFree += mp->size;
 #if BLD_MEMORY_STATS
-    freeq->stats.count++;
+    freeq->info.stats.count++;
 #endif
 }
 
@@ -823,14 +824,14 @@ static void unlinkFreeBlock(MprFreeMem *fp)
 #if BLD_MEMORY_STATS
 {
     MprFreeMem *freeq = getQueue(mp->size);
-    freeq->stats.count--;
-    mprAssert(freeq->stats.count >= 0);
+    freeq->info.stats.count--;
+    mprAssert(freeq->info.stats.count >= 0);
 }
 #endif
 }
 
 
-#if BLD_MEMORY_DEBUG
+#if BLD_CC_MMU && BLD_MEMORY_DEBUG
 static int isFirst(MprMem *mp)
 {
     MprRegion   *region;
@@ -847,9 +848,11 @@ static int isFirst(MprMem *mp)
 
 static MprMem *freeBlock(MprMem *mp)
 {
-    MprRegion   *region, *rp, *prior;
     MprMem      *prev, *next, *after;
     ssize       size;
+#if BLD_CC_MMU
+    MprRegion   *region, *rp, *prior;
+#endif
 
     BREAKPOINT(mp);
 
@@ -1345,7 +1348,7 @@ static void printQueueStats()
     printf("\nFree Queue Stats\n Bucket                     Size   Count\n");
     for (i = 0, freeq = heap->freeq; freeq != heap->freeEnd; freeq++, i++) {
         index = (int) (freeq - heap->freeq);
-        printf("%7d %24d %7d\n", i, freeq->stats.minSize, freeq->stats.count);
+        printf("%7d %24d %7d\n", i, freeq->info.stats.minSize, freeq->info.stats.count);
     }
 }
 
@@ -1383,11 +1386,11 @@ static void printGCStats()
     printf("Regions: %d\n", regionCount);
 
     printf("\nGC Stats\n");
-    printf("  Eternal generation has %9d blocks, %12ld bytes\n", counts[heap->eternal], bytes[heap->eternal]);
-    printf("  Stale generation has   %9d blocks, %12ld bytes\n", counts[heap->stale], bytes[heap->stale]);
-    printf("  Active generation has  %9d blocks, %12ld bytes\n", counts[heap->active], bytes[heap->active]);
-    printf("  Dead generation has    %9d blocks, %12ld bytes\n", counts[heap->dead], bytes[heap->dead]);
-    printf("  Free generation has    %9d blocks, %12ld bytes\n", counts[free], bytes[free]);
+    printf("  Eternal generation has %9d blocks, %12d bytes\n", counts[heap->eternal], (int) bytes[heap->eternal]);
+    printf("  Stale generation has   %9d blocks, %12d bytes\n", counts[heap->stale], (int) bytes[heap->stale]);
+    printf("  Active generation has  %9d blocks, %12d bytes\n", counts[heap->active], (int) bytes[heap->active]);
+    printf("  Dead generation has    %9d blocks, %12d bytes\n", counts[heap->dead], (int) bytes[heap->dead]);
+    printf("  Free generation has    %9d blocks, %12d bytes\n", counts[free], (int) bytes[free]);
 }
 #endif /* BLD_MEMORY_STATS */
 
@@ -1878,6 +1881,15 @@ static void *getNextRoot(int *indexp)
     mprSpinUnlock(&heap->rootLock);
     return root;
 }
+
+
+#ifndef mprSetName
+void *mprSetName(void *ptr, cchar *name) 
+{
+    MPR_GET_MEM(ptr)->name = name;
+    return ptr;
+}
+#endif
 
 
 /*
@@ -2923,7 +2935,7 @@ int mprSetBufSize(MprBuf *bp, ssize initialSize, ssize maxSize)
 }
 
 
-void mprSetBufMax(MprBuf *bp, int max)
+void mprSetBufMax(MprBuf *bp, ssize max)
 {
     bp->maxsize = max;
 }
@@ -2952,7 +2964,7 @@ void mprAddNullToBuf(MprBuf *bp)
 void mprAdjustBufEnd(MprBuf *bp, ssize size)
 {
     mprAssert(bp->buflen == (bp->endbuf - bp->data));
-    mprAssert(size <= (int) bp->buflen);
+    mprAssert(size <= bp->buflen);
     mprAssert((bp->end + size) >= bp->data);
     mprAssert((bp->end + size) <= bp->endbuf);
 
@@ -2973,7 +2985,7 @@ void mprAdjustBufEnd(MprBuf *bp, ssize size)
 void mprAdjustBufStart(MprBuf *bp, ssize size)
 {
     mprAssert(bp->buflen == (bp->endbuf - bp->data));
-    mprAssert(size <= (int) bp->buflen);
+    mprAssert(size <= bp->buflen);
     mprAssert((bp->start + size) >= bp->data);
     mprAssert((bp->start + size) <= bp->end);
 
@@ -4085,8 +4097,7 @@ void mprPollCmdPipes(MprCmd *cmd, int timeout)
  */
 int mprWaitForCmd(MprCmd *cmd, int timeout)
 {
-    MprTime     expires;
-    int         remaining, delay;
+    MprTime     expires, remaining, delay;
 
     if (timeout < 0) {
         timeout = MAXINT;
@@ -4109,7 +4120,7 @@ int mprWaitForCmd(MprCmd *cmd, int timeout)
 
 #if BLD_WIN_LIKE && !WINCE
         mprPollCmdPipes(cmd, timeout);
-        remaining = (int) (expires - mprGetTime());
+        remaining = (expires - mprGetTime());
         if (cmd->pid == 0 || remaining <= 0) {
             break;
         }
@@ -4118,11 +4129,11 @@ int mprWaitForCmd(MprCmd *cmd, int timeout)
         delay = remaining;
 #endif
         if (MPR->heap.flags & (MPR_EVENTS_THREAD | MPR_USER_EVENTS_THREAD)) {
-            mprWaitForCond(cmd->cond, delay);
+            mprWaitForCond(cmd->cond, (int) delay);
         } else {
-            mprServiceEvents(cmd->dispatcher, delay, MPR_SERVICE_ONE_THING);
+            mprServiceEvents(cmd->dispatcher, (int) delay, MPR_SERVICE_ONE_THING);
         }
-        remaining = (int) (expires - mprGetTime());
+        remaining = (expires - mprGetTime());
     } while (cmd->pid && remaining >= 0);
 
     if (cmd->pid) {
@@ -4517,11 +4528,11 @@ static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
             destp += strlen(*ep) + 1;
         }
         if (!hasSystemRoot) {
-            mprSprintf(destp, (int) (endp - destp - 1), "SYSTEMROOT=%s", SYSTEMROOT);
+            mprSprintf(destp, (endp - destp - 1), "SYSTEMROOT=%s", SYSTEMROOT);
             destp += 12 + strlen(SYSTEMROOT);
         }
         if (!hasPath) {
-            mprSprintf(destp, (int) (endp - destp - 1), "PATH=%s", PATH);
+            mprSprintf(destp, (endp - destp - 1), "PATH=%s", PATH);
             destp += 6 + strlen(PATH);
         }
         *destp++ = '\0';
@@ -4871,16 +4882,16 @@ int startProcess(MprCmd *cmd)
         (int) cmd->program, (int) entryFn, (int) cmd, 0, 0, 0, 0, 0, 0, 0);
 
     if (cmd->pid < 0) {
-        mprError(cmd, "start: can't create task %s, errno %d", entryPoint, mprGetOsError());
+        mprError("start: can't create task %s, errno %d", entryPoint, mprGetOsError());
         mprFree(entryPoint);
         return MPR_ERR_CANT_CREATE;
     }
 
-    mprLog(cmd, 7, "cmd, child taskId %d", cmd->pid);
+    mprLog(7, "cmd, child taskId %d", cmd->pid);
     mprFree(entryPoint);
 
     if (semTake(cmd->startCond, MPR_TIMEOUT_START_TASK) != OK) {
-        mprError(cmd, "start: child %s did not initialize, errno %d", cmd->program, mprGetOsError());
+        mprError("start: child %s did not initialize, errno %d", cmd->program, mprGetOsError());
         return MPR_ERR_CANT_CREATE;
     }
     semDelete(cmd->startCond);
@@ -4939,12 +4950,12 @@ static void cmdTaskEntry(char *program, MprCmdTaskFn entry, int cmdArg)
     if (cmd->dir) {
         rc = chdir(cmd->dir);
     } else {
-        dir = mprGetPathDir(cmd, cmd->program);
+        dir = mprGetPathDir(cmd->program);
         rc = chdir(dir);
         mprFree(dir);
     }
     if (rc < 0) {
-        mprLog(cmd, 0, "cmd: Can't change directory to %s", cmd->dir);
+        mprLog(0, "cmd: Can't change directory to %s", cmd->dir);
         exit(255);
     }
 
@@ -4977,7 +4988,7 @@ static int makeChannel(MprCmd *cmd, int index)
     file->name = mprAsprintf("/pipe/%s_%d_%d", BLD_PRODUCT, taskIdSelf(), tempSeed++);
 
     if (pipeDevCreate(file->name, 5, MPR_BUFSIZE) < 0) {
-        mprError(cmd, "Can't create pipes to run %s", cmd->program);
+        mprError("Can't create pipes to run %s", cmd->program);
         return MPR_ERR_CANT_OPEN;
     }
     
@@ -4990,7 +5001,7 @@ static int makeChannel(MprCmd *cmd, int index)
         file->fd = open(file->name, O_RDONLY, 0644);
     }
     if (file->fd < 0) {
-        mprError(cmd, "Can't create stdio pipes. Err %d", mprGetOsError());
+        mprError("Can't create stdio pipes. Err %d", mprGetOsError());
         return MPR_ERR_CANT_CREATE;
     }
     return 0;
@@ -6364,7 +6375,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(cchar *path)
 
 
 static void dequeueDispatcher(MprDispatcher *dispatcher);
-static int getIdleTime(MprEventService *ds, MprDispatcher *dispatcher);
+static MprTime getIdleTime(MprEventService *ds, MprDispatcher *dispatcher);
 static MprDispatcher *getNextReadyDispatcher(MprEventService *es);
 static void initDispatcherQ(MprEventService *ds, MprDispatcher *q, cchar *name);
 static bool isIdle(MprEventService *es, MprDispatcher *dispatcher);
@@ -6543,8 +6554,8 @@ int mprServiceEvents(MprDispatcher *primary, int timeout, int flags)
 {
     MprEventService     *es;
     MprDispatcher       *dp;
-    MprTime             expires;
-    int                 count, delay, wasRunning, beginEventCount, eventCount, justOne, idle;
+    MprTime             expires, delay, idle;
+    int                 count, wasRunning, beginEventCount, eventCount, justOne;
 
     es = MPR->eventService;
     beginEventCount = eventCount = es->eventCount;
@@ -6591,7 +6602,7 @@ int mprServiceEvents(MprDispatcher *primary, int timeout, int flags)
             } 
         }
         lock(es);
-        delay = (int) (expires - es->now);
+        delay = (expires - es->now);
         if (delay > 0) {
             idle = getIdleTime(es, primary);
             delay = min(delay, idle);
@@ -6606,12 +6617,12 @@ int mprServiceEvents(MprDispatcher *primary, int timeout, int flags)
                 }
                 if (es->waiting) {
                     unlock(es);
-                    mprWaitForMultiCond(es->waitCond, delay);
+                    mprWaitForMultiCond(es->waitCond, (int) delay);
                 } else {
                     es->waiting = 1;
                     MPR->waitService->willAwake = es->now + delay;
                     unlock(es);
-                    mprWaitForIO(MPR->waitService, delay);
+                    mprWaitForIO(MPR->waitService, (int) delay);
                     es->waiting = 0;
                     mprSignalMultiCond(es->waitCond);
                 }
@@ -6846,11 +6857,11 @@ static MprDispatcher *getNextReadyDispatcher(MprEventService *es)
 /*
     Get the time to sleep till the next pending event. Must be called locked.
  */
-static int getIdleTime(MprEventService *es, MprDispatcher *dispatcher)
+static MprTime getIdleTime(MprEventService *es, MprDispatcher *dispatcher)
 {
     MprDispatcher   *readyQ, *waitQ, *dp;
     MprEvent        *event;
-    int             delay;
+    MprTime         delay;
 
     waitQ = &es->waitQ;
     readyQ = &es->readyQ;
@@ -6865,7 +6876,7 @@ static int getIdleTime(MprEventService *es, MprDispatcher *dispatcher)
         if (dispatcher) {
             event = dispatcher->eventQ.next;
             if (event != &dispatcher->eventQ) {
-                delay = min(delay, (int) (event->due - es->now));
+                delay = min(delay, (event->due - es->now));
             }
         }
         /*
@@ -6874,7 +6885,7 @@ static int getIdleTime(MprEventService *es, MprDispatcher *dispatcher)
         for (dp = waitQ->next; dp != waitQ; dp = dp->next) {
             event = dp->eventQ.next;
             if (event != &dp->eventQ) {
-                delay = min(delay, (int) (event->due - es->now));
+                delay = min(delay, (event->due - es->now));
                 if (delay <= 0) {
                     break;
                 }
@@ -8093,7 +8104,8 @@ int mprGetc(MprFile *file)
 static char *findNewline(cchar *str, cchar *newline, ssize len, ssize *nlen)
 {
     char    *start, *best;
-    int     i, newlines;
+    ssize   newlines;
+    int     i;
 
     mprAssert(str);
     mprAssert(newline);
@@ -8103,7 +8115,7 @@ static char *findNewline(cchar *str, cchar *newline, ssize len, ssize *nlen)
     if (str == NULL || newline == NULL) {
         return NULL;
     }
-    newlines = (int) strlen(newline);
+    newlines = strlen(newline);
     mprAssert(newlines == 1 || newlines == 2);
 
     start = best = NULL;
@@ -8497,7 +8509,7 @@ static ssize fillBuf(MprFile *file)
 /*
     Enable and control file buffering
  */
-int mprEnableFileBuffering(MprFile *file, int initialSize, int maxSize)
+int mprEnableFileBuffering(MprFile *file, ssize initialSize, ssize maxSize)
 {
     mprAssert(file);
 
@@ -9556,7 +9568,7 @@ void mprInitList(MprList *lp)
  */
 int mprSetListLimits(MprList *lp, int initialSize, int maxSize)
 {
-    int         size;
+    int       size;
 
     if (initialSize <= 0) {
         initialSize = MPR_LIST_INCR;
@@ -9664,7 +9676,7 @@ void *mprSetItem(MprList *lp, int index, cvoid *item)
  */
 int mprAddItem(MprList *lp, cvoid *item)
 {
-    int     index;
+    int   index;
 
     mprAssert(lp);
     mprAssert(lp->capacity >= 0);
@@ -9675,7 +9687,7 @@ int mprAddItem(MprList *lp, cvoid *item)
             return MPR_ERR_TOO_MANY;
         }
     }
-    index = lp->length++;
+    index = (int) lp->length++;
     lp->items[index] = (void*) item;
     return index;
 }
@@ -9980,7 +9992,7 @@ int mprLookupItem(MprList *lp, cvoid *item)
  */
 static int growList(MprList *lp, int incr)
 {
-    int     len, memsize;
+    int   len, memsize;
 
     if (lp->maxSize <= 0) {
         lp->maxSize = MAXINT;
@@ -12700,7 +12712,7 @@ char *mprGetNormalizedPath(cchar *pathArg)
                 continue;
             }
             segments[i++] = mark;
-            len += (int) (sp - mark);
+            len += (sp - mark);
 #if KEEP
             if (i == 1 && segmentCount == 1 && fs->hasDriveSpecs && strchr(mark, ':') != 0) {
                 /*
@@ -12716,7 +12728,7 @@ char *mprGetNormalizedPath(cchar *pathArg)
 
     if (--sp > mark) {
         segments[i++] = mark;
-        len += (int) (sp - mark);
+        len += (sp - mark);
     }
     mprAssert(i <= segmentCount);
     segmentCount = i;
@@ -13592,8 +13604,8 @@ typedef struct Format {
     uchar   *endbuf;
     uchar   *start;
     uchar   *end;
-    int     growBy;
-    int     maxsize;
+    ssize   growBy;
+    ssize   maxsize;
     int     precision;
     int     radix;
     int     width;
@@ -13638,7 +13650,7 @@ typedef struct MprEjsString {
 
 static int  getState(char c, int state);
 static int  growBuf(Format *fmt);
-static char *sprintfCore(char *buf, int maxsize, cchar *fmt, va_list arg);
+static char *sprintfCore(char *buf, ssize maxsize, cchar *fmt, va_list arg);
 static void outNum(Format *fmt, cchar *prefix, uint64 val);
 static void outString(Format *fmt, cchar *str, ssize len);
 #if BLD_CHAR_LEN > 1
@@ -13649,7 +13661,7 @@ static void outFloat(Format *fmt, char specChar, double value);
 #endif
 
 
-int mprPrintf(cchar *fmt, ...)
+ssize mprPrintf(cchar *fmt, ...)
 {
     va_list         ap;
     MprFileSystem   *fs;
@@ -13668,11 +13680,11 @@ int mprPrintf(cchar *fmt, ...)
         len = -1;
     }
     mprFree(buf);
-    return (int) len;
+    return len;
 }
 
 
-int mprPrintfError(cchar *fmt, ...)
+ssize mprPrintfError(cchar *fmt, ...)
 {
     MprFileSystem   *fs;
     va_list         ap;
@@ -13693,11 +13705,11 @@ int mprPrintfError(cchar *fmt, ...)
         len = -1;
     }
     mprFree(buf);
-    return (int) len;
+    return len;
 }
 
 
-int mprFprintf(MprFile *file, cchar *fmt, ...)
+ssize mprFprintf(MprFile *file, cchar *fmt, ...)
 {
     ssize       len;
     va_list     ap;
@@ -13715,7 +13727,7 @@ int mprFprintf(MprFile *file, cchar *fmt, ...)
         len = -1;
     }
     mprFree(buf);
-    return (int) len;
+    return len;
 }
 
 
@@ -13757,7 +13769,7 @@ int mprStaticPrintfError(cchar *fmt, ...)
 #endif
 
 
-char *mprSprintf(char *buf, int bufsize, cchar *fmt, ...)
+char *mprSprintf(char *buf, ssize bufsize, cchar *fmt, ...)
 {
     va_list     ap;
     char        *result;
@@ -13773,7 +13785,7 @@ char *mprSprintf(char *buf, int bufsize, cchar *fmt, ...)
 }
 
 
-char *mprSprintfv(char *buf, int bufsize, cchar *fmt, va_list arg)
+char *mprSprintfv(char *buf, ssize bufsize, cchar *fmt, va_list arg)
 {
     mprAssert(buf);
     mprAssert(fmt);
@@ -13869,14 +13881,15 @@ static int getState(char c, int state)
 }
 
 
-static char *sprintfCore(char *buf, int maxsize, cchar *spec, va_list arg)
+static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list arg)
 {
     Format        fmt;
     MprEjsString  *es;
-    char          c;
+    ssize         len;
     int64         iValue;
     uint64        uValue;
-    int           len, state;
+    int           state;
+    char          c;
 
     if (spec == 0) {
         spec = "";
@@ -14177,7 +14190,7 @@ static void outString(Format *fmt, cchar *str, ssize len)
         len = 4;
     } else if (fmt->flags & SPRINTF_ALTERNATE) {
         str++;
-        len = (int) *str;
+        len = (ssize) *str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == '\0') {
@@ -14217,7 +14230,7 @@ static void outWideString(Format *fmt, MprChar *str, ssize len)
         return;
     } else if (fmt->flags & SPRINTF_ALTERNATE) {
         str++;
-        len = (int) *str;
+        len = (ssize) *str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == 0) {
@@ -14565,7 +14578,7 @@ char *mprDtoa(double value, int ndigits, int mode, int flags)
 static int growBuf(Format *fmt)
 {
     uchar   *newbuf;
-    int     buflen;
+    ssize   buflen;
 
     buflen = (int) (fmt->endbuf - fmt->buf);
     if (fmt->maxsize >= 0 && buflen >= fmt->maxsize) {
@@ -15008,7 +15021,7 @@ int mprCreateNotifierService(MprWaitService *ws)
     for (rc = retries = 0; retries < maxTries; retries++) {
         breakSock = socket(AF_INET, SOCK_DGRAM, 0);
         if (breakSock < 0) {
-            mprLog(ws, MPR_WARN, "Can't open port %d to use for select. Retrying.\n");
+            mprLog(MPR_WARN, "Can't open port %d to use for select. Retrying.\n");
         }
 #if BLD_UNIX_LIKE
         fcntl(breakSock, F_SETFD, FD_CLOEXEC);
@@ -15038,7 +15051,7 @@ int mprCreateNotifierService(MprWaitService *ws)
     }
 
     if (breakSock < 0 || rc < 0) {
-        mprLog(ws, MPR_WARN, "Can't bind any port to use for select. Tried %d-%d\n", breakPort, breakPort - maxTries);
+        mprLog(MPR_WARN, "Can't bind any port to use for select. Tried %d-%d\n", breakPort, breakPort - maxTries);
         return MPR_ERR_CANT_OPEN;
     }
     ws->breakSock = breakSock;
@@ -15048,7 +15061,7 @@ int mprCreateNotifierService(MprWaitService *ws)
 }
 
 
-static void mprManageSelect(MprWaitService *ws, int flags)
+void mprManageSelect(MprWaitService *ws, int flags)
 {
     if (flags & MPR_MANAGE_FREE) {
         if (ws->breakSock >= 0) {
@@ -15078,7 +15091,7 @@ int mprAddNotifier(MprWaitService *ws, MprWaitHandler *wp, int mask)
 
     fd = wp->fd;
     if (fd >= FD_SETSIZE) {
-        mprError(ws, "File descriptor exceeds configured maximum in FD_SETSIZE (%d vs %d)", fd, FD_SETSIZE);
+        mprError("File descriptor exceeds configured maximum in FD_SETSIZE (%d vs %d)", fd, FD_SETSIZE);
         return MPR_ERR_CANT_INITIALIZE;
     }
     lock(ws);
@@ -15259,7 +15272,7 @@ void mprWakeNotifier()
         if (rc < 0) {
             static int warnOnce = 0;
             if (warnOnce++ == 0) {
-                mprLog(ws, 0, "Can't send wakeup to breakout socket: errno %d", errno);
+                mprLog(0, "Can't send wakeup to breakout socket: errno %d", errno);
             }
         }
     }
@@ -16262,7 +16275,7 @@ static ssize localSendfile(MprSocket *sp, MprFile *file, MprOffset offset, ssize
 /*  Write data from a file to a socket. Includes the ability to write header before and after the file data.
     Works even with a null "file" to just output the headers.
  */
-ssize mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOffset offset, int bytes, MprIOVec *beforeVec, 
+ssize mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOffset offset, ssize bytes, MprIOVec *beforeVec, 
     int beforeCount, MprIOVec *afterVec, int afterCount)
 {
 #if MACOSX && __MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
@@ -16301,7 +16314,7 @@ ssize mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOffset offset, int 
         for (i = toWriteAfter = 0; i < afterCount; i++) {
             toWriteAfter += (int) afterVec[i].len;
         }
-        toWriteFile = bytes - toWriteBefore - toWriteAfter;
+        toWriteFile = (int) bytes - toWriteBefore - toWriteAfter;
         mprAssert(toWriteFile >= 0);
 
         /*
@@ -19135,7 +19148,7 @@ int mprStartThread(MprThread *tp)
         0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     if (taskHandle < 0) {
-        mprError(tp, "Can't create thread %s\n", tp->name);
+        mprError("Can't create thread %s\n", tp->name);
         return MPR_ERR_CANT_INITIALIZE;
     }
 }
@@ -19676,7 +19689,7 @@ int mprGetAvailableWorkers()
     MprWorkerService  *ws;
 
     ws = mprGetMpr()->workerService;
-    return ws->idleThreads->length + (ws->maxThreads - ws->numThreads); 
+    return (int) ws->idleThreads->length + (ws->maxThreads - ws->numThreads); 
 }
 
 
@@ -20333,7 +20346,6 @@ static int getTimeZoneOffsetFromTm(struct tm *tp)
     if ((tze = getenv("TIMEZONE")) != 0) {
         if ((p = strchr(tze, ':')) != 0) {
             if ((p = strchr(tze, ':')) != 0) {
-                int64 value;
                 offset = - stoi(++p, 10, NULL) * MS_PER_MIN;
             }
         }
@@ -23613,7 +23625,7 @@ MprModule *mprLoadModule(cchar *name, cchar *fun, void *data)
 }
 
 
-int mprReadRegistry(char **buf, int max, cchar *key, cchar *name)
+int mprReadRegistry(char **buf, ssize max, cchar *key, cchar *name)
 {
     HKEY        top, h;
     char        *value;
@@ -24938,7 +24950,7 @@ static void xmlError(MprXml *xp, char *fmt, ...);
 static void trimToken(MprXml *xp);
 
 
-MprXml *mprXmlOpen(int initialSize, int maxSize)
+MprXml *mprXmlOpen(ssize initialSize, ssize maxSize)
 {
     MprXml  *xp;
 

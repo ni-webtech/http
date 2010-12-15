@@ -10,7 +10,7 @@
 /***************************** Forward Declarations ***************************/
 
 static void addMatchEtag(HttpConn *conn, char *etag);
-static int getChunkPacketSize(HttpConn *conn, MprBuf *buf);
+static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf);
 static char *getToken(HttpConn *conn, cchar *delim);
 static void manageRange(HttpRange *range, int flags);
 static void manageRx(HttpRx *rx, int flags);
@@ -160,8 +160,8 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpLoc     *loc;
+    ssize       len;
     char        *start, *end;
-    int         len;
 
     if (packet == NULL) {
         return 0;
@@ -863,7 +863,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpQueue   *q;
     MprBuf      *content;
-    int         nbytes, remaining;
+    ssize       nbytes, remaining;
 
     rx = conn->rx;
     tx = conn->tx;
@@ -1040,7 +1040,7 @@ void httpCloseRx(HttpConn *conn)
 /*  
     Optimization to correctly size the packets to the chunk filter.
  */
-static int getChunkPacketSize(HttpConn *conn, MprBuf *buf)
+static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
 {
     HttpRx      *rx;
     char        *start, *cp;
@@ -1143,14 +1143,13 @@ static void manageRange(HttpRange *range, int flags)
 }
 
 
-int httpGetContentLength(HttpConn *conn)
+ssize httpGetContentLength(HttpConn *conn)
 {
     if (conn->rx == 0) {
         mprAssert(conn->rx);
         return 0;
     }
     return conn->rx->length;
-    return 0;
 }
 
 

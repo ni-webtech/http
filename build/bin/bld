@@ -304,7 +304,7 @@ findLib() {
 
     if [ "$newName" != "" ] ; then
         base="${newName##*/}"
-        if [ "$newName" != "${newName%$BLD_ARCH}" ] ; then
+        if [ "$newName" != "${newName%$BLD_ARCH}" -a "$BLD_OS" != CYGWIN ] ; then
             #
             #   If static library, use actual path. This is for MAC OS X which insists on dynamic lib priority.
             #

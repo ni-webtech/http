@@ -114,7 +114,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
             httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
         }
-        rx->chunkSize = stoi(&start[2], 16, NULL);
+        rx->chunkSize = (int) stoi(&start[2], 16, NULL);
         if (!isxdigit((int) start[2]) || rx->chunkSize < 0) {
             httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
@@ -184,7 +184,7 @@ static void outgoingChunkService(HttpQueue *q)
                 /*  
                     Set the response content length and thus disable chunking -- not needed as we know the entity length.
                  */
-                tx->length = q->count;
+                tx->length = (int) q->count;
             }
         } else {
             if (tx->chunkSize < 0) {
