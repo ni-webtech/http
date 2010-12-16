@@ -33,3 +33,9 @@ bin/angel*
 projects/MACOSX/*/build
 */x86_64-pc-win
 out
+Win32
+x64
+*.user
+*.filters
+*.suo
+*.sdf

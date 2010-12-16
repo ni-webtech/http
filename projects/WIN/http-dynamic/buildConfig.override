@@ -312,36 +312,17 @@ BLD_MPR_WITH=1
 #
 #	MATRIXSSL
 #
-BLD_FEATURE_MATRIXSSL=1
-BLD_MATRIXSSL=C:/home/mob/git/packages/matrixssl/matrixssl-1-8-8-open
-BLD_MATRIXSSL_BUILTIN=0
-BLD_MATRIXSSL_IFLAGS=-IC:/home/mob/git/packages/matrixssl/matrixssl-1-8-8-open
-BLD_MATRIXSSL_IMPORTS= ${BLD_TOP}/../packages/matrixssl/matrixssl-1-8-8-open/src/Release/libmatrixssl.dll
-BLD_MATRIXSSL_LIBS=libmatrixssl
-BLD_MATRIXSSL_WITH=1
+BLD_FEATURE_MATRIXSSL=0
 
 #
 #	OPENSSL
 #
-BLD_FEATURE_OPENSSL=1
-BLD_OPENSSL=C:/home/mob/git/packages/openssl/openssl-1.0.0a
-BLD_OPENSSL_BUILTIN=0
-BLD_OPENSSL_IFLAGS=-IC:/home/mob/git/packages/openssl/openssl-1.0.0a/inc32
-BLD_OPENSSL_IMPORTS= ${BLD_TOP}/../packages/openssl/openssl-1.0.0a/out32dll/libeay32.dll ${BLD_TOP}/../packages/openssl/openssl-1.0.0a/out32dll/ssleay32.dll
-BLD_OPENSSL_LIBS=libeay32 ssleay32
-BLD_OPENSSL_WITH=1
+BLD_FEATURE_OPENSSL=0
 
 #
 #	SSL
 #
-BLD_FEATURE_SSL=1
-BLD_SSL=src/deps/mpr
-BLD_SSL_BUILTIN=1
-BLD_SSL_DEPENDENCIES= openssl matrixssl mpr
-BLD_SSL_LIBS=mprssl libeay32 ssleay32 libmatrixssl mpr
-BLD_SSL_WITH=1
-BLD_SSL_WITHLIBS=libeay32 ssleay32 libmatrixssl mpr
-
+BLD_FEATURE_SSL=0
 
 EXPORT_OBJECTS ?= 1
 ifeq ($(EXPORT_OBJECTS),0)

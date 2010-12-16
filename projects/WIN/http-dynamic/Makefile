@@ -9,13 +9,13 @@ include     .makedep
 include     buildConfig.override
 
 SRC			= ../../../src
-CMD			= ../../../src/utils
+UTILS		= ../../../src/utils
 HDRS	 	= $(BLD_INC_DIR)/buildConfig.h $(shell find $(SRC)/include -name '*.h')
 LIBS		= ws2_32.lib
 PROJECTS	= libmpr.vcproj libmprssl.vcproj libhttp.vcproj testHttp.vcproj http.vcproj
 DFLAGS		= DEBUG_IDE
 
-MAKE_IFLAGS	= $(BLD_MPR_IFLAGS) -I$(BLD_TOP)/src/include/master 
+MAKE_IFLAGS	=
 ifeq ($(BLD_FEATURE_OPENSSL),1)
 	SSL_IFLAGS	+= $(BLD_OPENSSL_IFLAGS)
 endif
@@ -40,8 +40,8 @@ libmprssl.vcproj: Makefile buildConfig.override
 	
 libhttp.vcproj: Makefile buildConfig.override
 	@makeVsProj --project libhttp.vcproj --library http --dflags "$(DFLAGS)" \
-		--iflags "$(SSL_IFLAGS)" --def libmprssl.def --libs "libmpr.lib $(LIBS)" $(HDRS) \
-	    $(shell find $(SRC)/ -name '*.c' | egrep -v 'deps/|cmd/|test/')
+		--iflags "$(SSL_IFLAGS)" --def libhttp.def --libs "libmpr.lib $(LIBS)" $(HDRS) \
+	    $(shell find $(SRC)/ -name '*.c' | egrep -v 'deps/|utils/|test/')
 	
 testHttp.vcproj: Makefile buildConfig.override
 	@makeVsProj --project testHttp.vcproj --exe testHttp.exe --dflags "$(DFLAGS)" \
@@ -50,7 +50,7 @@ testHttp.vcproj: Makefile buildConfig.override
 
 http.vcproj: Makefile buildConfig.override
 	@makeVsProj --project http.vcproj --exe http.exe --dflags "$(DFLAGS)" \
-		--libs "$(LIBS) libhttp.lib libmpr.lib" $(HDRS) $(SRC)/cmd/httpCmd.c 
+		--libs "$(LIBS) libhttp.lib libmpr.lib" $(HDRS) $(UTILS)/httpCmd.c 
 
 cleanExtra:
-	rm -rf Upgrade* _Upgrade*
+	rm -rf Upgrade* _Upgrade* *.old

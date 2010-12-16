@@ -1076,7 +1076,7 @@ static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
             return 0;
         }
         need = (cp - start + 1);
-        size = stoi(&start[2], 16, NULL);
+        size = (ssize) stoi(&start[2], 16, NULL);
         if (size == 0 && &cp[2] < buf->end && cp[1] == '\r' && cp[2] == '\n') {
             /*
                 This is the last chunk (size == 0). Now need to consume the trailing "\r\n".
@@ -1476,7 +1476,7 @@ static bool parseRange(HttpConn *conn, char *value)
          */
         tok = stok(value, ",", &value);
         if (*tok != '-') {
-            range->start = stoi(tok, 10, NULL);
+            range->start = (ssize) stoi(tok, 10, NULL);
         } else {
             range->start = -1;
         }
@@ -1487,7 +1487,7 @@ static bool parseRange(HttpConn *conn, char *value)
                 /*
                     End is one beyond the range. Makes the math easier.
                  */
-                range->end = stoi(ep, 10, NULL) + 1;
+                range->end = (ssize) stoi(ep, 10, NULL) + 1;
             }
         }
         if (range->start >= 0 && range->end >= 0) {

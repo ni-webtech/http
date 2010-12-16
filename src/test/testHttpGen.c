@@ -1,5 +1,5 @@
 /**
-    testHttp.c - tests for HTTP
+    testHttpGen.c - tests for HTTP
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
