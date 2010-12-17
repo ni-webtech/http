@@ -2,15 +2,15 @@
 
 /******************************************************************************/
 /* 
-    This file is an amalgamation of all the individual source code files for
-     .
+    This file is an amalgamation of all the individual source code files for the
+    Multithreaded Portable Runtime Library Source.
   
     Catenating all the source into a single file makes embedding simpler and
     the resulting application faster, as many compilers can do whole file
     optimization.
   
-    If you want to modify , you can still get the whole source
-    as individual files if you need.
+    If you want to modify the product, you can still get the whole source as 
+    individual files if you need.
  */
 
 
@@ -6439,6 +6439,9 @@ static void manageEventService(MprEventService *es, int flags)
         for (dp = q->next; dp != q; dp = dp->next) {
             mprMark(dp);
         }
+    } else if (flags & MPR_MANAGE_FREE) {
+        /* Needed for race with manageDispatcher */
+        es->mutex = 0;
     }
 }
 
@@ -6678,13 +6681,15 @@ static void manageDispatcher(MprDispatcher *dispatcher, int flags)
         }
     } else if (flags & MPR_MANAGE_FREE) {
         es = dispatcher->service;
-        lock(es);
-        dequeueDispatcher(dispatcher);
-        dispatcher->deleted = 1;
-        if (dispatcher->inUse) {
-            mprAssert(!dispatcher->inUse);
+        if (es->mutex) {
+            lock(es);
+            dequeueDispatcher(dispatcher);
+            dispatcher->deleted = 1;
+            if (dispatcher->inUse) {
+                mprAssert(!dispatcher->inUse);
+            }
+            unlock(es);
         }
-        unlock(es);
     }
 }
 
@@ -13647,6 +13652,11 @@ typedef struct MprEjsString {
     MprChar         value[0];
 } MprEjsString;
 
+typedef struct MprEjsName {
+    MprEjsString    *name;
+    MprEjsString    *space;
+} MprEjsName;
+
 
 static int  getState(char c, int state);
 static int  growBuf(Format *fmt);
@@ -13885,6 +13895,7 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list arg)
 {
     Format        fmt;
     MprEjsString  *es;
+    MprEjsName    qname;
     ssize         len;
     int64         iValue;
     uint64        uValue;
@@ -14022,19 +14033,19 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list arg)
 
             case 'N':
                 /* Name */
-                es = va_arg(arg, MprEjsString*);
-                if (es) {
+                qname = va_arg(arg, MprEjsName);
+                if (qname.name) {
 #if BLD_CHAR_LEN == 1
-                    outString(&fmt, es->value, es->length);
+                    outString(&fmt, qname.name->value, qname.name->length);
                     BPUT(&fmt, ':');
                     BPUT(&fmt, ':');
                     es = va_arg(arg, MprEjsString*);
-                    outString(&fmt, es->value, es->length);
+                    outString(&fmt, qname.space->value, qname.space->length);
 #else
-                    outWideString(&fmt, es->value, es->length);
+                    outWideString(&fmt, qname.name->value, qname.name->length);
                     BPUT(&fmt, ':');
                     es = va_arg(arg, MprEjsString*);
-                    outWideString(&fmt, es->value, es->length);
+                    outWideString(&fmt, qname.space->value, qname.space->length);
 #endif
                 } else {
                     outString(&fmt, NULL, 0);
@@ -21996,7 +22007,7 @@ void mprSleep(int milliseconds)
 
 void mprUnloadModule(MprModule *mp)
 {
-    mprRemoveItem(mprGetMpr(mp)->moduleService->modules, mp);
+    mprRemoveItem(mprGetMpr()->moduleService->modules, mp);
     unldByModuleId((MODULE_ID) mp->handle, 0);
 }
 
@@ -24189,9 +24200,9 @@ void mprUnloadModule(MprModule *mp)
     mprAssert(mp->handle);
 
     if (mp->stop) {
-        mp->stop(mp);
+        mp->stop();
     }
-    mprRemoveItem(mprGetMpr(mp)->moduleService->modules, mp);
+    mprRemoveItem(mprGetMpr()->moduleService->modules, mp);
     FreeLibrary((HINSTANCE) mp->handle);
 }
 

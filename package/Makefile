@@ -37,12 +37,12 @@ prep:
 	mkdir -p $(REL_DIR) $(DEST) $(INC_DEST) $(DOC_DEST)/man $(DOC_DEST)/api
 
 $(INC_DEST)/http.h: Makefile $(HEADERS)
-    TITLE="$(BLD_NAME) Header" \
+	TITLE="$(BLD_NAME) Header" \
 	dist $(HEADERS) | egrep -v '#include.*http|#inc.*config.h|#inc.*ucp.*\.h|#inc.*pcre' >$(INC_DEST)/http.h
 
 $(DEST)/httpLib.c: Makefile $(HEADERS) $(HTTP_SOURCES)
 	echo '#include "http.h"' >$(DEST)/httpLib.c
-    TITLE="$(BLD_NAME) Library Source" \
+	TITLE="$(BLD_NAME) Library Source" \
 	dist $(HTTP_SOURCES) | egrep -v '#inc.*http' >>$(DEST)/httpLib.c
 
 $(DEST)/http.c: Makefile ../src/utils/httpCmd.c

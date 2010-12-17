@@ -3,7 +3,7 @@
     ProjectType="Visual C++"
     Version="8.00"
     Name="http"
-    ProjectGUID="ccabf7a1-5179-4420-9eaa-ed791be17877"
+    ProjectGUID="bc219898-6e9d-4a0f-8a99-64bcce4ba0f8"
     RootNamespace=""
     Keyword="Win32Proj"
     TargetFrameworkVersion="0"
@@ -160,7 +160,7 @@
         <Filter
             Name="Header Files"
             Filter="h;hpp;hxx;hm;inl;inc;xsd"
-            UniqueIdentifier="{c339be5a-c16f-43f5-bd91-edd0c2c491b3}"
+            UniqueIdentifier="{6996cf1f-66c7-4336-84a7-7fa55715cd99}"
             >
             <File
                 RelativePath="..\..\..\out\include\buildConfig.h"
@@ -182,10 +182,10 @@
         <Filter
             Name="Source Files"
             Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
-            UniqueIdentifier="{aaab13b9-cb9e-49a5-8dc3-b0a8602964db}"
+            UniqueIdentifier="{8c3bed7b-a6d9-4356-8cb7-fcf2cb9bf0ef}"
             >
             <File
-                RelativePath="\httpCmd.c"
+                RelativePath="..\..\..\src\utils\httpCmd.c"
                 >
             </File>
         </Filter>

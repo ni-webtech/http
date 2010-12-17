@@ -6,9 +6,9 @@
 #
 
 : ${BLD_OUT_DIR:=$BLD_TOP/out}
-. ${BLD_OUT_DIR}/bin/buildConfig.sh
-
 files="$*"
+
+. `cacheConfig ${BLD_OUT_DIR}/include/buildConfig.h`
 
 for path in $files
 do

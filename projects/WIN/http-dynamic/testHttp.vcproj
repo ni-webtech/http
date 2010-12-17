@@ -3,7 +3,7 @@
     ProjectType="Visual C++"
     Version="8.00"
     Name="testHttp"
-    ProjectGUID="62a4b011-5a20-4749-87b9-33eedf5443f5"
+    ProjectGUID="d4bd1184-aab3-48f4-882d-353e0d00cffc"
     RootNamespace=""
     Keyword="Win32Proj"
     TargetFrameworkVersion="0"
@@ -160,7 +160,7 @@
         <Filter
             Name="Header Files"
             Filter="h;hpp;hxx;hm;inl;inc;xsd"
-            UniqueIdentifier="{ec5870c8-c682-4b85-a877-4fa13aa8bbb8}"
+            UniqueIdentifier="{f68f4317-84d6-40c1-8e18-5ba013472f50}"
             >
             <File
                 RelativePath="..\..\..\out\include\buildConfig.h"
@@ -182,7 +182,7 @@
         <Filter
             Name="Source Files"
             Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
-            UniqueIdentifier="{eee78cc2-9b60-4fba-bef9-bd8f52f1b31e}"
+            UniqueIdentifier="{8a87c819-cd03-4e03-a7f5-0bd7e77a591b}"
             >
             <File
                 RelativePath="..\..\..\src\test\testHttp.c"

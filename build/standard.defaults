@@ -24,6 +24,7 @@ BLD_CHAR=char
 BLD_CLEAN_INSTALL=0             # Overwrite existing installations
 BLD_LICENSE=gpl
 BLD_COMMERCIAL=0
+BLD_STATIC=0
 
 #
 #   Include settings common to all configurations
@@ -85,7 +86,3 @@ BLD_FEATURE_LEGACY_API=0
 #
 BLD_FEATURE_ROMFS=0
 
-#
-#   Build shared by default. Only enable one of shared or static.
-#
-BLD_FEATURE_STATIC=0

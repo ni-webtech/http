@@ -123,10 +123,10 @@ int main(int argc, char *argv[])
         fprintf(fp, ".");
     }
     fprintf(fp, "\n");
-    fprintf(fp, "BLD_OUT_DIR := %s\n", outdir);
+    fprintf(fp, "BLD_INC_DIR := %s/include\n", outdir);
 
     fprintf(fp, "\n#\n#   Read the build configuration.\n#\n");
-    fprintf(fp, "include $(BLD_OUT_DIR)/buildConfig.make\n\n");
+    fprintf(fp, "include $(BLD_INC_DIR)/buildConfig.h\n\n");
 
     fprintf(fp, "SRC =");
     for (i = nextArg; i < argc; i++) {

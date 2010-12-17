@@ -3,7 +3,7 @@
     ProjectType="Visual C++"
     Version="8.00"
     Name="libhttp"
-    ProjectGUID="42abb309-c30a-4337-8e7d-976133012dee"
+    ProjectGUID="436e5fbc-1543-4b5b-a0e7-786746f017b1"
     RootNamespace=""
     Keyword="Win32Proj"
     TargetFrameworkVersion="0"
@@ -162,7 +162,7 @@
         <Filter
             Name="Header Files"
             Filter="h;hpp;hxx;hm;inl;inc;xsd"
-            UniqueIdentifier="{c8bf088c-a7dd-4e35-91d9-a47fbd7152cc}"
+            UniqueIdentifier="{1cc110dc-ed6d-408a-b799-e3748edb6c85}"
             >
             <File
                 RelativePath="..\..\..\out\include\buildConfig.h"
@@ -184,7 +184,7 @@
         <Filter
             Name="Source Files"
             Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
-            UniqueIdentifier="{4086b004-bd1b-4f9e-a719-62b664e364ba}"
+            UniqueIdentifier="{072ca75c-b6b6-4e4a-a18c-02a37d062ee5}"
             >
             <File
                 RelativePath="..\..\..\src\auth.c"
@@ -280,10 +280,6 @@
             </File>
             <File
                 RelativePath="..\..\..\src\uri.c"
-                >
-            </File>
-            <File
-                RelativePath="..\..\..\src\utils\httpCmd.c"
                 >
             </File>
         </Filter>

@@ -39,3 +39,4 @@ x64
 *.filters
 *.suo
 *.sdf
+*.vcxproj
