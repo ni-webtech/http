@@ -136,7 +136,6 @@ void httpCloseConn(HttpConn *conn)
             mprRemoveWaitHandler(&conn->waitHandler);
         }
         mprCloseSocket(conn->sock, 0);
-        mprFree(conn->sock);
         conn->sock = 0;
     }
 }
@@ -180,14 +179,10 @@ void httpPrepClientConn(HttpConn *conn, int retry)
             /* Eat remaining input incase last request did not consume all data */
             httpConsumeLastRequest(conn);
         } else {
-            mprFree(conn->input);
             conn->input = 0;
         }
         if (retry && (tx = conn->tx) != 0) {
             headers = tx->headers;
-#if UNUSED
-            mprStealBlock(conn, headers);
-#endif
         }
         conn->abortPipeline = 0;
         conn->canProceed = 1;
@@ -264,6 +259,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
         readEvent(conn);
     }
     if (conn->server) {
+        //  MOB BUG - if still processing a request, EOF should not free the request
         if (conn->connError || mprIsSocketEof(conn->sock) || (!conn->rx && conn->keepAliveCount < 0)) {
             /*  
                 NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
@@ -288,7 +284,8 @@ static void readEvent(HttpConn *conn)
 
     while ((packet = getPacket(conn, &len)) != 0) {
         nbytes = mprReadSocket(conn->sock, mprGetBufEnd(packet->content), len);
-        LOG(8, "http: read event. Got %d", nbytes);
+        //  MOB - was 8
+        LOG(1, "http: read event. Got %d", nbytes);
        
         if (nbytes > 0) {
             mprAdjustBufEnd(packet->content, nbytes);
@@ -302,7 +299,7 @@ static void readEvent(HttpConn *conn)
                 break;
             } else if (conn->state < HTTP_STATE_COMPLETE) {
                 httpProcess(conn, packet);
-                if (!conn->error && conn->state < HTTP_STATE_COMPLETE) {
+                if (!conn->error && conn->state < HTTP_STATE_COMPLETE && mprIsSocketEof(conn->sock)) {
                     httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Connection lost");
                     break;
                 }
@@ -514,16 +511,6 @@ cchar *httpGetError(HttpConn *conn)
 
 void httpResetCredentials(HttpConn *conn)
 {
-    mprFree(conn->authDomain);
-    mprFree(conn->authCnonce);
-    mprFree(conn->authNonce);
-    mprFree(conn->authOpaque);
-    mprFree(conn->authPassword);
-    mprFree(conn->authRealm);
-    mprFree(conn->authQop);
-    mprFree(conn->authType);
-    mprFree(conn->authUser);
-
     conn->authType = 0;
     conn->authDomain = 0;
     conn->authCnonce = 0;
@@ -683,7 +670,6 @@ void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
         Lock as this may be called by httpTimer
      */
     mprLock(conn->http->mutex);
-    mprFree(conn->errorMsg);
     conn->errorMsg = mprAsprintfv(fmt, args);
     if (status) {
         if (conn->server && conn->tx) {

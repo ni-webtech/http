@@ -488,14 +488,11 @@ size_t httpWrite(HttpQueue *q, cchar *fmt, ...)
 {
     va_list     vargs;
     char        *buf;
-    size_t      rc;
     
     va_start(vargs, fmt);
     buf = mprAsprintfv(fmt, vargs);
     va_end(vargs);
-    rc = httpWriteString(q, buf);
-    mprFree(buf);
-    return rc;
+    return httpWriteString(q, buf);
 }
 
 

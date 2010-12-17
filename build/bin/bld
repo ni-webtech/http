@@ -696,16 +696,14 @@ else
         done
     fi
 
-    libdir=${BLD_LIB_NAME%/*}
-    moddir=${BLD_MOD_NAME%/*}
     if [ "$OS" = MACOSX ] ; then
-        RPATH_LIST="@executable_path/../$libdir @executable_path/../$moddir @executable_path/ @loader_path/ $RPATH_LIST"
+        RPATH_LIST="@executable_path/../$BLD_LIB_NAME @executable_path/../$BLD_MOD_NAME @executable_path/ @loader_path/ $RPATH_LIST"
     elif [ "$OS" = LINUX ] ; then
         if [ "$BLD_TYPE" = "RELEASE" ] ; then
             # Uclinux needs the LIB_PREFIX explicitly in the rpath as $ORIGIN doesn't seem to work
             RPATH_LIST="${BLD_LIB_PREFIX} ${BLD_MOD_PREFIX} $RPATH_LIST"
         fi
-        RPATH_LIST="ORIGIN/ ORIGIN/../$libdir ORIGIN/../$moddir $RPATH_LIST"
+        RPATH_LIST="ORIGIN/ ORIGIN/../$BLD_LIB_NAME ORIGIN/../$BLD_MOD_NAME $RPATH_LIST"
     elif [ "$OS" = FREEBSD ] ; then
         RPATH_LIST="lib modules $RPATH_LIST"
     fi
@@ -948,7 +946,8 @@ else
             if [ "$OS" = MACOSX ] ; then
                 INSTALL_NAME="-install_name @rpath/`basename $SHARED_LIBRARY`"
             elif [ "$OS" = LINUX ] ; then
-                ERRORS="-Wl,--no-allow-shlib-undefined"
+                # ERRORS="-Wl,--no-allow-shlib-undefined"
+                :
             fi
             run "${LINKER}" -o ${SHARED_LIBRARY} ${SONAME_SWITCH} ${INSTALL_NAME} ${DSO} ${LOBJS} \
                 ${MAKE_LDFLAGS} ${BLD_LDFLAGS} ${_LDFLAGS} ${MAKE_CFLAGS} ${BLD_CFLAGS} ${_CFLAGS} \

@@ -74,13 +74,11 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     }
     if ((sp = mprCreateSocket((uri->secure) ? MPR_SECURE_CLIENT: NULL)) == 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
-        mprFree(sp);
         return 0;
     }
     rc = mprOpenClientSocket(sp, ip, port, 0);
     if (rc < 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't open socket on %s:%d", ip, port);
-        mprFree(sp);
         return 0;
     }
     conn->sock = sp;
@@ -120,7 +118,6 @@ static int setClientHeaders(HttpConn *conn)
         mprSprintf(abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
         encoded = mprEncode64(abuf);
         httpAddHeader(conn, "Authorization", "basic %s", encoded);
-        mprFree(encoded);
         conn->sentCredentials = 1;
 
     } else if (conn->authType && strcmp(conn->authType, "digest") == 0) {
@@ -128,11 +125,9 @@ static int setClientHeaders(HttpConn *conn)
         char    *ha1, *ha2, *digest, *qop;
         if (http->secret == 0 && httpCreateSecret(http) < 0) {
             mprLog(MPR_ERROR, "Http: Can't create secret for digest authentication");
-            mprFree(tx);
             conn->tx = 0;
             return MPR_ERR_CANT_CREATE;
         }
-        mprFree(conn->authCnonce);
         conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime(conn)); 
 
         mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
@@ -154,8 +149,6 @@ static int setClientHeaders(HttpConn *conn)
             qop = "";
             mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, conn->authNonce, ha2);
         }
-        mprFree(ha1);
-        mprFree(ha2);
         digest = mprGetMD5Hash(digestBuf, strlen(digestBuf), NULL);
 
         if (*qop == '\0') {
@@ -173,7 +166,6 @@ static int setClientHeaders(HttpConn *conn)
         } else if (strcmp(qop, "auth-int") == 0) {
             ;
         }
-        mprFree(digest);
         conn->sentCredentials = 1;
     }
     httpAddSimpleHeader(conn, "Host", conn->ip);
@@ -222,10 +214,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     httpSetState(conn, HTTP_STATE_CONNECTED);
     conn->sentCredentials = 0;
 
-    mprFree(tx->method);
-    method = tx->method = sclone(method);
-    supper(tx->method);
-    mprFree(tx->parsedUri);
+    method = tx->method = supper(method);
     tx->parsedUri = httpCreateUri(url, 0);
 
     if (openConnection(conn, url) == 0) {
@@ -281,7 +270,6 @@ bool httpNeedRetry(HttpConn *conn, char **url)
  */
 void httpEnableUpload(HttpConn *conn)
 {
-    mprFree(conn->boundary);
     conn->boundary = mprAsprintf("--BOUNDARY--%Ld", conn->http->now);
     httpSetHeader(conn, "Content-Type", "multipart/form-data; boundary=%s", &conn->boundary[2]);
 }
@@ -331,7 +319,6 @@ int httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
             name = mprGetPathBase(path);
             rc += httpWrite(conn->writeq, "%s\r\nContent-Disposition: form-data; name=\"file%d\"; filename=\"%s\"\r\n", 
                 conn->boundary, next - 1, name);
-            mprFree(name);
             rc += httpWrite(conn->writeq, "Content-Type: %s\r\n\r\n", mprLookupMimeType(path));
             rc += blockingFileCopy(conn, path);
             rc += httpWrite(conn->writeq, "\r\n", value);

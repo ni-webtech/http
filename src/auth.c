@@ -65,7 +65,6 @@ static void manageAuth(HttpAuth *auth, int flags)
 
 void httpSetAuthAllow(HttpAuth *auth, cchar *allow)
 {
-    mprFree(auth->allow);
     auth->allow = sclone(allow);
 }
 
@@ -79,14 +78,12 @@ void httpSetAuthAnyValidUser(HttpAuth *auth)
 
 void httpSetAuthDeny(HttpAuth *auth, cchar *deny)
 {
-    mprFree(auth->deny);
     auth->deny = sclone(deny);
 }
 
 
 void httpSetAuthGroup(HttpConn *conn, cchar *group)
 {
-    mprFree(conn->authGroup);
     conn->authGroup = sclone(group);
 }
 
@@ -99,7 +96,6 @@ void httpSetAuthOrder(HttpAuth *auth, int order)
 
 void httpSetAuthQop(HttpAuth *auth, cchar *qop)
 {
-    mprFree(auth->qop);
     if (strcmp(qop, "auth") == 0 || strcmp(qop, "auth-int") == 0) {
         auth->qop = sclone(qop);
     } else {
@@ -110,14 +106,12 @@ void httpSetAuthQop(HttpAuth *auth, cchar *qop)
 
 void httpSetAuthRealm(HttpAuth *auth, cchar *realm)
 {
-    mprFree(auth->requiredRealm);
     auth->requiredRealm = sclone(realm);
 }
 
 
 void httpSetAuthRequiredGroups(HttpAuth *auth, cchar *groups)
 {
-    mprFree(auth->requiredGroups);
     auth->requiredGroups = sclone(groups);
     auth->flags |= HTTP_AUTH_REQUIRED;
 }
@@ -125,7 +119,6 @@ void httpSetAuthRequiredGroups(HttpAuth *auth, cchar *groups)
 
 void httpSetAuthRequiredUsers(HttpAuth *auth, cchar *users)
 {
-    mprFree(auth->requiredUsers);
     auth->requiredUsers = sclone(users);
     auth->flags |= HTTP_AUTH_REQUIRED;
 }
@@ -133,7 +126,6 @@ void httpSetAuthRequiredUsers(HttpAuth *auth, cchar *users)
 
 void httpSetAuthUser(HttpConn *conn, cchar *user)
 {
-    mprFree(conn->authUser);
     conn->authUser = sclone(user);
 }
 

@@ -173,7 +173,6 @@ static void decodeBasicAuth(HttpConn *conn, AuthData *ad)
         ad->password = sclone("");
     }
     httpSetAuthUser(conn, ad->userName);
-    mprFree(decoded);
 }
 
 
@@ -310,7 +309,6 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
             }
         }
     }
-    mprFree(authDetails);
     if (ad->userName == 0 || ad->realm == 0 || ad->nonce == 0 || ad->uri == 0 || ad->password == 0) {
         return MPR_ERR_BAD_ARGS;
     }
@@ -362,7 +360,6 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
         } else {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", nonce=\"%s\"", auth->requiredRealm, nonce);
         }
-        mprFree(nonce);
     }
     httpError(conn, code, "Authentication Error: %s", msg);
     httpSetPipeHandler(conn, conn->http->passHandler);
@@ -448,8 +445,6 @@ static int calcDigest(char **digest, cchar *userName, cchar *password, cchar *re
         mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, nonce, ha2);
     }
     *digest = md5(digestBuf);
-    mprFree(ha1);
-    mprFree(ha2);
     return 0;
 }
 

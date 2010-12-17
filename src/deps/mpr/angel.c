@@ -37,7 +37,6 @@ static void catchSignal(int signo, siginfo_t *info, void *arg);
 static void cleanup();
 static int  makeDaemon();
 static void manageAngel(void *unused, int flags);
-static void memoryNotifier(int flags, size_t size);
 static int  readAngelPid();
 static void setAppDefaults(Mpr *mpr);
 static int  setupUnixSignals();
@@ -51,13 +50,12 @@ int main(int argc, char *argv[])
     char    *argp;
     int     err, nextArg, i, len;
 
-    mpr = mprCreate(argc, argv, memoryNotifier);
-
     err = 0;
     exiting = 0;
     runAsDaemon = 0;
     logSpec = 0;
 
+    mpr = mprCreate(argc, argv, MPR_USER_EVENTS_THREAD);
     setAppDefaults(mpr);
 
     for (nextArg = 1; nextArg < argc; nextArg++) {
@@ -235,6 +233,7 @@ static void angel()
     mark = mprGetTime();
 
     while (! exiting) {
+        mprCollectGarbage(MPR_GC_FROM_EVENTS);
         if (mprGetElapsedTime(mark) > (3600 * 1000)) {
             mark = mprGetTime();
             restartCount = 0;
@@ -499,22 +498,6 @@ static int makeDaemon()
         return MPR_ERR_BAD_STATE;
     }
     exit(0);
-}
-
-
-/*
-    Global memory allocation handler
- */
-static void memoryNotifier(int flags, size_t size)
-{
-    if (flags & MPR_ALLOC_DEPLETED) {
-        mprPrintfError("Can't allocate memory block of size %d\n", size);
-        mprPrintfError("Total memory used %d\n", mprGetUsedMemory());
-        exit(255);
-    } else if (flags & MPR_ALLOC_LOW) {
-        mprPrintf("Memory request for %d bytes exceeds memory red-line\n", size);
-        mprPrintf("Total memory used %d\n", mprGetUsedMemory());
-    }
 }
 
 

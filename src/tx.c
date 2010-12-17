@@ -34,9 +34,6 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
 
     if (headers) {
         tx->headers = headers;
-#if UNUSED
-        mprStealBlock(tx, headers);
-#endif
     } else {
         tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
         setDefaultHeaders(conn);
@@ -204,7 +201,6 @@ void httpClearHeaders(HttpConn *conn)
     HttpTx      *tx;
 
     tx = conn->tx;
-    mprFree(tx->headers);
     tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     setDefaultHeaders(conn);
 }
@@ -267,7 +263,6 @@ int httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
         "<html><head><title>%s</title></head>\r\n"
         "<body>\r\n%s\r\n</body>\r\n</html>\r\n",
         title, body);
-    mprFree(body);
     httpOmitBody(conn);
     va_end(args);
     return (int) strlen(tx->altBody);
@@ -375,7 +370,6 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         "<address>%s at %s Port %d</address></body>\r\n</html>\r\n",
         msg, msg, targetUri, HTTP_NAME, conn->server->name, prev->port);
     httpOmitBody(conn);
-    mprFree(uri);
 }
 
 
@@ -529,7 +523,6 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             hdr = mprFormatTime(MPR_HTTP_DATE, &tm);
             httpAddHeader(conn, "Cache-Control", "max-age=%d", expires);
             httpAddHeader(conn, "Expires", "%s", hdr);
-            mprFree(hdr);
         }
     }
     if (tx->etag) {

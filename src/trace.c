@@ -95,7 +95,6 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
         data[len] = '\0';
         mprRawLog(level, "\n>>>>>>>>>> %s %s packet %d, len %d (conn %d) >>>>>>>>>>\n%s", tag, msg, seqno, 
             len, conn->seqno, data);
-        mprFree(data);
     } else {
         mprRawLog(level, "\n>>>>>>>>>> %s %s packet %d, len %d (conn %d) >>>>>>>>>> (binary)\n", tag, msg, seqno, 
             len, conn->seqno);

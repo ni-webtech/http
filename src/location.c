@@ -166,7 +166,6 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
             mprAddHash(loc->extensions, word, handler);
             word = stok(0, " \t\r\n", &tok);
         }
-        mprFree(extlist);
 
     } else {
         if (handler->match == 0) {
@@ -237,7 +236,6 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
             mprAddHash(filter->extensions, word, filter);
             word = stok(0, " \t\r\n", &tok);
         }
-        mprFree(extlist);
     }
     graduate(loc);
     if (direction & HTTP_STAGE_INCOMING) {
@@ -262,7 +260,6 @@ void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
             mprAddHash(loc->expires, mime, ITOP(when));
             mime = stok(0, " \t\r\n", &tok);
         }
-        mprFree(types);
     }
 }
 
@@ -301,12 +298,6 @@ int httpSetConnector(HttpLoc *loc, cchar *name)
 void httpResetPipeline(HttpLoc *loc)
 {
     if (loc->parent == 0) {
-        mprFree(loc->errorDocuments);
-        mprFree(loc->expires);
-        mprFree(loc->extensions);
-        mprFree(loc->handlers);
-        mprFree(loc->inputStages);
-        mprFree(loc->outputStages);
         loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
         loc->expires = mprCreateHash(0, 0);
         loc->extensions = mprCreateHash(0, 0);
@@ -321,7 +312,6 @@ void httpResetPipeline(HttpLoc *loc)
 void httpResetHandlers(HttpLoc *loc)
 {
     graduate(loc);
-    mprFree(loc->handlers);
     loc->handlers = mprCreateList(loc);
 }
 
@@ -336,7 +326,6 @@ void httpSetLocationPrefix(HttpLoc *loc, cchar *uri)
 {
     mprAssert(loc);
 
-    mprFree(loc->prefix);
     loc->prefix = sclone(uri);
     loc->prefixLen = (int) strlen(loc->prefix);
 
@@ -363,7 +352,6 @@ void httpSetLocationAutoDelete(HttpLoc *loc, int enable)
 
 void httpSetLocationScript(HttpLoc *loc, cchar *script)
 {
-    mprFree(loc->script);
     loc->script = sclone(script);
 }
 

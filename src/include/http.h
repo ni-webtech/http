@@ -195,6 +195,7 @@ typedef struct Http {
     struct HttpStage *authFilter;           /**< Authorization filter (digest and basic) */
     struct HttpStage *rangeFilter;          /**< Ranged requests filter */
     struct HttpStage *chunkFilter;          /**< Chunked transfer encoding filter */
+    struct HttpStage *cgiHandler;           /**< CGI listing handler */
     struct HttpStage *dirHandler;           /**< Directory listing handler */
     struct HttpStage *egiHandler;           /**< Embedded Gateway Interface (EGI) handler */
     struct HttpStage *ejsHandler;           /**< Ejscript Web Framework handler */
@@ -212,6 +213,8 @@ typedef struct Http {
     MprMutex        *mutex;
     HttpGetPassword getPassword;            /**< Lookup password callback */
     HttpValidateCred validateCred;          /**< Validate user credentials callback */
+    MprForkCallback forkCallback;
+    void            *forkData;
 
     int             connCount;              /**< Count of connections for Conn.seqno */
     void            *context;               /**< Embedding context */
@@ -315,6 +318,7 @@ extern void httpSetProxy(Http *http, cchar *host, int port);
 extern void httpAddConn(Http *http, struct HttpConn *conn);
 extern void httpRemoveConn(Http *http, struct HttpConn *conn);
 extern cchar *httpLookupStatus(Http *http, int status);
+extern void httpSetForkCallback(Http *http, MprForkCallback callback, void *data);
 
 /************************************* Limits *********************************/
 /** 
@@ -944,9 +948,10 @@ extern void httpManageQueue(HttpQueue *q, int flags);
 #define HTTP_STAGE_AUTO_DIR       0x100000          /**< Want auto directory redirection */
 #define HTTP_STAGE_VERIFY_ENTITY  0x200000          /**< Verify the request entity exists */
 #define HTTP_STAGE_THREAD         0x400000          /**< Run handler dispatcher in a worker thread */
+#define HTTP_STAGE_MISSING_EXT    0x800000          /**< Support URIs with missing extensions */
 
-#define HTTP_STAGE_INCOMING       0x400000
-#define HTTP_STAGE_OUTGOING       0x800000
+#define HTTP_STAGE_INCOMING       0x1000000
+#define HTTP_STAGE_OUTGOING       0x2000000
 
 typedef int (*HttpParse)(Http *http, cchar *key, char *value, void *state);
 
