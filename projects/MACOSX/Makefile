@@ -1,8 +1,10 @@
 #
-#	Clean assist for Xcode
+#   Makefile for the projects
 #
-all:
-	include 	.makedep
+#   Copyright (c) Embedthis Software LLC, 2003-2010. All Rights Reserved.
+#
 
-clean cleanExtra:
+include 	.makedep
+
+cleanExtra:
 	rm -fr */build 

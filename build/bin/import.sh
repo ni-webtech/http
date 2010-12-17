@@ -122,6 +122,13 @@ syncFiles() {
 }
 
 
+function getabs() {
+    local dir=`pwd`
+    cd `dirname "$1"` >/dev/null
+    echo `pwd`/`basename "$1"`
+    cd $dir >/dev/null
+}
+
 #
 #   Main
 #
@@ -182,7 +189,8 @@ fi
 # DIR=`getpath -a "."`
 # ARCHIVE=`getpath -a "$1"`
 DIR=`pwd`
-ARCHIVE=`readlink -m "$1"`
+
+ARCHIVE=`getabs "$1"`
 
 if [ ! -f "$ARCHIVE" ] ; then
     echo "Can't find $ARCHIVE"

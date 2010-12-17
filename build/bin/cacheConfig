@@ -12,6 +12,8 @@ config="$1"
 cache="`dirname "$1"`/.buildConfig.sh"
 
 if [ "$cache" -ot "$config" ] ; then
-    cat "$config" | sed '1,/C Source Code/d;1,$s/.*#define /ZZZ/;/ZZZ/s/ /=/;s/ZZZ//' | egrep -v 'IGNORE|^endif' >"$cache"
+    cat "$config" | sed '1,/C Source Code/d' | \
+    sed 's/.*#define /ZZZ/;/ZZZ/s/ /=/;s/ZZZ//' | \
+    egrep -v 'IGNORE|^endif' >"$cache"
 fi
 echo $cache

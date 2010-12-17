@@ -154,29 +154,6 @@ static void manageApp(App *app, int flags)
 
 static void initSettings()
 {
-=======
-}
-
-
-static void manageApp(App *app, int flags)
-{
-    if (flags & MPR_MANAGE_MARK) {
-        mprMarkList(app->files);
-        mprMarkList(app->formData);
-        mprMarkList(app->headers);
-        mprMark(app->bodyData);
-        mprMark(app->http);
-        mprMark(app->password);
-        mprMark(app->ranges);
-        mprMark(app->mutex);
-    } else if (flags & MPR_MANAGE_FREE) {
-    }
-}
-
-
-static void initSettings()
-{
->>>>>>> 6b072c459fe41dc327f5169227e4bc0c7355e72e
     app->method = 0;
     app->verbose = 0;
     app->continueOnErrors = 0;
