@@ -62,7 +62,7 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
     HttpConn    *conn;
     HttpRx      *rx;
     HttpTx      *tx;
-    int         bytes, count, endpos;
+    ssize       bytes, count, endpos;
 
     conn = q->conn;
     rx = conn->rx;
@@ -232,7 +232,7 @@ static bool fixRangeLength(HttpConn *conn)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpRange   *range;
-    int         length;
+    ssize       length;
 
     rx = conn->rx;
     tx = conn->tx;

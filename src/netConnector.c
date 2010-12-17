@@ -14,9 +14,9 @@
 /**************************** Forward Declarations ****************************/
 
 static void addPacketForNet(HttpQueue *q, HttpPacket *packet);
-static void adjustNetVec(HttpQueue *q, int written);
-static int  buildNetVec(HttpQueue *q);
-static void freeNetPackets(HttpQueue *q, int written);
+static void adjustNetVec(HttpQueue *q, ssize written);
+static ssize buildNetVec(HttpQueue *q);
+static void freeNetPackets(HttpQueue *q, ssize written);
 static void netOutgoingService(HttpQueue *q);
 
 /*********************************** Code *************************************/
@@ -41,7 +41,8 @@ static void netOutgoingService(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpTx      *tx;
-    int         written, errCode;
+    ssize       written;
+    int         errCode;
 
     conn = q->conn;
     tx = conn->tx;
@@ -127,7 +128,7 @@ static void netOutgoingService(HttpQueue *q)
 /*
     Build the IO vector. Return the count of bytes to be written. Return -1 for EOF.
  */
-static int buildNetVec(HttpQueue *q)
+static ssize buildNetVec(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpTx      *tx;
@@ -167,7 +168,7 @@ static int buildNetVec(HttpQueue *q)
 /*
     Add one entry to the io vector
  */
-static void addToNetVector(HttpQueue *q, char *ptr, int bytes)
+static void addToNetVector(HttpQueue *q, char *ptr, ssize bytes)
 {
     mprAssert(bytes > 0);
 
@@ -209,10 +210,10 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet)
 }
 
 
-static void freeNetPackets(HttpQueue *q, int bytes)
+static void freeNetPackets(HttpQueue *q, ssize bytes)
 {
     HttpPacket    *packet;
-    int         len;
+    ssize         len;
 
     mprAssert(q->count >= 0);
     mprAssert(bytes >= 0);
@@ -255,10 +256,10 @@ static void freeNetPackets(HttpQueue *q, int bytes)
 /*
     Clear entries from the IO vector that have actually been transmitted. Support partial writes.
  */
-static void adjustNetVec(HttpQueue *q, int written)
+static void adjustNetVec(HttpQueue *q, ssize written)
 {
     MprIOVec    *iovec;
-    size_t      len;
+    ssize       len;
     int         i, j;
 
     /*

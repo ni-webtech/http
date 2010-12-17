@@ -26,7 +26,7 @@ typedef struct Upload {
     HttpUploadFile  *currentFile;       /* Current file context */
     MprFile         *file;              /* Current file I/O object */
     char            *boundary;          /* Boundary signature */
-    int             boundaryLen;        /* Length of boundary */
+    ssize           boundaryLen;        /* Length of boundary */
     int             contentState;       /* Input states */
     char            *clientFilename;    /* Current file filename */
     char            *tmpPath;           /* Current temp filename for upload data */
@@ -37,7 +37,7 @@ typedef struct Upload {
 /********************************** Forwards **********************************/
 
 static void closeUpload(HttpQueue *q);
-static char *getBoundary(void *buf, int bufLen, void *boundary, int boundaryLen);
+static char *getBoundary(void *buf, ssize bufLen, void *boundary, ssize boundaryLen);
 static void incomingUploadData(HttpQueue *q, HttpPacket *packet);
 static void manageHttpUploadFile(HttpUploadFile *file, int flags);
 static void manageUpload(Upload *up, int flags);
@@ -73,7 +73,7 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
 {
     HttpRx  *rx;
     char    *pat;
-    int     len;
+    ssize   len;
     
     rx = conn->rx;
     if (!(rx->flags & HTTP_POST) || rx->remainingContent <= 0) {
@@ -83,7 +83,7 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
         return 0;
     }
     pat = "multipart/form-data";
-    len = (int) strlen(pat);
+    len = strlen(pat);
     if (sncasecmp(rx->mimeType, pat, len) == 0) {
         rx->upload = 1;
         return 1;
@@ -116,7 +116,7 @@ static void openUpload(HttpQueue *q)
 
     if (rx->uploadDir == 0) {
 #if BLD_WIN_LIKE
-        rx->uploadDir = mprGetNormalizedPath(rx, getenv("TEMP"));
+        rx->uploadDir = mprGetNormalizedPath(getenv("TEMP"));
 #else
         rx->uploadDir = sclone("/tmp");
 #endif
@@ -183,7 +183,8 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
     MprBuf      *content;
     Upload      *up;
     char        *line, *nextTok;
-    int         count, done, rc;
+    ssize       count;
+    int         done, rc;
     
     mprAssert(packet);
     
@@ -442,17 +443,17 @@ static void defineFileFields(HttpQueue *q, Upload *up)
     httpSetFormVar(conn, key, file->filename);
 
     key = sjoin("FILE_SIZE_", up->id, NULL);
-    httpSetIntFormVar(conn, key, file->size);
+    httpSetIntFormVar(conn, key, (int) file->size);
 }
 
 
-static int writeToFile(HttpQueue *q, char *data, int len)
+static int writeToFile(HttpQueue *q, char *data, ssize len)
 {
     HttpConn        *conn;
     HttpUploadFile  *file;
     HttpLimits      *limits;
     Upload          *up;
-    int             rc;
+    ssize           rc;
 
     conn = q->conn;
     limits = conn->limits;
@@ -495,8 +496,8 @@ static int processContentData(HttpQueue *q)
     HttpPacket      *packet;
     MprBuf          *content;
     Upload          *up;
+    ssize           size, dataLen;
     char            *data, *bp, *key;
-    int             size, dataLen;
 
     conn = q->conn;
     up = q->queueData;
@@ -590,7 +591,7 @@ static int processContentData(HttpQueue *q)
 /*  
     Find the boundary signature in memory. Returns pointer to the first match.
  */ 
-static char *getBoundary(void *buf, int bufLen, void *boundary, int boundaryLen)
+static char *getBoundary(void *buf, ssize bufLen, void *boundary, ssize boundaryLen)
 {
     char    *cp, *endp;
     char    first;

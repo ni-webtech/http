@@ -38,7 +38,7 @@ bool httpValidateNativeCredentials(HttpAuth *auth, cchar *realm, cchar *user, cc
     char **msg)
 {
     char    passbuf[HTTP_MAX_PASS * 2], *hashedPassword;
-    size_t  len;
+    ssize   len;
 
     hashedPassword = 0;
     

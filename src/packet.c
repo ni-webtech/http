@@ -18,7 +18,7 @@ static void managePacket(HttpPacket *packet, int flags);
     used for incoming body content. If size > 0, then create a non-growable buffer 
     of the requested size.
  */
-HttpPacket *httpCreatePacket(int size)
+HttpPacket *httpCreatePacket(ssize size)
 {
     HttpPacket  *packet;
 
@@ -31,7 +31,7 @@ HttpPacket *httpCreatePacket(int size)
             return 0;
         }
     }
-    mprLog(1, "DEBUG: httpCreate new packet %d\n", packet->entityLength);
+    mprLog(5, "DEBUG: httpCreate new packet %d\n", packet->entityLength);
     return packet;
 }
 
@@ -52,7 +52,7 @@ static void managePacket(HttpPacket *packet, int flags)
 /*
     Create a packet for the connection to read into. This may come from the connection packet free list.
  */
-HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
+HttpPacket *httpCreateConnPacket(HttpConn *conn, ssize size)
 {
     HttpPacket  *packet;
     HttpRx      *rx;
@@ -63,7 +63,7 @@ HttpPacket *httpCreateConnPacket(HttpConn *conn, int size)
     rx = conn->rx;
     if (rx) {
         if ((packet = rx->freePackets) != NULL && size <= packet->content->buflen) {
-            mprLog(1, "DEBUG: httpCreateConnPacket got free packet from rx->freePackets");
+            mprLog(5, "DEBUG: httpCreateConnPacket got free packet from rx->freePackets");
             rx->freePackets = packet->next; 
             packet->next = 0;
             return packet;
@@ -105,7 +105,7 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
 } 
 
 
-HttpPacket *httpCreateDataPacket(int size)
+HttpPacket *httpCreateDataPacket(ssize size)
 {
     HttpPacket    *packet;
 
@@ -186,7 +186,7 @@ HttpPacket *httpGetPacket(HttpQueue *q)
  */
 bool httpIsPacketTooBig(HttpQueue *q, HttpPacket *packet)
 {
-    int     size;
+    ssize   size;
     
     size = mprGetBufLength(packet->content);
     return size > q->max || size > q->packetSize;
@@ -242,10 +242,10 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 /*
     Join queue packets up to the maximum of the given size and the downstream queue packet size.
  */
-void httpJoinPackets(HttpQueue *q, int size)
+void httpJoinPackets(HttpQueue *q, ssize size)
 {
     HttpPacket  *first, *next;
-    int         maxPacketSize;
+    ssize       maxPacketSize;
 
     if ((first = q->first) != 0 && first->next) {
         maxPacketSize = min(q->nextQ->packetSize, size);
@@ -309,10 +309,10 @@ void httpPutForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
     Split a packet if required so it fits in the downstream queue. Put back the 2nd portion of the split packet on the queue.
     Ensure that the packet is not larger than "size" if it is greater than zero.
  */
-int httpResizePacket(HttpQueue *q, HttpPacket *packet, int size)
+int httpResizePacket(HttpQueue *q, HttpPacket *packet, ssize size)
 {
     HttpPacket  *tail;
-    int         len;
+    ssize       len;
     
     if (size <= 0) {
         size = MAXINT;
@@ -345,7 +345,7 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, int size)
 HttpPacket *httpClonePacket(HttpPacket *orig)
 {
     HttpPacket  *packet;
-    int         count, size;
+    ssize       count, size;
 
     count = httpGetPacketLength(orig);
     size = max(count, HTTP_BUFSIZE);
@@ -407,10 +407,10 @@ void httpSendPackets(HttpQueue *q)
     Split a packet at a given offset and return a new packet containing the data after the offset.
     The suffix data migrates to the new packet. 
  */
-HttpPacket *httpSplitPacket(HttpPacket *orig, int offset)
+HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
 {
     HttpPacket  *packet;
-    int         count, size;
+    ssize       count, size;
 
     if (offset >= httpGetPacketLength(orig)) {
         mprAssert(0);

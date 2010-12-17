@@ -9,7 +9,7 @@ if [ "$BLD_SSL_DIR" != "" ] ; then
     BLD_SSL_IFLAGS="$BLD_MPR_DIR/include"
 fi
 
-if [ "$BLD_FEATURE_STATIC" = 1 ] ; then
+if [ "$BLD_STATIC" = 1 ] ; then
     BLD_SSL_LIBPATHS="$BLD_OPENSSL_LIBPATHS $BLD_MATRIXSSL_LIBPATHS"
     BLD_SSL_LIBS="mprssl mpr $BLD_OPENSSL_LIBS $BLD_MATRIXSSL_LIBS"
 else

@@ -76,7 +76,7 @@ static void addHeader(HttpConn *conn, cchar *key, cchar *value)
     mprAssert(value);
 
     if (scasecmp(key, "content-length") == 0) {
-        conn->tx->length = stoi(value, 10, NULL);
+        conn->tx->length = (ssize) stoi(value, 10, NULL);
     }
     mprAddHash(conn->tx->headers, key, value);
 }
@@ -373,7 +373,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
 }
 
 
-void httpSetContentLength(HttpConn *conn, int length)
+void httpSetContentLength(HttpConn *conn, ssize length)
 {
     HttpTx      *tx;
 
@@ -568,7 +568,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 }
 
 
-void httpSetEntityLength(HttpConn *conn, int len)
+void httpSetEntityLength(HttpConn *conn, ssize len)
 {
     HttpTx      *tx;
 

@@ -94,7 +94,7 @@ void httpDisableQueue(HttpQueue *q)
 void httpDiscardData(HttpQueue *q, bool removePackets)
 {
     HttpPacket  *packet, *prev, *next;
-    int         len;
+    ssize       len;
 
     for (prev = 0, packet = q->first; packet; packet = next) {
         next = packet->next;
@@ -196,7 +196,7 @@ HttpQueue *httpGetNextQueueForService(HttpQueue *q)
 /*  
     Return the number of bytes the queue will accept. Always positive.
  */
-int httpGetQueueRoom(HttpQueue *q)
+ssize httpGetQueueRoom(HttpQueue *q)
 {
     mprAssert(q->max > 0);
     mprAssert(q->count >= 0);
@@ -233,7 +233,7 @@ bool httpIsQueueEmpty(HttpQueue *q)
 }
 
 
-void httpOpenQueue(HttpQueue *q, int chunkSize)
+void httpOpenQueue(HttpQueue *q, ssize chunkSize)
 {
     if (chunkSize > 0) {
         q->packetSize = min(q->packetSize, chunkSize);
@@ -249,13 +249,14 @@ void httpOpenQueue(HttpQueue *q, int chunkSize)
     Read data. If sync mode, this will block. If async, will never block.
     Will return what data is available up to the requested size. Returns a byte count.
  */
-int httpRead(HttpConn *conn, char *buf, int size)
+ssize httpRead(HttpConn *conn, char *buf, ssize size)
 {
     HttpPacket  *packet;
     HttpQueue   *q;
     HttpRx      *rx;
     MprBuf      *content;
-    int         nbytes, len, events, inactivityTimeout;
+    ssize       nbytes, len;
+    int         events, inactivityTimeout;
 
     q = conn->readq;
     rx = conn->rx;
@@ -307,7 +308,7 @@ char *httpReadString(HttpConn *conn)
 {
     HttpRx      *rx;
     char        *content;
-    int         remaining, sofar, nbytes;
+    ssize       remaining, sofar, nbytes;
 
     rx = conn->rx;
 
@@ -397,7 +398,7 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
 {
     HttpConn    *conn;
     HttpQueue   *next;
-    int         size;
+    ssize       size;
 
     conn = q->conn;
     next = q->nextQ;
@@ -413,7 +414,6 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
     if (size <= next->packetSize && (size + next->count) <= next->max) {
         return 1;
     }
-
     /*  
         The downstream queue is full, so disable the queue and mark the downstream queue as full and service 
         if immediately if not disabled.  
@@ -431,12 +431,12 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
     Write a block of data. This is the lowest level write routine for data. This will buffer the data and flush if
     the queue buffer is full.
  */
-size_t httpWriteBlock(HttpQueue *q, cchar *buf, size_t size)
+ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
 {
     HttpPacket  *packet;
     HttpConn    *conn;
     HttpTx      *tx;
-    size_t      bytes, written, packetSize;
+    ssize       bytes, written, packetSize;
 
     mprAssert(q == q->conn->writeq);
                
@@ -478,13 +478,13 @@ size_t httpWriteBlock(HttpQueue *q, cchar *buf, size_t size)
 }
 
 
-size_t httpWriteString(HttpQueue *q, cchar *s)
+ssize httpWriteString(HttpQueue *q, cchar *s)
 {
     return httpWriteBlock(q, s, strlen(s));
 }
 
 
-size_t httpWrite(HttpQueue *q, cchar *fmt, ...)
+ssize httpWrite(HttpQueue *q, cchar *fmt, ...)
 {
     va_list     vargs;
     char        *buf;

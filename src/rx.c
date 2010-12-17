@@ -10,7 +10,7 @@
 /***************************** Forward Declarations ***************************/
 
 static void addMatchEtag(HttpConn *conn, char *etag);
-static int getChunkPacketSize(HttpConn *conn, MprBuf *buf);
+static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf);
 static char *getToken(HttpConn *conn, cchar *delim);
 static void manageRange(HttpRange *range, int flags);
 static void manageRx(HttpRx *rx, int flags);
@@ -160,8 +160,8 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpLoc     *loc;
+    ssize       len;
     char        *start, *end;
-    int         len;
 
     if (packet == NULL) {
         return 0;
@@ -863,7 +863,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpQueue   *q;
     MprBuf      *content;
-    int         nbytes, remaining;
+    ssize       nbytes, remaining;
 
     rx = conn->rx;
     tx = conn->tx;
@@ -1040,11 +1040,11 @@ void httpCloseRx(HttpConn *conn)
 /*  
     Optimization to correctly size the packets to the chunk filter.
  */
-static int getChunkPacketSize(HttpConn *conn, MprBuf *buf)
+static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
 {
     HttpRx      *rx;
     char        *start, *cp;
-    size_t      need, size;
+    ssize       need, size;
 
     rx = conn->rx;
     need = 0;
@@ -1076,7 +1076,7 @@ static int getChunkPacketSize(HttpConn *conn, MprBuf *buf)
             return 0;
         }
         need = (cp - start + 1);
-        size = stoi(&start[2], 16, NULL);
+        size = (ssize) stoi(&start[2], 16, NULL);
         if (size == 0 && &cp[2] < buf->end && cp[1] == '\r' && cp[2] == '\n') {
             /*
                 This is the last chunk (size == 0). Now need to consume the trailing "\r\n".
@@ -1143,14 +1143,13 @@ static void manageRange(HttpRange *range, int flags)
 }
 
 
-int httpGetContentLength(HttpConn *conn)
+ssize httpGetContentLength(HttpConn *conn)
 {
     if (conn->rx == 0) {
         mprAssert(conn->rx);
         return 0;
     }
     return conn->rx->length;
-    return 0;
 }
 
 
@@ -1262,6 +1261,11 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 {
     httpCallEvent(conn, event->mask);
     httpEnableConnEvents(conn);
+#if UNUSED
+    if (conn->cond) {
+        mprSignalCond(conn->cond);
+    }
+#endif
 }
 
 
@@ -1272,7 +1276,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
 {
     Http        *http;
     MprTime     expire;
-    int         eventMask, remainingTime, addedHandler, saveAsync;
+    int         eventMask, remainingTime, addedHandler, saveAsync, flags;
 
     http = conn->http;
 
@@ -1290,11 +1294,16 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
         if (!conn->writeComplete) {
             eventMask |= MPR_WRITABLE;
         }
-        mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher,
-            (MprEventProc) waitHandler, conn);
+        mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher, (MprEventProc)waitHandler, conn);
         addedHandler = 1;
-    } else addedHandler = 0;
-
+    } else {
+        addedHandler = 0;
+    }
+#if UNUSED
+    if (conn->cond == 0) {
+        conn->cond = mprCreateCond();
+    }
+#endif
     http->now = mprGetTime(conn);
     expire = http->now + timeout;
     while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
@@ -1303,7 +1312,16 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
             break;
         }
         mprAssert(!mprSocketHasPendingData(conn->sock));
-        mprServiceEvents(dispatcher, remainingTime, MPR_SERVICE_ONE_THING);
+#if UNUSED
+        if (0 && mprHasEventsThread()) {
+            mprWaitForCond(conn->cond, remainingTime);
+        } else {
+            mprServiceEvents(dispatcher, remainingTime, MPR_SERVICE_ONE_THING);
+        }
+#else
+        flags = mprHasEventsThread() ? MPR_SERVICE_ONLY : 0;
+        mprServiceEvents(dispatcher, remainingTime, MPR_SERVICE_ONE_THING | flags);
+#endif
     }
     if (addedHandler && conn->waitHandler.fd >= 0) {
         mprRemoveWaitHandler(&conn->waitHandler);
@@ -1458,7 +1476,7 @@ static bool parseRange(HttpConn *conn, char *value)
          */
         tok = stok(value, ",", &value);
         if (*tok != '-') {
-            range->start = stoi(tok, 10, NULL);
+            range->start = (ssize) stoi(tok, 10, NULL);
         } else {
             range->start = -1;
         }
@@ -1469,7 +1487,7 @@ static bool parseRange(HttpConn *conn, char *value)
                 /*
                     End is one beyond the range. Makes the math easier.
                  */
-                range->end = stoi(ep, 10, NULL) + 1;
+                range->end = (ssize) stoi(ep, 10, NULL) + 1;
             }
         }
         if (range->start >= 0 && range->end >= 0) {
