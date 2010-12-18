@@ -1,5 +1,5 @@
 /*
- *  Initialize for MPR unit tests
+    Initialize for Http unit tests
  */
 
 require ejs.test 
@@ -30,7 +30,7 @@ try {
     if (path) {
         if (!App.getenv("NOSERVER")) {
             /*
-             *   Start a web server for testing. Use webs to wrap appweb to get a clean env.
+                 Start a web server for testing. Use webs to wrap appweb to get a clean env.
              */
             pid = System.daemon(path + " --name forMprTest --config appweb/appweb.conf")
             Path(PIDFILE).write(pid)

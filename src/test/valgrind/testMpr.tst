@@ -1,11 +1,11 @@
 /*
- *  testMpr.tst - Valgrind testMpr on Unix-like systems
+    testHttp.tst - Valgrind testHttp on Unix-like systems
  */
 
 require ejs.test
 
 if (test.config["BLD_HOST_OS"] == "LINUX") {
-    let command = locate("testMpr") + " --iterations 5 "
+    let command = locate("testHttp") + " --iterations 5 "
     let valgrind = "/usr/bin/env valgrind -q --tool=memcheck --suppressions=mpr.supp " + command + test.mapVerbosity(-1)
 
     if (test.depth >= 2) {

@@ -1,11 +1,11 @@
 /*
- *  Terminate unit tests
+    Terminate unit tests
  */
 
 require ejs.test
 
 /*
- *   Stop the web server
+     Stop the web server
  */
 pidfile = session["appwebPidFile"]
 if (pidfile && exists(pidfile)) {
