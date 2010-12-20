@@ -1,22 +1,18 @@
 #
-#	Makefile for the dist and flat HTTP distributions
+#	Makefile for the Http distributions
 #
 #	Copyright (c) Embedthis Software LLC, 2003-2010. All Rights Reserved.
 #
 
 include			.makedep
 
-STAGING			:= $(PWD)/staging
-TDIR			:= $(STAGING)/http-$(BLD_VERSION)
+STAGE_DIR			:= $(BLD_OUT_DIR)/staging
+TDIR			:= $(STAGE_DIR)/http-$(BLD_VERSION)
 REL_DIR			:= $(BLD_OUT_DIR)/releases
 DIST_VER_NAME	:= http-$(BLD_VERSION)-dist.tgz
 DIST_PERM_NAME	:= http-dist.tgz
-DIST_VER		:= $(REL_DIR)/$(DIST_VER_NAME)
-DIST_PERM		:= $(REL_DIR)/$(DIST_PERM_NAME)
 FLAT_VER_NAME	:= http-$(BLD_VERSION)-flat.tgz
 FLAT_PERM_NAME	:= http-flat.tgz
-FLAT_VER		:= $(REL_DIR)/$(FLAT_VER_NAME)
-FLAT_PERM		:= $(REL_DIR)/$(FLAT_PERM_NAME)
 DEST			:= $(TDIR)/src/deps/http
 INC_DEST		:= $(TDIR)/src/include
 DOC_DEST		:= $(TDIR)/doc
@@ -30,11 +26,10 @@ SRC				:= ../src
 HEADERS			+= ../src/include/http.h
 HTTP_SOURCES 	+= $(wildcard ../src/*.c) 
 
-dist packageExtra: prep $(TARGETS) $(DIST_VER) $(FLAT_VER) cleanup
+dist packageExtra: clean prep $(TARGETS) $(REL_DIR)/$(DIST_VER_NAME) $(REL_DIR)/$(FLAT_VER_NAME) cleanup
 
 prep:
-	rm -fr $(STAGING) $(DIST_VER) $(DIST_PERM) $(FLAT_VER) $(FLAT_PERM)
-	mkdir -p $(REL_DIR) $(DEST) $(INC_DEST) $(DOC_DEST)/man $(DOC_DEST)/api
+	mkdir -p $(STAGE_DIR) $(REL_DIR) $(DEST) $(INC_DEST) $(DOC_DEST)/man $(DOC_DEST)/api
 
 $(INC_DEST)/http.h: Makefile $(HEADERS)
 	TITLE="$(BLD_NAME) Header" \
@@ -48,25 +43,26 @@ $(DEST)/httpLib.c: Makefile $(HEADERS) $(HTTP_SOURCES)
 $(DEST)/http.c: Makefile ../src/utils/httpCmd.c
 	cp ../src/utils/httpCmd.c $(DEST)/http.c
 
-$(DIST_VER): Makefile $(TARGETS)
+$(REL_DIR)/$(DIST_VER_NAME): Makefile $(TARGETS)
 	cp $(BLD_TOP)/doc/api/httpBare.html $(TDIR)/doc/api
 	cp $(BLD_TOP)/doc/man/*.1 $(TDIR)/doc/man
 	cp Makefile.dist $(DEST)/Makefile
-	@$(call log) "[Generate]" "tar cfz $(DIST_VER) -C $(STAGING) ."
-	tar cfz $(DIST_VER) -C $(STAGING) .
+	@$(call log) "[Generate]" "tar cfz $(REL_DIR)/$(DIST_VER_NAME) -C $(STAGE_DIR) ."
+	tar cfz $(REL_DIR)/$(DIST_VER_NAME) -C $(STAGE_DIR) .
 	cd $(REL_DIR) ; ln -s $(DIST_VER_NAME) $(DIST_PERM_NAME)
 
-flat $(FLAT_VER):
+flat $(REL_DIR)/$(FLAT_VER_NAME):
 	find $(TDIR)/src -type f | xargs -I % mv % $(TDIR) 
 	cp $(SRC)/deps/mpr/mprLib.c $(SRC)/deps/mpr/mprSsl.c $(TDIR)
 	cp $(SRC)/include/mpr.h $(SRC)/include/mprSsl.h $(TDIR) 
 	rm -fr $(TDIR)/doc $(TDIR)/src $(TDIR)/Makefile
-	$(call log) "[Generate]" "tar cfz $(FLAT_VER) -C $(STAGING) ."
-	tar cfz $(FLAT_VER) -C $(STAGING) .
-	cd $(REL_DIR) ; ln -s $(FLAT_VER_NAME) $(FLAT_PERM_NAME)
+	$(call log) "[Generate]" "tar cfz $(REL_DIR)/$(FLAT_VER_NAME) -C $(STAGE_DIR) ."
+	tar cfz $(REL_DIR)/$(FLAT_VER_NAME) -C $(STAGE_DIR) .
+	ln -s $(FLAT_VER_NAME) $(REL_DIR)/$(FLAT_PERM_NAME)
 
 cleanup:
-	rm -rf $(STAGING)
+	rm -rf $(STAGE_DIR)
 
 cleanExtra:
-	rm -rf $(STAGING) $(REL_DIR)/*.tgz
+	rm -rf $(STAGE_DIR) $(REL_DIR)/$(DIST_VER_NAME) $(REL_DIR)/$(DIST_PERM_NAME)
+	rm -fr $(REL_DIR)/$(FLAT_VER_NAME) $(REL_DIR)/$(FLAT_PERM_NAME)
