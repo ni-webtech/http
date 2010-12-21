@@ -109,7 +109,12 @@ static void manageConn(HttpConn *conn, int flags)
             httpCloseConn(conn);
         }
         conn->input = 0;
-        httpDestroyRx(conn);
+        if (conn->rx) {
+            conn->rx->conn = 0;
+        }
+        if (conn->tx) {
+            conn->tx->conn = 0;
+        }
     }
 }
 
@@ -156,12 +161,12 @@ void httpPrepServerConn(HttpConn *conn)
         conn->error = 0;
         conn->errorMsg = 0;
         conn->flags = 0;
-        conn->rx = 0;
         conn->state = 0;
-        conn->tx = 0;
         conn->writeComplete = 0;
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
+        mprAssert(conn->rx == 0);
+        mprAssert(conn->tx == 0);
     }
 }
 
@@ -284,8 +289,7 @@ static void readEvent(HttpConn *conn)
 
     while ((packet = getPacket(conn, &len)) != 0) {
         nbytes = mprReadSocket(conn->sock, mprGetBufEnd(packet->content), len);
-        //  MOB - was 8
-        LOG(1, "http: read event. Got %d", nbytes);
+        LOG(8, "http: read event. Got %d", nbytes);
        
         if (nbytes > 0) {
             mprAdjustBufEnd(packet->content, nbytes);

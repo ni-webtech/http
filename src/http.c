@@ -291,7 +291,7 @@ static int httpTimer(Http *http, MprEvent *event)
                         "Request timed out, exceeded timeout %d sec", requestTimeout / 1000);
                 }
             } else {
-                mprLog(4, "Idle connection timed out");
+                mprLog(6, "Idle connection timed out");
                 conn->complete = 1;
                 mprDisconnectSocket(conn->sock);
             }

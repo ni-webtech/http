@@ -89,22 +89,17 @@ static void manageRx(HttpRx *rx, int flags)
         }
 
     } else if (flags & MPR_MANAGE_FREE) {
+        if (rx->conn) {
+            rx->conn->rx = 0;
+        }
     }
 }
 
 
 void httpDestroyRx(HttpConn *conn)
 {
-    if (conn->rx) {
-        if (conn->server) {
-            httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
-        }
-        /* Force destructor to run now */
-        mprFree(conn->rx);
+    if (conn) {
         conn->rx = 0;
-    }
-    if (conn->server) {
-        httpPrepServerConn(conn);
     }
 }
 
@@ -999,26 +994,21 @@ static bool processRunning(HttpConn *conn)
 static bool processCompletion(HttpConn *conn)
 {
     HttpPacket  *packet;
-    Mpr         *mpr;
     bool        more;
 
     mprAssert(conn->state == HTTP_STATE_COMPLETE);
 
-    mpr = mprGetMpr();
+    httpDestroyPipeline(conn);
 
-    packet = conn->input;
-    more = packet && !conn->connError && (mprGetBufLength(packet->content) > 0);
-#if UNUSED
-    if (!mprIsParent(conn, packet)) {
-        if (more) {
-            conn->input = httpSplitPacket(packet, 0);
-        } else {
-            conn->input = 0;
-        }
-    }
-#endif
     if (conn->server) {
-        httpDestroyRx(conn);
+        conn->rx = 0;
+        conn->tx = 0;
+        packet = conn->input;
+        more = packet && !conn->connError && (mprGetBufLength(packet->content) > 0);
+        if (conn->server) {
+            httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
+            httpPrepServerConn(conn);
+        }
         return more;
     }
     return 0;

@@ -61,8 +61,9 @@ static void manageTx(HttpTx *tx, int flags)
         mprMark(tx->extension);
 
     } else if (flags & MPR_MANAGE_FREE) {
-        httpDestroyPipeline(tx->conn);
-        tx->conn->tx = 0;
+        if (tx->conn) {
+            tx->conn->tx = 0;
+        }
     }
 }
 
