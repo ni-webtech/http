@@ -16,3 +16,11 @@ mpr.html: Makefile
 
 tidy:
 	tidy -q -config tidy.conf mpr.html
+
+#
+#   Local variables:
+#   tab-width: 4
+#   c-basic-offset: 4
+#   End:
+#   vim: sw=4 ts=4
+#

@@ -19,3 +19,11 @@ diff import sync:
 	$(BLD_TOOLS_DIR)/import.sh --$@ ../tools/out/releases/tools-dist.tgz
 	$(BLD_TOOLS_DIR)/import.sh --$@ ../mpr/out/releases/mpr-dist.tgz
 
+
+#
+#   Local variables:
+#   tab-width: 4
+#   c-basic-offset: 4
+#   End:
+#   vim: sw=4 ts=4
+#

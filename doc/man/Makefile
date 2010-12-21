@@ -22,3 +22,11 @@ compileExtra: http.txt http.html regexp.txt regexp.html
 
 cleanExtra:
 	rm -f http.txt
+
+#
+#   Local variables:
+#   tab-width: 4
+#   c-basic-offset: 4
+#   End:
+#   vim: sw=4 ts=4
+#

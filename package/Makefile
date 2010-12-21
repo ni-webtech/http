@@ -66,3 +66,11 @@ cleanup:
 cleanExtra:
 	rm -rf $(STAGE_DIR) $(REL_DIR)/$(DIST_VER_NAME) $(REL_DIR)/$(DIST_PERM_NAME)
 	rm -fr $(REL_DIR)/$(FLAT_VER_NAME) $(REL_DIR)/$(FLAT_PERM_NAME)
+
+#
+#   Local variables:
+#   tab-width: 4
+#   c-basic-offset: 4
+#   End:
+#   vim: sw=4 ts=4
+#

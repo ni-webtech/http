@@ -18,3 +18,11 @@ $(BLD_BIN_DIR)/testHttp$(BLD_EXE): $(OBJECTS) $(BLD_LIB_DIR)/libmpr$(BLD_LIB)
 cleanExtra:
 	rm -f trace*.txt *.txt.old
 
+
+#
+#   Local variables:
+#   tab-width: 4
+#   c-basic-offset: 4
+#   End:
+#   vim: sw=4 ts=4
+#
