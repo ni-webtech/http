@@ -40,8 +40,8 @@ $(DEST)/httpLib.c: Makefile $(HEADERS) $(HTTP_SOURCES)
 	TITLE="$(BLD_NAME) Library Source" \
 	dist $(HTTP_SOURCES) | egrep -v '#inc.*http' >>$(DEST)/httpLib.c
 
-$(DEST)/http.c: Makefile ../src/utils/httpCmd.c
-	cp ../src/utils/httpCmd.c $(DEST)/http.c
+$(DEST)/http.c: Makefile ../src/utils/http.c
+	cp ../src/utils/http.c $(DEST)/http.c
 
 $(REL_DIR)/$(DIST_VER_NAME): Makefile $(TARGETS)
 	cp $(BLD_TOP)/doc/api/httpBare.html $(TDIR)/doc/api

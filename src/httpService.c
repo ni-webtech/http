@@ -1,5 +1,5 @@
 /*
-    http.c -- Http service. Includes timer for expired requests.
+    httpService.c -- Http service. Includes timer for expired requests.
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
 

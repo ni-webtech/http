@@ -41,7 +41,7 @@
 		C949ABC7120B691100398DC6 /* trace.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC6120B691100398DC6 /* trace.c */; };
 		C9513DC410E98C2E00F9E006 /* client.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DB810E98C2E00F9E006 /* client.c */; };
 		C9513DC510E98C2E00F9E006 /* conn.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DB910E98C2E00F9E006 /* conn.c */; };
-		C9513DC610E98C2E00F9E006 /* http.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBA10E98C2E00F9E006 /* http.c */; };
+		C9513DC610E98C2E00F9E006 /* httpService.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBA10E98C2E00F9E006 /* httpService.c */; };
 		C9513DC710E98C2E00F9E006 /* netConnector.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBB10E98C2E00F9E006 /* netConnector.c */; };
 		C9513DC810E98C2E00F9E006 /* packet.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBC10E98C2E00F9E006 /* packet.c */; };
 		C9513DC910E98C2E00F9E006 /* pipeline.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DBD10E98C2E00F9E006 /* pipeline.c */; };
@@ -51,7 +51,7 @@
 		C9513DCF10E98C2E00F9E006 /* uri.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513DC310E98C2E00F9E006 /* uri.c */; };
 		C9513DF010E98CE200F9E006 /* http.h in Headers */ = {isa = PBXBuildFile; fileRef = C9513DEF10E98CE200F9E006 /* http.h */; };
 		C9513E3A10E98DA900F9E006 /* libmpr.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C9513DE510E98C7E00F9E006 /* libmpr.dylib */; };
-		C9513E3E10E98DDD00F9E006 /* httpCmd.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513E3D10E98DDD00F9E006 /* httpCmd.c */; };
+		C9513E3E10E98DDD00F9E006 /* http.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513E3D10E98DDD00F9E006 /* http.c */; };
 		C9513E4010E98DFF00F9E006 /* testHttpGen.c in Sources */ = {isa = PBXBuildFile; fileRef = C9513E3F10E98DFF00F9E006 /* testHttpGen.c */; };
 		C9513E4310E98E2700F9E006 /* libmpr.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C9513DE510E98C7E00F9E006 /* libmpr.dylib */; };
 		C9513E5310E98EA500F9E006 /* libmpr.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C9513DE510E98C7E00F9E006 /* libmpr.dylib */; };
@@ -168,7 +168,7 @@
 		C949ABC6120B691100398DC6 /* trace.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = trace.c; path = ../../../src/trace.c; sourceTree = SOURCE_ROOT; };
 		C9513DB810E98C2E00F9E006 /* client.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = client.c; path = ../../../src/client.c; sourceTree = SOURCE_ROOT; };
 		C9513DB910E98C2E00F9E006 /* conn.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = conn.c; path = ../../../src/conn.c; sourceTree = SOURCE_ROOT; };
-		C9513DBA10E98C2E00F9E006 /* http.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = http.c; path = ../../../src/http.c; sourceTree = SOURCE_ROOT; };
+		C9513DBA10E98C2E00F9E006 /* httpService.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = httpService.c; path = ../../../src/httpService.c; sourceTree = SOURCE_ROOT; };
 		C9513DBB10E98C2E00F9E006 /* netConnector.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = netConnector.c; path = ../../../src/netConnector.c; sourceTree = SOURCE_ROOT; };
 		C9513DBC10E98C2E00F9E006 /* packet.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = packet.c; path = ../../../src/packet.c; sourceTree = SOURCE_ROOT; };
 		C9513DBD10E98C2E00F9E006 /* pipeline.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pipeline.c; path = ../../../src/pipeline.c; sourceTree = SOURCE_ROOT; };
@@ -178,7 +178,7 @@
 		C9513DC310E98C2E00F9E006 /* uri.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = uri.c; path = ../../../src/uri.c; sourceTree = SOURCE_ROOT; };
 		C9513DE510E98C7E00F9E006 /* libmpr.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libmpr.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9513DEF10E98CE200F9E006 /* http.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = http.h; path = ../../../src/include/http.h; sourceTree = SOURCE_ROOT; };
-		C9513E3D10E98DDD00F9E006 /* httpCmd.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = httpCmd.c; path = ../../../src/utils/httpCmd.c; sourceTree = SOURCE_ROOT; };
+		C9513E3D10E98DDD00F9E006 /* http.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = http.c; path = ../../../src/utils/http.c; sourceTree = SOURCE_ROOT; };
 		C9513E3F10E98DFF00F9E006 /* testHttpGen.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = testHttpGen.c; path = ../../../src/test/testHttpGen.c; sourceTree = SOURCE_ROOT; };
 		C9513E4F10E98E7200F9E006 /* libmprssl.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libmprssl.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		C95E4F5210EBFCA400982610 /* mprLib.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mprLib.c; path = ../../../src/deps/mpr/mprLib.c; sourceTree = SOURCE_ROOT; };
@@ -279,7 +279,7 @@
 				C93A68BD10FD8311006B6C41 /* uploadFilter.c */,
 				C9513DB810E98C2E00F9E006 /* client.c */,
 				C9513DB910E98C2E00F9E006 /* conn.c */,
-				C9513DBA10E98C2E00F9E006 /* http.c */,
+				C9513DBA10E98C2E00F9E006 /* httpService.c */,
 				C9513DBB10E98C2E00F9E006 /* netConnector.c */,
 				C9513DBC10E98C2E00F9E006 /* packet.c */,
 				C9513DBD10E98C2E00F9E006 /* pipeline.c */,
@@ -317,7 +317,7 @@
 		C90A1A8D0FD6DF58006A9E86 /* utils */ = {
 			isa = PBXGroup;
 			children = (
-				C9513E3D10E98DDD00F9E006 /* httpCmd.c */,
+				C9513E3D10E98DDD00F9E006 /* http.c */,
 			);
 			name = utils;
 			sourceTree = "<group>";
@@ -501,7 +501,7 @@
 			files = (
 				C9513DC410E98C2E00F9E006 /* client.c in Sources */,
 				C9513DC510E98C2E00F9E006 /* conn.c in Sources */,
-				C9513DC610E98C2E00F9E006 /* http.c in Sources */,
+				C9513DC610E98C2E00F9E006 /* httpService.c in Sources */,
 				C9513DC710E98C2E00F9E006 /* netConnector.c in Sources */,
 				C9513DC810E98C2E00F9E006 /* packet.c in Sources */,
 				C9513DC910E98C2E00F9E006 /* pipeline.c in Sources */,
@@ -530,7 +530,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C9513E3E10E98DDD00F9E006 /* httpCmd.c in Sources */,
+				C9513E3E10E98DDD00F9E006 /* http.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

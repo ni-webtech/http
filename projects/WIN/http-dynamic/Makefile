@@ -50,7 +50,7 @@ testHttp.vcproj: Makefile buildConfig.override
 
 http.vcproj: Makefile buildConfig.override
 	@makeVsProj --project http.vcproj --exe http.exe --dflags "$(DFLAGS)" \
-		--libs "$(LIBS) libhttp.lib libmpr.lib" $(HDRS) $(UTILS)/httpCmd.c 
+		--libs "$(LIBS) libhttp.lib libmpr.lib" $(HDRS) $(UTILS)/http.c 
 
 cleanExtra:
 	rm -rf Upgrade* _Upgrade* *.old

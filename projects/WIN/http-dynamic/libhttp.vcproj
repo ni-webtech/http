@@ -219,7 +219,7 @@
                 >
             </File>
             <File
-                RelativePath="..\..\..\src\http.c"
+                RelativePath="..\..\..\src\httpService.c"
                 >
             </File>
             <File

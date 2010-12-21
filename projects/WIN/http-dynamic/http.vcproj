@@ -185,7 +185,7 @@
             UniqueIdentifier="{8c3bed7b-a6d9-4356-8cb7-fcf2cb9bf0ef}"
             >
             <File
-                RelativePath="..\..\..\src\utils\httpCmd.c"
+                RelativePath="..\..\..\src\utils\http.c"
                 >
             </File>
         </Filter>
