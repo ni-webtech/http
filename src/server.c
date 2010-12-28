@@ -43,6 +43,20 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
 }
 
 
+void httpDestroyServer(HttpServer *server)
+{
+    mprLog(4, "Destroy server %s", server->name);
+    if (server->waitHandler.fd >= 0) {
+        mprRemoveWaitHandler(&server->waitHandler);
+    }
+    destroyServerConnections(server);
+    if (server->sock) {
+        mprCloseSocket(server->sock, 0);
+        server->sock = 0;
+    }
+}
+
+
 static int manageServer(HttpServer *server, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
@@ -62,12 +76,7 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->ssl);
 
     } else if (flags & MPR_MANAGE_FREE) {
-        mprLog(4, "Destroy server %s", server->name);
-        if (server->waitHandler.fd >= 0) {
-            mprRemoveWaitHandler(&server->waitHandler);
-        }
-        destroyServerConnections(server);
-        mprCloseSocket(server->sock, 0);
+        httpDestroyServer(server);
     }
     return 0;
 }

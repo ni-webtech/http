@@ -42,3 +42,4 @@ x64
 *.vcxproj
 *.xcworkspace
 xcuserdata
+mob.*

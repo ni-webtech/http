@@ -1770,6 +1770,26 @@ extern void *mprAtomExchange(void * volatile *addr, cvoid *value);
         mprHold, mprRelease, mprMark, mprAddRoot, mprRemoveRoot, mprSetName, mprGetMpr, mprGetPageSize, mprGetBlockSize,
  */
 typedef struct MprMem {
+#if FUTURE
+    union {
+        size_t      field1;                     /**< Pointer to adjacent, prior block in memory with last, manager fields */
+        struct {
+            ssize   pbits: MPR_BITS - 2;
+            uint    last: 1;
+            uint    hasManager: 1;
+        } prior;
+    }
+    union {
+        size_t      field2;                   /**< Internal block length including header with gen and mark fields */
+        struct {
+            uint    gen: 2;
+            uint    free: 1;
+            ssize   size: MPR_BITS - 5;
+            uint    mark: 2;
+        } size;
+    }
+#endif
+
     /*
         Accesses to prior must only be done while locked. This includes read access as concurrent writes may leave "prior"
         in a partially updated state. These bites are ored into the low order bits of "prior".
@@ -1915,6 +1935,7 @@ typedef struct MprMemStats {
     ssize           rss;                    /* OS calculated resident stack size in bytes */
     ssize           ram;                    /* System RAM size in bytes */
     ssize           user;                   /* System user RAM size in bytes (excludes kernel) */
+    int             freed;                  /* Bytes freed in last sweep */
     int             markVisited;
     int             marked;
     int             sweepVisited;
@@ -1925,7 +1946,6 @@ typedef struct MprMemStats {
         Optional memory stats
      */
     uint64          allocs;                 /* Count of times a block was split Calls to allocate memory from the O/S */
-    uint64          freed;                  /* Bytes freed in last sweep */
     uint64          joins;                  /* Count of times a block was joined (coalesced) with its neighbours */
     uint64          requests;               /* Count of memory requests */
     uint64          reuse;                  /* Count of times a block was reused from a free queue */

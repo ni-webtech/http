@@ -247,10 +247,8 @@ void httpSetForkCallback(Http *http, MprForkCallback callback, void *data)
 static void startTimer(Http *http)
 {
     updateCurrentDate(http);
-#if UNUSED
     http->timer = mprCreateTimerEvent(mprGetDispatcher(), "httpTimer", HTTP_TIMER_PERIOD, (MprEventProc) httpTimer, 
         http, MPR_EVENT_CONTINUOUS);
-#endif
 }
 
 

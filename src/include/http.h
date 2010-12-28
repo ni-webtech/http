@@ -2661,6 +2661,7 @@ typedef struct  HttpServer {
     @ingroup HttpServer
  */
 extern HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dispatcher);
+extern void httpDestroyServer(HttpServer *server);
 
 extern HttpConn *httpAcceptConn(HttpServer *server);
 extern int httpValidateLimits(HttpServer *server, int event, HttpConn *conn);
