@@ -52,6 +52,36 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
 }
 
 
+/*
+    Destroy a connection. This removes the connection from the list of connections. Should GC after that.
+ */
+void httpDestroyConn(HttpConn *conn)
+{
+    if (conn->http) {
+        if (conn->server) {
+            httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_CONN, conn);
+        }
+        if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
+            HTTP_NOTIFY(conn, HTTP_STATE_COMPLETE, 0);
+        }
+        HTTP_NOTIFY(conn, -1, 0);
+        httpRemoveConn(conn->http, conn);
+        httpCloseConn(conn);
+        conn->input = 0;
+        if (conn->rx) {
+            conn->rx->conn = 0;
+            conn->rx = 0;
+        }
+        if (conn->tx) {
+            conn->tx->conn = 0;
+            conn->tx = 0;
+        }
+        conn->http = 0;
+        mprLog(0, "DEBUG: destroy/free conn %p", conn);
+    }
+}
+
+
 static void manageConn(HttpConn *conn, int flags)
 {
     mprAssert(conn);
@@ -74,7 +104,6 @@ static void manageConn(HttpConn *conn, int flags)
         if (conn->writeq) {
             httpManageQueue(conn->writeq, flags);
         }
-
         mprMark(conn->input);
         mprMark(conn->context);
         mprMark(conn->boundary);
@@ -97,36 +126,13 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->authPassword);
 
     } else if (flags & MPR_MANAGE_FREE) {
-        if (conn->server) {
-            httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_CONN, conn);
-        }
-        if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
-            HTTP_NOTIFY(conn, HTTP_STATE_COMPLETE, 0);
-        }
-        HTTP_NOTIFY(conn, -1, 0);
-        httpRemoveConn(conn->http, conn);
-        if (conn->sock) {
-            httpCloseConn(conn);
-        }
-        conn->input = 0;
-        if (conn->rx) {
-            conn->rx->conn = 0;
-        }
-        if (conn->tx) {
-            conn->tx->conn = 0;
-        }
+        httpDestroyConn(conn);
     }
 }
 
 
-void httpCloseClientConn(HttpConn *conn)
-{
-    httpCloseConn(conn);
-}
-
-
 /*  
-    Close the connection (but don't free). 
+    Close the connection but don't destroy the conn object.
     WARNING: Once this is called, you can't get wait handler events. So handlers must not call this. 
     Rather, handlers should call mprDisconnectSocket that will cause a readable event to come and readEvent can
     then do an orderly close and free the connection structure.
@@ -171,44 +177,38 @@ void httpPrepServerConn(HttpConn *conn)
 }
 
 
-void httpPrepClientConn(HttpConn *conn, int retry)
+void httpPrepClientConn(HttpConn *conn)
 {
-    MprHashTable    *headers;
-    HttpTx          *tx;
-
     mprAssert(conn);
 
-    headers = 0;
-    if (conn->state != HTTP_STATE_BEGIN) {
-        if (conn->keepAliveCount >= 0) {
-            /* Eat remaining input incase last request did not consume all data */
-            httpConsumeLastRequest(conn);
-        } else {
-            conn->input = 0;
-        }
-        if (retry && (tx = conn->tx) != 0) {
-            headers = tx->headers;
-        }
-        conn->abortPipeline = 0;
-        conn->canProceed = 1;
-        conn->complete = 0;
-        conn->connError = 0;
-        conn->error = 0;
-        conn->errorMsg = 0;
-        conn->flags = 0;
-        conn->state = 0;
-        conn->writeComplete = 0;
-        httpSetState(conn, HTTP_STATE_BEGIN);
-        httpInitSchedulerQueue(&conn->serviceq);
-        mprFree(conn->tx);
-        mprFree(conn->rx);
-
-        conn->rx = httpCreateRx(conn);
-        conn->tx = httpCreateTx(conn, headers);
-        httpCreatePipeline(conn, NULL, NULL);
-
-        mprAssert(conn->input == 0 || mprIsValid(conn->input));
+    if (conn->keepAliveCount >= 0 && conn->sock) {
+        /* Eat remaining input incase last request did not consume all data */
+        httpConsumeLastRequest(conn);
+    } else {
+        conn->input = 0;
     }
+    conn->abortPipeline = 0;
+    conn->canProceed = 1;
+    conn->complete = 0;
+    conn->connError = 0;
+    conn->error = 0;
+    conn->errorMsg = 0;
+    conn->flags = 0;
+    conn->state = 0;
+    conn->writeComplete = 0;
+
+    if (conn->tx) {
+        conn->tx->conn = 0;
+    }
+    conn->tx = httpCreateTx(conn, NULL);
+    if (conn->rx) {
+        conn->rx->conn = 0;
+    }
+    conn->rx = httpCreateRx(conn);
+
+    httpSetState(conn, HTTP_STATE_BEGIN);
+    httpInitSchedulerQueue(&conn->serviceq);
+    httpCreatePipeline(conn, NULL, NULL);
 }
 
 
@@ -271,7 +271,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
                 It should respond to the "Connection: close" and thus initiate a client-led close. 
                 This reduces TIME_WAIT states on the server. 
              */
-            mprFree(conn);
+            httpDestroyConn(conn);
             return;
         }
     }

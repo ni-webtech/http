@@ -54,12 +54,12 @@ static void managePacket(HttpPacket *packet, int flags)
  */
 HttpPacket *httpCreateConnPacket(HttpConn *conn, ssize size)
 {
-    HttpPacket  *packet;
-    HttpRx      *rx;
-
     if (conn->state >= HTTP_STATE_COMPLETE) {
         return httpCreatePacket(size);
     }
+#if UNUSED
+    HttpPacket  *packet;
+    HttpRx      *rx;
     rx = conn->rx;
     if (rx) {
         if ((packet = rx->freePackets) != NULL && size <= packet->content->buflen) {
@@ -69,13 +69,14 @@ HttpPacket *httpCreateConnPacket(HttpConn *conn, ssize size)
             return packet;
         }
     }
+#endif
     return httpCreatePacket(size);
 }
 
 
+#if FUTURE
 void httpFreePacket(HttpQueue *q, HttpPacket *packet)
 {
-#if FUTURE
     HttpConn    *conn;
     HttpRx      *rx;
 
@@ -101,8 +102,8 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
     packet->flags = 0;
     packet->next = rx->freePackets;
     rx->freePackets = packet;
-#endif
 } 
+#endif
 
 
 HttpPacket *httpCreateDataPacket(ssize size)
@@ -211,14 +212,18 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
             old = q->first;
             packet = q->first->next;
             q->first = packet;
+#if UNUSED
             httpFreePacket(q, old);
+#endif
 
         } else {
             /*
                 Aggregate all data into one packet and free the packet.
              */
             httpJoinPacket(q->first, packet);
+#if UNUSED
             httpFreePacket(q, packet);
+#endif
         }
     }
     if (serviceQ && !(q->flags & HTTP_QUEUE_DISABLED))  {
@@ -253,7 +258,9 @@ void httpJoinPackets(HttpQueue *q, ssize size)
             if (next->content && (httpGetPacketLength(first) + httpGetPacketLength(next)) < maxPacketSize) {
                 httpJoinPacket(first, next);
                 first->next = next->next;
+#if UNUSED
                 httpFreePacket(q, next);
+#endif
             } else {
                 break;
             }

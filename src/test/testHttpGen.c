@@ -29,8 +29,7 @@ static int initHttp(MprTestGroup *gp)
         }
         gp->skip = 1;
     }
-    mprFree(sp);
-    
+    mprCloseSocket(sp, 0);
     return 0;
 }
 
@@ -41,7 +40,6 @@ static void testCreateHttp(MprTestGroup *gp)
 
     http = httpCreate(gp);
     assert(http != 0);
-    mprFree(http);
 }
 
 
@@ -69,7 +67,7 @@ static void testBasicHttpGet(MprTestGroup *gp)
         length = httpGetContentLength(conn);
         assert(length != 0);
     }
-    mprFree(http);
+    httpDestroy(http);
 }
 
 
@@ -94,7 +92,7 @@ static void testSecureHttpGet(MprTestGroup *gp)
             mprLog(0, "HTTP response status %d", status);
         }
     }
-    mprFree(http);
+    httpDestroy(http);
 }
 #endif
 

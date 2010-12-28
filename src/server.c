@@ -67,7 +67,7 @@ static int manageServer(HttpServer *server, int flags)
             mprRemoveWaitHandler(&server->waitHandler);
         }
         destroyServerConnections(server);
-        mprFree(server->sock);
+        mprCloseSocket(server->sock, 0);
     }
     return 0;
 }
@@ -85,8 +85,7 @@ static int destroyServerConnections(HttpServer *server)
     for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
         if (conn->server == server) {
             conn->server = 0;
-            mprFree(conn);
-            /* Free will remove from the list */
+            httpDestroyConn(conn);
             next--;
         }
     }
@@ -134,7 +133,7 @@ int httpStartServer(HttpServer *server)
 
 void httpStopServer(HttpServer *server)
 {
-    mprFree(server->sock);
+    mprCloseSocket(server->sock, 0);
     server->sock = 0;
 }
 
@@ -150,6 +149,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     switch (event) {
     case HTTP_VALIDATE_OPEN_CONN:
         if (server->clientCount >= limits->clientCount) {
+            //  MOB -- will CLOSE_CONN get called and thus set the limit to negative?
             httpConnError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, 
                 "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
             return 0;
@@ -173,6 +173,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     
     case HTTP_VALIDATE_OPEN_REQUEST:
         if (server->requestCount >= limits->requestCount) {
+            //  MOB -- will CLOSE_REQUEST get called and thus set the limit to negative?
             httpConnError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, 
                 "Too many concurrent requests %d/%d", server->requestCount, limits->requestCount);
             return 0;
@@ -220,7 +221,7 @@ HttpConn *httpAcceptConn(HttpServer *server)
 
     if ((conn = httpCreateConn(server->http, server)) == 0) {
         mprError("Can't create connect object. Insufficient memory.");
-        mprFree(sock);
+        mprCloseSocket(sock, 0);
         return 0;
     }
     conn->async = server->async;
@@ -231,7 +232,9 @@ HttpConn *httpAcceptConn(HttpServer *server)
     conn->secure = mprIsSocketSecure(sock);
 
     if (!httpValidateLimits(server, HTTP_VALIDATE_OPEN_CONN, conn)) {
-        mprFree(conn);
+        /* Prevent validate limits from */
+        conn->server = 0;
+        httpDestroyConn(conn);
         return 0;
     }
     mprAssert(conn->state == HTTP_STATE_BEGIN);
@@ -268,7 +271,6 @@ int httpGetServerAsync(HttpServer *server)
 
 void httpSetDocumentRoot(HttpServer *server, cchar *documentRoot)
 {
-    mprFree(server->documentRoot);
     server->documentRoot = sclone(documentRoot);
 }
 
@@ -276,7 +278,6 @@ void httpSetDocumentRoot(HttpServer *server, cchar *documentRoot)
 void httpSetIpAddr(HttpServer *server, cchar *ip, int port)
 {
     if (ip) {
-        mprFree(server->ip);
         server->ip = sclone(ip);
     }
     if (port >= 0) {
@@ -316,7 +317,6 @@ void httpSetServerContext(HttpServer *server, void *context)
 
 void httpSetServerLocation(HttpServer *server, HttpLoc *loc)
 {
-    mprFree(loc);
     server->loc = loc;
 }
 
@@ -335,7 +335,6 @@ void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)
 
 void httpSetServerRoot(HttpServer *server, cchar *serverRoot)
 {
-    mprFree(server->serverRoot);
     server->serverRoot = sclone(serverRoot);
 }
 

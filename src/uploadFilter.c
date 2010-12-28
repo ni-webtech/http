@@ -271,8 +271,12 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
         /* 
            Quicker to free the buffer so the packets don't have to be joined the next time 
          */
+#if UNUSED
         packet = httpGetPacket(q);
         httpFreePacket(q, packet);
+#else
+        httpGetPacket(q);
+#endif
         mprAssert(q->count >= 0);
     }
 }
@@ -381,7 +385,7 @@ static int processContentHeader(HttpQueue *q, char *line)
                 }
                 mprLog(5, "File upload of: %s stored as %s", up->clientFilename, up->tmpPath);
 
-                up->file = mprOpen(up->tmpPath, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0600);
+                up->file = mprOpenFile(up->tmpPath, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0600);
                 if (up->file == 0) {
                     httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't open upload temp file %s", up->tmpPath);
                     return MPR_ERR_BAD_STATE;
@@ -469,7 +473,7 @@ static int writeToFile(HttpQueue *q, char *data, ssize len)
         /*  
             File upload. Write the file data.
          */
-        rc = mprWrite(up->file, data, len);
+        rc = mprWriteFile(up->file, data, len);
         if (rc != len) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, 
                 "Can't write to upload temp file %s, rc %d, errno %d", up->tmpPath, rc, mprGetOsError(up));
@@ -576,7 +580,6 @@ static int processContentData(HttpQueue *q)
         /*  
             Now have all the data (we've seen the boundary)
          */
-        mprFree(up->file);
         up->file = 0;
         up->clientFilename = 0;
     }

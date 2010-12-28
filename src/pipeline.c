@@ -77,6 +77,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         }
         mprAddItem(rx->inputPipeline, tx->handler);
     }
+    
     /* Incase a filter changed the handler */
     mprSetItem(tx->outputPipeline, 0, tx->handler);
     if (tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
@@ -249,6 +250,7 @@ bool httpServiceQueues(HttpConn *conn)
         if (q->servicing) {
             q->flags |= HTTP_QUEUE_RESERVICE;
         } else {
+            mprAssert(q->schedulePrev == q->scheduleNext);
             httpServiceQueue(q);
             workDone = 1;
         }

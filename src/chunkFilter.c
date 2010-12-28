@@ -134,7 +134,9 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
             rx->chunkState = HTTP_CHUNK_DATA;
         }
         mprAssert(mprGetBufLength(buf) == 0);
+#if UNUSED
         httpFreePacket(q, packet);
+#endif
         mprLog(5, "chunkFilter: start incoming chunk of %d bytes", rx->chunkSize);
         break;
 

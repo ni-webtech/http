@@ -58,7 +58,7 @@ void httpSendOpen(HttpQueue *q)
     q->packetSize = conn->limits->transmissionBodySize;
 
     if (!(tx->flags & HTTP_TX_NO_BODY)) {
-        tx->file = mprOpen(tx->filename, O_RDONLY | O_BINARY, 0);
+        tx->file = mprOpenFile(tx->filename, O_RDONLY | O_BINARY, 0);
         if (tx->file == 0) {
             httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
         }
@@ -286,9 +286,12 @@ static void freeSentPackets(HttpQueue *q, ssize bytes)
             mprAssert(q->count >= 0);
         }
         if (httpGetPacketLength(packet) == 0) {
+#if UNUSED
             if ((packet = httpGetPacket(q)) != 0) {
                 httpFreePacket(q, packet);
             }
+#endif
+            httpGetPacket(q);
         }
         mprAssert(bytes >= 0);
         if (bytes == 0 && (q->first == NULL || !(q->first->flags & HTTP_PACKET_END))) {

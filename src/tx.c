@@ -21,6 +21,9 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
 
     http = conn->http;
 
+    //  MOB - remove headers arg if not used anywhere
+    mprAssert(headers == NULL);
+
     if ((tx = mprAllocObj(HttpTx, manageTx)) == 0) {
         return 0;
     }
@@ -33,6 +36,8 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
     tx->chunkSize = -1;
 
     if (headers) {
+        //  MOB - remove headers arg if not used anywhere
+        mprAssert(!headers);
         tx->headers = headers;
     } else {
         tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
@@ -41,6 +46,16 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
     httpInitQueue(conn, &tx->queue[HTTP_QUEUE_TRANS], "TxHead");
     httpInitQueue(conn, &tx->queue[HTTP_QUEUE_RECEIVE], "RxHead");
     return tx;
+}
+
+
+void httpDestroyTx(HttpTx *tx)
+{
+    mprCloseFile(tx->file);
+    if (tx->conn) {
+        tx->conn->tx = 0;
+        tx->conn = 0;
+    }
 }
 
 
@@ -61,9 +76,7 @@ static void manageTx(HttpTx *tx, int flags)
         mprMark(tx->extension);
 
     } else if (flags & MPR_MANAGE_FREE) {
-        if (tx->conn) {
-            tx->conn->tx = 0;
-        }
+        httpDestroyTx(tx);
     }
 }
 

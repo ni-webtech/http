@@ -132,6 +132,12 @@ static void manageHttp(Http *http, int flags)
 }
 
 
+void httpDestroy(Http *http)
+{
+    mprGetMpr()->httpService = NULL;
+}
+
+
 HttpLoc *httpInitLocation(Http *http, int serverSide)
 {
     HttpLoc     *loc;
@@ -241,8 +247,10 @@ void httpSetForkCallback(Http *http, MprForkCallback callback, void *data)
 static void startTimer(Http *http)
 {
     updateCurrentDate(http);
+#if UNUSED
     http->timer = mprCreateTimerEvent(mprGetDispatcher(), "httpTimer", HTTP_TIMER_PERIOD, (MprEventProc) httpTimer, 
         http, MPR_EVENT_CONTINUOUS);
+#endif
 }
 
 
@@ -298,7 +306,7 @@ static int httpTimer(Http *http, MprEvent *event)
         }
     }
     if (connCount == 0) {
-        mprFree(event);
+        mprRemoveEvent(event);
         http->timer = 0;
     }
     unlock(http);

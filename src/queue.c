@@ -110,7 +110,9 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
                 }
                 q->count -= httpGetPacketLength(packet);
                 mprAssert(q->count >= 0);
+#if UNUSED
                 httpFreePacket(q, packet);
+#endif
                 continue;
             } else {
                 len = httpGetPacketLength(packet);
@@ -369,6 +371,8 @@ void httpScheduleQueue(HttpQueue *q)
 
 void httpServiceQueue(HttpQueue *q)
 {
+    q->conn->currentq = q;
+
     if (q->servicing) {
         q->flags |= HTTP_QUEUE_RESERVICE;
     } else {

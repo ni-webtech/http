@@ -47,6 +47,8 @@ static void netOutgoingService(HttpQueue *q)
     conn = q->conn;
     tx = conn->tx;
     conn->lastActivity = conn->http->now;
+    mprAssert(!mprGetCurrentThread()->yielded);
+    mprLog(0, "NET");
     
     if (conn->sock == 0 || conn->writeComplete) {
         return;
@@ -136,6 +138,7 @@ static ssize buildNetVec(HttpQueue *q)
 
     conn = q->conn;
     tx = conn->tx;
+    mprAssert(!mprGetCurrentThread()->yielded);
 
     /*
         Examine each packet and accumulate as many packets into the I/O vector as possible. Leave the packets on the queue 
@@ -241,9 +244,13 @@ static void freeNetPackets(HttpQueue *q, ssize bytes)
             /*
                 This will remove the packet from the queue and will re-enable upstream disabled queues.
              */
+#if UNUSED
             if ((packet = httpGetPacket(q)) != 0) {
                 httpFreePacket(q, packet);
             }
+#else
+            httpGetPacket(q);
+#endif
         }
         mprAssert(bytes >= 0);
         if (bytes == 0 && (q->first == NULL || !(q->first->flags & HTTP_PACKET_END))) {

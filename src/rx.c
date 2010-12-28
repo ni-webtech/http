@@ -53,8 +53,6 @@ HttpRx *httpCreateRx(HttpConn *conn)
 
 static void manageRx(HttpRx *rx, int flags)
 {
-    HttpPacket  *packet;
-
     if (flags & MPR_MANAGE_MARK) {
         mprMark(rx->method);
         mprMark(rx->uri);
@@ -84,11 +82,15 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->alias);
         mprMark(rx->dir);
 
+#if UNUSED
+        HttpPacket  *packet;
         for (packet = rx->freePackets; packet; packet = packet->next) {
             mprMark(packet);
         }
+#endif
 
     } else if (flags & MPR_MANAGE_FREE) {
+        mprLog(0, "DEBUG free RX %p", rx);
         if (rx->conn) {
             rx->conn->rx = 0;
         }
@@ -96,10 +98,11 @@ static void manageRx(HttpRx *rx, int flags)
 }
 
 
-void httpDestroyRx(HttpConn *conn)
+void httpDestroyRx(HttpRx *rx)
 {
-    if (conn) {
-        conn->rx = 0;
+    if (rx->conn) {
+        rx->conn->rx = 0;
+        rx->conn = 0;
     }
 }
 
@@ -164,13 +167,20 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     if (conn->server && !httpValidateLimits(conn->server, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
         return 0;
     }
+    //  MOB
+    int created = 0;
     if (conn->rx == NULL) {
         conn->rx = httpCreateRx(conn);
         conn->tx = httpCreateTx(conn, NULL);
+        created = 1;
     }
     rx = conn->rx;
     tx = conn->tx;
-
+    
+//  MOB
+    int s = rx->status;
+    rx->status = s;
+    
     if ((len = mprGetBufLength(packet->content)) == 0) {
         return 0;
     }
@@ -965,8 +975,11 @@ static bool processRunning(HttpConn *conn)
 {
     int     canProceed;
 
+    canProceed = 0;
+
     if (conn->abortPipeline) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
+        canProceed = 1;
     } else {
         if (conn->server) {
             httpProcessPipeline(conn);
@@ -1001,6 +1014,8 @@ static bool processCompletion(HttpConn *conn)
     httpDestroyPipeline(conn);
 
     if (conn->server) {
+        conn->rx->conn = 0;
+        conn->tx->conn = 0;
         conn->rx = 0;
         conn->tx = 0;
         packet = conn->input;
@@ -1251,11 +1266,7 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 {
     httpCallEvent(conn, event->mask);
     httpEnableConnEvents(conn);
-#if UNUSED
-    if (conn->cond) {
-        mprSignalCond(conn->cond);
-    }
-#endif
+    mprSignalDispatcher(conn->dispatcher);
 }
 
 
@@ -1266,7 +1277,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
 {
     Http        *http;
     MprTime     expire;
-    int         eventMask, remainingTime, addedHandler, saveAsync, flags;
+    int         eventMask, remainingTime, addedHandler, saveAsync;
 
     http = conn->http;
 
@@ -1289,29 +1300,16 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
     } else {
         addedHandler = 0;
     }
-#if UNUSED
-    if (conn->cond == 0) {
-        conn->cond = mprCreateCond();
-    }
-#endif
     http->now = mprGetTime(conn);
     expire = http->now + timeout;
+
     while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
         remainingTime = (int) (expire - http->now);
         if (remainingTime <= 0) {
             break;
         }
         mprAssert(!mprSocketHasPendingData(conn->sock));
-#if UNUSED
-        if (0 && mprHasEventsThread()) {
-            mprWaitForCond(conn->cond, remainingTime);
-        } else {
-            mprServiceEvents(dispatcher, remainingTime, MPR_SERVICE_ONE_THING);
-        }
-#else
-        flags = mprHasEventsThread() ? MPR_SERVICE_ONLY : 0;
-        mprServiceEvents(dispatcher, remainingTime, MPR_SERVICE_ONE_THING | flags);
-#endif
+        mprWaitForEvent(conn->dispatcher, remainingTime);
     }
     if (addedHandler && conn->waitHandler.fd >= 0) {
         mprRemoveWaitHandler(&conn->waitHandler);

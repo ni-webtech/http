@@ -515,10 +515,10 @@ int httpReadGroupFile(Http *http, HttpAuth *auth, char *path)
 
     auth->groupFile = sclone(path);
 
-    if ((file = mprOpen(path, O_RDONLY | O_TEXT, 0444)) == 0) {
+    if ((file = mprOpenFile(path, O_RDONLY | O_TEXT, 0444)) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    while ((buf = mprGets(file, MPR_BUFSIZE, NULL)) != NULL) {
+    while ((buf = mprGetFileString(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
         for (cp = enabled; isspace((int) *cp); cp++) {
             ;
@@ -535,6 +535,7 @@ int httpReadGroupFile(Http *http, HttpAuth *auth, char *path)
         httpAddUsersToGroup(auth, group, users);
     }
     httpUpdateUserAcls(auth);
+    mprCloseFile(file);
     return 0;
 }
 
@@ -547,10 +548,10 @@ int httpReadUserFile(Http *http, HttpAuth *auth, char *path)
 
     auth->userFile = sclone(path);
 
-    if ((file = mprOpen(path, O_RDONLY | O_TEXT, 0444)) == 0) {
+    if ((file = mprOpenFile(path, O_RDONLY | O_TEXT, 0444)) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    while ((buf = mprGets(file, MPR_BUFSIZE, NULL)) != NULL) {
+    while ((buf = mprGetFileString(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
         for (cp = enabled; isspace((int) *cp); cp++) {
             ;
@@ -569,6 +570,7 @@ int httpReadUserFile(Http *http, HttpAuth *auth, char *path)
         httpAddUser(auth, realm, user, password, (*enabled == '0' ? 0 : 1));
     }
     httpUpdateUserAcls(auth);
+    mprCloseFile(file);
     return 0;
 }
 
@@ -582,18 +584,18 @@ int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
     char            *tempFile;
 
     tempFile = mprGetTempPath(NULL);
-    if ((file = mprOpen(tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
+    if ((file = mprOpenFile(tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
         mprError("Can't open %s", tempFile);
         return MPR_ERR_CANT_OPEN;
     }
-
     hp = mprGetNextHash(auth->users, 0);
     while (hp) {
         up = (HttpUser*) hp->data;
         mprSprintf(buf, sizeof(buf), "%d: %s: %s: %s\n", up->enabled, up->name, up->realm, up->password);
-        mprWrite(file, buf, (int) strlen(buf));
+        mprWriteFile(file, buf, (int) strlen(buf));
         hp = mprGetNextHash(auth->users, hp);
     }
+    mprCloseFile(file);
     unlink(path);
     if (rename(tempFile, path) < 0) {
         mprError("Can't create new %s", path);
@@ -612,7 +614,7 @@ int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
     int             next;
 
     tempFile = mprGetTempPath(NULL);
-    if ((file = mprOpen(tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
+    if ((file = mprOpenFile(tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
         mprError("Can't open %s", tempFile);
         return MPR_ERR_CANT_OPEN;
     }
@@ -621,14 +623,14 @@ int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
     while (hp) {
         gp = (HttpGroup*) hp->data;
         mprSprintf(buf, sizeof(buf), "%d: %x: %s: ", gp->enabled, gp->acl, gp->name);
-        mprWrite(file, buf, strlen(buf));
+        mprWriteFile(file, buf, strlen(buf));
         for (next = 0; (name = mprGetNextItem(gp->users, &next)) != 0; ) {
-            mprWrite(file, name, strlen(name));
+            mprWriteFile(file, name, strlen(name));
         }
-        mprWrite(file, "\n", 1);
+        mprWriteFile(file, "\n", 1);
         hp = mprGetNextHash(auth->groups, hp);
     }
-
+    mprCloseFile(file);
     unlink(path);
     if (rename(tempFile, path) < 0) {
         mprError("Can't create new %s", path);

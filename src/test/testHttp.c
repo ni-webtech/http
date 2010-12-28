@@ -34,7 +34,7 @@ MAIN(testMain, int argc, char *argv[])
     MprTestGroup    *gp;
     int             rc;
 
-    mpr = mprCreate(argc, argv, MPR_USER_EVENTS_THREAD | MPR_USER_GC);
+    mpr = mprCreate(argc, argv, MPR_USER_EVENTS_THREAD);
 
 #if VXWORKS || WINCE
     /*
@@ -49,7 +49,6 @@ MAIN(testMain, int argc, char *argv[])
         exit(2);
     }
     if (mprParseTestArgs(ts, argc, argv) < 0) {
-        mprFree(mpr);
         exit(3);
     }
     gp = mprAddTestGroup(ts, &master);

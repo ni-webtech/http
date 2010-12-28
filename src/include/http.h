@@ -239,6 +239,7 @@ typedef struct Http {
     @ingroup Http
  */
 extern Http *httpCreate();
+extern void httpDestroy(Http *http);
 
 /**
     Create a Http client
@@ -490,7 +491,7 @@ typedef struct HttpRange {
     @stability Evolving
     @defgroup HttpPacket HttpPacket
     @see HttpPacket HttpQueue httpCreatePacket, httpCreateConnPacket httpCreateDataPacket httpCreateEndPacket 
-        httpFreePacket httpJoinPacket httpSplitPacket httpGetPacketLength httpCreateHeaderPacket httpGetPacket
+        httpJoinPacket httpSplitPacket httpGetPacketLength httpCreateHeaderPacket httpGetPacket
         httpJoinPacketForService httpPutForService httpIsPacketTooBig httpSendPacket httpPutBackPacket 
         httpSendPacketToNext httpResizePacket
  */
@@ -523,12 +524,14 @@ extern HttpPacket *httpDup(HttpPacket *orig);
 */
 extern HttpPacket *httpCreateConnPacket(struct HttpConn *conn, ssize size);
 
+#if UNUSED
 /** 
     Free a packet. This recycles a packet for rapid reuse
     @param q Queue reference
     @param packet Packet to free
  */
 extern void httpFreePacket(struct HttpQueue *q, HttpPacket *packet);
+#endif
 
 /** 
     Create a data packet
@@ -1298,6 +1301,8 @@ typedef int (*HttpFillHeadersProc)(void *data);
 typedef struct HttpConn {
     /*  Ordered for debugability */
 
+    struct HttpRx *rx;                      /**< Rx object */
+    struct HttpTx *tx;                      /**< Tx object */
     int             state;                  /**< Connection state */
     int             flags;                  /**< Connection flags */
     int             abortPipeline;          /**< Connection errors (not proto errors) abort the pipeline */
@@ -1326,9 +1331,8 @@ typedef struct HttpConn {
     /* NOTE: documentRoot may be different for virtual hosts, so can't use server->documentRoot */
     char            *documentRoot;          /**< Directory for documents */
 
-    struct HttpRx *rx;                      /**< Rx object */
-    struct HttpTx *tx;                      /**< Tx object */
     struct HttpQueue serviceq;              /**< List of queues that require service for request pipeline */
+    struct HttpQueue *currentq;             /**< Current queue being serviced */
 
     HttpPacket      *input;                 /**< Header packet */
     HttpQueue       *readq;                 /**< End of the read pipeline */
@@ -1372,8 +1376,6 @@ typedef struct HttpConn {
     char            *authUser;              /**< User name credentials for authorized client requests */
     char            *authPassword;          /**< Password credentials for authorized client requests */
     int             sentCredentials;        /**< Sent authorization credentials */
-
-    MprCond         *cond;                  /**< Cond var for blocking APIs. Created on demand */
 } HttpConn;
 
 
@@ -1399,7 +1401,6 @@ extern void httpEvent(HttpConn *conn, MprEvent *event);
     @param conn HttpConn object created via $httpCreateConn
  */
 extern void httpCloseConn(HttpConn *conn);
-extern void httpCloseClientConn(HttpConn *conn);
 
 /**
     Signal writing transmission body is complete. This is called by connectors when writing data is complete.
@@ -1422,6 +1423,7 @@ extern void httpCompleteRequest(HttpConn *conn);
     @returns A new connection object
 */
 extern HttpConn *httpCreateConn(Http *http, struct HttpServer *server);
+extern void httpDestroyConn(HttpConn *conn);
 
 /**
     Create a request pipeline
@@ -1509,10 +1511,13 @@ extern int httpGetKeepAliveCount(HttpConn *conn);
  */
 extern void httpPrepServerConn(HttpConn *conn);
 
+#if UNUSED
 //  MOB
 #define HTTP_NEW_REQUEST 0
 #define HTTP_RETRY_REQUEST 1
-extern void httpPrepClientConn(HttpConn *conn, int retry);
+#endif
+    
+extern void httpPrepClientConn(HttpConn *conn);
 extern void httpConsumeLastRequest(HttpConn *conn);
 
 /**
@@ -1930,8 +1935,10 @@ typedef struct HttpRx {
 
     HttpConn        *conn;                  /**< Connection object */
 
+#if UNUSED
     //  MOB -- do we need to keep free packet list now?
     HttpPacket      *freePackets;           /**< Free list of packets */
+#endif
 
     MprList         *etags;                 /**< Document etag to uniquely identify the document version */
     HttpPacket      *headerPacket;          /**< HTTP headers */
@@ -2112,7 +2119,7 @@ extern cvoid *httpGetStageData(HttpConn *conn, cchar *key);
 
 /* Internal */
 extern HttpRx *httpCreateRx(HttpConn *conn);
-extern void httpDestroyRx(HttpConn *conn);
+extern void httpDestroyRx(HttpRx *rx);
 extern void httpCloseRx(struct HttpConn *conn);
 extern bool httpContentNotModified(HttpConn *conn);
 extern HttpRange *httpCreateRange(HttpConn *conn, int start, int end);
@@ -2344,6 +2351,7 @@ extern int httpConnect(HttpConn *conn, cchar *method, cchar *uri);
     @returns A tx object
  */
 extern HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers);
+extern void httpDestroyTx(HttpTx *tx);
 
 /** 
     Dont cache the transmission 

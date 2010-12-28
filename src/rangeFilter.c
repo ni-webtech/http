@@ -109,7 +109,9 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
             if (endpos < range->start) {
                 /* Packet is before the next range, so discard the entire packet */
                 tx->pos += bytes;
+#if UNUSED
                 httpFreePacket(q, packet);
+#endif
                 break;
 
             } else if (tx->pos > range->end) {

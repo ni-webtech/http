@@ -14,13 +14,15 @@ HttpConn *httpCreateClient(Http *http, MprDispatcher *dispatcher)
     HttpConn    *conn;
 
     conn = httpCreateConn(http, NULL);
-    if (dispatcher == NULL) {
-        dispatcher = mprGetDispatcher(http);
-    }
     conn->dispatcher = dispatcher;
-    conn->rx = httpCreateRx(conn);
+#if UNUSED
+    /*
+        Pre-create Tx to store request headers
+     */
     conn->tx = httpCreateTx(conn, NULL);
+    conn->rx = httpCreateRx(conn);
     httpCreatePipeline(conn, NULL, NULL);
+#endif
     return conn;
 }
 
@@ -63,8 +65,8 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
         port = (uri->secure) ? 443 : 80;
     }
     if (conn && conn->sock) {
-        if (conn->keepAliveCount < 0 || port != conn->port || strcmp(ip, conn->ip) != 0) {
-            httpCloseClientConn(conn);
+        if (--conn->keepAliveCount < 0 || port != conn->port || strcmp(ip, conn->ip) != 0) {
+            httpCloseConn(conn);
         } else {
             mprLog(4, "Http: reusing keep-alive socket on: %s:%d", ip, port);
         }
@@ -202,14 +204,17 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     }
     mprLog(4, "Http: client request: %s %s", method, url);
 
+#if UNUSED
     if (conn->sock) {
         /* 
-            Callers requiring retry must call PrepClientConn(conn, HTTP_RETRY_REQUEST) themselves
+            Callers requiring retry must call httpPrepClientConn(conn, HTTP_RETRY_REQUEST) themselves
          */
-        httpPrepClientConn(conn, HTTP_NEW_REQUEST);
+        httpPrepClientConn(conn);
     }
+#endif
     http = conn->http;
     tx = conn->tx;
+    mprAssert(tx);
     mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_CONNECTED);
     conn->sentCredentials = 0;
@@ -281,18 +286,18 @@ static int blockingFileCopy(HttpConn *conn, cchar *path)
     char        buf[MPR_BUFSIZE];
     ssize       bytes;
 
-    file = mprOpen(path, O_RDONLY | O_BINARY, 0);
+    file = mprOpenFile(path, O_RDONLY | O_BINARY, 0);
     if (file == 0) {
         mprError("Can't open %s", path);
         return MPR_ERR_CANT_OPEN;
     }
-    while ((bytes = mprRead(file, buf, sizeof(buf))) > 0) {
+    while ((bytes = mprReadFile(file, buf, sizeof(buf))) > 0) {
         if (httpWriteBlock(conn->writeq, buf, bytes) != bytes) {
-            mprFree(file);
+            mprCloseFile(file);
             return MPR_ERR_CANT_WRITE;
         }
     }
-    mprFree(file);
+    mprCloseFile(file);
     return 0;
 }
 
