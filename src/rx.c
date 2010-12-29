@@ -1300,7 +1300,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
     } else {
         addedHandler = 0;
     }
-    http->now = mprGetTime(conn);
+    http->now = mprGetTime();
     expire = http->now + timeout;
 
     while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {

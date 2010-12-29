@@ -130,7 +130,7 @@ static int setClientHeaders(HttpConn *conn)
             conn->tx = 0;
             return MPR_ERR_CANT_CREATE;
         }
-        conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime(conn)); 
+        conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime()); 
 
         mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
         len = strlen(a1Buf);

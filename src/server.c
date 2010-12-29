@@ -254,7 +254,7 @@ HttpConn *httpAcceptConn(HttpServer *server)
             conn->ip, conn->port, conn->sock->ip, conn->sock->port);
     }
     e.mask = MPR_READABLE;
-    e.timestamp = mprGetTime(server);
+    e.timestamp = mprGetTime();
     (conn->callback)(conn->callbackArg, &e);
     return conn;
 }

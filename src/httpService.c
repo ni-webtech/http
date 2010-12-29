@@ -314,7 +314,7 @@ void httpAddConn(Http *http, HttpConn *conn)
 {
     lock(http);
     mprAddItem(http->connections, conn);
-    conn->started = mprGetTime(conn);
+    conn->started = mprGetTime();
     conn->seqno = http->connCount++;
     if ((http->now + MPR_TICKS_PER_SEC) < conn->started) {
         updateCurrentDate(http);
@@ -339,7 +339,7 @@ int httpCreateSecret(Http *http)
 
     if (mprGetRandomBytes(bytes, sizeof(bytes), 0) < 0) {
         mprError("Can't get sufficient random data for secure SSL operation. If SSL is used, it may not be secure.");
-        now = mprGetTime(http); 
+        now = mprGetTime(); 
         pid = (int) getpid();
         cp = (char*) &now;
         bp = bytes;

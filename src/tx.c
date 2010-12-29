@@ -533,7 +533,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             expires = PTOL(mprLookupHash(rx->loc->expires, ""));
         }
         if (expires) {
-            mprDecodeUniversalTime(&tm, mprGetTime(conn) + (expires * MPR_TICKS_PER_SEC));
+            mprDecodeUniversalTime(&tm, mprGetTime() + (expires * MPR_TICKS_PER_SEC));
             hdr = mprFormatTime(MPR_HTTP_DATE, &tm);
             httpAddHeader(conn, "Cache-Control", "max-age=%d", expires);
             httpAddHeader(conn, "Expires", "%s", hdr);

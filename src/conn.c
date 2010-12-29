@@ -35,7 +35,7 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
     conn->port = -1;
     conn->retries = HTTP_RETRIES;
     conn->server = server;
-    conn->time = mprGetTime(conn);
+    conn->time = mprGetTime();
     conn->lastActivity = conn->time;
     conn->callback = (HttpCallback) httpEvent;
     conn->callbackArg = conn;
@@ -221,7 +221,7 @@ void httpConsumeLastRequest(HttpConn *conn)
     if (!conn->sock || conn->state < HTTP_STATE_FIRST) {
         return;
     }
-    mark = mprGetTime(conn);
+    mark = mprGetTime();
     requestTimeout = conn->limits->requestTimeout ? conn->limits->requestTimeout : INT_MAX;
     while (!httpIsEof(conn) && mprGetRemainingTime(mark, requestTimeout) > 0) {
         if (httpRead(conn, junk, sizeof(junk)) <= 0) {
@@ -239,7 +239,7 @@ void httpCallEvent(HttpConn *conn, int mask)
     MprEvent    e;
 
     e.mask = mask;
-    e.timestamp = mprGetTime(conn);
+    e.timestamp = mprGetTime();
     httpEvent(conn, &e);
 }
 
