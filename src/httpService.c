@@ -83,8 +83,8 @@ Http *httpCreate()
     mprGetMpr()->httpService = http;
     http->protocol = "HTTP/1.1";
     http->mutex = mprCreateLock(http);
-    http->connections = mprCreateList(http);
-    http->stages = mprCreateHash(31, 0);
+    http->connections = mprCreateList(-1, 0);
+    http->stages = mprCreateHash(-1, 0);
 
     updateCurrentDate(http);
     http->statusCodes = mprCreateHash(41, 0);
@@ -111,11 +111,9 @@ Http *httpCreate()
 static void manageHttp(Http *http, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-        mprMarkList(http->connections);
-
-        //  MOB -- make these eternal?
-        mprMarkHash(http->stages);
-        mprMarkHash(http->mimeTypes);
+        mprMark(http->connections);
+        mprMark(http->stages);
+        mprMark(http->mimeTypes);
         mprMark(http->statusCodes);
         mprMark(http->clientLimits);
         mprMark(http->serverLimits);

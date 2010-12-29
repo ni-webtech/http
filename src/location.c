@@ -25,11 +25,11 @@ HttpLoc *httpCreateLocation(Http *http)
     }
     loc->http = http;
     loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
-    loc->handlers = mprCreateList(loc);
+    loc->handlers = mprCreateList(-1, 0);
     loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
     loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
-    loc->inputStages = mprCreateList();
-    loc->outputStages = mprCreateList();
+    loc->inputStages = mprCreateList(-1, 0);
+    loc->outputStages = mprCreateList(-1, 0);
     loc->prefix = sclone("");
     loc->prefixLen = (int) strlen(loc->prefix);
     loc->auth = httpCreateAuth(0);
@@ -42,12 +42,12 @@ static void manageLoc(HttpLoc *loc, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(loc->auth);
         mprMark(loc->prefix);
-        mprMarkHash(loc->extensions);
-        mprMarkHash(loc->expires);
-        mprMarkList(loc->handlers);
-        mprMarkList(loc->inputStages);
-        mprMarkList(loc->outputStages);
-        mprMarkHash(loc->errorDocuments);
+        mprMark(loc->extensions);
+        mprMark(loc->expires);
+        mprMark(loc->handlers);
+        mprMark(loc->inputStages);
+        mprMark(loc->outputStages);
+        mprMark(loc->errorDocuments);
         mprMark(loc->context);
         mprMark(loc->uploadDir);
         mprMark(loc->searchPath);
@@ -267,10 +267,10 @@ void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
 void httpClearStages(HttpLoc *loc, int direction)
 {
     if (direction & HTTP_STAGE_INCOMING) {
-        loc->inputStages = mprCreateList(loc);
+        loc->inputStages = mprCreateList(-1, 0);
     }
     if (direction & HTTP_STAGE_OUTGOING) {
-        loc->outputStages = mprCreateList(loc);
+        loc->outputStages = mprCreateList(-1, 0);
     }
 }
 
@@ -301,18 +301,18 @@ void httpResetPipeline(HttpLoc *loc)
         loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
         loc->expires = mprCreateHash(0, 0);
         loc->extensions = mprCreateHash(0, 0);
-        loc->handlers = mprCreateList(loc);
-        loc->inputStages = mprCreateList(loc);
-        loc->inputStages = mprCreateList(loc);
+        loc->handlers = mprCreateList(-1, 0);
+        loc->inputStages = mprCreateList(-1, 0);
+        loc->inputStages = mprCreateList(-1, 0);
     }
-    loc->outputStages = mprCreateList(loc);
+    loc->outputStages = mprCreateList(-1, 0);
 }
 
 
 void httpResetHandlers(HttpLoc *loc)
 {
     graduate(loc);
-    loc->handlers = mprCreateList(loc);
+    loc->handlers = mprCreateList(-1, 0);
 }
 
 

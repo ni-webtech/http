@@ -140,7 +140,7 @@ HttpGroup *httpCreateGroup(HttpAuth *auth, cchar *name, HttpAcl acl, bool enable
     gp->acl = acl;
     gp->name = sclone(name);
     gp->enabled = enabled;
-    gp->users = mprCreateList(gp);
+    gp->users = mprCreateList(0, 0);
     return gp;
 }
 
@@ -149,7 +149,7 @@ static void manageGroup(HttpGroup *group, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(group->name);
-        mprMarkList(group->users);
+        mprMark(group->users);
 
     } else if (flags & MPR_MANAGE_FREE) {
     }

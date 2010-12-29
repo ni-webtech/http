@@ -77,7 +77,7 @@ void httpDestroyConn(HttpConn *conn)
             conn->tx = 0;
         }
         conn->http = 0;
-        mprLog(0, "DEBUG: destroy/free conn %p", conn);
+        // mprLog(0, "DEBUG: destroy/free conn %p", conn);
     }
 }
 

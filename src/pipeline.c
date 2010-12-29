@@ -31,7 +31,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
 
     loc = (loc) ? loc : http->clientLocation;
 
-    tx->outputPipeline = mprCreateList(tx);
+    tx->outputPipeline = mprCreateList(-1, 0);
     tx->handler = proposedHandler ? proposedHandler : http->passHandler;
 
     if (tx->handler) {
@@ -65,7 +65,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         Create the receive pipeline for this request
      */
     if (rx->needInputPipeline) {
-        rx->inputPipeline = mprCreateList(tx);
+        rx->inputPipeline = mprCreateList(-1, 0);
         mprAddItem(rx->inputPipeline, http->netConnector);
         if (loc) {
             for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {

@@ -55,8 +55,8 @@ static void manageAuth(HttpAuth *auth, int flags)
         mprMark(auth->qop);
         mprMark(auth->userFile);
         mprMark(auth->groupFile);
-        mprMarkHash(auth->users);
-        mprMarkHash(auth->groups);
+        mprMark(auth->users);
+        mprMark(auth->groups);
 
     } else if (flags & MPR_MANAGE_FREE) {
     }

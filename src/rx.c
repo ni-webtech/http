@@ -58,18 +58,18 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->uri);
         mprMark(rx->scriptName);
         mprMark(rx->pathInfo);
-        mprMarkList(rx->etags);
+        mprMark(rx->etags);
         mprMark(rx->headerPacket);
-        mprMarkHash(rx->headers);
-        mprMarkList(rx->inputPipeline);
+        mprMark(rx->headers);
+        mprMark(rx->inputPipeline);
         mprMark(rx->loc);
         mprMark(rx->parsedUri);
-        mprMarkHash(rx->requestData);
+        mprMark(rx->requestData);
         mprMark(rx->pathTranslated);
         mprMark(rx->pragma);
         mprMark(rx->redirect);
         mprMark(rx->referrer);
-        mprMarkHash(rx->formVars);
+        mprMark(rx->formVars);
         mprMark(rx->ranges);
         mprMark(rx->inputRange);
         mprMark(rx->auth);
@@ -77,7 +77,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->authDetails);
         mprMark(rx->authStale);
         mprMark(rx->authType);
-        mprMarkHash(rx->files);
+        mprMark(rx->files);
         mprMark(rx->uploadDir);
         mprMark(rx->alias);
         mprMark(rx->dir);
@@ -161,6 +161,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     ssize       len;
     char        *start, *end;
 
+int created = 0;
     if (packet == NULL) {
         return 0;
     }
@@ -168,7 +169,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         return 0;
     }
     //  MOB
-    int created = 0;
     if (conn->rx == NULL) {
         conn->rx = httpCreateRx(conn);
         conn->tx = httpCreateTx(conn, NULL);
@@ -1342,7 +1342,7 @@ static void addMatchEtag(HttpConn *conn, char *etag)
 
     rx = conn->rx;
     if (rx->etags == 0) {
-        rx->etags = mprCreateList(rx);
+        rx->etags = mprCreateList(-1, 0);
     }
     mprAddItem(rx->etags, etag);
 }
