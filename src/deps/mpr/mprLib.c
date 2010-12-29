@@ -22574,7 +22574,7 @@ MprWaitService *mprCreateWaitService()
         return 0;
     }
     MPR->waitService = ws;
-    ws->handlers = mprCreateList(-1, 0);
+    ws->handlers = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     ws->mutex = mprCreateLock();
     ws->spin = mprCreateSpinLock();
     mprCreateNotifierService(ws);

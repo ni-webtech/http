@@ -74,6 +74,7 @@ static void manageTx(HttpTx *tx, int flags)
         mprMark(tx->file);
         mprMark(tx->filename);
         mprMark(tx->extension);
+        mprMark(tx->headers);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyTx(tx);
@@ -640,17 +641,16 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
         mprPutIntToBuf(buf, tx->status);
         mprPutCharToBuf(buf, ' ');
         mprPutStringToBuf(buf, httpLookupStatus(http, tx->status));
-        mprPutStringToBuf(buf, "\r\n");
     } else {
         mprPutStringToBuf(buf, tx->method);
         mprPutCharToBuf(buf, ' ');
         parsedUri = tx->parsedUri;
         if (http->proxyHost && *http->proxyHost) {
             if (parsedUri->query && *parsedUri->query) {
-                mprPutFmtToBuf(buf, "http://%s:%d%s?%s %s\r\n", http->proxyHost, http->proxyPort, 
+                mprPutFmtToBuf(buf, "http://%s:%d%s?%s %s", http->proxyHost, http->proxyPort, 
                     parsedUri->path, parsedUri->query, conn->protocol);
             } else {
-                mprPutFmtToBuf(buf, "http://%s:%d%s %s\r\n", http->proxyHost, http->proxyPort, parsedUri->path,
+                mprPutFmtToBuf(buf, "http://%s:%d%s %s", http->proxyHost, http->proxyPort, parsedUri->path,
                     conn->protocol);
             }
         } else {
@@ -660,10 +660,14 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
                 mprPutStringToBuf(buf, parsedUri->path);
                 mprPutCharToBuf(buf, ' ');
                 mprPutStringToBuf(buf, conn->protocol);
-                mprPutStringToBuf(buf, "\r\n");
             }
         }
     }
+    if ((level = httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_FIRST, NULL)) == mprGetLogLevel(tx)) {
+        mprAddNullToBuf(buf);
+        mprLog(level, "%s", mprGetBufStart(buf));
+    }
+    mprPutStringToBuf(buf, "\r\n");
 
     /* 
        Output headers
@@ -691,10 +695,6 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     tx->headerSize = mprGetBufLength(buf);
     tx->flags |= HTTP_TX_HEADERS_CREATED;
-
-    if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) == mprGetLogLevel(tx)) {
-        mprLog(level, "%s %s %d", rx->method, rx->uri, tx->status);
-    }
 }
 
 

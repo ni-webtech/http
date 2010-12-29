@@ -177,10 +177,6 @@ int created = 0;
     rx = conn->rx;
     tx = conn->tx;
     
-//  MOB
-    int s = rx->status;
-    rx->status = s;
-    
     if ((len = mprGetBufLength(packet->content)) == 0) {
         return 0;
     }

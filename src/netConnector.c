@@ -48,7 +48,6 @@ static void netOutgoingService(HttpQueue *q)
     tx = conn->tx;
     conn->lastActivity = conn->http->now;
     mprAssert(!mprGetCurrentThread()->yielded);
-    mprLog(0, "NET");
     
     if (conn->sock == 0 || conn->writeComplete) {
         return;

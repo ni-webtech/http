@@ -48,15 +48,16 @@ void httpManageQueue(HttpQueue *q, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(q->first);
         mprMark(q->queueData);
+        if (q->nextQ && q->nextQ->stage) {
+            /* Not a queue head */
+            mprMark(q->nextQ);
+        }
 
     } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 
 
-/*  
-    Initialize a bare queue. Used for dummy heads.
- */
 void httpInitQueue(HttpConn *conn, HttpQueue *q, cchar *name)
 {
     q->conn = conn;
@@ -219,6 +220,7 @@ void httpInitSchedulerQueue(HttpQueue *q)
 
 /*  
     Insert a queue after the previous element
+    MOB - rename append
  */
 void httpInsertQueue(HttpQueue *prev, HttpQueue *q)
 {

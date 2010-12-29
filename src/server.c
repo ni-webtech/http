@@ -26,7 +26,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     if ((server = mprAllocObj(HttpServer, manageServer)) == 0) {
         return 0;
     }
-    server->clients = mprCreateHash(HTTP_CLIENTS_HASH, 0);
+    server->clientLoad = mprCreateHash(HTTP_CLIENTS_HASH, MPR_HASH_STATIC_VALUES);
     server->async = 1;
     server->http = http;
     server->port = port;
@@ -63,7 +63,7 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->http);
         mprMark(server->loc);
         mprMark(server->limits);
-        mprMark(server->clients);
+        mprMark(server->clientLoad);
         mprMark(server->serverRoot);
         mprMark(server->documentRoot);
         mprMark(server->name);
@@ -163,19 +163,19 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
                 "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
             return 0;
         }
-        count = (int) PTOL(mprLookupHash(server->clients, conn->ip));
-        mprAddHash(server->clients, conn->ip, ITOP(count + 1));
-        server->clientCount = mprGetHashLength(server->clients);
+        count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
+        mprAddHash(server->clientLoad, conn->ip, ITOP(count + 1));
+        server->clientCount = mprGetHashLength(server->clientLoad);
         break;
 
     case HTTP_VALIDATE_CLOSE_CONN:
-        count = (int) PTOL(mprLookupHash(server->clients, conn->ip));
+        count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
         if (count > 1) {
-            mprAddHash(server->clients, conn->ip, ITOP(count - 1));
+            mprAddHash(server->clientLoad, conn->ip, ITOP(count - 1));
         } else {
-            mprRemoveHash(server->clients, conn->ip);
+            mprRemoveHash(server->clientLoad, conn->ip);
         }
-        server->clientCount = mprGetHashLength(server->clients);
+        server->clientCount = mprGetHashLength(server->clientLoad);
         mprLog(4, "Close connection %d. Active requests %d, active clients %d", 
             conn->seqno, server->requestCount, server->clientCount);
         break;

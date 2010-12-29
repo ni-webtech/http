@@ -96,12 +96,10 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     for (next = 0; (stage = mprGetNextItem(rx->inputPipeline, &next)) != 0; ) {
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_RECEIVE, q);
     }
-
     setEnvironment(conn);
 
     conn->writeq = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
     conn->readq = conn->tx->queue[HTTP_QUEUE_RECEIVE].prevQ;
-
     httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
 
     /*  

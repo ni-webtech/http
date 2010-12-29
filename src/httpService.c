@@ -87,7 +87,7 @@ Http *httpCreate()
     http->stages = mprCreateHash(-1, 0);
 
     updateCurrentDate(http);
-    http->statusCodes = mprCreateHash(41, 0);
+    http->statusCodes = mprCreateHash(41, MPR_HASH_STATIC_VALUES | MPR_HASH_STATIC_KEYS);
     for (code = HttpStatusCodes; code->code; code++) {
         mprAddHash(http->statusCodes, code->codeString, code);
     }
@@ -124,6 +124,8 @@ static void manageHttp(Http *http, int flags)
         mprMark(http->secret);
         mprMark(http->defaultHost);
         mprMark(http->proxyHost);
+        mprMark(http->currentDate);
+        mprMark(http->expiresDate);
 
     } else if (flags & MPR_MANAGE_FREE) {
     }
@@ -456,25 +458,18 @@ void httpSetProxy(Http *http, cchar *host, int port)
 
 static void updateCurrentDate(Http *http)
 {
-    static char date[2][64];
-    static char expires[2][64];
-    static int  dateSelect, expiresSelect;
-    struct tm   tm;
-    char        *ds;
+    struct tm       tm;
+    static MprTime  recalcExpires = 0;
 
     lock(http);
     http->now = mprGetTime();
-    ds = httpGetDateString(NULL);
-    scopy(date[dateSelect], sizeof(date[0]) - 1, ds);
-    http->currentDate = date[dateSelect];
-    dateSelect = !dateSelect;
+    http->currentDate = httpGetDateString(NULL);
 
-    //  MOB - check. Could do this once per minute
-    mprDecodeUniversalTime(&tm, http->now + (86400 * 1000));
-    ds = mprFormatTime(HTTP_DATE_FORMAT, &tm);
-    scopy(expires[expiresSelect], sizeof(expires[0]) - 1, ds);
-    http->expiresDate = expires[expiresSelect];
-    expiresSelect = !expiresSelect;
+    if (http->expiresDate == 0 || recalcExpires < (http->now / (60 * 1000))) {
+        mprDecodeUniversalTime(&tm, http->now + (86400 * 1000));
+        http->expiresDate = mprFormatTime(HTTP_DATE_FORMAT, &tm);
+        recalcExpires = http->now / (60 * 1000);
+    }
     unlock(http);
 }
 
