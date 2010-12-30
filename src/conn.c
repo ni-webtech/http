@@ -42,9 +42,12 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
 
     httpInitTrace(conn->trace);
     httpInitSchedulerQueue(&conn->serviceq);
+    conn->dispatcher = mprGetDispatcher();
     if (server) {
         conn->dispatcher = server->dispatcher;
         conn->notifier = server->notifier;
+    } else {
+        httpCreateTxHeaders(conn);
     }
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpAddConn(http, conn);
@@ -96,6 +99,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->documentRoot);
         mprMark(conn->rx);
         mprMark(conn->tx);
+        mprMark(conn->txheaders);
 
         httpManageQueue(&conn->serviceq, flags);
         if (conn->readq) {

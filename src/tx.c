@@ -10,7 +10,6 @@
 /***************************** Forward Declarations ***************************/
 
 static void manageTx(HttpTx *tx, int flags);
-static void setDefaultHeaders(HttpConn *conn);
 
 /*********************************** Code *************************************/
 
@@ -34,15 +33,6 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
     tx->entityLength = -1;
     tx->traceMethods = HTTP_STAGE_ALL;
     tx->chunkSize = -1;
-
-    if (headers) {
-        //  MOB - remove headers arg if not used anywhere
-        mprAssert(!headers);
-        tx->headers = headers;
-    } else {
-        tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
-        setDefaultHeaders(conn);
-    }
     httpInitQueue(conn, &tx->queue[HTTP_QUEUE_TRANS], "TxHead");
     httpInitQueue(conn, &tx->queue[HTTP_QUEUE_RECEIVE], "RxHead");
     return tx;
@@ -74,7 +64,6 @@ static void manageTx(HttpTx *tx, int flags)
         mprMark(tx->file);
         mprMark(tx->filename);
         mprMark(tx->extension);
-        mprMark(tx->headers);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyTx(tx);
@@ -93,21 +82,15 @@ static void addHeader(HttpConn *conn, cchar *key, cchar *value)
     if (scasecmp(key, "content-length") == 0) {
         conn->tx->length = (ssize) stoi(value, 10, NULL);
     }
-    mprAddHash(conn->tx->headers, key, value);
+    mprAddHash(conn->txheaders, key, value);
 }
 
 
 int httpRemoveHeader(HttpConn *conn, cchar *key)
 {
-    HttpTx      *tx;
-
     mprAssert(key && *key);
 
-    tx = conn->tx;
-    if (tx) {
-        return mprRemoveHash(tx->headers, key);
-    }
-    return MPR_ERR_CANT_FIND;
+    return mprRemoveHash(conn->txheaders, key);
 }
 
 
@@ -116,19 +99,17 @@ int httpRemoveHeader(HttpConn *conn, cchar *key)
  */
 void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 {
-    HttpTx      *tx;
     char        *value;
     va_list     vargs;
 
     mprAssert(key && *key);
     mprAssert(fmt && *fmt);
 
-    tx = conn->tx;
     va_start(vargs, fmt);
     value = mprAsprintfv(fmt, vargs);
     va_end(vargs);
 
-    if (!mprLookupHash(tx->headers, key)) {
+    if (!mprLookupHash(conn->txheaders, key)) {
         addHeader(conn, key, value);
     }
 }
@@ -139,13 +120,11 @@ void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
  */
 void httpAddSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
 {
-    HttpTx      *tx;
 
     mprAssert(key && *key);
     mprAssert(value);
 
-    tx = conn->tx;
-    if (!mprLookupHash(tx->headers, key)) {
+    if (!mprLookupHash(conn->txheaders, key)) {
         addHeader(conn, key, value);
     }
 }
@@ -157,7 +136,6 @@ void httpAddSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
  */
 void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 {
-    HttpTx      *tx;
     va_list     vargs;
     char        *value;
     cchar       *oldValue;
@@ -165,12 +143,11 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     mprAssert(key && *key);
     mprAssert(fmt && *fmt);
 
-    tx = conn->tx;
     va_start(vargs, fmt);
     value = mprAsprintfv(fmt, vargs);
     va_end(vargs);
 
-    oldValue = mprLookupHash(tx->headers, key);
+    oldValue = mprLookupHash(conn->txheaders, key);
     if (oldValue) {
         addHeader(conn, key, mprAsprintf("%s, %s", oldValue, value));
     } else {
@@ -184,14 +161,12 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
  */
 void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 {
-    HttpTx      *tx;
     char        *value;
     va_list     vargs;
 
     mprAssert(key && *key);
     mprAssert(fmt && *fmt);
 
-    tx = conn->tx;
     va_start(vargs, fmt);
     value = mprAsprintfv(fmt, vargs);
     va_end(vargs);
@@ -201,23 +176,10 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 
 void httpSetSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
 {
-    HttpTx      *tx;
-
     mprAssert(key && *key);
     mprAssert(value);
 
-    tx = conn->tx;
     addHeader(conn, key, sclone(value));
-}
-
-
-void httpClearHeaders(HttpConn *conn) 
-{
-    HttpTx      *tx;
-
-    tx = conn->tx;
-    tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
-    setDefaultHeaders(conn);
 }
 
 
@@ -471,12 +433,14 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
 }
 
 
-static void setDefaultHeaders(HttpConn *conn)
+void httpCreateTxHeaders(HttpConn *conn)
 {
-    if (conn->server) {
-        httpAddSimpleHeader(conn, "Server", conn->server->software);
-    } else {
-        httpAddSimpleHeader(conn, "User-Agent", HTTP_NAME);
+    if ((conn->txheaders = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS)) != 0) {
+        if (conn->server) {
+            httpAddSimpleHeader(conn, "Server", conn->server->software);
+        } else {
+            httpAddSimpleHeader(conn, "User-Agent", sclone(HTTP_NAME));
+        }
     }
 }
 
@@ -528,7 +492,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         httpAddSimpleHeader(conn, "Cache-Control", "no-cache");
 
     } else if (rx->loc && rx->loc->expires) {
-        mimeType = mprLookupHash(tx->headers, "Content-Type");
+        mimeType = mprLookupHash(conn->txheaders, "Content-Type");
         expires = PTOL(mprLookupHash(rx->loc->expires, mimeType ? mimeType : ""));
         if (expires == 0) {
             expires = PTOL(mprLookupHash(rx->loc->expires, ""));
@@ -672,7 +636,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     /* 
        Output headers
      */
-    hp = mprGetFirstHash(tx->headers);
+    hp = mprGetFirstHash(conn->txheaders);
     while (hp) {
         mprPutStringToBuf(packet->content, hp->key);
         mprPutStringToBuf(packet->content, ": ");
@@ -680,7 +644,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
             mprPutStringToBuf(packet->content, hp->data);
         }
         mprPutStringToBuf(packet->content, "\r\n");
-        hp = mprGetNextHash(tx->headers, hp);
+        hp = mprGetNextHash(conn->txheaders, hp);
     }
 
     /* 

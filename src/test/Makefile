@@ -18,6 +18,8 @@ $(BLD_BIN_DIR)/testHttp$(BLD_EXE): $(OBJECTS) $(BLD_LIB_DIR)/libmpr$(BLD_LIB)
 cleanExtra:
 	rm -f trace*.txt *.txt.old
 
+testExtra:
+	testHttp -v
 
 #
 #   Local variables:

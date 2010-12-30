@@ -54,11 +54,12 @@ static void testBasicHttpGet(MprTestGroup *gp)
     assert(http != 0);
 
     conn = httpCreateConn(http, NULL);
-    rc = httpConnect(conn, "GET", "http://www.embedthis.com/index.html");
+    rc = httpConnect(conn, "GET", "http://embedthis.com/index.html");
     assert(rc >= 0);
     if (rc >= 0) {
+        httpFinalize(conn);
+        httpWait(conn, conn->dispatcher, HTTP_STATE_COMPLETE, MPR_TIMEOUT_SOCKETS);
         status = httpGetStatus(conn);
-        assert(rc == status);
         assert(status == 200 || status == 302);
         if (status != 200 && status != 302) {
             mprLog(0, "HTTP response status %d", status);
@@ -85,10 +86,11 @@ static void testSecureHttpGet(MprTestGroup *gp)
     rc = httpConnect(conn, "GET", "https://www.amazon.com/index.html");
     assert(rc >= 0);
     if (rc >= 0) {
+        httpFinalize(conn);
+        httpWait(conn, conn->dispatcher, HTTP_STATE_COMPLETE, MPR_TIMEOUT_SOCKETS);
         status = httpGetStatus(conn);
-        assert(rc == status);
-        assert(status == 200 || status == 302);
-        if (status != 200 && status != 302) {
+        assert(status == 200 || status == 301 || status == 302);
+        if (status != 200 && status != 301 && status != 302) {
             mprLog(0, "HTTP response status %d", status);
         }
     }

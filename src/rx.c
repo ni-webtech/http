@@ -90,7 +90,6 @@ static void manageRx(HttpRx *rx, int flags)
 #endif
 
     } else if (flags & MPR_MANAGE_FREE) {
-        mprLog(0, "DEBUG free RX %p", rx);
         if (rx->conn) {
             rx->conn->rx = 0;
         }
@@ -161,18 +160,15 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     ssize       len;
     char        *start, *end;
 
-int created = 0;
     if (packet == NULL) {
         return 0;
     }
     if (conn->server && !httpValidateLimits(conn->server, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
         return 0;
     }
-    //  MOB
     if (conn->rx == NULL) {
         conn->rx = httpCreateRx(conn);
         conn->tx = httpCreateTx(conn, NULL);
-        created = 1;
     }
     rx = conn->rx;
     tx = conn->tx;
@@ -600,13 +596,13 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 
         case 'l':
             if (strcmp(key, "location") == 0) {
-                rx->redirect = value;
+                rx->redirect = sclone(value);
             }
             break;
 
         case 'p':
             if (strcmp(key, "pragma") == 0) {
-                rx->pragma = value;
+                rx->pragma = sclone(value);
             }
             break;
 

@@ -15,14 +15,6 @@ HttpConn *httpCreateClient(Http *http, MprDispatcher *dispatcher)
 
     conn = httpCreateConn(http, NULL);
     conn->dispatcher = dispatcher;
-#if UNUSED
-    /*
-        Pre-create Tx to store request headers
-     */
-    conn->tx = httpCreateTx(conn, NULL);
-    conn->rx = httpCreateRx(conn);
-    httpCreatePipeline(conn, NULL, NULL);
-#endif
     return conn;
 }
 
@@ -127,7 +119,6 @@ static int setClientHeaders(HttpConn *conn)
         char    *ha1, *ha2, *digest, *qop;
         if (http->secret == 0 && httpCreateSecret(http) < 0) {
             mprLog(MPR_ERROR, "Http: Can't create secret for digest authentication");
-            conn->tx = 0;
             return MPR_ERR_CANT_CREATE;
         }
         conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime()); 
@@ -170,7 +161,7 @@ static int setClientHeaders(HttpConn *conn)
         }
         conn->sentCredentials = 1;
     }
-    httpAddSimpleHeader(conn, "Host", conn->ip);
+    httpSetSimpleHeader(conn, "Host", conn->ip);
 
     if (strcmp(conn->protocol, "HTTP/1.1") == 0) {
         /* If zero, we ask the client to close one request early. This helps with client led closes */
@@ -192,7 +183,6 @@ static int setClientHeaders(HttpConn *conn)
 int httpConnect(HttpConn *conn, cchar *method, cchar *url)
 {
     Http        *http;
-    HttpTx      *tx;
 
     mprAssert(conn);
     mprAssert(method && *method);
@@ -204,23 +194,16 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     }
     mprLog(4, "Http: client request: %s %s", method, url);
 
-#if UNUSED
-    if (conn->sock) {
-        /* 
-            Callers requiring retry must call httpPrepClientConn(conn, HTTP_RETRY_REQUEST) themselves
-         */
+    http = conn->http;
+    if (conn->tx == 0) {
         httpPrepClientConn(conn);
     }
-#endif
-    http = conn->http;
-    tx = conn->tx;
-    mprAssert(tx);
     mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_CONNECTED);
     conn->sentCredentials = 0;
 
-    method = tx->method = supper(method);
-    tx->parsedUri = httpCreateUri(url, 0);
+    method = conn->tx->method = supper(method);
+    conn->tx->parsedUri = httpCreateUri(url, 0);
 
     if (openConnection(conn, url) == 0) {
         return MPR_ERR_CANT_OPEN;
