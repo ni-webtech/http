@@ -1130,6 +1130,15 @@ extern "C" {
     #define MPR_EVENT_POLL      1
 #endif
 
+#if UNUSED
+#undef MPR_EVENT_EPOLL
+#undef MPR_EVENT_POLL
+#undef MPR_EVENT_SELECT
+#undef MPR_EVENT_ASYNC
+#undef MPR_EVENT_KQUEUE
+#define MPR_EVENT_SELECT 1
+#endif
+
 /*
     Garbage collector tuning
  */
@@ -1399,10 +1408,6 @@ struct  MprXml;
 #define MPR_BIG_ENDIAN      2
 #define MPR_ENDIAN          BLD_ENDIAN
 
-#if UNUSED
-typedef void *MprAny;
-#endif
-
 /**
     Trigger a breakpoint.
     @description Triggers a breakpoint and traps to the debugger. 
@@ -1475,8 +1480,6 @@ extern void mprSignalCond(MprCond *cond);
 
 //  MOB DOC
 extern void mprSignalMultiCond(MprCond *cp);
-
-//  MOB DOC
 extern int mprWaitForMultiCond(MprCond *cp, int timeout);
 
 /**
@@ -1880,13 +1883,6 @@ typedef struct MprMem {
 #define MPR_MEM_LOW                 0x4         /**< Memory is low, no errors yet */
 #define MPR_MEM_DEPLETED            0x8         /**< Memory depleted. Cannot satisfy current request */
 
-#if UNUSED
-/*
-    Return values for MprMemNotifier callback
- */
-#define MPR_DELAY_GC                0x1         /**< Delay GC */
-#endif
-
 /**
     Memory allocation error callback. Notifiers are called if mprSetNotifier has been called on a context and a 
     memory allocation fails. All notifiers up the parent context chain are called in order.
@@ -2004,6 +2000,7 @@ typedef struct MprHeap {
     int              from;                   /**< Eligible mprCollectGarbage flags */
     int              hasError;               /**< Memory allocation error */
     int              hasSweeper;             /**< Has dedicated sweeper thread */
+    int              iteration;              /**< GC iteration counter (debug only) */
     int              mustYield;              /**< Threads must yield for GC which is due */
     int              newCount;               /**< Count of new gen allocations */
     int              newQuota;               /**< Quota of new allocations before idle GC worthwhile */
@@ -2021,7 +2018,7 @@ typedef struct MprHeap {
  */
 extern struct Mpr *mprCreateMemService(MprManager manager, int flags);
 extern void mprStartGCService();
-extern void mprStopGCService();
+extern void mprWakeGCService();
 
 /**
     Destroy the memory service. Called as the last thing before exiting
@@ -2321,17 +2318,8 @@ extern void mprCheckBlock(MprMem *bp);
  */
 extern void mprAddRoot(void *ptr);
 
-#if UNUSED
-/*
-    Flags for mprGC()
-    MOB -- fix
- */
-#define MPR_GC_FROM_EVENTS  0x1     /**<  */
-#define MPR_GC_FROM_SEARCH  0x2     /**<  */
-#define MPR_GC_FROM_USER    0x4     /**<  */
-#define MPR_GC_FROM_WORKER  0x8     /**<  */
-#define MPR_GC_FORCE        0x10    /**<  */
-#define MPR_GC_FROM_ALL     0xf     /**<  */
+#define MPR_FORCE_GC        0x1     /* Force a GC whether it is required or not */
+#define MPR_COMPLETE_GC     0x2     /* Do a complete collection (3 sweeps */
 
 /**
     Collect garbage
@@ -2344,9 +2332,7 @@ extern void mprAddRoot(void *ptr);
     also blocks on mprServiceEvents. Similarly, use MPR_GC_FROM_OWN if managing garbage collections manually.
   */
 extern void mprGC(int flags);
-#endif
-
-extern void mprRequestGC(int force, int complete);
+extern void mprRequestGC(int flags);
 
 /**
     Enable or disable the garbage collector
@@ -3875,16 +3861,6 @@ extern cvoid *mprPopItem(MprList *list);
   */
 extern int mprPushItem(MprList *list, cvoid *item);
 
-#if UNUSED
-/**
-    Mark all items of the list 
-    @description This is a Garbage collection helper. It marks the list items as being in-use. This is required if
-        the list contains the only reference to other allocated objects.
-    @param list List pointer returned from mprCreateList.
-*/
-extern void mprMarkList(MprList *list);
-#endif
-
 /**
     Logging Services
     @stability Evolving
@@ -4169,16 +4145,6 @@ extern MprHash *mprLookupHashEntry(MprHashTable *table, cvoid *key);
     @ingroup MprHash
  */
 extern int mprRemoveHash(MprHashTable *table, cvoid *key);
-
-#if UNUSED
-/*
-    Mark all items of the hash 
-    @description This is a Garbage collection helper. It marks the hash items as being in-use. This is required if
-        the hash contains the only reference to other allocated objects.
-    @param table Hash pointer returned from mprCreateHash.
-*/
-extern void mprMarkHash(MprHashTable *table);
-#endif
 
 /*
     Prototypes for file system switch methods
@@ -5252,9 +5218,6 @@ extern void mprEnableDispatcher(MprDispatcher *dispatcher);
  */
 #define MPR_SERVICE_ONE_THING   0x4         /**< Wait for one event or one I/O */
 #define MPR_SERVICE_NO_GC       0x8         /**< Don't run GC */
-#if UNUSED
-#define MPR_SERVICE_PRIMARY     0x10        /**< Service only this dispatcher */
-#endif
 
 /*
     Schedule events. This can be called by any thread. Typically an app will dedicate one thread to be an event service 
@@ -5612,14 +5575,11 @@ extern int mprSetThreadData(MprThreadLocal *tls, void *value);
 extern void *mprGetThreadData(MprThreadLocal *tls);
 extern MprThreadLocal *mprCreateThreadLocal();
 
-//  MOB DOC
-extern void mprYield(MprThread *tp, int block);
-extern void mprStickyYield(MprThread *tp, int enable);
-extern void mprGC(int force);
+#define MPR_YIELD_BLOCK     0x1
+#define MPR_YIELD_STICKY    0x2
 
-#if UNUSED
-extern void mprResumeThread(MprThread *tp);
-#endif
+extern void mprYield(int flags);
+extern void mprResetYield();
 
 /*
     Wait service.
@@ -5660,7 +5620,8 @@ typedef struct MprWaitService {
 #elif MPR_EVENT_POLL
     struct MprWaitHandler **handlerMap;     /* Map of fds to handlers (indexed by fd) */
     int             handlerMax;             /* Size of the handlers array */
-    struct pollfd   *fds;                   /* File descriptors to select on (linear index) */
+    struct pollfd   *fds;                   /* Master set of file descriptors to poll */
+    struct pollfd   *pollFds;               /* Set of descriptors used in poll() */
     int             fdsCount;               /* Last used entry in the fds array */
     int             fdMax;                  /* Size of the fds array */
     int             breakPipe[2];           /* Pipe to wakeup select */
@@ -5778,7 +5739,6 @@ typedef struct MprWaitHandler {
  */
 extern MprWaitHandler *mprCreateWaitHandler(int fd, int mask, MprDispatcher *dispatcher, MprEventProc proc, 
     void *data);
-extern void mprDestroyWaitHandler(MprWaitHandler *hp);
 
 /**
     Initialize a static wait handler
@@ -5960,7 +5920,7 @@ extern int mprSetMaxSocketClients(int max);
     The socket service integrates with the MPR worker thread pool and eventing services. Socket connections can be handled
     by threads from the worker thread pool for scalable, multithreaded applications.
     @stability Evolving
-    @see MprSocket, mprCreateSocket, mprOpenClientSocket, mprOpenServerSocket, mprCloseSocket, mprFree, mprFlushSocket,
+    @see MprSocket, mprCreateSocket, mprConnectSocket, mprListenSocket, mprCloseSocket, mprFree, mprFlushSocket,
         mprWriteSocket, mprWriteSocketString, mprReadSocket, mprSetSocketCallback, mprSetSocketEventMask, 
         mprGetSocketBlockingMode, mprIsSocketEof, mprGetSocketFd, mprGetSocketPort, mprGetSocketBlockingMode, 
         mprSetSocketNoDelay, mprGetSocketError, mprParseIp, mprSendFileToSocket, mprSetSocketEof, mprIsSocketSecure
@@ -6012,7 +5972,7 @@ typedef struct MprIOVec {
 extern MprSocket *mprCreateSocket(struct MprSsl *ssl);
 
 /**
-    Open a client socket
+    Connect a client socket
     @description Open a client connection
     @param sp Socket object returned via #mprCreateSocket
     @param hostName Host or IP address to connect to.
@@ -6027,7 +5987,7 @@ extern MprSocket *mprCreateSocket(struct MprSsl *ssl);
     @return Zero if the connection is successful. Otherwise a negative MPR error code.
     @ingroup MprSocket
  */
-extern int mprOpenClientSocket(MprSocket *sp, cchar *hostName, int port, int flags);
+extern int mprConnectSocket(MprSocket *sp, cchar *hostName, int port, int flags);
 
 /**
     Disconnect a socket by closing its underlying file descriptor. This is used to prevent further I/O wait events while
@@ -6037,7 +5997,7 @@ extern int mprOpenClientSocket(MprSocket *sp, cchar *hostName, int port, int fla
 extern void mprDisconnectSocket(MprSocket *sp);
 
 /**
-    Open a server socket
+    Listen on a server socket for incoming connections
     @description Open a server socket and listen for client connections.
     @param sp Socket object returned via #mprCreateSocket
     @param ip IP address to bind to. Set to 0.0.0.0 to bind to all possible addresses on a given port.
@@ -6052,7 +6012,7 @@ extern void mprDisconnectSocket(MprSocket *sp);
     @return Zero if the connection is successful. Otherwise a negative MPR error code.
     @ingroup MprSocket
  */
-extern int mprOpenServerSocket(MprSocket *sp, cchar *ip, int port, int flags);
+extern int mprListenOnSocket(MprSocket *sp, cchar *ip, int port, int flags);
 
 
 /**
@@ -6164,13 +6124,6 @@ extern int mprGetSocketFd(MprSocket *sp);
 extern int mprGetSocketPort(MprSocket *sp);
 
 /**
-    Listen on a socket for incoming connections
-    @param sp Socket to listen on
-    @return Zero if successful.
- */
-extern int mprListenOnSocket(MprSocket *sp);
-
-/**
     Set the socket blocking mode.
     @description Set the blocking mode for a socket. By default a socket is in non-blocking mode where read / write
         calls will not block.
@@ -6254,13 +6207,7 @@ extern ssize mprWriteSocketVector(MprSocket *sp, MprIOVec *iovec, int count);
     Enable socket events for a socket callback
     @param sp Socket object returned from #mprCreateSocket
  */
-extern void mprEnableSocketEvents(MprSocket *sp);
-
-/**
-    Disable socket events for a socket callback
-    @param sp Socket object returned from #mprCreateSocket
- */
-extern void mprDisableSocketEvents(MprSocket *sp);
+extern void mprEnableSocketEvents(MprSocket *sp, int mask);
 
 /**
     Parse an IP address. This parses a string containing an IP:PORT specification and returns the IP address and port 
@@ -6274,6 +6221,10 @@ extern void mprDisableSocketEvents(MprSocket *sp);
     @param defaultPort The default port number to use if the ipSpec does not contain a port
  */
 extern int mprParseIp(cchar *ipSpec, char **ip, int *port, int defaultPort);
+
+//MOB DOC
+extern MprWaitHandler *mprAddSocketHandler(MprSocket *sp, int mask, MprDispatcher *dispatcher, MprEventProc proc, void *data);
+extern void mprRemoveSocketHandler(MprSocket *sp);
 
 /*
     Here so users who want SSL don't have to include mprSsl.h and thus pull in ssl headers.
@@ -6925,11 +6876,10 @@ typedef struct Mpr {
     char            *appPath;               /**< Path name of application executable */
     char            *appDir;                /**< Path of directory containing app executable */
     int             flags;                  /**< Processing state */
-#if UNUSED
-    int             hasDedicatedService;    /**< Running a dedicated events thread */
-#endif
     int             hasError;               /**< Mpr has an initialization error */
     int             logFd;                  /**< Logging file descriptor */
+    int             marking;                /**< Marker thread is active */
+    int             sweeping;               /**< Sweeper thread is active */
 
     /*
         Service pointers
@@ -7002,7 +6952,7 @@ extern Mpr *mprGetMpr();
     @ingroup Mpr
  */
 extern Mpr *mprCreate(int argc, char **argv, int flags);
-extern void mprDestroy(Mpr *mpr);
+extern bool mprDestroy(int flags);
 
 /**
     Start the Mpr services
@@ -7016,14 +6966,6 @@ extern int mprStart();
     @return True if all services have been successfully stopped. Otherwise false.
  */
 extern bool mprStop();
-
-/**
-    Signal the MPR to exit gracefully.
-    @description Set the must exit flag for the MPR.
-    @stability Evolving.
-    @ingroup Mpr
- */
-extern void mprSignalExit();
 
 /**
     Determine if the MPR should exit
@@ -7401,9 +7343,11 @@ typedef struct MprTestGroup {
     bool            success;                /* Result of last run */
     int             failedCount;            /* Total failures of this test */
     int             testCount;              /* Count of tests */
+    int             testComplete;           /* Test complete signal */
     MprList         *failures;              /* List of all failures */
 
     MprTestService  *service;               /* Reference to the service */
+    MprDispatcher   *dispatcher;            /* Per group thread dispatcher */
     struct MprTestGroup *parent;            /* Parent test group */
     struct MprTestGroup *root;              /* Top level test group parent */
 
@@ -7411,8 +7355,10 @@ typedef struct MprTestGroup {
     MprList         *cases;                 /* List of tests in this group */
     MprTestDef      *def;                   /* Test definition ref */
 
+#if UNUSED
     MprCond         *cond;                  /* Multi-thread sync */
     MprCond         *cond2;                 /* Second multi-thread sync */
+#endif
 
     struct Http     *http;                  /* Http service */
     struct HttpConn *conn;                  /* Http connection for this group */

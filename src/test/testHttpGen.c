@@ -22,7 +22,7 @@ static int initHttp(MprTestGroup *gp)
     /*
         Test if we have network connectivity. If not, then skip these tests.
      */
-    if (mprOpenClientSocket(sp, "www.google.com", 80, 0) < 0) {
+    if (mprConnectSocket(sp, "www.google.com", 80, 0) < 0) {
         static int once = 0;
         if (once++ == 0) {
             mprPrintf("%12s Disabling tests %s.*: no internet connection. %d\n", "[Notice]", gp->fullName, once);

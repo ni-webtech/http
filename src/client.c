@@ -70,7 +70,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
         return 0;
     }
-    rc = mprOpenClientSocket(sp, ip, port, 0);
+    rc = mprConnectSocket(sp, ip, port, 0);
     if (rc < 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't open socket on %s:%d", ip, port);
         return 0;
