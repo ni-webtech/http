@@ -416,7 +416,7 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
         chunk boundary data.
      */
     if ((packet = conn->input) == NULL) {
-        conn->input = packet = httpCreateConnPacket(conn, len);
+        conn->input = packet = httpCreatePacket(len);
     } else {
         content = packet->content;
         mprResetBufIfEmpty(content);

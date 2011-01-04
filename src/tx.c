@@ -15,10 +15,7 @@ static void manageTx(HttpTx *tx, int flags);
 
 HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
 {
-    Http        *http;
     HttpTx      *tx;
-
-    http = conn->http;
 
     //  MOB - remove headers arg if not used anywhere
     mprAssert(headers == NULL);
@@ -366,13 +363,11 @@ void httpSetContentLength(HttpConn *conn, ssize length)
 void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar *cookieDomain, int lifetime, bool isSecure)
 {
     HttpRx      *rx;
-    HttpTx      *tx;
     struct tm   tm;
     char        *cp, *expiresAtt, *expires, *domainAtt, *domain, *secure;
     int         webkitVersion;
 
     rx = conn->rx;
-    tx = conn->tx;
 
     if (path == 0) {
         path = "/";
@@ -450,11 +445,9 @@ void httpCreateTxHeaders(HttpConn *conn)
  */
 static void setHeaders(HttpConn *conn, HttpPacket *packet)
 {
-    Http        *http;
     HttpRx      *rx;
     HttpTx      *tx;
     HttpRange   *range;
-    MprBuf      *buf;
     MprTime     expires;
     cchar       *mimeType;
     char        *hdr;
@@ -463,10 +456,8 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 
     mprAssert(packet->flags == HTTP_PACKET_HEADER);
 
-    http = conn->http;
     rx = conn->rx;
     tx = conn->tx;
-    buf = packet->content;
 
     if (rx->flags & HTTP_TRACE) {
         if (!conn->limits->enableTraceMethod) {
@@ -577,7 +568,6 @@ void httpSetMimeType(HttpConn *conn, cchar *mimeType)
 void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
 {
     Http        *http;
-    HttpRx      *rx;
     HttpTx      *tx;
     HttpUri     *parsedUri;
     MprHash     *hp;
@@ -588,7 +578,6 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
 
     http = conn->http;
     tx = conn->tx;
-    rx = conn->rx;
     buf = packet->content;
 
     if (tx->flags & HTTP_TX_HEADERS_CREATED) {

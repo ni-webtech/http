@@ -1,0 +1,35 @@
+# 
+#	Makefile.http -- Top level Makefile extensions 
+#
+#	Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
+#
+
+#
+#	Convenient configure targets
+#
+debug config:
+	./configure
+
+release:
+	./configure --defaults=release
+
+cross64:
+	./configure --host=x86_64-apple-darwin --without-ssl
+
+config64:
+	./configure --host=x86_64-apple-darwin --build=x86_64-apple-darwin
+
+config32:
+	./configure --host=i386-apple-darwin --build=i386-apple-darwin --without-ssl
+
+wince:
+	./configure --host=arm-ms-wince --shared --without-ssl
+
+vx vx5:
+	unset WIND_HOME WIND_BASE ; \
+	SEARCH_PATH=/tornado ./configure --host=i386-wrs-vxworks --enable-all --without-ssl
+
+vx6:
+	unset WIND_HOME WIND_BASE ; \
+	./configure --host=pentium-wrs-vxworks --enable-all --without-ssl
+

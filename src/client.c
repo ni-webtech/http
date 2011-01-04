@@ -99,11 +99,9 @@ static int setClientHeaders(HttpConn *conn)
     HttpUri     *parsedUri;
     char        *encoded;
     ssize       len;
-    int         rc;
 
     mprAssert(conn);
 
-    rc = 0;
     http = conn->http;
     tx = conn->tx;
     parsedUri = tx->parsedUri;
@@ -182,8 +180,6 @@ static int setClientHeaders(HttpConn *conn)
 
 int httpConnect(HttpConn *conn, cchar *method, cchar *url)
 {
-    Http        *http;
-
     mprAssert(conn);
     mprAssert(method && *method);
     mprAssert(url && *url);
@@ -194,7 +190,6 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     }
     mprLog(4, "Http: client request: %s %s", method, url);
 
-    http = conn->http;
     if (conn->tx == 0) {
         httpPrepClientConn(conn);
     }
@@ -202,7 +197,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     httpSetState(conn, HTTP_STATE_CONNECTED);
     conn->sentCredentials = 0;
 
-    method = conn->tx->method = supper(method);
+    conn->tx->method = supper(method);
     conn->tx->parsedUri = httpCreateUri(url, 0);
 
     if (openConnection(conn, url) == 0) {
@@ -309,7 +304,7 @@ ssize httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
                 conn->boundary, next - 1, name);
             rc += httpWrite(conn->writeq, "Content-Type: %s\r\n\r\n", mprLookupMimeType(path));
             rc += blockingFileCopy(conn, path);
-            rc += httpWrite(conn->writeq, "\r\n", value);
+            rc += httpWrite(conn->writeq, "\r\n");
         }
     }
     rc += httpWrite(conn->writeq, "%s--\r\n--", conn->boundary);

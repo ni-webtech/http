@@ -99,13 +99,11 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
 static void openUpload(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpTx      *tx;
     HttpRx      *rx;
     Upload      *up;
     char        *boundary;
 
     conn = q->conn;
-    tx = conn->tx;
     rx = conn->rx;
 
     if ((up = mprAllocObj(Upload, manageUpload)) == 0) {
@@ -222,7 +220,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
             stok(line, "\n", &nextTok);
             if (nextTok == 0) {
                 /* Incomplete line */
-                done++;
+                /* done++; */
                 break; 
             }
             mprAdjustBufStart(content, (int) (nextTok - line));
@@ -496,7 +494,6 @@ static int processContentData(HttpQueue *q)
 {
     HttpConn        *conn;
     HttpUploadFile  *file;
-    HttpLimits      *limits;
     HttpPacket      *packet;
     MprBuf          *content;
     Upload          *up;
@@ -506,7 +503,6 @@ static int processContentData(HttpQueue *q)
     conn = q->conn;
     up = q->queueData;
     content = q->first->content;
-    limits = conn->limits;
     file = up->currentFile;
     packet = 0;
 

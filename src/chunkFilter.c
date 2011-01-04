@@ -219,10 +219,6 @@ static void outgoingChunkService(HttpQueue *q)
 
 static void setChunkPrefix(HttpQueue *q, HttpPacket *packet)
 {
-    HttpConn      *conn;
-
-    conn = q->conn;
-
     if (packet->prefix) {
         return;
     }

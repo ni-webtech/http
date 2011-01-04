@@ -106,7 +106,6 @@ void httpSendOutgoingService(HttpQueue *q)
         /*
             Rebuild the iovector only when the past vector has been completely written. Simplifies the logic quite a bit.
          */
-        written = 0;
         if (q->ioIndex == 0 && buildSendVec(q) <= 0) {
             break;
         }
@@ -158,13 +157,11 @@ void httpSendOutgoingService(HttpQueue *q)
 static int buildSendVec(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpTx      *tx;
     HttpPacket  *packet;
 
-    conn = q->conn;
-    tx = conn->tx;
-
     mprAssert(q->ioIndex == 0);
+
+    conn = q->conn;
     q->ioCount = 0;
     q->ioFileEntry = 0;
 
@@ -215,12 +212,10 @@ static void addPacketForSend(HttpQueue *q, HttpPacket *packet)
 {
     HttpTx      *tx;
     HttpConn    *conn;
-    MprIOVec    *iovec;
     int         item;
 
     conn = q->conn;
     tx = conn->tx;
-    iovec = q->iovec;
     
     mprAssert(q->count >= 0);
     mprAssert(q->ioIndex < (HTTP_MAX_IOVEC - 2));

@@ -49,31 +49,6 @@ static void managePacket(HttpPacket *packet, int flags)
 }
 
 
-/*
-    Create a packet for the connection to read into. This may come from the connection packet free list.
- */
-HttpPacket *httpCreateConnPacket(HttpConn *conn, ssize size)
-{
-    if (conn->state >= HTTP_STATE_COMPLETE) {
-        return httpCreatePacket(size);
-    }
-#if UNUSED
-    HttpPacket  *packet;
-    HttpRx      *rx;
-    rx = conn->rx;
-    if (rx) {
-        if ((packet = rx->freePackets) != NULL && size <= packet->content->buflen) {
-            mprLog(5, "DEBUG: httpCreateConnPacket got free packet from rx->freePackets");
-            rx->freePackets = packet->next; 
-            packet->next = 0;
-            return packet;
-        }
-    }
-#endif
-    return httpCreatePacket(size);
-}
-
-
 #if FUTURE
 void httpFreePacket(HttpQueue *q, HttpPacket *packet)
 {
@@ -150,11 +125,9 @@ HttpPacket *httpCreateHeaderPacket()
  */
 HttpPacket *httpGetPacket(HttpQueue *q)
 {
-    HttpConn      *conn;
     HttpQueue     *prev;
     HttpPacket    *packet;
 
-    conn = q->conn;
     while (q->first) {
         if ((packet = q->first) != 0) {
             q->first = packet->next;
@@ -199,8 +172,6 @@ bool httpIsPacketTooBig(HttpQueue *q, HttpPacket *packet)
  */
 void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 {
-    HttpPacket    *old;
-
     if (q->first == 0) {
         /*  
             Just use the service queue as a holding queue while we aggregate the post data.
@@ -209,21 +180,13 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
     } else {
         q->count += httpGetPacketLength(packet);
         if (q->first && httpGetPacketLength(q->first) == 0) {
-            old = q->first;
             packet = q->first->next;
             q->first = packet;
-#if UNUSED
-            httpFreePacket(q, old);
-#endif
-
         } else {
             /*
                 Aggregate all data into one packet and free the packet.
              */
             httpJoinPacket(q->first, packet);
-#if UNUSED
-            httpFreePacket(q, packet);
-#endif
         }
     }
     if (serviceQ && !(q->flags & HTTP_QUEUE_DISABLED))  {
@@ -258,9 +221,6 @@ void httpJoinPackets(HttpQueue *q, ssize size)
             if (next->content && (httpGetPacketLength(first) + httpGetPacketLength(next)) < maxPacketSize) {
                 httpJoinPacket(first, next);
                 first->next = next->next;
-#if UNUSED
-                httpFreePacket(q, next);
-#endif
             } else {
                 break;
             }
@@ -352,11 +312,6 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, ssize size)
 HttpPacket *httpClonePacket(HttpPacket *orig)
 {
     HttpPacket  *packet;
-    ssize       count, size;
-
-    count = httpGetPacketLength(orig);
-    size = max(count, HTTP_BUFSIZE);
-    size = HTTP_PACKET_ALIGN(size);
 
     if ((packet = httpCreatePacket(0)) == 0) {
         return 0;

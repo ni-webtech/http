@@ -402,11 +402,9 @@ void httpServiceQueue(HttpQueue *q)
  */
 bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
 {
-    HttpConn    *conn;
     HttpQueue   *next;
     ssize       size;
 
-    conn = q->conn;
     next = q->nextQ;
 
     size = packet->content ? mprGetBufLength(packet->content) : 0;

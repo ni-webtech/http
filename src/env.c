@@ -98,13 +98,11 @@ void httpCreateEnvVars(HttpConn *conn)
  */
 void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
 {
-    HttpTx          *tx;
     HttpRx          *rx;
     MprHashTable    *vars;
     cchar           *oldValue;
     char            *newValue, *decoded, *keyword, *value, *tok;
 
-    tx = conn->tx;
     rx = conn->rx;
     vars = rx->formVars;
     if (vars == 0) {

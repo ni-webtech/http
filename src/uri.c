@@ -104,7 +104,7 @@ HttpUri *httpCreateUri(cchar *uri, int complete)
     if ((cp = strchr(tok, '?')) != NULL) {
         *cp++ = '\0';
         up->query = cp;
-        tok = up->query;
+        /* tok = up->query; */
     }
 
     if (up->path && (cp = strrchr(up->path, '.')) != NULL) {
@@ -175,7 +175,7 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
             port = (int) stoi(++cp, 10, NULL);
         }
     } else if (complete) {
-        host = "localhost";
+        up->host = sclone("localhost");
     }
     if (port) {
         up->port = port;
@@ -382,7 +382,7 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
 HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int dup)
 {
     HttpUri     *uri;
-    char        *targetPath, *basePath, *bp, *cp, *tp, *startDiff;
+    char        *basePath, *bp, *cp, *tp, *startDiff;
     int         i, baseSegments, commonSegments;
 
     if (target == 0) {
@@ -402,8 +402,10 @@ HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int dup)
         return (dup) ? httpCloneUri(target, 0) : target;
     }
 
+#if UNUSED
     //  OPT -- Could avoid free if already normalized
     targetPath = httpNormalizeUriPath(target->path);
+#endif
     basePath = httpNormalizeUriPath(base->path);
 
     /* Count trailing "/" */

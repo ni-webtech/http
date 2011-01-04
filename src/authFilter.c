@@ -182,11 +182,11 @@ static void decodeBasicAuth(HttpConn *conn, AuthData *ad)
 static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
 {
     HttpRx      *rx;
-    char        *authDetails, *value, *tok, *key, *dp, *sp;
+    char        *value, *tok, *key, *dp, *sp;
     int         seenComma;
 
     rx = conn->rx;
-    key = authDetails = sclone(rx->authDetails);
+    key = sclone(rx->authDetails);
 
     while (*key) {
         while (*key && isspace((int) *key)) {
@@ -328,11 +328,9 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
  */
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg)
 {
-    HttpRx  *rx;
     HttpTx  *tx;
     char    *qopClass, *nonce, *etag;
 
-    rx = conn->rx;
     tx = conn->tx;
     if (logMsg == 0) {
         logMsg = msg;

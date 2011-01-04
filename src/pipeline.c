@@ -301,10 +301,8 @@ static void setEnvironment(HttpConn *conn)
  */
 static bool matchFilter(HttpConn *conn, HttpStage *filter)
 {
-    HttpRx      *rx;
     HttpTx      *tx;
 
-    rx = conn->rx;
     tx = conn->tx;
     if (filter->match) {
         return filter->match(conn, filter);

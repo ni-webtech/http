@@ -198,7 +198,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     if (conn->server) {
         httpSetState(conn, HTTP_STATE_PARSED);        
         loc = (rx->loc) ? rx->loc : conn->server->loc;
-        httpCreatePipeline(conn, rx->loc, tx->handler);
+        httpCreatePipeline(conn, loc, tx->handler);
 #if FUTURE
         //  MOB -- TODO
         if (0 && tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
@@ -213,6 +213,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 }
 
 
+#if UNUSED && KEEP
 static int traceRequest(HttpConn *conn, HttpPacket *packet)
 {
     MprBuf  *content;
@@ -229,6 +230,8 @@ static int traceRequest(HttpConn *conn, HttpPacket *packet)
     }
     return 0;
 }
+#endif
+
 
 /*  
     Parse the first line of a http request. Return true if the first line parsed. This is only called once all the headers
@@ -238,14 +241,13 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     char        *method, *uri, *protocol;
-    int         methodFlags, traced;
+    int         methodFlags;
 
     mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
 
     rx = conn->rx;
-    protocol = uri = 0;
+    uri = 0;
     methodFlags = 0;
-    traced = traceRequest(conn, packet);
 
     method = getToken(conn, " ");
     method = supper(method);
@@ -325,6 +327,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     }
     httpSetState(conn, HTTP_STATE_FIRST);
 #if UNUSED
+    traced = traceRequest(conn, packet);
     if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) >= 0) {
         mprLog(level, "%s %s %s", rx->method, uri, protocol);
     }
@@ -382,7 +385,6 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
  */
 static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 {
-    Http        *http;
     HttpRx      *rx;
     HttpTx      *tx;
     HttpLimits  *limits;
@@ -391,7 +393,6 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     cchar       *oldValue;
     int         len, count, keepAlive;
 
-    http = conn->http;
     rx = conn->rx;
     tx = conn->tx;
     content = packet->content;
@@ -967,8 +968,6 @@ static bool processRunning(HttpConn *conn)
 {
     int     canProceed;
 
-    canProceed = 0;
-
     if (conn->abortPipeline) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
         canProceed = 1;
@@ -985,7 +984,7 @@ static bool processRunning(HttpConn *conn)
                 canProceed = httpServiceQueues(conn);
             }
         } else {
-            canProceed = httpServiceQueues(conn);
+            httpServiceQueues(conn);
             httpFinalize(conn);
             conn->complete = 1;
             httpSetState(conn, HTTP_STATE_COMPLETE);
@@ -1445,7 +1444,7 @@ static bool parseRange(HttpConn *conn, char *value)
     /*  
         Step over the "bytes="
      */
-    tok = stok(value, "=", &value);
+    stok(value, "=", &value);
 
     for (last = 0; value && *value; ) {
         if ((range = mprAllocObj(HttpRange, NULL)) == 0) {

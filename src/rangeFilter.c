@@ -150,7 +150,6 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
                         return;
                     }
                 }
-                bytes -= count;
                 tx->pos += count;
                 if (tx->rangeBoundary) {
                     httpSendPacketToNext(q, createRangePacket(conn, range));

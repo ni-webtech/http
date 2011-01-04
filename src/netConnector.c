@@ -80,7 +80,6 @@ static void netOutgoingService(HttpQueue *q)
         }
     }
     while (q->first || q->ioIndex) {
-        written = 0;
         if (q->ioIndex == 0 && buildNetVec(q) <= 0) {
             break;
         }
@@ -188,13 +187,10 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet)
 {
     HttpTx      *tx;
     HttpConn    *conn;
-    MprIOVec    *iovec;
-    int         index, item;
+    int         item;
 
     conn = q->conn;
     tx = conn->tx;
-    iovec = q->iovec;
-    index = q->ioIndex;
 
     mprAssert(q->count >= 0);
     mprAssert(q->ioIndex < (HTTP_MAX_IOVEC - 2));

@@ -40,7 +40,6 @@ int httpOpenPassHandler(Http *http)
     stage->process = processPass;
     stage->open = openPass;
     http->passHandler = stage;
-    http->passHandler = stage;
     return 0;
 }
 

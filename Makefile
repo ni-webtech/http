@@ -14,6 +14,7 @@
 #
 
 include		build/make/Makefile.top
+include		build/make/Makefile.http
 
 diff import sync:
 	$(BLD_TOOLS_DIR)/import.sh --$@ ../tools/out/releases/tools-dist.tgz
