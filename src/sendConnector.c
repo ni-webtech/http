@@ -281,11 +281,6 @@ static void freeSentPackets(HttpQueue *q, ssize bytes)
             mprAssert(q->count >= 0);
         }
         if (httpGetPacketLength(packet) == 0) {
-#if UNUSED
-            if ((packet = httpGetPacket(q)) != 0) {
-                httpFreePacket(q, packet);
-            }
-#endif
             httpGetPacket(q);
         }
         mprAssert(bytes >= 0);

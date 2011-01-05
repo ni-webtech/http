@@ -75,6 +75,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     if ((ad = mprAllocObj(AuthData, NULL)) == 0) {
         return 1;
     }
+    //  MOB -- fix
 #if UNUSED
     if (auth == 0) {
         httpError(conn, HTTP_CODE_UNAUTHORIZED, "Access Denied, Authorization not enabled");

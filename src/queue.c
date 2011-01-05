@@ -111,9 +111,6 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
                 }
                 q->count -= httpGetPacketLength(packet);
                 mprAssert(q->count >= 0);
-#if UNUSED
-                httpFreePacket(q, packet);
-#endif
                 continue;
             } else {
                 len = httpGetPacketLength(packet);

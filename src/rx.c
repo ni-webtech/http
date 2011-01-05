@@ -82,13 +82,6 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->alias);
         mprMark(rx->dir);
 
-#if UNUSED
-        HttpPacket  *packet;
-        for (packet = rx->freePackets; packet; packet = packet->next) {
-            mprMark(packet);
-        }
-#endif
-
     } else if (flags & MPR_MANAGE_FREE) {
         if (rx->conn) {
             rx->conn->rx = 0;
@@ -168,7 +161,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     }
     if (conn->rx == NULL) {
         conn->rx = httpCreateRx(conn);
-        conn->tx = httpCreateTx(conn, NULL);
+        conn->tx = httpCreateTx(conn);
     }
     rx = conn->rx;
     tx = conn->tx;
@@ -213,7 +206,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 }
 
 
-#if UNUSED && KEEP
 static int traceRequest(HttpConn *conn, HttpPacket *packet)
 {
     MprBuf  *content;
@@ -230,7 +222,6 @@ static int traceRequest(HttpConn *conn, HttpPacket *packet)
     }
     return 0;
 }
-#endif
 
 
 /*  
@@ -241,7 +232,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     char        *method, *uri, *protocol;
-    int         methodFlags;
+    int         methodFlags, traced, level;
 
     mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
 
@@ -326,12 +317,11 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad URL format");
     }
     httpSetState(conn, HTTP_STATE_FIRST);
-#if UNUSED
+
     traced = traceRequest(conn, packet);
     if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) >= 0) {
         mprLog(level, "%s %s %s", rx->method, uri, protocol);
     }
-#endif
 }
 
 

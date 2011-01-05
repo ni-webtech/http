@@ -239,13 +239,7 @@ static void freeNetPackets(HttpQueue *q, ssize bytes)
             /*
                 This will remove the packet from the queue and will re-enable upstream disabled queues.
              */
-#if UNUSED
-            if ((packet = httpGetPacket(q)) != 0) {
-                httpFreePacket(q, packet);
-            }
-#else
             httpGetPacket(q);
-#endif
         }
         mprAssert(bytes >= 0);
         if (bytes == 0 && (q->first == NULL || !(q->first->flags & HTTP_PACKET_END))) {

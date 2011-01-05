@@ -172,7 +172,10 @@ void httpPrepServerConn(HttpConn *conn)
         conn->errorMsg = 0;
         conn->flags = 0;
         conn->state = 0;
+        conn->readq = 0;
+        conn->writeq = 0;
         conn->writeComplete = 0;
+        conn->txheaders = 0;
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
         mprAssert(conn->rx == 0);
@@ -204,7 +207,7 @@ void httpPrepClientConn(HttpConn *conn)
     if (conn->tx) {
         conn->tx->conn = 0;
     }
-    conn->tx = httpCreateTx(conn, NULL);
+    conn->tx = httpCreateTx(conn);
     if (conn->rx) {
         conn->rx->conn = 0;
     }

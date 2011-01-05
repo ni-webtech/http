@@ -2331,10 +2331,11 @@ extern int httpConnect(HttpConn *conn, cchar *method, cchar *uri);
 /** 
     Create the tx object. This is used internally by the http library.
     @param conn HttpConn connection object created via $httpCreateConn
-    @param headers Hash table of Http headers. Used to preserve headers from one request to another.
     @returns A tx object
  */
-extern HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers);
+extern HttpTx *httpCreateTx(HttpConn *conn);
+
+//  MOB DOC
 extern void httpDestroyTx(HttpTx *tx);
 
 /** 

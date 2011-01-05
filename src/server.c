@@ -115,12 +115,6 @@ int httpStartServer(HttpServer *server)
         mprError("Can't open a socket on %s, port %d", server->ip, server->port);
         return MPR_ERR_CANT_OPEN;
     }
-#if UNUSED
-    if (mprListenOnSocket(server->sock) < 0) {
-        mprError("Can't listen on %s, port %d", server->ip, server->port);
-        return MPR_ERR_CANT_OPEN;
-    }
-#endif
     proto = mprIsSocketSecure(server->sock) ? "HTTPS" : "HTTP";
     ip = server->ip;
     if (ip == 0 || *ip == '\0') {

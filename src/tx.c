@@ -13,12 +13,9 @@ static void manageTx(HttpTx *tx, int flags);
 
 /*********************************** Code *************************************/
 
-HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
+HttpTx *httpCreateTx(HttpConn *conn)
 {
     HttpTx      *tx;
-
-    //  MOB - remove headers arg if not used anywhere
-    mprAssert(headers == NULL);
 
     if ((tx = mprAllocObj(HttpTx, manageTx)) == 0) {
         return 0;
@@ -32,6 +29,11 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
     tx->chunkSize = -1;
     httpInitQueue(conn, &tx->queue[HTTP_QUEUE_TRANS], "TxHead");
     httpInitQueue(conn, &tx->queue[HTTP_QUEUE_RECEIVE], "RxHead");
+
+    if (conn->server) {
+        mprAssert(!conn->txheaders);
+        httpCreateTxHeaders(conn);
+    }
     return tx;
 }
 
@@ -122,7 +124,7 @@ void httpAddSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
     mprAssert(value);
 
     if (!mprLookupHash(conn->txheaders, key)) {
-        addHeader(conn, key, value);
+        addHeader(conn, key, sclone(value));
     }
 }
 
@@ -608,7 +610,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
             }
         } else {
             if (parsedUri->query && *parsedUri->query) {
-                mprPutFmtToBuf(buf, "%s?%s %s\r\n", parsedUri->path, parsedUri->query, conn->protocol);
+                mprPutFmtToBuf(buf, "%s?%s %s", parsedUri->path, parsedUri->query, conn->protocol);
             } else {
                 mprPutStringToBuf(buf, parsedUri->path);
                 mprPutCharToBuf(buf, ' ');

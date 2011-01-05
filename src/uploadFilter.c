@@ -269,12 +269,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
         /* 
            Quicker to free the buffer so the packets don't have to be joined the next time 
          */
-#if UNUSED
-        packet = httpGetPacket(q);
-        httpFreePacket(q, packet);
-#else
         httpGetPacket(q);
-#endif
         mprAssert(q->count >= 0);
     }
 }
