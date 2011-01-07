@@ -119,6 +119,8 @@ void httpSendOutgoingService(HttpQueue *q)
         if (written < 0) {
             errCode = mprGetError(q);
             if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
+                /* Socket is full. Wait for an I/O event */
+                httpWriteBlocked(conn);
                 break;
             }
             if (errCode != EPIPE && errCode != ECONNRESET) {

@@ -375,20 +375,22 @@ void httpServiceQueue(HttpQueue *q)
     if (q->servicing) {
         q->flags |= HTTP_QUEUE_RESERVICE;
     } else {
-        q->servicing = 1;
         /*  
             Since we are servicing this "q" now, we can remove from the schedule queue if it is already queued.
          */
         if (q->conn->serviceq.scheduleNext == q) {
             httpGetNextQueueForService(&q->conn->serviceq);
         }
-        q->service(q);
-        if (q->flags & HTTP_QUEUE_RESERVICE) {
-            q->flags &= ~HTTP_QUEUE_RESERVICE;
-            httpScheduleQueue(q);
+        if (!(q->flags & HTTP_QUEUE_DISABLED)) {
+            q->servicing = 1;
+            q->service(q);
+            if (q->flags & HTTP_QUEUE_RESERVICE) {
+                q->flags &= ~HTTP_QUEUE_RESERVICE;
+                httpScheduleQueue(q);
+            }
+            q->flags |= HTTP_QUEUE_SERVICED;
+            q->servicing = 0;
         }
-        q->flags |= HTTP_QUEUE_SERVICED;
-        q->servicing = 0;
     }
 }
 
@@ -419,6 +421,7 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
         The downstream queue is full, so disable the queue and mark the downstream queue as full and service 
         if immediately if not disabled.  
      */
+    mprLog(7, "Disable queue %s", q->owner);
     httpDisableQueue(q);
     next->flags |= HTTP_QUEUE_FULL;
     if (!(next->flags & HTTP_QUEUE_DISABLED)) {

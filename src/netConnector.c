@@ -93,6 +93,8 @@ static void netOutgoingService(HttpQueue *q)
         if (written < 0) {
             errCode = mprGetError(q);
             if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
+                /*  Socket full, wait for an I/O event */
+                httpWriteBlocked(conn);
                 break;
             }
             if (errCode != EPIPE && errCode != ECONNRESET) {
@@ -103,9 +105,7 @@ static void netOutgoingService(HttpQueue *q)
             break;
 
         } else if (written == 0) {
-            /*  
-                Socket full. Wait for an I/O event. Conn.c will setup listening for write events if the queue is non-empty
-             */
+            /*  Socket full, wait for an I/O event */
             httpWriteBlocked(conn);
             break;
 
