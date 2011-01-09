@@ -27,7 +27,7 @@ HttpLoc *httpCreateLocation(Http *http)
     loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
     loc->handlers = mprCreateList(-1, 0);
     loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
-    loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
+    loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     loc->inputStages = mprCreateList(-1, 0);
     loc->outputStages = mprCreateList(-1, 0);
     loc->prefix = sclone("");
@@ -299,7 +299,7 @@ void httpResetPipeline(HttpLoc *loc)
 {
     if (loc->parent == 0) {
         loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
-        loc->expires = mprCreateHash(0, 0);
+        loc->expires = mprCreateHash(0, MPR_HASH_STATIC_VALUES);
         loc->extensions = mprCreateHash(0, 0);
         loc->handlers = mprCreateList(-1, 0);
         loc->inputStages = mprCreateList(-1, 0);

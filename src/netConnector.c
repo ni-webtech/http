@@ -47,7 +47,6 @@ static void netOutgoingService(HttpQueue *q)
     conn = q->conn;
     tx = conn->tx;
     conn->lastActivity = conn->http->now;
-    mprAssert(!mprGetCurrentThread()->yielded);
     
     if (conn->sock == 0 || conn->writeComplete) {
         return;
@@ -136,7 +135,6 @@ static ssize buildNetVec(HttpQueue *q)
 
     conn = q->conn;
     tx = conn->tx;
-    mprAssert(!mprGetCurrentThread()->yielded);
 
     /*
         Examine each packet and accumulate as many packets into the I/O vector as possible. Leave the packets on the queue 
