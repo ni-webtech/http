@@ -176,7 +176,7 @@ int httpAddGroup(HttpAuth *auth, cchar *group, HttpAcl acl, bool enabled)
     if (mprLookupHash(auth->groups, group)) {
         return MPR_ERR_ALREADY_EXISTS;
     }
-    if (mprAddHash(auth->groups, group, gp) == 0) {
+    if (mprAddKey(auth->groups, group, gp) == 0) {
         return MPR_ERR_MEMORY;
     }
     return 0;
@@ -227,7 +227,7 @@ int httpAddUser(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, bool
     if (mprLookupHash(auth->users, key)) {
         return MPR_ERR_ALREADY_EXISTS;
     }
-    if (mprAddHash(auth->users, key, up) == 0) {
+    if (mprAddKey(auth->users, key, up) == 0) {
         return MPR_ERR_MEMORY;
     }
     return 0;

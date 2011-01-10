@@ -81,7 +81,7 @@ static void addHeader(HttpConn *conn, cchar *key, cchar *value)
     if (scasecmp(key, "content-length") == 0) {
         conn->tx->length = (ssize) stoi(value, 10, NULL);
     }
-    mprAddHash(conn->txheaders, key, value);
+    mprAddKey(conn->txheaders, key, value);
 }
 
 

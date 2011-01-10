@@ -160,14 +160,14 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
             return 0;
         }
         count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
-        mprAddHash(server->clientLoad, conn->ip, ITOP(count + 1));
+        mprAddKey(server->clientLoad, conn->ip, ITOP(count + 1));
         server->clientCount = mprGetHashLength(server->clientLoad);
         break;
 
     case HTTP_VALIDATE_CLOSE_CONN:
         count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
         if (count > 1) {
-            mprAddHash(server->clientLoad, conn->ip, ITOP(count - 1));
+            mprAddKey(server->clientLoad, conn->ip, ITOP(count - 1));
         } else {
             mprRemoveHash(server->clientLoad, conn->ip);
         }

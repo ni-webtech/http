@@ -99,7 +99,7 @@ void httpSetAuthQop(HttpAuth *auth, cchar *qop)
     if (strcmp(qop, "auth") == 0 || strcmp(qop, "auth-int") == 0) {
         auth->qop = sclone(qop);
     } else {
-        auth->qop = sclone("");
+        auth->qop = mprEmptyString();
     }
 }
 

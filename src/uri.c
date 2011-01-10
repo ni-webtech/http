@@ -550,7 +550,7 @@ char *httpNormalizeUriPath(cchar *pathArg)
     int     firstc, j, i, nseg, len;
 
     if (pathArg == 0 || *pathArg == '\0') {
-        return sclone("");
+        return mprEmptyString();
     }
     len = (int) strlen(pathArg);
     if ((dupPath = mprAlloc(len + 2)) == 0) {

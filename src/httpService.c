@@ -81,7 +81,7 @@ Http *httpCreate()
         return 0;
     }
     mprGetMpr()->httpService = http;
-    http->protocol = "HTTP/1.1";
+    http->protocol = sclone("HTTP/1.1");
     http->mutex = mprCreateLock(http);
     http->stages = mprCreateHash(-1, 0);
 
@@ -93,7 +93,7 @@ Http *httpCreate()
     updateCurrentDate(http);
     http->statusCodes = mprCreateHash(41, MPR_HASH_STATIC_VALUES | MPR_HASH_STATIC_KEYS);
     for (code = HttpStatusCodes; code->code; code++) {
-        mprAddHash(http->statusCodes, code->codeString, code);
+        mprAddKey(http->statusCodes, code->codeString, code);
     }
     httpCreateSecret(http);
     httpInitAuth(http);
@@ -130,8 +130,7 @@ static void manageHttp(Http *http, int flags)
         mprMark(http->proxyHost);
         mprMark(http->currentDate);
         mprMark(http->expiresDate);
-
-    } else if (flags & MPR_MANAGE_FREE) {
+        mprMark(http->protocol);
     }
 }
 
@@ -214,7 +213,7 @@ HttpLimits *httpCreateLimits(int serverSide)
 
 void httpRegisterStage(Http *http, HttpStage *stage)
 {
-    mprAddHash(http->stages, stage->name, stage);
+    mprAddKey(http->stages, stage->name, stage);
 }
 
 

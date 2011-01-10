@@ -30,7 +30,7 @@ HttpLoc *httpCreateLocation(Http *http)
     loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     loc->inputStages = mprCreateList(-1, 0);
     loc->outputStages = mprCreateList(-1, 0);
-    loc->prefix = sclone("");
+    loc->prefix = mprEmptyString();
     loc->prefixLen = (int) strlen(loc->prefix);
     loc->auth = httpCreateAuth(0);
     return loc;
@@ -163,7 +163,7 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
             } else if (*word == '\"' && word[1] == '\"') {
                 word = "";
             }
-            mprAddHash(loc->extensions, word, handler);
+            mprAddKey(loc->extensions, word, handler);
             word = stok(0, " \t\r\n", &tok);
         }
 
@@ -172,7 +172,7 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
             /*
                 If a handler provides a custom match() routine, then don't match by extension.
              */
-            mprAddHash(loc->extensions, "", handler);
+            mprAddKey(loc->extensions, "", handler);
         }
         mprAddItem(loc->handlers, handler);
     }
@@ -233,7 +233,7 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
             } else if (*word == '\"' && word[1] == '\"') {
                 word = "";
             }
-            mprAddHash(filter->extensions, word, filter);
+            mprAddKey(filter->extensions, word, filter);
             word = stok(0, " \t\r\n", &tok);
         }
     }
@@ -257,7 +257,7 @@ void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
         types = sclone(mimeTypes);
         mime = stok(types, " ,\t\r\n", &tok);
         while (mime) {
-            mprAddHash(loc->expires, mime, ITOP(when));
+            mprAddKey(loc->expires, mime, ITOP(when));
             mime = stok(0, " \t\r\n", &tok);
         }
     }
@@ -359,7 +359,7 @@ void httpSetLocationScript(HttpLoc *loc, cchar *script)
 void httpAddErrorDocument(HttpLoc *loc, cchar *code, cchar *url)
 {
     graduate(loc);
-    mprAddHash(loc->errorDocuments, code, sclone(url));
+    mprAddKey(loc->errorDocuments, code, sclone(url));
 }
 
 

@@ -170,8 +170,8 @@ static void decodeBasicAuth(HttpConn *conn, AuthData *ad)
         ad->password = sclone(cp);
 
     } else {
-        ad->userName = sclone("");
-        ad->password = sclone("");
+        ad->userName = mprEmptyString();
+        ad->password = mprEmptyString();
     }
     httpSetAuthUser(conn, ad->userName);
 }
@@ -317,7 +317,7 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
         return MPR_ERR_BAD_ARGS;
     }
     if (ad->qop == 0) {
-        ad->qop = sclone("");
+        ad->qop = mprEmptyString();
     }
     httpSetAuthUser(conn, ad->userName);
     return 0;

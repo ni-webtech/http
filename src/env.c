@@ -20,7 +20,6 @@ void httpCreateEnvVars(HttpConn *conn)
     MprHash         *hp;
     HttpUploadFile  *up;
     HttpServer      *server;
-    char            port[16], size[16];
     int             index;
 
     rx = conn->rx;
@@ -31,61 +30,58 @@ void httpCreateEnvVars(HttpConn *conn)
     //  TODO - Vars for COOKIEs
     
     /*  Alias for REMOTE_USER. Define both for broader compatibility with CGI */
-    mprAddHash(vars, "AUTH_TYPE", rx->authType);
-    mprAddHash(vars, "AUTH_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
-    mprAddHash(vars, "AUTH_GROUP", conn->authGroup);
-    mprAddHash(vars, "AUTH_ACL", "");
-    mprAddHash(vars, "CONTENT_LENGTH", rx->contentLength);
-    mprAddHash(vars, "CONTENT_TYPE", rx->mimeType);
-    mprAddHash(vars, "GATEWAY_INTERFACE", "CGI/1.1");
-    mprAddHash(vars, "QUERY_STRING", rx->parsedUri->query);
+    mprAddKey(vars, "AUTH_TYPE", rx->authType);
+    mprAddKey(vars, "AUTH_USER", conn->authUser);
+    mprAddKey(vars, "AUTH_GROUP", conn->authGroup);
+    mprAddKey(vars, "AUTH_ACL", MPR->emptyString);
+    mprAddKey(vars, "CONTENT_LENGTH", rx->contentLength);
+    mprAddKey(vars, "CONTENT_TYPE", rx->mimeType);
+    mprAddKey(vars, "GATEWAY_INTERFACE", sclone("CGI/1.1"));
+    mprAddKey(vars, "QUERY_STRING", rx->parsedUri->query);
 
     if (conn->sock) {
-        mprAddHash(vars, "REMOTE_ADDR", conn->ip);
+        mprAddKey(vars, "REMOTE_ADDR", conn->ip);
     }
-    itos(port, sizeof(port) - 1, conn->port, 10);
-    mprAddHash(vars, "REMOTE_PORT", sclone(port));
+    mprAddKeyFmt(vars, "REMOTE_PORT", "%d", conn->port);
 
     /*  Same as AUTH_USER (yes this is right) */
-    mprAddHash(vars, "REMOTE_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
-    mprAddHash(vars, "REQUEST_METHOD", rx->method);
-    mprAddHash(vars, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
+    mprAddKey(vars, "REMOTE_USER", conn->authUser);
+    mprAddKey(vars, "REQUEST_METHOD", rx->method);
+    mprAddKey(vars, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
     
     sock = conn->sock;
-    mprAddHash(vars, "SERVER_ADDR", sock->acceptIp);
-    mprAddHash(vars, "SERVER_NAME", server->name);
-    itos(port, sizeof(port) - 1, sock->acceptPort, 10);
-    mprAddHash(vars, "SERVER_PORT", sclone(port));
+    mprAddKey(vars, "SERVER_ADDR", sock->acceptIp);
+    mprAddKey(vars, "SERVER_NAME", server->name);
+    mprAddKeyFmt(vars, "SERVER_PORT", "%d", sock->acceptPort);
 
     /*  HTTP/1.0 or HTTP/1.1 */
-    mprAddHash(vars, "SERVER_PROTOCOL", conn->protocol);
-    mprAddHash(vars, "SERVER_SOFTWARE", server->software);
+    mprAddKey(vars, "SERVER_PROTOCOL", conn->protocol);
+    mprAddKey(vars, "SERVER_SOFTWARE", server->software);
 
     /*  This is the complete URI before decoding */ 
-    mprAddHash(vars, "REQUEST_URI", rx->uri);
+    mprAddKey(vars, "REQUEST_URI", rx->uri);
 
     /*  URLs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} */
-    mprAddHash(vars, "PATH_INFO", rx->pathInfo);
-    mprAddHash(vars, "SCRIPT_NAME", rx->scriptName);
-    mprAddHash(vars, "SCRIPT_FILENAME", tx->filename);
+    mprAddKey(vars, "PATH_INFO", rx->pathInfo);
+    mprAddKey(vars, "SCRIPT_NAME", rx->scriptName);
+    mprAddKey(vars, "SCRIPT_FILENAME", tx->filename);
 
     if (rx->pathTranslated) {
         /*  Only set PATH_TRANSLATED if PATH_INFO is set (CGI spec) */
-        mprAddHash(vars, "PATH_TRANSLATED", rx->pathTranslated);
+        mprAddKey(vars, "PATH_TRANSLATED", rx->pathTranslated);
     }
     //  MOB -- how do these relate to MVC apps and non-mvc apps
-    mprAddHash(vars, "DOCUMENT_ROOT", conn->documentRoot);
-    mprAddHash(vars, "SERVER_ROOT", server->serverRoot);
+    mprAddKey(vars, "DOCUMENT_ROOT", conn->documentRoot);
+    mprAddKey(vars, "SERVER_ROOT", server->serverRoot);
 
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextHash(conn->rx->files, hp)) != 0; index++) {
             up = (HttpUploadFile*) hp->data;
-            mprAddHash(vars, mprAsprintf("FILE_%d_FILENAME", index), up->filename);
-            mprAddHash(vars, mprAsprintf("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
-            mprAddHash(vars, mprAsprintf("FILE_%d_CONTENT_TYPE", index), up->contentType);
-            mprAddHash(vars, mprAsprintf("FILE_%d_NAME", index), hp->key);
-            itos(size, sizeof(size) - 1, up->size, 10);
-            mprAddHash(vars, mprAsprintf("FILE_%d_SIZE", index), size);
+            mprAddKey(vars, mprAsprintf("FILE_%d_FILENAME", index), up->filename);
+            mprAddKey(vars, mprAsprintf("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
+            mprAddKey(vars, mprAsprintf("FILE_%d_CONTENT_TYPE", index), up->contentType);
+            mprAddKey(vars, mprAsprintf("FILE_%d_NAME", index), hp->key);
+            mprAddKeyFmt(vars, mprAsprintf("FILE_%d_SIZE", index), "%d", up->size);
         }
     }
 }
@@ -130,10 +126,10 @@ void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
             if (oldValue != 0 && *oldValue) {
                 if (*value) {
                     newValue = sjoin(oldValue, " ", value, NULL);
-                    mprAddHash(vars, keyword, newValue);
+                    mprAddKey(vars, keyword, newValue);
                 }
             } else {
-                mprAddHash(vars, keyword, value);
+                mprAddKey(vars, keyword, sclone(value));
             }
         }
         keyword = stok(0, "&", &tok);
@@ -199,7 +195,6 @@ int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
 }
 
 
-//  MOB - need formatted version
 void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value) 
 {
     MprHashTable    *vars;
@@ -209,8 +204,7 @@ void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value)
         /* This is allowed. Upload filter uses this when uploading to the file handler */
         return;
     }
-    //  MOB -- DUP?
-    mprAddHash(vars, var, (void*) value);
+    mprAddKey(vars, var, sclone(value));
 }
 
 
@@ -223,7 +217,7 @@ void httpSetIntFormVar(HttpConn *conn, cchar *var, int value)
         /* This is allowed. Upload filter uses this when uploading to the file handler */
         return;
     }
-    mprAddHash(vars, var, mprAsprintf("%d", value));
+    mprAddKey(vars, var, mprAsprintf("%d", value));
 }
 
 
@@ -251,7 +245,7 @@ void httpAddUploadFile(HttpConn *conn, cchar *id, HttpUploadFile *upfile)
     if (rx->files == 0) {
         rx->files = mprCreateHash(-1, 0);
     }
-    mprAddHash(rx->files, id, upfile);
+    mprAddKey(rx->files, id, upfile);
 }
 
 

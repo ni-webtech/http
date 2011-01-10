@@ -38,13 +38,8 @@ HttpRx *httpCreateRx(HttpConn *conn)
     rx->length = -1;
     rx->ifMatch = 1;
     rx->ifModified = 1;
-    rx->remainingContent = 0;
-    rx->method = 0;
     rx->pathInfo = sclone("/");
-    rx->scriptName = sclone("");
-    rx->status = 0;
-    rx->statusMessage = "";
-    rx->mimeType = "";
+    rx->scriptName = mprEmptyString();
     rx->needInputPipeline = !conn->server;
     rx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     return rx;
@@ -411,9 +406,9 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
         }
         if ((oldValue = mprLookupHash(rx->headers, key)) != 0) {
-            mprAddHash(rx->headers, key, mprAsprintf("%s, %s", oldValue, value));
+            mprAddKey(rx->headers, key, mprAsprintf("%s, %s", oldValue, value));
         } else {
-            mprAddHash(rx->headers, key, sclone(value));
+            mprAddKey(rx->headers, key, sclone(value));
         }
         switch (key[0]) {
         case 'a':
@@ -423,13 +418,13 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 rx->authDetails = tok;
 
             } else if (strcmp(key, "accept-charset") == 0) {
-                rx->acceptCharset = value;
+                rx->acceptCharset = sclone(value);
 
             } else if (strcmp(key, "accept") == 0) {
-                rx->accept = value;
+                rx->accept = sclone(value);
 
             } else if (strcmp(key, "accept-encoding") == 0) {
-                rx->acceptEncoding = value;
+                rx->acceptEncoding = sclone(value);
             }
             break;
 
@@ -449,7 +444,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                         "Request content length %d bytes is too big. Limit %d.", rx->length, conn->limits->receiveBodySize);
                     break;
                 }
-                rx->contentLength = value;
+                rx->contentLength = sclone(value);
                 mprAssert(rx->length >= 0);
                 if (conn->server || strcmp(tx->method, "HEAD") != 0) {
                     rx->remainingContent = rx->length;
@@ -490,8 +485,8 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 rx->inputRange = httpCreateRange(conn, start, end);
 
             } else if (strcmp(key, "content-type") == 0) {
-                rx->mimeType = value;
-                rx->form = strstr(rx->mimeType, "application/x-www-form-urlencoded") != 0;
+                rx->mimeType = sclone(value);
+                rx->form = scontains(rx->mimeType, "application/x-www-form-urlencoded", -1) != 0;
 
             } else if (strcmp(key, "cookie") == 0) {
                 if (rx->cookie && *rx->cookie) {
@@ -501,7 +496,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
 
             } else if (strcmp(key, "connection") == 0) {
-                rx->connection = value;
+                rx->connection = sclone(value);
                 if (scasecmp(value, "KEEP-ALIVE") == 0) {
                     keepAlive++;
                 } else if (scasecmp(value, "CLOSE") == 0) {
@@ -512,7 +507,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'h':
             if (strcmp(key, "host") == 0) {
-                rx->hostName = value;
+                rx->hostName = sclone(value);
             }
             break;
 
@@ -604,7 +599,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
             } else if (strcmp(key, "referer") == 0) {
                 /* NOTE: yes the header is misspelt in the spec */
-                rx->referrer = value;
+                rx->referrer = sclone(value);
             }
             break;
 
@@ -637,7 +632,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'u':
             if (strcmp(key, "user-agent") == 0) {
-                rx->userAgent = value;
+                rx->userAgent = sclone(value);
             }
             break;
 
@@ -1238,7 +1233,7 @@ int httpSetUri(HttpConn *conn, cchar *uri)
     rx->uri = rx->parsedUri->uri;
     conn->tx->extension = sclone(rx->parsedUri->ext);
     rx->pathInfo = httpNormalizeUriPath(mprUriDecode(rx->parsedUri->path));
-    rx->scriptName = sclone("");
+    rx->scriptName = mprEmptyString();
     return 0;
 }
 
@@ -1504,7 +1499,7 @@ void httpSetStageData(HttpConn *conn, cchar *key, cvoid *data)
     if (rx->requestData == 0) {
         rx->requestData = mprCreateHash(-1, 0);
     }
-    mprAddHash(rx->requestData, key, data);
+    mprAddKey(rx->requestData, key, data);
 }
 
 

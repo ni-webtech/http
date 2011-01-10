@@ -287,7 +287,7 @@ static void setEnvironment(HttpConn *conn)
     if (tx->handler->flags & (HTTP_STAGE_VARS | HTTP_STAGE_ENV_VARS)) {
         rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
         if (rx->parsedUri->query) {
-            httpAddVars(conn, rx->parsedUri->query, strlen(rx->parsedUri->query));
+            httpAddVars(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
         }
     }
     if (tx->handler && (tx->handler->flags & HTTP_STAGE_ENV_VARS)) {
