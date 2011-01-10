@@ -83,8 +83,12 @@ Http *httpCreate()
     mprGetMpr()->httpService = http;
     http->protocol = "HTTP/1.1";
     http->mutex = mprCreateLock(http);
-    http->connections = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     http->stages = mprCreateHash(-1, 0);
+
+    /*
+        Http manages connections and maintains a reference to the connection while it is open.
+     */
+    http->connections = mprCreateList(-1, 0);
 
     updateCurrentDate(http);
     http->statusCodes = mprCreateHash(41, MPR_HASH_STATIC_VALUES | MPR_HASH_STATIC_KEYS);

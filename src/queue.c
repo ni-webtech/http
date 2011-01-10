@@ -7,6 +7,10 @@
 
 #include    "http.h"
 
+/********************************** Forwards **********************************/
+
+static void manageQueue(HttpQueue *q, int flags);
+
 /************************************ Code ************************************/
 /*  
     Createa a new queue for the given stage. If prev is given, then link the new queue after the previous queue.
@@ -15,7 +19,7 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, Http
 {
     HttpQueue   *q;
 
-    if ((q = mprAllocObj(HttpQueue, httpManageQueue)) == 0) {
+    if ((q = mprAllocObj(HttpQueue, manageQueue)) == 0) {
         return 0;
     }
     httpInitQueue(conn, q, stage->name);
@@ -43,7 +47,7 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, Http
 }
 
 
-void httpManageQueue(HttpQueue *q, int flags)
+static void manageQueue(HttpQueue *q, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(q->first);
@@ -52,8 +56,14 @@ void httpManageQueue(HttpQueue *q, int flags)
             /* Not a queue head */
             mprMark(q->nextQ);
         }
+    }
+}
 
-    } else if (flags & MPR_MANAGE_FREE) {
+
+void httpMarkQueueHead(HttpQueue *q)
+{
+    if (q->nextQ && q->nextQ->stage) {
+        mprMark(q->nextQ);
     }
 }
 

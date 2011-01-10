@@ -100,14 +100,6 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->rx);
         mprMark(conn->tx);
         mprMark(conn->txheaders);
-
-        httpManageQueue(&conn->serviceq, flags);
-        if (conn->readq) {
-            httpManageQueue(conn->readq, flags);
-        }
-        if (conn->writeq) {
-            httpManageQueue(conn->writeq, flags);
-        }
         mprMark(conn->input);
         mprMark(conn->context);
         mprMark(conn->boundary);
@@ -115,6 +107,11 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->host);
         mprMark(conn->ip);
 
+        if (conn->tx) {
+            mprMark(conn->readq);
+            mprMark(conn->writeq);
+            httpMarkQueueHead(&conn->serviceq);
+        }
         httpManageTrace(&conn->trace[0], flags);
         httpManageTrace(&conn->trace[1], flags);
 

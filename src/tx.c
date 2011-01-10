@@ -52,8 +52,8 @@ static void manageTx(HttpTx *tx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(tx->outputPipeline);
-        httpManageQueue(&tx->queue[0], flags);
-        httpManageQueue(&tx->queue[1], flags);
+        httpMarkQueueHead(&tx->queue[0]);
+        httpMarkQueueHead(&tx->queue[1]);
         mprMark(tx->parsedUri);
         mprMark(tx->currentRange);
         mprMark(tx->rangeBoundary);

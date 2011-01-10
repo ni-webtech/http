@@ -14,8 +14,6 @@ void httpManageTrace(HttpTrace *trace, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(trace->include);
         mprMark(trace->exclude);
-
-    } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 

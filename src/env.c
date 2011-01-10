@@ -49,7 +49,7 @@ void httpCreateEnvVars(HttpConn *conn)
     /*  Same as AUTH_USER (yes this is right) */
     mprAddHash(vars, "REMOTE_USER", (conn->authUser && *conn->authUser) ? conn->authUser : 0);
     mprAddHash(vars, "REQUEST_METHOD", rx->method);
-    mprAddHash(vars, "REQUEST_TRANSPORT", (char*) ((conn->secure) ? "https" : "http"));
+    mprAddHash(vars, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
     
     sock = conn->sock;
     mprAddHash(vars, "SERVER_ADDR", sock->acceptIp);

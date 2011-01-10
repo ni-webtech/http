@@ -358,14 +358,14 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     if (slen(rx->statusMessage) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
     }
+    if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, conn->tx->extension)) >= 0) {
+        mprLog(level, "%s %d %s", protocol, rx->status, rx->statusMessage);
+    }
     if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, conn->tx->extension) >= 0) {
         content = packet->content;
         endp = strstr((char*) content->start, "\r\n\r\n");
         len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
         httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
-
-    } else if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, conn->tx->extension)) >= 0) {
-        mprLog(level, "%s %d %s", protocol, rx->status, rx->statusMessage);
     }
 }
 

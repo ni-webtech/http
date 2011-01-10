@@ -906,7 +906,7 @@ extern void httpInitSchedulerQueue(HttpQueue *q);
 extern void httpInsertQueue(HttpQueue *prev, HttpQueue *q);
 extern int httpIsEof(struct HttpConn *conn);
 extern void httpJoinPackets(HttpQueue *q, ssize size);
-extern void httpManageQueue(HttpQueue *q, int flags);
+extern void httpMarkQueueHead(HttpQueue *q);
 
 /******************************** Pipeline Stages *****************************/
 /*
