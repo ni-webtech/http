@@ -1294,6 +1294,8 @@ typedef struct HttpConn {
     int             error;                  /**< A request error has occurred */
     int             connError;              /**< A connection error has occurred */
     int             protoError;             /**< A protocol error has occurred - try to respond */
+
+    //  MOB implement
     int             threaded;               /**< Request running in a thread */
 
     MprHashTable    *txheaders;             /**< Transmission headers */
@@ -2251,6 +2253,7 @@ typedef struct HttpTx {
 
     HttpUri         *parsedUri;             /**< Request uri. Only used for requests */
     HttpRange       *currentRange;          /**< Current range being fullfilled */
+    MprDispatcher   *dispatcher;            /**< Request has its own dispatcher */
     char            *rangeBoundary;         /**< Inter-range boundary */
 
     char            *etag;                  /**< Unique identifier tag */

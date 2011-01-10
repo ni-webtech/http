@@ -5205,6 +5205,9 @@ typedef struct MprEventService {
  */
 extern MprDispatcher *mprCreateDispatcher(cchar *name, int enable);
 
+//  MOB DOC
+extern void mprDestroyDispatcher(MprDispatcher *dispatcher);
+
 /**
     Get the MPR primary dispatcher
     @returns the MPR dispatcher object

@@ -82,7 +82,8 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     mprSetItem(tx->outputPipeline, 0, tx->handler);
     if (tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
         /* Start with dispatcher disabled. Conn.c will enable */
-        conn->dispatcher = mprCreateDispatcher(tx->handler->name, 0);
+        tx->dispatcher = mprCreateDispatcher(tx->handler->name, 0);
+        conn->dispatcher = tx->dispatcher;
     }
 
     /*  Create the outgoing queue heads and open the queues */

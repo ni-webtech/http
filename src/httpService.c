@@ -329,6 +329,7 @@ void httpAddConn(Http *http, HttpConn *conn)
     if (http->timer == 0) {
         startTimer(http);
     }
+    printf("ADD CONN\n");
     unlock(http);
 }
 
@@ -438,6 +439,7 @@ void httpRemoveConn(Http *http, HttpConn *conn)
 {
     lock(http);
     mprRemoveItem(http->connections, conn);
+    printf("REMOVE CONN\n");
     unlock(http);
 }
 

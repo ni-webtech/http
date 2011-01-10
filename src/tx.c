@@ -41,6 +41,9 @@ HttpTx *httpCreateTx(HttpConn *conn)
 void httpDestroyTx(HttpTx *tx)
 {
     mprCloseFile(tx->file);
+    if (tx->dispatcher) {
+        mprDestroyDispatcher(tx->dispatcher);
+    }
     if (tx->conn) {
         tx->conn->tx = 0;
         tx->conn = 0;

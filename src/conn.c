@@ -107,11 +107,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->host);
         mprMark(conn->ip);
 
-        if (conn->tx) {
-            mprMark(conn->readq);
-            mprMark(conn->writeq);
-            httpMarkQueueHead(&conn->serviceq);
-        }
+        httpMarkQueueHead(&conn->serviceq);
         httpManageTrace(&conn->trace[0], flags);
         httpManageTrace(&conn->trace[1], flags);
 
@@ -173,6 +169,7 @@ void httpPrepServerConn(HttpConn *conn)
         conn->writeq = 0;
         conn->writeComplete = 0;
         conn->txheaders = 0;
+        conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
         mprAssert(conn->rx == 0);
@@ -275,6 +272,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
                 It should respond to the "Connection: close" and thus initiate a client-led close. 
                 This reduces TIME_WAIT states on the server. 
              */
+            printf("DESTROY conn\n");
             httpDestroyConn(conn);
             return;
         }
