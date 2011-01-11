@@ -26,6 +26,9 @@ diff import:
 compileFinal:
 	make dist
 
+ext:
+	./configure --with-mpr=../mpr --with-ssl=../mpr 
+
 #
 #   Local variables:
 #   tab-width: 4

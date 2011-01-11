@@ -7,13 +7,21 @@
 include			.makedep
 
 ifeq ($(BLD_MPR_BUILTIN),1)
-	PRE_DIRS    += mpr 
+	PRE_DIRS    += mpr
+else
+	CLOBBER		+= mpr/*.c mpr/*.h
+	IMPORTS     += $(BLD_MPR_IMPORTS) $(BLD_SSL_IMPORTS)
 endif
 
+IMPORTED    	+= $(patsubst %,$(BLD_LIB_DIR)/%, $(notdir $(IMPORTS)))
+
+compileFirst:	$(IMPORTED)
+
+$(IMPORTED): $(IMPORTS)
+	getlib $^
+
 clobberExtra:
-ifeq ($(BLD_MPR_BUILTIN),1)
-	rm -f mpr/*.c mpr/*.h
-endif
+	rm -f $(CLOBBERIT)
 
 #
 #   Local variables:
