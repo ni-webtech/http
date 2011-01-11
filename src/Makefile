@@ -8,6 +8,7 @@ include			.makedep
 
 PRE_DIRS		+= deps stages
 POST_DIRS		+= utils test
+MAKE_IFLAGS		+= $(BLD_MPR_IFLAGS)
 
 TARGET			+= $(BLD_LIB_DIR)/libhttp$(BLD_LIB)
 

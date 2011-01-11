@@ -8,19 +8,14 @@ defineComponent() {
     name="appweb"
     search="src/deps/appweb:src/$name:src/server"
 
-    if [ -f src/appweb/appweb.c ] ; then
-        path=`canonPath "."`
-        builtin=--builtin
-    elif [ -d src/deps/appweb ] ; then
-        path="src/deps/appweb"
-        builtin=--builtin
-    else
+    if [ "$path" != "" ] ; then
+        libpaths=`probe --name libappweb --search "$path:$path/out/lib" "libappweb" `
+        iflags=-I`probe --name appweb.h --search "$path:$path/src/include" "appweb.h"`
         path=`probe --emit-dir --path "$path" --partial "appweb.c" --search "$search" $name`
         if [ "$path" = "" ] ; then
             warnComponent $name
             return
         fi
-        iflags="-I$path/include"
     fi
     libs="$name"
 
@@ -43,6 +38,6 @@ defineComponent() {
         deps="$deps http"
     fi
 
-    configureComponent --libs "$libs" --path "$path" --iflags "$iflags" $builtin \
-        --dependencies "$deps" --optional-dependencies "$optional" $name
+    configureComponent --libs "$libs" --libpaths "$libpaths" --iflags "$iflags" \
+        --dependencies "$deps" --optional-dependencies "$optional" appweb
 }

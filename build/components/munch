@@ -4,10 +4,7 @@
 defineComponent() {
     local name path search
 
-    #
-    #   Name comes from build/config/config.*
-    #
-    eval name=\$BLD_${KIND}_MUNCH
+    eval file=\$BLD_${KIND}_MUNCH
 
     search="
 		'\$CFG_HOST_VXWORKS/gnu/*/\$BLD_BUILD_SYSTEM_VX/bin'
@@ -20,9 +17,9 @@ defineComponent() {
 	"
 	search=`convertSearchPath "$search"`
 
-    path=`probe --path "$1" --partial $name --search "$search" $name`
+    path=`probe --name munch --search "$search" $file`
     if [ "$path" = "" ] ; then
-        warnComponent munch $name
+        warnComponent $file
         return
 	fi
     configureComponent --path "$path" munch

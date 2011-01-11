@@ -2,22 +2,17 @@
 #   Http
 #
 defineComponent() {
-    local name path libpaths
+    local path iflags libpaths
 
     path="$1"
-    name="http"
-    search="src/deps"
-
-    path=`probe --path "$path" --search "$search" --partial http $name`
-    if [ "$path" = "" ] ; then
-        warnComponent $name
-        return
-	fi
-    if isExternal "$path" ; then
-        libpaths="$path/lib"
+    if [ "$path" != "" ] ; then
+        libpaths=`probe --name libhttp --search "$path:$path/out/lib" "libhttp" `
+        iflags=-I`probe --name http.h --search "$path:$path/src/include" "http.h"`
+        if [ "$libpaths" = "" ] ; then
+            warnComponent "http"
+            return
+        fi
     fi
-    configureComponent --builtin --optional-dependencies "regexp" --libs "http" --path "$path" \
-        --libpaths "$libpaths" $name
-
-    BLD_FEATURE_HTTP_ALL_IN_ONE=1
+    configureComponent --libs "http" --libpaths "$libpaths" --iflags "$iflags" \
+        --optional-dependencies "regexp" http
 }

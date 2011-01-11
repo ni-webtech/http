@@ -4,13 +4,7 @@
 defineComponent() {
 	local path name search ver imports libs iflags extensions file resolved
 
-    if [ $KIND = "BUILD" -a $BLD_CROSS = 1 ] ; then
-        echo "only used as a host component"
-        return 0
-    fi
-    name="php"
     path=$1
-    search="."
     ver="latest"
 
     path=`probe --path "$path" --partial "extensions/php/$ver" --search "$search" $name`
@@ -19,7 +13,11 @@ defineComponent() {
         return
 	fi
 
-    if [ $BLD_HOST_OS = WIN ] ; then
+    if [ "$path" != "" ] ; then
+        libpaths=`probe --name libphp --search "$path" "libphp" `
+        iflags=-I`probe --name php.h --search "$path" "php.h"`
+
+    elif [ $BLD_HOST_OS = WIN ] ; then
         extensions="dll lib"
         if [ -x $path/Release_TS ] ; then
             imports="$path/Release_TS/php5ts"
@@ -37,24 +35,26 @@ defineComponent() {
         libs="php5"
     fi
 
-    resolved=
-    for f in $imports
-    do
-        for ext in $extensions
-        do
-            file="${f}.${ext}"
-            if [ -f "$file" ] ; then 
-                break
-            fi
-        done
-        if [ ! -f "$file" ] ; then 
-            warnComponent $name "Can't locate $file"
-            return
-        fi
-        resolved="${resolved} ${file}"
-    done
+#    resolved=
+#    for f in $imports
+#    do
+#        for ext in $extensions
+#        do
+#            file="${f}.${ext}"
+#            if [ -f "$file" ] ; then 
+#                break
+#            fi
+#        done
+#        if [ ! -f "$file" ] ; then 
+#            warnComponent $name "Can't locate $file"
+#            return
+#        fi
+#        resolved="${resolved} ${file}"
+#    done
+#    configureComponent --path "$path" --dependencies "mpr" --imports "$resolved" --withlibs "$libs" \
+#        --libs "$libs" --iflags "$iflags" $name
 
-    iflags="-I$path -I$path/main -I$path/Zend -I$path/TSRM"
-    configureComponent --path "$path" --dependencies "mpr" --imports "$resolved" --withlibs "$libs" \
-        --libs "$libs" --iflags "$iflags" $name
+    iflags="${iflags} -I$path/main -I$path/Zend -I$path/TSRM"
+    configureComponent --path "$path" --dependencies "mpr" --withlibs "$libs" --libs "$libs" --libpaths "$libpaths" \
+        --iflags "$iflags" php
 }

@@ -2,16 +2,17 @@
 #   SSL
 #
 defineComponent() {
-	local deps path for name search ver imports libs
+	local iflags libpaths deps path search ver
 
-    if [ $KIND = "BUILD" -a $BLD_CROSS = 1 ] ; then
-        echo "only used as a host component"
-        return 0
+    path="${1:-.}"
+    libpaths=`probe --name libmprssl --search "$path:$path/out/lib" --dir "libmprssl" `
+    iflags=-I`probe --name mprSsl.h --search "$path:$path/src/include" --dir "mprSsl.h"`
+    if [ "$libpaths" = "" ] ; then
+        if [ ! -f src/deps/mpr/mprSsl.c ] ; then
+            warnComponent "mprSsl"
+            return
+        fi
     fi
-
-    name=ssl
-    libs="mprssl"
-
     deps=
     if isdefined OPENSSL ; then
         deps="$deps openssl"
@@ -19,11 +20,7 @@ defineComponent() {
     if isdefined MATRIXSSL ; then
         deps="$deps matrixssl"
     fi
+    deps="$deps mpr"
 
-    if [ "$deps" = "" ] ; then
-        warnComponent $name
-    else
-        deps="$deps mpr"
-        configureComponent --path "src/deps/mpr" --dependencies "$deps" --libs "$libs" --builtin $name
-    fi
+    configureComponent --libs "mprssl" --libpaths "$libpaths" --iflags "$iflags" --dependencies "$deps" ssl
 }

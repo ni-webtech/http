@@ -6,7 +6,9 @@
 
 include			.makedep
 
-PRE_DIRS		+= mpr
+ifeq ($(BLD_MPR_BUILTIN),1)
+	PRE_DIRS	+= mpr
+endif
 
 #
 #   Local variables:
