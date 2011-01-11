@@ -15,28 +15,40 @@
 
 /************************************************************************/
 /*
- *  Start of file "../src/include/mprOs.h"
+ *  Start of file "../src/include/mpr.h"
  */
 /************************************************************************/
 
 /*
-    mprOs.h -- Include O/S headers and smooth out per-O/S differences
+    mpr.h -- Header for the Multithreaded Portable Runtime (MPR).
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
-
-/*
-    This header is part of the Multithreaded Portable Runtime and aims to include
-    all necessary O/S headers and to unify the constants and declarations 
-    required by Embedthis products. It can be included by C or C++ programs.
+/**
+    @file mpr.h
+    The Multithreaded Portable Runtime (MPR) is a portable runtime core for embedded applications.
+    The MPR provides management for logging, error handling, events, files, http, memory, ssl, sockets, strings, 
+    xml parsing, and date/time functions. It also provides a foundation of safe routines for secure programming, 
+    that help to prevent buffer overflows and other security threats. The MPR is a library and a C API that can 
+    be used in both C and C++ programs.
+    \n\n
+    The MPR uses a set extended typedefs for common types. These include: bool, cchar, cvoid, uchar, short, ushort, 
+    int, uint, long, ulong, int32, uint32, int64, uint64, float, and double. The cchar type is a const char, cvoid is 
+    const void. Several types have "u" prefixes to denote unsigned qualifiers.
+    \n\n
+    The MPR includes a memory allocator and generational garbage collector. The allocator is a fast, immediate 
+    coalescing allocator that will return memory back to the O/S if not required. It is optimized for frequent 
+    allocations of small blocks (< 4K) and uses a scheme of free queues for fast allocation. 
+    \n\n
+    Not all of these APIs are thread-safe. 
  */
 
+#ifndef _h_MPR
+#define _h_MPR 1
 
-#ifndef _h_MPR_OS_HDRS
-#define _h_MPR_OS_HDRS 1
 
-#include    "buildConfig.h"
+#include "buildConfig.h"
 
 /*
     CPU families
@@ -842,75 +854,37 @@ extern "C" {
 }
 #endif
 
-#endif /* _h_MPR_OS_HDRS */
-
-/*
-    @copy   default
-    
-    Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2011. All Rights Reserved.
-    
-    This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire 
-    a commercial license from Embedthis Software. You agree to be fully bound 
-    by the terms of either license. Consult the LICENSE.TXT distributed with 
-    this software for full details.
-    
-    This software is open source; you can redistribute it and/or modify it 
-    under the terms of the GNU General Public License as published by the 
-    Free Software Foundation; either version 2 of the License, or (at your 
-    option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
-    
-    This program is distributed WITHOUT ANY WARRANTY; without even the 
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
-    
-    This GPL license does NOT permit incorporating this software into 
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses 
-    for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
-    
-    Local variables:
-    tab-width: 4
-    c-basic-offset: 4
-    End:
-    vim: sw=4 ts=4 expandtab
-
-    @end
- */
-/************************************************************************/
-/*
- *  End of file "../src/include/mprOs.h"
- */
-/************************************************************************/
-
-
-
-/************************************************************************/
-/*
- *  Start of file "../src/include/mprTune.h"
- */
-/************************************************************************/
-
-/*
-    mprTune.h - Header for the Multithreaded Portable Runtime (MPR) Base.
-
-    Copyright (c) All Rights Reserved. See details at the end of the file.
- */
-
-/*
-    See mpr.dox for additional documentation.
- */
-
-
-#ifndef _h_MPR_TUNE
-#define _h_MPR_TUNE 1
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct  tm;
+struct  Mpr;
+struct  MprMem;
+struct  MprBuf;
+struct  MprCmd;
+struct  MprCond;
+struct  MprDispatcher;
+struct  MprEvent;
+struct  MprEventService;
+struct  MprFile;
+struct  MprFileSystem;
+struct  MprHeap;
+struct  MprModule;
+struct  MprMutex;
+struct  MprOsService;
+struct  MprPath;
+struct  MprSocket;
+struct  MprSocketService;
+struct  MprSsl;
+struct  MprThread;
+struct  MprThreadService;
+struct  MprWaitService;
+struct  MprWaitHandler;
+struct  MprWorker;
+struct  MprWorkerService;
+struct  MprXml;
 
 /*
     Build tuning
@@ -1081,6 +1055,18 @@ extern "C" {
 #define MPR_CMD_TIMER_PERIOD    5000        /* Check for expired commands */
 
 /*
+    Tunable constants
+ */
+#define MPR_TEST_POLL_NAP       25
+#define MPR_TEST_SLEEP          (60 * 1000)
+#define MPR_TEST_MAX_STACK      (16)
+
+#define MPR_TEST_TIMEOUT        10000       /* Ten seconds */
+#define MPR_TEST_LONG_TIMEOUT   300000      /* 5 minutes */
+#define MPR_TEST_SHORT_TIMEOUT  200         /* 1/5 sec */
+#define MPR_TEST_NAP            50          /* Short timeout to prevent busy waiting */
+
+/*
     Events
  */
 #define MPR_EVENT_TIME_SLICE    20          /* 20 msec */
@@ -1119,124 +1105,6 @@ extern "C" {
  */
 #define MPR_MIN_TIME_FOR_GC     2       /**< Wait till 2 milliseconds of idle time possible */
     
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* _h_MPR_TUNE */
-
-
-/*
-    @copy   default
-    
-    Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2011. All Rights Reserved.
-    
-    This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire 
-    a commercial license from Embedthis Software. You agree to be fully bound 
-    by the terms of either license. Consult the LICENSE.TXT distributed with 
-    this software for full details.
-    
-    This software is open source; you can redistribute it and/or modify it 
-    under the terms of the GNU General Public License as published by the 
-    Free Software Foundation; either version 2 of the License, or (at your 
-    option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
-    
-    This program is distributed WITHOUT ANY WARRANTY; without even the 
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
-    
-    This GPL license does NOT permit incorporating this software into 
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses 
-    for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
-    
-    Local variables:
-    tab-width: 4
-    c-basic-offset: 4
-    End:
-    vim: sw=4 ts=4 expandtab
-
-    @end
- */
-/************************************************************************/
-/*
- *  End of file "../src/include/mprTune.h"
- */
-/************************************************************************/
-
-
-
-/************************************************************************/
-/*
- *  Start of file "../src/include/mpr.h"
- */
-/************************************************************************/
-
-/*
-    mpr.h -- Header for the Multithreaded Portable Runtime (MPR).
-
-    Copyright (c) All Rights Reserved. See details at the end of the file.
- */
-
-/**
-    @file mpr.h
-    The Multithreaded Portable Runtime (MPR) is a portable runtime core for embedded applications.
-    The MPR provides management for logging, error handling, events, files, http, memory, ssl, sockets, strings, 
-    xml parsing, and date/time functions. It also provides a foundation of safe routines for secure programming, 
-    that help to prevent buffer overflows and other security threats. The MPR is a library and a C API that can 
-    be used in both C and C++ programs.
-    \n\n
-    The MPR uses a set extended typedefs for common types. These include: bool, cchar, cvoid, uchar, short, ushort, 
-    int, uint, long, ulong, int32, uint32, int64, uint64, float, and double. The cchar type is a const char, cvoid is 
-    const void. Several types have "u" prefixes to denote unsigned qualifiers.
-    \n\n
-    The MPR includes a memory allocator and generational garbage collector. The allocator is a fast, immediate 
-    coalescing allocator that will return memory back to the O/S if not required. It is optimized for frequent 
-    allocations of small blocks (< 4K) and uses a scheme of free queues for fast allocation. 
-    \n\n
-    Not all of these APIs are thread-safe. 
- */
-
-#ifndef _h_MPR
-#define _h_MPR 1
-
-
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct  tm;
-struct  Mpr;
-struct  MprMem;
-struct  MprBuf;
-struct  MprCmd;
-struct  MprCond;
-struct  MprDispatcher;
-struct  MprEvent;
-struct  MprEventService;
-struct  MprFile;
-struct  MprFileSystem;
-struct  MprHeap;
-struct  MprModule;
-struct  MprMutex;
-struct  MprOsService;
-struct  MprPath;
-struct  MprSocket;
-struct  MprSocketService;
-struct  MprSsl;
-struct  MprThread;
-struct  MprThreadService;
-struct  MprWaitService;
-struct  MprWaitHandler;
-struct  MprWorker;
-struct  MprWorkerService;
-struct  MprXml;
-
 
 /* Prevent collisions with 3rd party software */
 #undef UNUSED
@@ -7326,84 +7194,6 @@ extern char* mprEmptyString();
 extern char *dtoa(double d, int mode, int ndigits, int* decpt, int* sign, char** rve);
 extern void freedtoa(char* ptr);
 
-#ifdef __cplusplus
-}
-#endif
-#endif /* _h_MPR */
-
-/*
-    @copy   default
-
-    Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2011. All Rights Reserved.
-
-    This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire
-    a commercial license from Embedthis Software. You agree to be fully bound
-    by the terms of either license. Consult the LICENSE.TXT distributed with
-    this software for full details.
-
-    This software is open source; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License as published by the
-    Free Software Foundation; either version 2 of the License, or (at your
-    option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
-
-    This program is distributed WITHOUT ANY WARRANTY; without even the
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-    This GPL license does NOT permit incorporating this software into
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses
-    for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
-
-    Local variables:
-    tab-width: 4
-    c-basic-offset: 4
-    End:
-    vim: sw=4 ts=4 expandtab
-
-    @end
- */
-/************************************************************************/
-/*
- *  End of file "../src/include/mpr.h"
- */
-/************************************************************************/
-
-
-
-/************************************************************************/
-/*
- *  Start of file "../src/include/mprTest.h"
- */
-/************************************************************************/
-
-/*
-    mprTest.h - Header for the Embedthis Unit Test Framework
-    
-    Copyright (c) All Rights Reserved. See details at the end of the file.
- */
-
-
-#ifndef _h_MPR_TEST
-#define _h_MPR_TEST 1
-
-
-
-/*
-    Tunable constants
- */
-#define MPR_TEST_POLL_NAP       25
-#define MPR_TEST_SLEEP          (60 * 1000)
-#define MPR_TEST_MAX_STACK      (16)
-
-#define MPR_TEST_TIMEOUT        10000       /* Ten seconds */
-#define MPR_TEST_LONG_TIMEOUT   300000      /* 5 minutes */
-#define MPR_TEST_SHORT_TIMEOUT  200         /* 1/5 sec */
-#define MPR_TEST_NAP            50          /* Short timeout to prevent busy waiting */
-
 /*
     Unit test definition structures
  */
@@ -7514,36 +7304,38 @@ typedef struct MprTestFailure {
 } MprTestFailure;
 
 
-#endif /* _h_MPR_TEST */
-
+#ifdef __cplusplus
+}
+#endif
+#endif /* _h_MPR */
 
 /*
     @copy   default
-    
+
     Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
     Copyright (c) Michael O'Brien, 1993-2011. All Rights Reserved.
-    
+
     This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire 
-    a commercial license from Embedthis Software. You agree to be fully bound 
-    by the terms of either license. Consult the LICENSE.TXT distributed with 
+    You may use the GPL open source license described below or you may acquire
+    a commercial license from Embedthis Software. You agree to be fully bound
+    by the terms of either license. Consult the LICENSE.TXT distributed with
     this software for full details.
-    
-    This software is open source; you can redistribute it and/or modify it 
-    under the terms of the GNU General Public License as published by the 
-    Free Software Foundation; either version 2 of the License, or (at your 
-    option) any later version. See the GNU General Public License for more 
+
+    This software is open source; you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the
+    Free Software Foundation; either version 2 of the License, or (at your
+    option) any later version. See the GNU General Public License for more
     details at: http://www.embedthis.com/downloads/gplLicense.html
-    
-    This program is distributed WITHOUT ANY WARRANTY; without even the 
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
-    
-    This GPL license does NOT permit incorporating this software into 
+
+    This program is distributed WITHOUT ANY WARRANTY; without even the
+    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+    This GPL license does NOT permit incorporating this software into
     proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses 
-    for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
-    
+    acquire a commercial license to use this software. Commercial licenses
+    for this software and support services are available from Embedthis
+    Software at http://www.embedthis.com
+
     Local variables:
     tab-width: 4
     c-basic-offset: 4
@@ -7554,7 +7346,7 @@ typedef struct MprTestFailure {
  */
 /************************************************************************/
 /*
- *  End of file "../src/include/mprTest.h"
+ *  End of file "../src/include/mpr.h"
  */
 /************************************************************************/
 

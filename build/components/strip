@@ -4,9 +4,6 @@
 defineComponent() {
     local file path
 
-    #
-    #   Name comes from build/config/config.*
-    #
     eval file=\$BLD_${KIND}_STRIP
     path=`probe --name strip $file`
     if [ "$path" = "" ] ; then

@@ -2,17 +2,15 @@
 #   Http
 #
 defineComponent() {
-    local path iflags libpaths
+    local path iflags libpaths builtin
 
-    path="$1"
-    if [ "$path" != "" ] ; then
-        libpaths=`probe --name libhttp --search "$path:$path/out/lib" "libhttp" `
-        iflags=-I`probe --name http.h --search "$path:$path/src/include" "http.h"`
-        if [ "$libpaths" = "" ] ; then
-            warnComponent "http"
-            return
-        fi
+    path="${1:-.}"
+    iflags=-I`probe --name http.h --dir --search "$path:$path/src/deps/http" "http.h"`
+    libpaths=`probe --name libhttp --dir --search "$path:$path/out/lib" "libhttp" `
+    if [ "$libpaths" = "" -a "$path" != "." ] ; then
+        warnComponent http "Can't locate libhttp"
+        return
     fi
-    configureComponent --libs "http" --libpaths "$libpaths" --iflags "$iflags" \
-        --optional-dependencies "regexp" http
+    builtin=`[ $path = . ] && echo --builtin`
+    configureComponent --libs "http" --libpaths "$libpaths" --iflags "$iflags" $builtin http
 }

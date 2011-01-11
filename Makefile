@@ -16,8 +16,11 @@
 include		build/make/Makefile.top
 include		build/make/Makefile.http
 
-diff import sync:
+sync:
 	$(BLD_TOOLS_DIR)/import.sh --$@ ../tools/out/releases/tools-dist.tgz
+	$(BLD_TOOLS_DIR)/import.sh --$@ ../mpr/out/releases/mpr-dist.tgz
+
+diff import:
 	$(BLD_TOOLS_DIR)/import.sh --$@ ../mpr/out/releases/mpr-dist.tgz
 
 compileFinal:

@@ -2,18 +2,14 @@
 #   Ejs
 #
 defineComponent() {
-    local builtin deps iflags libs name optional path libpaths
+    local deps iflags libs optional path libpaths builtin
 
-    path="$1"
-
-    path="$1"
-    if [ "$path" != "" ] ; then
-        libpaths=`probe --name libejs --search "$path:$path/out/lib" "libejs" `
-        iflags=-I`probe --name ejs.h --search "$path:$path/src/include" "ejs.h"`
-        if [ "$libpaths" = "" ] ; then
-            warnComponent "ejs"
-            return
-        fi
+    path="${1:-.}"
+    iflags=-I`probe --name ejs.h --dir --search "$path:$path/src/deps/ejs:$path/src/include" "ejs.h"`
+    libpaths=`probe --name libejs --dir --search "$path:$path/out/lib" "libejs" `
+    if [ "$libpaths" = "" -a "$path" != "." ] ; then
+        warnComponent ejs "Can't locate libejs"
+        return
     fi
     optional="ssl"
     if [ "$BLD_STATIC" = 1 ] ; then
@@ -28,7 +24,8 @@ defineComponent() {
     deps="mpr http"
     withlibs="$withlibs pcre"
     libs="$libs pcre"
+    builtin=`[ $path = . ] && echo --builtin`
 
-    configureComponent --libs "ejs $libs" --libpaths "$libpaths" --iflags "$iflags" --withlibs "$withlibs" \
+    configureComponent --libs "ejs $libs" --libpaths "$libpaths" --iflags "$iflags" --withlibs "$withlibs" $builtin \
         --dependencies "$deps" --optional-dependencies "$optional" ejs
 }

@@ -2,10 +2,9 @@
 #   Munch
 #
 defineComponent() {
-    local name path search
+    local file path search
 
     eval file=\$BLD_${KIND}_MUNCH
-
     search="
 		'\$CFG_HOST_VXWORKS/gnu/*/\$BLD_BUILD_SYSTEM_VX/bin'
 		'\$CFG_HOST_VXWORKS/gnu/*/\$BLD_BUILD_SYSTEM_VX/\$BLD_HOST_SYSTEM/bin'

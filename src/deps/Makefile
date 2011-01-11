@@ -7,7 +7,12 @@
 include			.makedep
 
 ifeq ($(BLD_MPR_BUILTIN),1)
-	PRE_DIRS	+= mpr
+	PRE_DIRS    += mpr 
+endif
+
+clobberExtra:
+ifeq ($(BLD_MPR_BUILTIN),1)
+	rm -f mpr/*.c mpr/*.h
 endif
 
 #

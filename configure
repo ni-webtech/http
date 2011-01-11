@@ -959,8 +959,10 @@ configureComponent() {
             if [ "$present" != "" ] ; then
 
                 eval v=\$CFG_${kind}_${udep}_LIBS
+                [ "$v" != "" ] && libs="$libs $v"
                 [ "$v" != "" ] && withlibs="$withlibs $v"
                 eval v=\$CFG_${kind}_${udep}_LIBPATHS
+                [ "$v" != "" ] && libpaths="$libpaths $v"
                 [ "$v" != "" ] && withpaths="$withpaths $v"
 
                 eval v=\$CFG_${kind}_${udep}_WITHLIBS

@@ -2,22 +2,18 @@
 #   Appweb
 #
 defineComponent() {
-	local iflags builtin path name search optional libs
+	local iflags libpaths path search optional libs builtin
 
-    path=$1
-    name="appweb"
-    search="src/deps/appweb:src/$name:src/server"
-
+    path=${1:-.}
     if [ "$path" != "" ] ; then
-        libpaths=`probe --name libappweb --search "$path:$path/out/lib" "libappweb" `
-        iflags=-I`probe --name appweb.h --search "$path:$path/src/include" "appweb.h"`
-        path=`probe --emit-dir --path "$path" --partial "appweb.c" --search "$search" $name`
-        if [ "$path" = "" ] ; then
-            warnComponent $name
+        libpaths=`probe --name appweb --dir --search "$path:$path/out/lib" "libappweb" `
+        iflags=-I`probe --name appweb --dir --search "$path:$path/src/include" "appweb.h"`
+        if [ "$libpaths" = "" -a "$path" != "." ] ; then
+            warnComponent appweb "Can't locate libappweb"
             return
         fi
     fi
-    libs="$name"
+    libs="appweb"
 
     optional="ssl"
 	if [ "$BLD_STATIC" = 1 ] ; then
@@ -37,7 +33,8 @@ defineComponent() {
     if [ -d src/deps ] ; then
         deps="$deps http"
     fi
+    builtin=`[ "$path" = . ] && echo --builtin`
 
-    configureComponent --libs "$libs" --libpaths "$libpaths" --iflags "$iflags" \
+    configureComponent --libs "$libs" --libpaths "$libpaths" --iflags "$iflags" $builtin \
         --dependencies "$deps" --optional-dependencies "$optional" appweb
 }

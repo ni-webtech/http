@@ -5,7 +5,6 @@ defineComponent() {
     local file path
 
     eval file=\$BLD_${KIND}_PKG
-
     [ "$file" = "" ] && return 0
     path=`probe --name pkg $file"
     if [ "$path" = "" ] ; then

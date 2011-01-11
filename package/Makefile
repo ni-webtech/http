@@ -14,7 +14,8 @@ DIST_PERM_NAME	:= http-dist.tgz
 FLAT_VER_NAME	:= http-$(BLD_VERSION)-flat.tgz
 FLAT_PERM_NAME	:= http-flat.tgz
 DEST			:= $(TDIR)/src/deps/http
-INC_DEST		:= $(TDIR)/src/include
+# INC_DEST		:= $(TDIR)/src/include
+INC_DEST		:= $(DEST)
 DOC_DEST		:= $(TDIR)/doc
 TARGETS			+= $(patsubst %,$(INC_DEST)/%, http.h)
 TARGETS			+= $(patsubst %,$(DEST)/%, httpLib.c http.c)
@@ -54,7 +55,7 @@ $(REL_DIR)/$(DIST_VER_NAME): Makefile $(TARGETS)
 flat $(REL_DIR)/$(FLAT_VER_NAME):
 	find $(TDIR)/src -type f | xargs -I % mv % $(TDIR) 
 	cp $(SRC)/deps/mpr/mprLib.c $(SRC)/deps/mpr/mprSsl.c $(TDIR)
-	cp $(SRC)/include/mpr.h $(SRC)/include/mprSsl.h $(TDIR) 
+	cp $(SRC)/deps/mpr/mpr.h $(SRC)/deps/mpr/mprSsl.h $(TDIR) 
 	rm -fr $(TDIR)/doc $(TDIR)/src $(TDIR)/Makefile
 	$(call log) "[Generate]" "tar cfz $(REL_DIR)/$(FLAT_VER_NAME) -C $(STAGE_DIR) ."
 	tar cfz $(REL_DIR)/$(FLAT_VER_NAME) -C $(STAGE_DIR) .

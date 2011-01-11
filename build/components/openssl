@@ -13,8 +13,6 @@ defineComponent() {
     fi
     if [ $BLD_HOST_OS = WIN ] ; then
         path=`probe --path "$path" --partial "extensions/$name/$ver" --search "$search" --dir $name`
-        imports="$path/out32dll/libeay32 $path/out32dll/ssleay32"
-        extensions="dll lib"
         libs="libeay32 ssleay32"
         iflags="-I$path/inc32"
 
@@ -23,8 +21,6 @@ defineComponent() {
         #   Use system libraries
         #
         path=/usr/lib
-        imports="$path/libssl $path/libcrypto"
-        extensions="a"
         libs="ssl crypto"
         iflags="-I$path/include"
 
@@ -38,23 +34,6 @@ defineComponent() {
         warnComponent "openssl"
         return
     fi
-
-#    do
-#        for ext in $extensions
-#        do
-#            file="${f}.${ext}"
-#            if [ -f "$file" ] ; then
-#                break
-#            fi
-#        done
-#        if [ ! -f "$file" ] ; then
-#            warnComponent $name "Can't locate $file"
-#            return
-#        fi
-#        resolved="${resolved} ${file}"
-#    done
-#    configureComponent --path "$path" --imports "$resolved" --libs "$libs" --iflags "$iflags" $name
-
     CFG_HOST_SSL_MANDATORY=1
     configureComponent --libs "$libs" --libpaths "$libpaths" --iflags "$iflags" openssl
 }

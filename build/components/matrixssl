@@ -2,7 +2,7 @@
 #   MatrixSSL
 #
 defineComponent() {
-	local path iflags libpaths search ver imports libs
+	local path iflags libpaths search ver libs
 
     path=$1
     ver="latest"
@@ -20,22 +20,10 @@ defineComponent() {
         return
     fi
     if [ $BLD_HOST_OS = WIN ] ; then
-#        imports="$path/src/Release/libmatrixssl.dll"
         libs="libmatrixssl"
     else
-#        imports="$path/src/libmatrixsslstatic.a"
         libs="matrixsslstatic.a"
     fi
-
-#    for i in $imports
-#    do
-#        if [ ! -f "$i" ] ; then
-#            warnComponent $name "Can't locate $i"
-#            return
-#        fi
-#    done
-#    configureComponent --path "$path" --imports "$imports" --libs "$libs" --iflags "-I$path" $name
-
     CFG_HOST_SSL_MANDATORY=1
     configureComponent --libs "$libs" --libpaths "$libpaths" --iflags "$iflags" matrixssl
 }

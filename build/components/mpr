@@ -2,14 +2,15 @@
 #   Mpr
 #
 defineComponent() {
-    local libpaths iflags
+    local libpaths iflags path builtin
 
     path="${1:-.}"
-    iflags=-I`probe --name mpr --dir --warn --search "$path:$path/src/include" "mpr.h"`
+    iflags=-I`probe --name mpr --dir --warn --search "$path:$path/src/deps/mpr:$path/src/include" "mpr.h"`
     libpaths=`probe --name mpr --dir --search "$path:$path/out/lib" "libmpr"`
     if [ "$libpaths" = "" -a "$path" != "." ] ; then
         warnComponent mpr "Can't locate libmpr"
         return
     fi
-    configureComponent --libs "mpr" --libpaths "$libpaths" --iflags "$iflags" mpr
+    builtin=`[ $path = . ] && echo --builtin`
+    configureComponent --libs "mpr" --libpaths "$libpaths" --iflags "$iflags" $builtin mpr
 }

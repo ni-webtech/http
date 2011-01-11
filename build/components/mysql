@@ -2,7 +2,7 @@
 #   MySQL
 #
 defineComponent() {
-	local iflags libpaths path search
+	local iflags libpaths path search dflags cflags
 
 
     path="$1"
@@ -22,8 +22,7 @@ defineComponent() {
     libs="`mysql_config --libs_r`"
     libpaths=`echo $libs | sed 's/ .*//'`
     libs=`echo $libs | sed 's/[^ ]*//' | sed 's/-l//g'`
-    imports="$path/lib/$clientlib"
 
     configureComponent --dependencies "mpr" --libs "$libs" --path "$path" --cflags "$cflags" \
-        --dflags "$dflags" --iflags "$iflags" --imports "$imports" mysql
+        --dflags "$dflags" --iflags "$iflags" mysql
 }
