@@ -3,7 +3,7 @@
     ProjectType="Visual C++"
     Version="8.00"
     Name="libmpr"
-    ProjectGUID="dba3338e-01ec-4fdb-89d6-1e52627c7a9f"
+    ProjectGUID="1ec98a47-29a7-4bca-ae66-a0349d6cd3a6"
     RootNamespace=""
     Keyword="Win32Proj"
     TargetFrameworkVersion="0"
@@ -162,7 +162,7 @@
         <Filter
             Name="Header Files"
             Filter="h;hpp;hxx;hm;inl;inc;xsd"
-            UniqueIdentifier="{e2e9b1ec-0c4c-46d0-9ec0-15e2df81da2c}"
+            UniqueIdentifier="{67f51246-5cd8-4090-b1a8-2c55630985af}"
             >
             <File
                 RelativePath="..\..\..\out\include\buildConfig.h"
@@ -172,19 +172,11 @@
                 RelativePath="..\..\..\src\include\http.h"
                 >
             </File>
-            <File
-                RelativePath="..\..\..\src\include\mpr.h"
-                >
-            </File>
-            <File
-                RelativePath="..\..\..\src\include\mprSsl.h"
-                >
-            </File>
         </Filter>
         <Filter
             Name="Source Files"
             Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
-            UniqueIdentifier="{b445911a-c42b-4b53-8e4d-c547ede8d182}"
+            UniqueIdentifier="{cc22aaf0-f6f9-4407-a0bc-c52af834158c}"
             >
             <File
                 RelativePath="..\..\..\src\deps\mpr\mprLib.c"

@@ -7,6 +7,7 @@
 include			.makedep
 
 TARGETS			+= $(BLD_BIN_DIR)/http$(BLD_EXE)
+MAKE_IFLAGS		+= $(BLD_MPR_IFLAGS)
 
 compileExtra: $(TARGETS) 
 

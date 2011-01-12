@@ -2353,6 +2353,7 @@ static void manageMpr(Mpr *mpr, int flags)
         mprMark(mpr->version);
         mprMark(mpr->waitService);
         mprMark(mpr->workerService);
+        mprMark(mpr->emptyString);
         mprMark(mpr->heap.markerCond);
     }
 }
@@ -7229,6 +7230,11 @@ int mprDispatchersAreIdle()
  */
 void mprRelayEvent(MprDispatcher *dispatcher, MprEventProc proc, void *data, MprEvent *event)
 {
+#if BLD_DEBUG
+    //  MOB TEMP -- just for debug
+    MprThread *tp = mprGetCurrentThread();
+#endif
+
     mprAssert(!isRunning(dispatcher));
     mprAssert(dispatcher->owner == 0);
 

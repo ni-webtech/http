@@ -20,12 +20,10 @@ httpAddVarsFromQueue
 httpAppendHeader
 httpAppendQueue
 httpCallEvent
-httpClearHeaders
 httpClearStages
 httpClonePacket
 httpCloneStage
 httpCloneUri
-httpCloseClientConn
 httpCloseConn
 httpCloseRx
 httpCompareFormVar
@@ -40,7 +38,6 @@ httpCreate
 httpCreateAuth
 httpCreateClient
 httpCreateConn
-httpCreateConnPacket
 httpCreateConnector
 httpCreateDataPacket
 httpCreateEndPacket
@@ -61,12 +58,17 @@ httpCreateSecret
 httpCreateServer
 httpCreateStage
 httpCreateTx
+httpCreateTxHeaders
 httpCreateUri
 httpCreateUriFromParts
 httpCreateUser
 httpDefaultOutgoingServiceStage
+httpDestroy
+httpDestroyConn
 httpDestroyPipeline
 httpDestroyRx
+httpDestroyServer
+httpDestroyTx
 httpDisableGroup
 httpDisableQueue
 httpDisableUser
@@ -91,7 +93,6 @@ httpFormatBody
 httpFormatError
 httpFormatErrorV
 httpFormatUri
-httpFreePacket
 httpGetAsync
 httpGetChunkSize
 httpGetConnContext
@@ -147,8 +148,8 @@ httpLookupErrorDocument
 httpLookupStage
 httpLookupStatus
 httpMakeUriLocal
-httpManageQueue
 httpManageTrace
+httpMarkQueueHead
 httpMatchEtag
 httpMatchModified
 httpNeedRetry

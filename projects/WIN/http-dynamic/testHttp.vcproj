@@ -3,7 +3,7 @@
     ProjectType="Visual C++"
     Version="8.00"
     Name="testHttp"
-    ProjectGUID="d4bd1184-aab3-48f4-882d-353e0d00cffc"
+    ProjectGUID="ae51b8e0-b186-4eb3-8a31-bf1b8d72d529"
     RootNamespace=""
     Keyword="Win32Proj"
     TargetFrameworkVersion="0"
@@ -160,7 +160,7 @@
         <Filter
             Name="Header Files"
             Filter="h;hpp;hxx;hm;inl;inc;xsd"
-            UniqueIdentifier="{f68f4317-84d6-40c1-8e18-5ba013472f50}"
+            UniqueIdentifier="{1a17e84e-945a-4b32-ae02-a0b68a178a94}"
             >
             <File
                 RelativePath="..\..\..\out\include\buildConfig.h"
@@ -170,19 +170,11 @@
                 RelativePath="..\..\..\src\include\http.h"
                 >
             </File>
-            <File
-                RelativePath="..\..\..\src\include\mpr.h"
-                >
-            </File>
-            <File
-                RelativePath="..\..\..\src\include\mprSsl.h"
-                >
-            </File>
         </Filter>
         <Filter
             Name="Source Files"
             Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
-            UniqueIdentifier="{8a87c819-cd03-4e03-a7f5-0bd7e77a591b}"
+            UniqueIdentifier="{91233dce-fe39-4459-9539-67735a753457}"
             >
             <File
                 RelativePath="..\..\..\src\test\testHttp.c"
