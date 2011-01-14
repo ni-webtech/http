@@ -84,11 +84,7 @@ Http *httpCreate()
     http->protocol = sclone("HTTP/1.1");
     http->mutex = mprCreateLock(http);
     http->stages = mprCreateHash(-1, 0);
-
-    /*
-        Http manages connections and maintains a reference to the connection while it is open.
-     */
-    http->connections = mprCreateList(-1, 0);
+    http->connections = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
 
     updateCurrentDate(http);
     http->statusCodes = mprCreateHash(41, MPR_HASH_STATIC_VALUES | MPR_HASH_STATIC_KEYS);
@@ -114,8 +110,10 @@ Http *httpCreate()
 
 static void manageHttp(Http *http, int flags)
 {
+    HttpConn    *conn;
+    int         next;
+
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(http->connections);
         mprMark(http->stages);
         mprMark(http->mimeTypes);
         mprMark(http->statusCodes);
@@ -131,6 +129,18 @@ static void manageHttp(Http *http, int flags)
         mprMark(http->currentDate);
         mprMark(http->expiresDate);
         mprMark(http->protocol);
+        mprMark(http->connections);
+
+        /*
+            Servers keep connections alive until a timeout. Keep marking even if no other references
+         */
+        lock(http);
+        for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
+            if (conn->server) {
+                mprMark(conn);
+            }
+        }
+        unlock(http);
     }
 }
 
@@ -320,6 +330,8 @@ static int httpTimer(Http *http, MprEvent *event)
 void httpAddConn(Http *http, HttpConn *conn)
 {
     lock(http);
+    //  MOB
+    mprAssert(http->connections->length < 25);
     mprAddItem(http->connections, conn);
     conn->started = mprGetTime();
     conn->seqno = http->connCount++;
@@ -329,6 +341,14 @@ void httpAddConn(Http *http, HttpConn *conn)
     if (http->timer == 0) {
         startTimer(http);
     }
+    unlock(http);
+}
+
+
+void httpRemoveConn(Http *http, HttpConn *conn)
+{
+    lock(http);
+    mprRemoveItem(http->connections, conn);
     unlock(http);
 }
 
@@ -431,14 +451,6 @@ int httpLoadSsl(Http *http)
     mprError("SSL communications support not included in build");
 #endif
     return 0;
-}
-
-
-void httpRemoveConn(Http *http, HttpConn *conn)
-{
-    lock(http);
-    mprRemoveItem(http->connections, conn);
-    unlock(http);
 }
 
 
