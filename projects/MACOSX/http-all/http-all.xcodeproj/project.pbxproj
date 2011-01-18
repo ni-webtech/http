@@ -184,7 +184,6 @@
 		C9723C2011138578002B2B3B /* authFile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authFile.c; path = ../../../src/authFile.c; sourceTree = SOURCE_ROOT; };
 		C9723C2111138578002B2B3B /* authPam.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authPam.c; path = ../../../src/authPam.c; sourceTree = SOURCE_ROOT; };
 		C9BE003611F367770013B994 /* sendConnector.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = sendConnector.c; path = ../../../src/sendConnector.c; sourceTree = SOURCE_ROOT; };
-		C9F8E4B6102B659C00492AB2 /* libmatrixsslstatic.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmatrixsslstatic.a; path = ../../../lib/libmatrixsslstatic.a; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -338,7 +337,6 @@
 		C9F8E4B1102B647A00492AB2 /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
-				C9F8E4B6102B659C00492AB2 /* libmatrixsslstatic.a */,
 			);
 			name = Libraries;
 			sourceTree = "<group>";
@@ -629,6 +627,7 @@
 				HEADER_SEARCH_PATHS = (
 					../../../out/include,
 					../../../src/include,
+					../../../src/deps/mpr,
 				);
 				LIBRARY_SEARCH_PATHS = ../../../out/lib;
 				ONLY_ACTIVE_ARCH = NO;
@@ -830,6 +829,7 @@
 					../../../extensions/openssl/latest,
 					../../../out/include,
 					../../../src/include,
+					../../../src/deps/mpr,
 				);
 				INSTALL_PATH = /usr/local/lib;
 				LIBRARY_SEARCH_PATHS = "$(inherited)";

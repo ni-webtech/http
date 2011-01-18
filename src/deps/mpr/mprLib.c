@@ -12040,7 +12040,7 @@ MprChar *mpbrk(MprChar *str, cchar *set)
     if (str == NULL || set == NULL) {
         return 0;
     }
-    for (count = 0; *str; count++) {
+    for (count = 0; *str; count++, str++) {
         for (sp = set; *sp; sp++) {
             if (*str == *sp) {
                 return str;
@@ -17825,6 +17825,9 @@ char *itos(char *buf, int count, int64 value, int radix)
 
 char *schr(cchar *s, int c)
 {
+    if (s == NULL) {
+        return 0;
+    }
     return strchr(s, c);
 }
 
@@ -17872,6 +17875,25 @@ char *sclone(cchar *str)
         str = "";
     }
     len = strlen(str);
+    size = len + 1;
+    if ((ptr = mprAlloc(size)) != NULL) {
+        memcpy(ptr, str, len);
+        ptr[len] = '\0';
+    }
+    return ptr;
+}
+
+
+char *snclone(cchar *str, ssize len)
+{
+    char    *ptr;
+    ssize   size, l;
+
+    if (str == NULL) {
+        str = "";
+    }
+    l = slen(str);
+    len = min(l, len);
     size = len + 1;
     if ((ptr = mprAlloc(size)) != NULL) {
         memcpy(ptr, str, len);
@@ -18213,7 +18235,7 @@ char *spbrk(cchar *str, cchar *set)
     if (str == NULL || set == NULL) {
         return 0;
     }
-    for (count = 0; *str; count++) {
+    for (count = 0; *str; count++, str++) {
         for (sp = set; *sp; sp++) {
             if (*str == *sp) {
                 return (char*) str;
@@ -18226,6 +18248,9 @@ char *spbrk(cchar *str, cchar *set)
 
 char *srchr(cchar *s, int c)
 {
+    if (s == NULL) {
+        return NULL;
+    }
     return strrchr(s, c);
 }
 
@@ -23613,7 +23638,7 @@ MprChar *wpbrk(MprChar *str, MprChar *set)
     if (str == NULL || set == NULL) {
         return 0;
     }
-    for (count = 0; *str; count++) {
+    for (count = 0; *str; count++, str++) {
         for (sp = set; *sp; sp++) {
             if (*str == *sp) {
                 return str;
