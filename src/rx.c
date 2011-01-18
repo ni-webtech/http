@@ -51,6 +51,7 @@ static void manageRx(HttpRx *rx, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(rx->method);
         mprMark(rx->uri);
+        mprMark(rx->hostName);
         mprMark(rx->scriptName);
         mprMark(rx->pathInfo);
         mprMark(rx->etags);
