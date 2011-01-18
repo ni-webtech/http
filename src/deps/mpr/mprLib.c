@@ -1082,8 +1082,7 @@ void mprRequestGC(int flags)
 static void synchronize()
 {
 #if BLD_MEMORY_STATS
-    //7
-    LOG(2, "GC: MARKED %,d/%,d, SWEPT %,d/%,d, freed %,d, bytesFree %,d (prior %,d), newCount %,d/%,d, " 
+    LOG(7, "GC: MARKED %,d/%,d, SWEPT %,d/%,d, freed %,d, bytesFree %,d (prior %,d), newCount %,d/%,d, " 
             "blocks %,d bytes %,d",
             heap->stats.marked, heap->stats.markVisited, heap->stats.swept, heap->stats.sweepVisited, 
             (int) heap->stats.freed, (int) heap->stats.bytesFree, (int) heap->priorFree, heap->priorNewCount, heap->newQuota,
@@ -1109,8 +1108,7 @@ static void synchronize()
 
 static void mark()
 {
-    //7
-    LOG(2, "GC: mark started");
+    LOG(7, "GC: mark started");
 
 #if !PARALLEL_GC
     heap->mustYield = 1;
@@ -1155,8 +1153,7 @@ static void sweep()
         LOG(7, "DEBUG: sweep: Abort sweep - GC disabled");
         return;
     }
-    //7
-    LOG(2, "GC: sweep started");
+    LOG(7, "GC: sweep started");
     heap->stats.freed = 0;
 
     if (heap->newCount > heap->earlyYieldQuota) {
@@ -1627,7 +1624,7 @@ static void nextGen()
     heap->stale = (active - 1 + MPR_MAX_GEN) % MPR_MAX_GEN;
     heap->dead = (active - 2 + MPR_MAX_GEN) % MPR_MAX_GEN;
     heap->iteration++;
-    LOG(2, "GC: Iteration %d, active %d, stale %d, dead %d, eternal %d",
+    LOG(7, "GC: Iteration %d, active %d, stale %d, dead %d, eternal %d",
         heap->iteration, heap->active, heap->stale, heap->dead, heap->eternal);
 }
 
@@ -7150,10 +7147,14 @@ int mprServiceEvents(int timeout, int flags)
     MprTime             start, expires, delay;
     int                 beginEventCount, eventCount, justOne;
 
+    if (MPR->eventing) {
+        mprError("mprServiceEvents() called reentrantly");
+        return 0;
+    }
+    MPR->eventing = 1;
 #if WIN
     mprInitWindow();
 #endif
-    MPR->eventing = 1;
     es = MPR->eventService;
     beginEventCount = eventCount = es->eventCount;
 
