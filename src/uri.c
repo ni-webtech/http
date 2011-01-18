@@ -496,7 +496,7 @@ HttpUri *httpJoinUri(HttpUri *uri, int argc, HttpUri **others)
             uri->query = sclone(other->query);
         }
     }
-    uri->ext = (char*) mprGetPathExtension(uri->path);
+    uri->ext = mprGetPathExtension(uri->path);
     return uri;
 }
 
@@ -636,7 +636,7 @@ HttpUri *httpResolveUri(HttpUri *base, int argc, HttpUri **others, int local)
             current->query = sclone(other->query);
         }
     }
-    current->ext = (char*) mprGetPathExtension(current->path);
+    current->ext = mprGetPathExtension(current->path);
     return current;
 }
 
