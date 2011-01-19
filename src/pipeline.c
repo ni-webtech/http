@@ -181,7 +181,7 @@ void httpDestroyPipeline(HttpConn *conn)
             for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
                 if (q->close && q->flags & HTTP_QUEUE_OPEN) {
                     q->flags &= ~HTTP_QUEUE_OPEN;
-                    q->close(q);
+                    HTTP_TIME(conn, q->stage->name, "close", q->stage->close(q));
                 }
             }
         }
@@ -195,19 +195,12 @@ void httpStartPipeline(HttpConn *conn)
     HttpQueue   *qhead, *q;
     HttpTx      *tx;
     
-#if OLD
-    //  MOB -- should this run all the start entry points in the pipeline?
-    q = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
-    if (q->stage->start) {
-        q->stage->start(q);
-    }
-#endif
     tx = conn->tx;
     qhead = &tx->queue[HTTP_QUEUE_TRANS];
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
             q->flags |= HTTP_QUEUE_STARTED;
-            q->stage->start(q);
+            HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
         }
     }
 
@@ -217,7 +210,7 @@ void httpStartPipeline(HttpConn *conn)
             if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_STARTED)) {
                     q->flags |= HTTP_QUEUE_STARTED;
-                    q->stage->start(q);
+                    HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
                 }
             }
         }
@@ -231,7 +224,7 @@ void httpProcessPipeline(HttpConn *conn)
     
     q = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
     if (q->stage->process) {
-        q->stage->process(q);
+        HTTP_TIME(conn, q->stage->name, "process", q->stage->process(q));
     }
 }
 

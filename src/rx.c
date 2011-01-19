@@ -88,6 +88,12 @@ static void manageRx(HttpRx *rx, int flags)
 
 void httpDestroyRx(HttpRx *rx)
 {
+#if BLD_DEBUG
+    if (httpShouldTrace(rx->conn, 0, HTTP_TRACE_TIME, NULL)) {
+        mprLog(4, "TIME: Request %s took %,d msec %,d ticks", rx->uri, mprGetTime() - rx->startTime,
+            mprGetTicks() - rx->startTicks);
+    }
+#endif
     if (rx->conn) {
         rx->conn->rx = 0;
         rx->conn = 0;
@@ -234,6 +240,11 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     rx = conn->rx;
     uri = 0;
     methodFlags = 0;
+
+#if BLD_DEBUG
+    rx->startTime = mprGetTime();
+    rx->startTicks = mprGetTicks();
+#endif
 
     method = getToken(conn, " ");
     method = supper(method);
