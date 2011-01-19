@@ -382,7 +382,7 @@ HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
     size = max(count, HTTP_BUFSIZE);
     size = HTTP_PACKET_ALIGN(size);
 
-    if ((packet = httpCreatePacket(orig->entityLength ? 0 : size)) == 0) {
+    if ((packet = httpCreatePacket((orig->content == 0) ? 0 : size)) == 0) {
         return 0;
     }
     packet->flags = orig->flags;

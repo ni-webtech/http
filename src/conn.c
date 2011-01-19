@@ -560,6 +560,7 @@ void httpSetCredentials(HttpConn *conn, cchar *user, cchar *password)
     conn->authUser = sclone(user);
     if (password == NULL && strchr(user, ':') != 0) {
         conn->authUser = stok(conn->authUser, ":", &conn->authPassword);
+        conn->authPassword = sclone(conn->authPassword);
     } else {
         conn->authPassword = sclone(password);
     }

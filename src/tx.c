@@ -97,6 +97,9 @@ static void addHeader(HttpConn *conn, cchar *key, cchar *value)
 int httpRemoveHeader(HttpConn *conn, cchar *key)
 {
     mprAssert(key && *key);
+    if (conn->tx == 0) {
+        return MPR_ERR_CANT_ACCESS;
+    }
     return mprRemoveHash(conn->tx->headers, key);
 }
 
