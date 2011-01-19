@@ -157,7 +157,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     }
     if (conn->rx == NULL) {
         conn->rx = httpCreateRx(conn);
-        conn->tx = httpCreateTx(conn);
+        conn->tx = httpCreateTx(conn, NULL);
     }
     rx = conn->rx;
     tx = conn->tx;

@@ -46,8 +46,6 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
     if (server) {
         conn->dispatcher = server->dispatcher;
         conn->notifier = server->notifier;
-    } else {
-        httpCreateTxHeaders(conn);
     }
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpAddConn(http, conn);
@@ -99,7 +97,9 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->documentRoot);
         mprMark(conn->rx);
         mprMark(conn->tx);
+#if UNUSED
         mprMark(conn->txheaders);
+#endif
         mprMark(conn->input);
         mprMark(conn->context);
         mprMark(conn->boundary);
@@ -168,7 +168,9 @@ void httpPrepServerConn(HttpConn *conn)
         conn->readq = 0;
         conn->writeq = 0;
         conn->writeComplete = 0;
+#if UNUSED
         conn->txheaders = 0;
+#endif
         conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
@@ -178,8 +180,10 @@ void httpPrepServerConn(HttpConn *conn)
 }
 
 
-void httpPrepClientConn(HttpConn *conn)
+void httpPrepClientConn(HttpConn *conn, int retry)
 {
+    MprHashTable    *headers;
+
     mprAssert(conn);
 
     if (conn->keepAliveCount >= 0 && conn->sock) {
@@ -201,7 +205,8 @@ void httpPrepClientConn(HttpConn *conn)
     if (conn->tx) {
         conn->tx->conn = 0;
     }
-    conn->tx = httpCreateTx(conn);
+    headers = (retry && conn->tx) ? conn->tx->headers: NULL;
+    conn->tx = httpCreateTx(conn, headers);
     if (conn->rx) {
         conn->rx->conn = 0;
     }

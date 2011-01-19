@@ -172,6 +172,7 @@ HttpLoc *httpInitLocation(Http *http, int serverSide)
 
 void httpInitLimits(HttpLimits *limits, int serverSide)
 {
+    memset(limits, 0, sizeof(HttpLimits));
     limits->chunkSize = HTTP_MAX_CHUNK;
     limits->headerCount = HTTP_MAX_NUM_HEADERS;
     limits->headerSize = HTTP_MAX_HEADERS;

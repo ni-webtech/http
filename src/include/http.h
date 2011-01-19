@@ -1294,7 +1294,6 @@ typedef struct HttpConn {
     //  MOB implement
     int             threaded;               /**< Request running in a thread */
 
-    MprHashTable    *txheaders;             /**< Transmission headers */
     HttpCallback    callback;               /**< Http I/O event callback */
     void            *callbackArg;           /**< Arg to callback */
     HttpFillHeadersProc fillHeaders;        /**< Callback to fill headers */
@@ -1498,7 +1497,7 @@ extern void httpPrepServerConn(HttpConn *conn);
 #define HTTP_RETRY_REQUEST 1
 #endif
     
-extern void httpPrepClientConn(HttpConn *conn);
+extern void httpPrepClientConn(HttpConn *conn, int retry);
 extern void httpConsumeLastRequest(HttpConn *conn);
 
 /**
@@ -2250,6 +2249,7 @@ typedef struct HttpTx {
     HttpUri         *parsedUri;             /**< Request uri. Only used for requests */
     HttpRange       *currentRange;          /**< Current range being fullfilled */
     MprDispatcher   *dispatcher;            /**< Request has its own dispatcher */
+    MprHashTable    *headers;               /**< Transmission headers */
     char            *rangeBoundary;         /**< Inter-range boundary */
 
     char            *etag;                  /**< Unique identifier tag */
@@ -2276,7 +2276,9 @@ typedef struct HttpTx {
     HttpEnvCallback envCallback;            /**< SetEnv callback */
 } HttpTx;
 
+#if UNUSED
 extern void httpCreateTxHeaders(HttpConn *conn);
+#endif
 
 /** 
     Add a header to the transmission using a format string.
@@ -2330,9 +2332,10 @@ extern int httpConnect(HttpConn *conn, cchar *method, cchar *uri);
 /** 
     Create the tx object. This is used internally by the http library.
     @param conn HttpConn connection object created via $httpCreateConn
+    @param headers Optional headers to use for the transmission
     @returns A tx object
  */
-extern HttpTx *httpCreateTx(HttpConn *conn);
+extern HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers);
 
 //  MOB DOC
 extern void httpDestroyTx(HttpTx *tx);
