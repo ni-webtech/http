@@ -200,7 +200,11 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
  */
 int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 {
-    if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), httpGetPacketLength(p)) < 0) {
+    int     len;
+
+    len = httpGetPacketLength(p);
+
+    if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), len) != len) {
         return MPR_ERR_MEMORY;
     }
     return 0;
@@ -404,7 +408,9 @@ HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
 
     if (orig->content && httpGetPacketLength(orig) > 0) {
         mprAdjustBufEnd(orig->content, -count);
-        mprPutBlockToBuf(packet->content, mprGetBufEnd(orig->content), count);
+        if (mprPutBlockToBuf(packet->content, mprGetBufEnd(orig->content), count) != count) {
+            return 0;
+        }
 #if BLD_DEBUG
         mprAddNullToBuf(orig->content);
 #endif

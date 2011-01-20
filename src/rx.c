@@ -90,8 +90,12 @@ void httpDestroyRx(HttpRx *rx)
 {
 #if BLD_DEBUG
     if (httpShouldTrace(rx->conn, 0, HTTP_TRACE_TIME, NULL)) {
+#if MPR_HIGH_RES_TIMER
         mprLog(4, "TIME: Request %s took %,d msec %,d ticks", rx->uri, mprGetTime() - rx->startTime,
             mprGetTicks() - rx->startTicks);
+#else
+        mprLog(4, "TIME: Request %s took %,d msec", rx->uri, mprGetTime() - rx->startTime);
+#endif
     }
 #endif
     if (rx->conn) {
@@ -939,6 +943,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         return 0;
     }
     if (conn->complete || conn->connError || rx->remainingContent <= 0) {
+        //  MOB -- this needs checking - upload too much data
         httpSetState(conn, HTTP_STATE_RUNNING);
         return 1;
     }

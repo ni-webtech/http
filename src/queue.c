@@ -472,11 +472,14 @@ ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
         }
         if (packet == 0 || mprGetBufSpace(packet->content) == 0) {
             packetSize = (tx->chunkSize > 0) ? tx->chunkSize : q->packetSize;
-            if ((packet = httpCreateDataPacket(packetSize)) != 0) {
-                httpPutForService(q, packet, 0);
+            if ((packet = httpCreateDataPacket(packetSize)) == 0) {
+                return MPR_ERR_MEMORY;
             }
+            httpPutForService(q, packet, 0);
         }
-        bytes = mprPutBlockToBuf(packet->content, buf, size);
+        if ((bytes = mprPutBlockToBuf(packet->content, buf, size)) == 0) {
+            return MPR_ERR_MEMORY;
+        }
         buf += bytes;
         size -= bytes;
         q->count += bytes;
