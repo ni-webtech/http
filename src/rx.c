@@ -90,12 +90,13 @@ void httpDestroyRx(HttpRx *rx)
 {
 #if BLD_DEBUG
     if (httpShouldTrace(rx->conn, 0, HTTP_TRACE_TIME, NULL)) {
+        MprTime     elapsed = mprGetTime() - rx->startTime;
 #if MPR_HIGH_RES_TIMER
-        mprLog(4, "TIME: Request %s took %,d msec %,d ticks", rx->uri, mprGetTime() - rx->startTime,
-            mprGetTicks() - rx->startTicks);
-#else
-        mprLog(4, "TIME: Request %s took %,d msec", rx->uri, mprGetTime() - rx->startTime);
+        if (elapsed < 1000) {
+            mprLog(4, "TIME: Request %s took %,d msec %,d ticks", rx->uri, elapsed, mprGetTicks() - rx->startTicks);
+        } else
 #endif
+            mprLog(4, "TIME: Request %s took %,d msec", rx->uri, elapsed);
     }
 #endif
     if (rx->conn) {

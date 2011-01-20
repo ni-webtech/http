@@ -3398,11 +3398,15 @@ extern uint64 mprGetTicks();
     #if MPR_HIGH_RES_TIMER
         #define MEASURE(tag1, tag2, op) \
             if (1) { \
-                MprTime start = mprGetTime(); \
+                MprTime elapsed, start = mprGetTime(); \
                 uint64  ticks = mprGetTicks(); \
                 op; \
-                mprLog(4, "TIME: %s.%s elapsed %,d msec, %,d ticks", tag1, tag2, \
-                    mprGetTime() - start, mprGetTicks() - ticks); \
+                elapsed = mprGetTime() - start; \
+                if (elapsed < 1000) { \
+                    mprLog(4, "TIME: %s.%s elapsed %,d msec, %,d ticks", tag1, tag2, elapsed, mprGetTicks() - ticks); \
+                } else { \
+                    mprLog(4, "TIME: %s.%s elapsed %,d msec", tag1, tag2, elapsed); \
+                } \
             } else 
     #else
         #define MEASURE(tag1, tag2, op) \
