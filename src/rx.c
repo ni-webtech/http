@@ -88,17 +88,6 @@ static void manageRx(HttpRx *rx, int flags)
 
 void httpDestroyRx(HttpRx *rx)
 {
-#if BLD_DEBUG
-    if (httpShouldTrace(rx->conn, 0, HTTP_TRACE_TIME, NULL)) {
-        MprTime     elapsed = mprGetTime() - rx->startTime;
-#if MPR_HIGH_RES_TIMER
-        if (elapsed < 1000) {
-            mprLog(4, "TIME: Request %s took %,d msec %,d ticks", rx->uri, elapsed, mprGetTicks() - rx->startTicks);
-        } else
-#endif
-            mprLog(4, "TIME: Request %s took %,d msec", rx->uri, elapsed);
-    }
-#endif
     if (rx->conn) {
         rx->conn->rx = 0;
         rx->conn = 0;
@@ -163,9 +152,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     if (packet == NULL) {
         return 0;
     }
-    if (conn->server && !httpValidateLimits(conn->server, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
-        return 0;
-    }
     if (conn->rx == NULL) {
         conn->rx = httpCreateRx(conn);
         conn->tx = httpCreateTx(conn, NULL);
@@ -188,6 +174,9 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         return 0;
     }
     if (conn->server) {
+        if (!httpValidateLimits(conn->server, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
+            return 0;
+        }
         parseRequestLine(conn, packet);
     } else {
         parseResponseLine(conn, packet);
@@ -247,8 +236,8 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     methodFlags = 0;
 
 #if BLD_DEBUG
-    rx->startTime = mprGetTime();
-    rx->startTicks = mprGetTicks();
+    conn->startTime = mprGetTime();
+    conn->startTicks = mprGetTicks();
 #endif
 
     method = getToken(conn, " ");
@@ -302,7 +291,6 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     if (methodFlags == 0) {
         httpProtocolError(conn, HTTP_CODE_BAD_METHOD, "Unknown method");
     }
-
     uri = getToken(conn, " ");
     if (*uri == '\0') {
         httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Empty URI");
@@ -1000,6 +988,29 @@ static bool processRunning(HttpConn *conn)
 }
 
 
+#if BLD_DEBUG
+static void measure(HttpConn *conn)
+{
+    MprTime     elapsed;
+    cchar       *uri;
+
+    uri = (conn->server) ? conn->rx->uri : conn->tx->parsedUri->path;
+   
+    if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, NULL) >= 0) {
+        elapsed = mprGetTime() - conn->startTime;
+#if MPR_HIGH_RES_TIMER
+        if (elapsed < 1000) {
+            mprLog(4, "TIME: Request %s took %,d msec %,d ticks", uri, elapsed, mprGetTicks() - conn->startTicks);
+        } else
+#endif
+            mprLog(4, "TIME: Request %s took %,d msec", uri, elapsed);
+    }
+}
+#else
+#define measure(conn)
+#endif
+
+
 static bool processCompletion(HttpConn *conn)
 {
     HttpPacket  *packet;
@@ -1008,6 +1019,7 @@ static bool processCompletion(HttpConn *conn)
     mprAssert(conn->state == HTTP_STATE_COMPLETE);
 
     httpDestroyPipeline(conn);
+    measure(conn);
 
     if (conn->server) {
         conn->rx->conn = 0;
@@ -1016,10 +1028,8 @@ static bool processCompletion(HttpConn *conn)
         conn->tx = 0;
         packet = conn->input;
         more = packet && !conn->connError && (mprGetBufLength(packet->content) > 0);
-        if (conn->server) {
-            httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
-            httpPrepServerConn(conn);
-        }
+        httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
+        httpPrepServerConn(conn);
         return more;
     }
     return 0;

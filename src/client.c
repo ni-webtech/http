@@ -200,6 +200,11 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     conn->tx->method = supper(method);
     conn->tx->parsedUri = httpCreateUri(url, 0);
 
+#if BLD_DEBUG
+    conn->startTime = mprGetTime();
+    conn->startTicks = mprGetTicks();
+#endif
+
     if (openConnection(conn, url) == 0) {
         return MPR_ERR_CANT_OPEN;
     }

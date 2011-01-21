@@ -1258,9 +1258,9 @@ extern void httpManageTrace(HttpTrace *trace, int flags);
 
 #if BLD_DEBUG
 #define HTTP_TIME(conn, tag1, tag2, op) \
-    if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, NULL)) { \
+    if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, NULL) >= 0) { \
         MEASURE(tag1, tag2, op); \
-    } else
+    } else op
 #else
 #define HTTP_TIME(conn, tag1, tag2, op) op
 #endif
@@ -1366,6 +1366,10 @@ typedef struct HttpConn {
     char            *authUser;              /**< User name credentials for authorized client requests */
     char            *authPassword;          /**< Password credentials for authorized client requests */
     int             sentCredentials;        /**< Sent authorization credentials */
+#if BLD_DEBUG
+    MprTime         startTime;              /**< Start time of request */
+    uint64          startTicks;             /**< Start tick time of request */
+#endif
 } HttpConn;
 
 
@@ -2000,13 +2004,6 @@ typedef struct HttpRx {
      */
     struct MaAlias  *alias;                 /**< Matching alias */
     struct MaDir    *dir;                   /**< Best matching dir (PTR only) */
-
-#if BLD_DEBUG
-    MprTime         startTime;              /**< Start time of request */
-    uint64          startTicks;             /**< Start tick time of request */
-#endif
-
-
 } HttpRx;
 
 

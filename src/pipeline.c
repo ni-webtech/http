@@ -181,7 +181,7 @@ void httpDestroyPipeline(HttpConn *conn)
             for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
                 if (q->close && q->flags & HTTP_QUEUE_OPEN) {
                     q->flags &= ~HTTP_QUEUE_OPEN;
-                    HTTP_TIME(conn, q->stage->name, "close", q->stage->close(q));
+                    q->stage->close(q);
                 }
             }
         }

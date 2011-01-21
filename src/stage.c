@@ -118,8 +118,6 @@ static void manageStage(HttpStage *stage, int flags)
         mprMark(stage->name);
         mprMark(stage->stageData);
         mprMark(stage->extensions);
-
-    } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 

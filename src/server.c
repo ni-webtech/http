@@ -29,6 +29,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     server->clientLoad = mprCreateHash(HTTP_CLIENTS_HASH, MPR_HASH_STATIC_VALUES);
     server->async = 1;
     server->http = http;
+    server->limits = http->serverLimits;
     server->port = port;
     server->ip = sclone(ip);
     server->waitHandler.fd = -1;
@@ -37,7 +38,6 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
         server->name = server->ip;
     }
     server->software = sclone(HTTP_NAME);
-    server->limits = httpCreateLimits(1);
     server->loc = httpInitLocation(http, 1);
     return server;
 }
@@ -150,11 +150,13 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
 
     limits = server->limits;
     mprAssert(conn->server == server);
+    lock(server->http);
 
     switch (event) {
     case HTTP_VALIDATE_OPEN_CONN:
         if (server->clientCount >= limits->clientCount) {
             //  MOB -- will CLOSE_CONN get called and thus set the limit to negative?
+            unlock(server->http);
             httpConnError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, 
                 "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
             return 0;
@@ -179,6 +181,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     case HTTP_VALIDATE_OPEN_REQUEST:
         if (server->requestCount >= limits->requestCount) {
             //  MOB -- will CLOSE_REQUEST get called and thus set the limit to negative?
+            unlock(server->http);
             httpConnError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, 
                 "Too many concurrent requests %d/%d", server->requestCount, limits->requestCount);
             return 0;
@@ -194,6 +197,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     }
     mprLog(6, "Validate request. Counts: requests: %d/%d, clients %d/%d", 
         server->requestCount, limits->requestCount, server->clientCount, limits->clientCount);
+    unlock(server->http);
     return 1;
 }
 
