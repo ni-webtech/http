@@ -49,8 +49,12 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, Http
 
 static void manageQueue(HttpQueue *q, int flags)
 {
+    HttpPacket      *packet;
+
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(q->first);
+        for (packet = q->first; packet; packet = packet->next) {
+            mprMark(packet);
+        }
         mprMark(q->queueData);
         if (q->nextQ && q->nextQ->stage) {
             /* Not a queue head */
@@ -271,13 +275,13 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
     HttpRx      *rx;
     MprBuf      *content;
     ssize       nbytes, len;
-    int         events, inactivityTimeout;
 
     q = conn->readq;
     rx = conn->rx;
     
     while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
+#if UNUSED
         events = MPR_READABLE;
         if (conn->sock && !mprSocketHasPendingData(conn->sock)) {
             if (mprIsSocketEof(conn->sock)) {
@@ -289,7 +293,15 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
         if (events) {
             httpCallEvent(conn, MPR_READABLE);
         }
+#else
+        if (conn->sock) {
+            httpWait(conn, conn->dispatcher, 0, MPR_TIMEOUT_SOCKETS);
+        }
+#endif
     }
+    //  MOB - better place for this?
+    conn->lastActivity = conn->http->now;
+
     for (nbytes = 0; size > 0 && q->count > 0; ) {
         if ((packet = q->first) == 0) {
             break;

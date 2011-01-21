@@ -97,9 +97,6 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->documentRoot);
         mprMark(conn->rx);
         mprMark(conn->tx);
-#if UNUSED
-        mprMark(conn->txheaders);
-#endif
         mprMark(conn->input);
         mprMark(conn->context);
         mprMark(conn->boundary);
@@ -168,9 +165,6 @@ void httpPrepServerConn(HttpConn *conn)
         conn->readq = 0;
         conn->writeq = 0;
         conn->writeComplete = 0;
-#if UNUSED
-        conn->txheaders = 0;
-#endif
         conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
         httpSetState(conn, HTTP_STATE_BEGIN);
         httpInitSchedulerQueue(&conn->serviceq);
@@ -270,7 +264,6 @@ void httpEvent(HttpConn *conn, MprEvent *event)
         readEvent(conn);
     }
     if (conn->server) {
-        //  MOB BUG - if still processing a request, EOF should not free the request
         if (conn->connError || mprIsSocketEof(conn->sock) || (!conn->rx && conn->keepAliveCount < 0)) {
             /*  
                 NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
@@ -278,6 +271,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
                 This reduces TIME_WAIT states on the server. 
              */
             httpDestroyConn(conn);
+            /* NOTE: conn structure and memory is still intact but conn->sock is zero */
             return;
         }
     }
@@ -342,6 +336,8 @@ void httpEnableConnEvents(HttpConn *conn)
     HttpQueue   *q;
     int         eventMask;
 
+    mprLog(7, "EnableConnEvents");
+
     if (!conn->async) {
         return;
     }
@@ -374,7 +370,6 @@ void httpEnableConnEvents(HttpConn *conn)
                 conn->waitHandler.fd = -1;
             }
         }
-        mprLog(7, "EnableConnEvents mask %x", eventMask);
         if (eventMask) {
             if (conn->waitHandler.fd < 0) {
                 mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher, 

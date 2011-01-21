@@ -994,6 +994,9 @@ static void measure(HttpConn *conn)
     MprTime     elapsed;
     cchar       *uri;
 
+    if (conn->rx == 0 || conn->tx == 0) {
+        return;
+    }
     uri = (conn->server) ? conn->rx->uri : conn->tx->parsedUri->path;
    
     if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, NULL) >= 0) {
@@ -1271,7 +1274,9 @@ int httpSetUri(HttpConn *conn, cchar *uri)
 static void waitHandler(HttpConn *conn, struct MprEvent *event)
 {
     httpCallEvent(conn, event->mask);
+#if UNUSED
     httpEnableConnEvents(conn);
+#endif
     mprSignalDispatcher(conn->dispatcher);
 }
 
@@ -1283,12 +1288,20 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
 {
     Http        *http;
     MprTime     expire;
-    int         eventMask, remainingTime, addedHandler, saveAsync;
+    int         eventMask, remainingTime, addedHandler, saveAsync, justOne;
 
     http = conn->http;
+    //  MOB -- if always true, could remove dispatcher arg.
+    mprAssert(dispatcher == conn->dispatcher);
 
     if (timeout <= 0) {
         timeout = 0;
+    }
+    if (state == 0) {
+        state = HTTP_STATE_COMPLETE;
+        justOne = 1;
+    } else {
+        justOne = 0;
     }
     if (conn->state <= HTTP_STATE_BEGIN) {
         mprAssert(conn->state >= HTTP_STATE_BEGIN);
@@ -1316,6 +1329,9 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
         }
         mprAssert(!mprSocketHasPendingData(conn->sock));
         mprWaitForEvent(conn->dispatcher, remainingTime);
+        if (justOne) {
+            break;
+        }
     }
     if (addedHandler && conn->waitHandler.fd >= 0) {
         mprRemoveWaitHandler(&conn->waitHandler);
@@ -1324,7 +1340,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
     if (conn->sock == 0 || conn->error) {
         return MPR_ERR_CANT_CONNECT;
     }
-    if (conn->state < state) {
+    if (!justOne && conn->state < state) {
         return MPR_ERR_TIMEOUT;
     }
     return 0;

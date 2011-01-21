@@ -42,9 +42,10 @@ static void managePacket(HttpPacket *packet, int flags)
         mprMark(packet->prefix);
         mprMark(packet->content);
         mprMark(packet->suffix);
+#if UNUSED
+        //  Move to manageQueue to reduce stack depth
         mprMark(packet->next);
-
-    } else if (flags & MPR_MANAGE_FREE) {
+#endif
     }
 }
 

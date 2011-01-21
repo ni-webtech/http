@@ -379,11 +379,6 @@ HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int dup)
     if (getPort(base) != getPort(target)) {
         return (dup) ? httpCloneUri(target, 0) : target;
     }
-
-#if UNUSED
-    //  OPT -- Could avoid free if already normalized
-    targetPath = httpNormalizeUriPath(target->path);
-#endif
     basePath = httpNormalizeUriPath(base->path);
 
     /* Count trailing "/" */
