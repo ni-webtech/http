@@ -5834,6 +5834,7 @@ typedef int (*MprSocketProc)(void *data, int mask);
  */
 typedef struct MprSocketProvider {
     cchar             *name;
+    void              *data;
     struct MprSsl     *defaultSsl;
     struct MprSocket  *(*acceptSocket)(struct MprSocket *sp);
     void              (*closeSocket)(struct MprSocket *socket, bool gracefully);
@@ -6903,9 +6904,10 @@ typedef struct Mpr {
     int             flags;                  /**< Misc flags */
     int             hasError;               /**< Mpr has an initialization error */
     int             logFd;                  /**< Logging file descriptor */
-    int             marking;                /**< Marker thread is active */
+    int             marker;                 /**< Marker thread is active */
+    int             marking;                /**< Actually marking objects now */
     int             state;                  /**< Processing state */
-    int             sweeping;               /**< Sweeper thread is active */
+    int             sweeper;                /**< Sweeper thread is active */
 
     /*
         Service pointers
