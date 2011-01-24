@@ -139,7 +139,7 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
     HttpUri     *up;
     char        *cp, *tok;
 
-    if ((up = mprAllocObj(HttpUri, NULL)) == 0) {
+    if ((up = mprAllocObj(HttpUri, manageUri)) == 0) {
         return 0;
     }
     if (scheme) {
@@ -176,7 +176,7 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
     if ((tok = srchr(up->path, '.')) != NULL) {
         if ((cp = srchr(up->path, '/')) != NULL) {
             if (cp <= tok) {
-                up->ext = tok + 1;
+                up->ext = sclone(&tok[1]);
 #if BLD_WIN_LIKE
                 for (cp = up->ext; *cp; cp++) {
                     *cp = (char) tolower((int) *cp);
@@ -184,7 +184,7 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
 #endif
             }
         } else {
-            up->ext = tok + 1;
+            up->ext = sclone(&tok[1]);
 #if BLD_WIN_LIKE
             for (cp = up->ext; *cp; cp++) {
                 *cp = (char) tolower((int) *cp);
@@ -202,7 +202,7 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
     char        *path, *cp, *tok;
     int         port;
 
-    if ((up = mprAllocObj(HttpUri, NULL)) == 0) {
+    if ((up = mprAllocObj(HttpUri, manageUri)) == 0) {
         return 0;
     }
     port = base->port;
@@ -211,7 +211,7 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
     if (base->scheme) {
         up->scheme = sclone(base->scheme);
     } else if (complete) {
-        up->scheme = "http";
+        up->scheme = sclone("http");
     }
     if (base->host) {
         up->host = sclone(base->host);
@@ -219,18 +219,19 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
             port = (int) stoi(++cp, 10, NULL);
         }
     } else if (complete) {
-        base->host = "localhost";
+        base->host = sclone("localhost");
     }
     if (port) {
         up->port = port;
     }
     if (path) {
-        while (path[0] == '/' && path[1] == '/')
+        while (path[0] == '/' && path[1] == '/') {
             path++;
+        }
         up->path = sclone(path);
     }
     if (up->path == 0) {
-        up->path = "/";
+        up->path = sclone("/");
     }
     if (base->reference) {
         up->reference = sclone(base->reference);
@@ -241,7 +242,7 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
     if ((tok = srchr(up->path, '.')) != NULL) {
         if ((cp = srchr(up->path, '/')) != NULL) {
             if (cp <= tok) {
-                up->ext = tok + 1;
+                up->ext = sclone(&tok[1]);
 #if BLD_WIN_LIKE
                 for (cp = up->ext; *cp; cp++) {
                     *cp = (char) tolower((int) *cp);
@@ -249,7 +250,7 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
 #endif
             }
         } else {
-            up->ext = tok + 1;
+            up->ext = sclone(&tok[1]);
 #if BLD_WIN_LIKE
             for (cp = up->ext; *cp; cp++) {
                 *cp = (char) tolower((int) *cp);
@@ -266,12 +267,12 @@ HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing)
     char        *scheme, *host;
     int         port;
 
-    scheme = (missing) ? sclone(missing->scheme) : "http";
-    host = (missing) ? sclone(missing->host) : "localhost";
+    scheme = (missing) ? missing->scheme : "http";
+    host = (missing) ? missing->host : "localhost";
     port = (missing) ? missing->port : 0;
 
     if (uri->scheme == 0) {
-        uri->scheme = scheme;
+        uri->scheme = sclone(scheme);
     }
     if (uri->port == 0 && port) {
         /* Don't complete port if there is a host */
@@ -280,7 +281,7 @@ HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing)
         }
     }
     if (uri->host == 0) {
-        uri->host = host;
+        uri->host = sclone(host);
     }
     return uri;
 }
