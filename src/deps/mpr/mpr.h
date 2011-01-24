@@ -3403,9 +3403,9 @@ extern uint64 mprGetTicks();
                 op; \
                 elapsed = mprGetTime() - start; \
                 if (elapsed < 1000) { \
-                    mprLog(4, "TIME: %s.%s elapsed %,d msec, %,d ticks", tag1, tag2, elapsed, mprGetTicks() - ticks); \
+                    mprLog(5, "TIME: %s.%s elapsed %,d msec, %,d ticks", tag1, tag2, elapsed, mprGetTicks() - ticks); \
                 } else { \
-                    mprLog(4, "TIME: %s.%s elapsed %,d msec", tag1, tag2, elapsed); \
+                    mprLog(5, "TIME: %s.%s elapsed %,d msec", tag1, tag2, elapsed); \
                 } \
             } else 
     #else
@@ -3413,7 +3413,7 @@ extern uint64 mprGetTicks();
             if (1) { \
                 MprTime start = mprGetTime(); \
                 op; \
-                mprLog(4, "TIME: %s.%s elapsed %,d msec", tag1, tag2, mprGetTime() - start); \
+                mprLog(5, "TIME: %s.%s elapsed %,d msec", tag1, tag2, mprGetTime() - start); \
             } else 
     #endif
 #else
