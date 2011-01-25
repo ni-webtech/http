@@ -7187,18 +7187,18 @@ void mprDestroyDispatcher(MprDispatcher *dispatcher)
     if (dispatcher && dispatcher->service) {
         mprAssert(dispatcher->magic == MPR_DISPATCHER_MAGIC);
         es = dispatcher->service;
-        if (es->mutex) {
-            lock(es);
-            dequeueDispatcher(dispatcher);
-            q = &dispatcher->eventQ;
-            for (event = q->next; event != q; event = next) {
-                mprAssert(event->magic == MPR_EVENT_MAGIC);
-                next = event->next;
+        lock(es);
+        dequeueDispatcher(dispatcher);
+        q = &dispatcher->eventQ;
+        for (event = q->next; event != q; event = next) {
+            mprAssert(event->magic == MPR_EVENT_MAGIC);
+            next = event->next;
+            if (event->dispatcher) {
                 mprRemoveEvent(event);
             }
-            dispatcher->service = 0;
-            unlock(es);
         }
+        dispatcher->service = 0;
+        unlock(es);
     }
 }
 
@@ -8675,15 +8675,18 @@ void mprRemoveEvent(MprEvent *event)
     mprAssert(event->magic == MPR_EVENT_MAGIC);
 
     dispatcher = event->dispatcher;
-    es = dispatcher->service;
-    lock(es);
-    if (event->next) {
-        dequeueEvent(event);
+    if (dispatcher) {
+        es = dispatcher->service;
+        lock(es);
+        if (event->next) {
+            dequeueEvent(event);
+        }
+        event->dispatcher = 0;
+        if (dispatcher->enabled && event->due == es->willAwake) {
+            mprScheduleDispatcher(dispatcher);
+        }
+        unlock(es);
     }
-    if (dispatcher->enabled && event->due == es->willAwake) {
-        mprScheduleDispatcher(dispatcher);
-    }
-    unlock(es);
 }
 
 
@@ -8823,7 +8826,6 @@ static void dequeueEvent(MprEvent *event)
         event->next = 0;
         event->prev = 0;
     }
-    event->dispatcher = 0;
 }
 
 
