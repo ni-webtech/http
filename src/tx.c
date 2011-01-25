@@ -87,9 +87,12 @@ static void addHeader(HttpConn *conn, cchar *key, cchar *value)
     mprAssert(key && *key);
     mprAssert(value);
 
+#if UNUSED
+    //  MOB - remove this test
     if (scasecmp(key, "content-length") == 0) {
         conn->tx->length = (ssize) stoi(value, 10, NULL);
     }
+#endif
     mprAddKey(conn->tx->headers, key, value);
 }
 

@@ -191,6 +191,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     mprLog(4, "Http: client request: %s %s", method, url);
 
     if (conn->tx == 0 || conn->state != HTTP_STATE_BEGIN) {
+        /* WARNING: this will erase headers */
         httpPrepClientConn(conn, 0);
     }
     mprAssert(conn->state == HTTP_STATE_BEGIN);

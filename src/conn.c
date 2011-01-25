@@ -174,7 +174,7 @@ void httpPrepServerConn(HttpConn *conn)
 }
 
 
-void httpPrepClientConn(HttpConn *conn, int retry)
+void httpPrepClientConn(HttpConn *conn, int keepHeaders)
 {
     MprHashTable    *headers;
 
@@ -199,7 +199,7 @@ void httpPrepClientConn(HttpConn *conn, int retry)
     if (conn->tx) {
         conn->tx->conn = 0;
     }
-    headers = (retry && conn->tx) ? conn->tx->headers: NULL;
+    headers = (keepHeaders && conn->tx) ? conn->tx->headers: NULL;
     conn->tx = httpCreateTx(conn, headers);
     if (conn->rx) {
         conn->rx->conn = 0;
