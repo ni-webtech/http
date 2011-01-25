@@ -102,7 +102,7 @@ int stopSeqno = -1;
 #define CHECK(mp)               mprCheckBlock((MprMem*) mp)
 #define CHECK_FREE_MEMORY(mp)   checkFreeMem(mp)
 #define CHECK_PTR(ptr)          CHECK(GET_MEM(ptr))
-#define RESET_MEMORY(mp)        if (mp != GET_MEM(MPR)) { \
+#define SCRIBBLE(mp)            if (heap->scribble && mp != GET_MEM(MPR)) { \
                                     memset((char*) mp + sizeof(MprFreeMem), 0xFE, GET_SIZE(mp) - sizeof(MprFreeMem)); \
                                 } else
 #define SET_MAGIC(mp)           mp->magic = MPR_ALLOC_MAGIC
@@ -114,7 +114,7 @@ int stopSeqno = -1;
 #define BREAKPOINT(mp)
 #define CHECK(mp)           
 #define CHECK_PTR(mp)           
-#define RESET_MEMORY(mp)           
+#define SCRIBBLE(mp)           
 #define CHECK_FREE_MEMORY(mp)           
 #define SET_NAME(mp, value)
 #define SET_MAGIC(mp)
@@ -290,6 +290,9 @@ Mpr *mprCreateMemService(MprManager manager, int flags)
     }
     if (scmp(getenv("MPR_VERIFY_MEM"), "1") == 0) {
         heap->verify = 1;
+    }
+    if (scmp(getenv("MPR_SCRIBBLE_MEM"), "1") == 0) {
+        heap->scribble = 1;
     }
     heap->stats.bytesAllocated += size;
     INC(allocs);
@@ -668,6 +671,7 @@ static MprMem *freeToHeap(MprMem *mp)
     MprRegion   *region;
 #endif
     BREAKPOINT(mp);
+    SCRIBBLE(mp);
 
     size = GET_SIZE(mp);
     prev = NULL;
@@ -803,7 +807,6 @@ static void linkBlock(MprMem *mp)
     int         index, group, bucket;
 
     CHECK(mp);
-    RESET_MEMORY(mp);
 
     /* 
         Mark block as free and eternal so sweeper will skip 
@@ -8573,7 +8576,7 @@ static void manageEvent(MprEvent *event, int flags)
         /*
             Events in dispatcher queues are marked by the dispatcher managers, not via event->next,prev
          */
-        mprAssert(event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
+        mprAssert(event->dispatcher == 0 || event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
         mprMark(event->dispatcher);
         mprMark(event->data);
         mprMark(event->handler);
@@ -8582,7 +8585,7 @@ static void manageEvent(MprEvent *event, int flags)
         //  MOB - are these locks needed?
         lock(MPR->eventService);
         if (event->next) {
-            mprAssert(event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
+            mprAssert(event->dispatcher == 0 || event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
             mprRemoveEvent(event);
         }
         unlock(MPR->eventService);
@@ -8668,7 +8671,7 @@ void mprRemoveEvent(MprEvent *event)
     MprEventService     *es;
     MprDispatcher       *dispatcher;
 
-    mprAssert(event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
+    mprAssert(event->dispatcher == 0 || event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
     mprAssert(event->magic == MPR_EVENT_MAGIC);
 
     dispatcher = event->dispatcher;
@@ -8792,7 +8795,7 @@ static void queueEvent(MprEvent *prior, MprEvent *event)
     mprAssert(event);
     mprAssert(prior->next);
     mprAssert(event->magic == MPR_EVENT_MAGIC);
-    mprAssert(event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
+    mprAssert(event->dispatcher == 0 || event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
 
     if (event->next) {
         dequeueEvent(event);
@@ -8812,7 +8815,7 @@ static void dequeueEvent(MprEvent *event)
     mprAssert(event);
     mprAssert(event->next);
     mprAssert(event->magic == MPR_EVENT_MAGIC);
-    mprAssert(event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
+    mprAssert(event->dispatcher == 0 || event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
 
     if (event->next) {
         event->next->prev = event->prev;
@@ -8820,6 +8823,7 @@ static void dequeueEvent(MprEvent *event)
         event->next = 0;
         event->prev = 0;
     }
+    event->dispatcher = 0;
 }
 
 
