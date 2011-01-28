@@ -1350,7 +1350,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
 /*  
     Set the connector as write blocked and can't proceed.
  */
-void httpWriteBlocked(HttpConn *conn)
+void httpSetWriteBlocked(HttpConn *conn)
 {
     mprLog(7, "Write Blocked");
     conn->canProceed = 0;

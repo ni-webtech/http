@@ -120,7 +120,7 @@ void httpSendOutgoingService(HttpQueue *q)
             errCode = mprGetError(q);
             if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
                 /* Socket is full. Wait for an I/O event */
-                httpWriteBlocked(conn);
+                httpSetWriteBlocked(conn);
                 break;
             }
             if (errCode != EPIPE && errCode != ECONNRESET) {
@@ -132,7 +132,7 @@ void httpSendOutgoingService(HttpQueue *q)
 
         } else if (written == 0) {
             /* Socket is full. Wait for an I/O event */
-            httpWriteBlocked(conn);
+            httpSetWriteBlocked(conn);
             break;
 
         } else if (written > 0) {

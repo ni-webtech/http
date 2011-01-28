@@ -6567,6 +6567,7 @@ typedef void (*MprCmdProc)(struct MprCmd *cmd, int channel, void *data);
 #define MPR_CMD_IN              0x1000  /* Connect to stdin */
 #define MPR_CMD_OUT             0x2000  /* Capture stdout */
 #define MPR_CMD_ERR             0x4000  /* Capture stdout */
+#define MPR_CMD_ASYNC           0x8000  /* Run in async mode */
 
 typedef struct MprCmdFile {
     char            *name;

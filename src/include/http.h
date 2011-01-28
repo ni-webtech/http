@@ -1919,7 +1919,7 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
         to make the API easier to remember - APIs take a connection object rather than a rx or tx object.
     @stability Evolving
     @defgroup HttpRx HttpRx
-    @see HttpRx HttpConn HttpTx httpWriteBlocked httpGetCookies httpGetQueryString
+    @see HttpRx HttpConn HttpTx httpSetWriteBlocked httpGetCookies httpGetQueryString
  */
 typedef struct HttpRx {
     char            *method;                /**< Request method */
@@ -2600,7 +2600,7 @@ extern ssize httpWriteUploadData(HttpConn *conn, MprList *formData, MprList *fil
     Indicate that the transmission socket is blocked
     @param conn Http connection object created via $httpCreateConn
  */
-extern void httpWriteBlocked(HttpConn *conn);
+extern void httpSetWriteBlocked(HttpConn *conn);
 
 /********************************* HttpServer ***********************************/
 
