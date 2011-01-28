@@ -7,11 +7,23 @@
 
 #include    "http.h"
 
+/*********************************** Locals ***********************************/
+
+typedef struct TestHttp {
+    Http        *http;
+    HttpConn    *conn;
+} TestHttp;
+
+static void manageTestHttp(TestHttp *th, int flags);
+
 /************************************ Code ************************************/
 
 static int initHttp(MprTestGroup *gp)
 {
     MprSocket   *sp;
+    TestHttp     *th;
+
+    gp->data = th = mprAllocObj(TestHttp, manageTestHttp);
     
     if (getenv("NO_INTERNET")) {
         gp->skip = 1;
@@ -34,26 +46,40 @@ static int initHttp(MprTestGroup *gp)
 }
 
 
+static void manageTestHttp(TestHttp *th, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(th->http);
+        mprMark(th->conn);
+    }
+}
+
+
 static void testCreateHttp(MprTestGroup *gp)
 {
-    Http     *http;
+    TestHttp    *th;
+    Http        *http;
 
-    http = httpCreate(gp);
+    th = gp->data;
+    th->http = http = httpCreate(gp);
     assert(http != 0);
 }
 
 
 static void testBasicHttpGet(MprTestGroup *gp)
 {
+    TestHttp    *th;
     Http        *http;
     HttpConn    *conn;
     ssize       length;
     int         rc, status;
 
-    http = httpCreate(gp);
+    th = gp->data;
+    th->http = http = httpCreate(gp);
     assert(http != 0);
 
-    conn = httpCreateConn(http, NULL);
+    th->conn = conn = httpCreateConn(http, NULL);
+
     rc = httpConnect(conn, "GET", "http://embedthis.com/index.html");
     assert(rc >= 0);
     if (rc >= 0) {
@@ -79,9 +105,11 @@ static void testSecureHttpGet(MprTestGroup *gp)
     HttpConn    *conn;
     int         rc, status;
 
-    http = httpCreate(gp);
+    th = gp->data;
+    th->http = http = httpCreate(gp);
     assert(http != 0);
-    conn = httpCreateConn(http, NULL);
+    th->conn = conn = httpCreateConn(http, NULL);
+    assert(conn);
 
     rc = httpConnect(conn, "GET", "https://www.amazon.com/index.html");
     assert(rc >= 0);
