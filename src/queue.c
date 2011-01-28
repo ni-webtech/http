@@ -254,8 +254,22 @@ bool httpIsQueueEmpty(HttpQueue *q)
 
 void httpOpenQueue(HttpQueue *q, ssize chunkSize)
 {
+    Http        *http;
+    HttpStage   *stage;
+
+    stage = q->stage;
+    http = q->conn->http;
+
     if (chunkSize > 0) {
         q->packetSize = min(q->packetSize, chunkSize);
+    }
+    if (stage->flags & HTTP_STAGE_UNLOADED) {
+        mprAssert(stage->path);
+        mprLog(2, "Loading module for %s", stage->name);
+        mprLoadModule(stage->name, stage->path, q->conn->http);
+    }
+    if (stage->module) {
+        stage->module->lastActivity = http->now;
     }
     q->flags |= HTTP_QUEUE_OPEN;
     if (q->open) {

@@ -116,6 +116,8 @@ static void manageStage(HttpStage *stage, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(stage->name);
+        mprMark(stage->path);
+        mprMark(stage->module);
         mprMark(stage->stageData);
         mprMark(stage->extensions);
     }

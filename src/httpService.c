@@ -274,8 +274,10 @@ static void startTimer(Http *http)
 static int httpTimer(Http *http, MprEvent *event)
 {
     HttpConn    *conn;
+    HttpStage   *stage;
+    MprModule   *module;
     int64       diff;
-    int         next, connCount, inactivity, requestTimeout, inactivityTimeout;
+    int         next, count, inactivity, requestTimeout, inactivityTimeout;
 
     mprAssert(event);
     
@@ -289,7 +291,7 @@ static int httpTimer(Http *http, MprEvent *event)
      */
     lock(http);
     mprLog(6, "httpTimer: %d active connections", mprGetListLength(http->connections));
-    for (connCount = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; connCount++) {
+    for (count = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; count++) {
         requestTimeout = conn->limits->requestTimeout ? conn->limits->requestTimeout : INT_MAX;
         inactivityTimeout = conn->limits->inactivityTimeout ? conn->limits->inactivityTimeout : INT_MAX;
         /* 
@@ -319,7 +321,30 @@ static int httpTimer(Http *http, MprEvent *event)
             }
         }
     }
-    if (connCount == 0) {
+    /*
+        Check for unloadable modules
+     */
+    for (next = 0; (module = mprGetNextItem(MPR->moduleService->modules, &next)) != 0; ) {
+        if (module->timeout) {
+            if (module->lastActivity + module->timeout < http->now) {
+                if ((stage = httpLookupStage(http, module->name)) != 0) {
+                    mprLog(2, "Unloading inactive module %s", module->name);
+                    if (stage->match) {
+                        mprError("Can't unload modules with match routines");
+                        module->timeout = 0;
+                    } else {
+                        mprUnloadModule(module);
+                        stage->flags |= HTTP_STAGE_UNLOADED;
+                    }
+                } else {
+                    mprUnloadModule(module);
+                }
+            } else {
+                count++;
+            }
+        }
+    }
+    if (count == 0) {
         mprRemoveEvent(event);
         http->timer = 0;
     }
