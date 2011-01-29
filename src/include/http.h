@@ -798,8 +798,9 @@ extern bool httpIsQueueEmpty(HttpQueue *q);
     Open the queue. Call the queue open entry point.
     @param q Queue reference
     @param chunkSize Preferred chunk size
+    @return Zero if successful.
  */
-extern void httpOpenQueue(HttpQueue *q, ssize chunkSize);
+extern int httpOpenQueue(HttpQueue *q, ssize chunkSize);
 
 /** 
     Remove a queue
@@ -1078,10 +1079,11 @@ typedef struct HttpStage {
         @li HTTP_STAGE_PUT        - Support PUT requests
         @li HTTP_STAGE_TRACE      - Support TRACE requests
         @li HTTP_STAGE_ALL        - Mask to support all methods
+    @para module Optional module object for loadable stages
     @return A new stage object
     @ingroup HttpStage
  */
-extern HttpStage *httpCreateStage(Http *http, cchar *name, int flags);
+extern HttpStage *httpCreateStage(Http *http, cchar *name, int flags, MprModule *module);
 
 /**
     Create a clone of an existing state. This is used when creating filters configured to match certain extensions.
@@ -1117,10 +1119,11 @@ extern struct HttpStage *httpLookupStage(Http *http, cchar *name);
         @li HTTP_STAGE_PUT        - Support PUT requests
         @li HTTP_STAGE_TRACE      - Support TRACE requests
         @li HTTP_STAGE_ALL        - Mask to support all methods
+    @para module Optional module object for loadable stages
     @return A new stage object
     @ingroup HttpStage
  */
-extern HttpStage *httpCreateConnector(Http *http, cchar *name, int flags);
+extern HttpStage *httpCreateConnector(Http *http, cchar *name, int flags, MprModule *module);
 
 /** 
     Create a filter stage
@@ -1138,10 +1141,11 @@ extern HttpStage *httpCreateConnector(Http *http, cchar *name, int flags);
         @li HTTP_STAGE_PUT        - Support PUT requests
         @li HTTP_STAGE_TRACE      - Support TRACE requests
         @li HTTP_STAGE_ALL        - Mask to support all methods
+    @para module Optional module object for loadable stages
     @return A new stage object
     @ingroup HttpStage
  */
-extern HttpStage *httpCreateFilter(Http *http, cchar *name, int flags);
+extern HttpStage *httpCreateFilter(Http *http, cchar *name, int flags, MprModule *module);
 
 /** 
     Create a request handler stage
@@ -1160,10 +1164,11 @@ extern HttpStage *httpCreateFilter(Http *http, cchar *name, int flags);
         @li HTTP_STAGE_PUT        - Support PUT requests
         @li HTTP_STAGE_TRACE      - Support TRACE requests
         @li HTTP_STAGE_ALL        - Mask to support all methods
+    @para module Optional module object for loadable stages
     @return A new stage object
     @ingroup HttpStage
  */
-extern HttpStage *httpCreateHandler(Http *http, cchar *name, int flags);
+extern HttpStage *httpCreateHandler(Http *http, cchar *name, int flags, MprModule *module);
 
 /** 
     Default outgoing data handling
@@ -1185,7 +1190,7 @@ extern void httpDefaultOutgoingServiceStage(HttpQueue *q);
 extern void *httpLookupStageData(Http *http, cchar *name);
 
 /* Internal APIs */
-extern void httpRegisterStage(Http *http, HttpStage *stage);
+extern void httpAddStage(Http *http, HttpStage *stage);
 extern int httpOpenNetConnector(Http *http);
 extern int httpOpenSendConnector(Http *http);
 extern int httpOpenAuthFilter(Http *http);

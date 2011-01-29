@@ -41,8 +41,7 @@ int httpOpenAuthFilter(Http *http)
 {
     HttpStage     *filter;
 
-    filter = httpCreateFilter(http, "authFilter", HTTP_STAGE_ALL);
-    if (filter == 0) {
+    if ((filter = httpCreateFilter(http, "authFilter", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
     http->authFilter = filter;

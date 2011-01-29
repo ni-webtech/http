@@ -252,21 +252,29 @@ bool httpIsQueueEmpty(HttpQueue *q)
 }
 
 
-void httpOpenQueue(HttpQueue *q, ssize chunkSize)
+int httpOpenQueue(HttpQueue *q, ssize chunkSize)
 {
     Http        *http;
+    HttpConn    *conn;
     HttpStage   *stage;
+    MprModule   *module;
 
     stage = q->stage;
+    conn = q->conn;
     http = q->conn->http;
 
     if (chunkSize > 0) {
         q->packetSize = min(q->packetSize, chunkSize);
     }
-    if (stage->flags & HTTP_STAGE_UNLOADED) {
-        mprAssert(stage->path);
+    if (stage->flags & HTTP_STAGE_UNLOADED && stage->module) {
+        module = stage->module;
         mprLog(2, "Loading module for %s", stage->name);
-        mprLoadModule(stage->name, stage->path, q->conn->http);
+        module = mprCreateModule(module->name, module->path, module->entry, http);
+        if (mprLoadModule(module) < 0) {
+            httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't load module %s", module->name);
+            return MPR_ERR_CANT_READ;
+        }
+        stage->module = module;
     }
     if (stage->module) {
         stage->module->lastActivity = http->now;
@@ -275,6 +283,7 @@ void httpOpenQueue(HttpQueue *q, ssize chunkSize)
     if (q->open) {
         HTTP_TIME(q->conn, q->stage->name, "open", q->stage->open(q));
     }
+    return 0;
 }
 
 

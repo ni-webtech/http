@@ -89,14 +89,19 @@ static void incomingService(HttpQueue *q)
 }
 
 
-HttpStage *httpCreateStage(Http *http, cchar *name, int flags)
+HttpStage *httpCreateStage(Http *http, cchar *name, int flags, MprModule *module)
 {
     HttpStage     *stage;
 
     mprAssert(http);
     mprAssert(name && *name);
 
-    if ((stage = mprAllocObj(HttpStage, manageStage)) == 0) {
+    if ((stage = httpLookupStage(http, name)) != 0) {
+        if (!(stage->flags & HTTP_STAGE_UNLOADED)) {
+            mprError("Stage %s already exists", name);
+            return 0;
+        }
+    } else if ((stage = mprAllocObj(HttpStage, manageStage)) == 0) {
         return 0;
     }
     stage->flags = flags;
@@ -107,7 +112,8 @@ HttpStage *httpCreateStage(Http *http, cchar *name, int flags)
     stage->incomingService = incomingService;
     stage->outgoingData = outgoingData;
     stage->outgoingService = httpDefaultOutgoingServiceStage;
-    httpRegisterStage(http, stage);
+    stage->module = module;
+    httpAddStage(http, stage);
     return stage;
 }
 
@@ -136,33 +142,21 @@ HttpStage *httpCloneStage(Http *http, HttpStage *stage)
 }
 
 
-HttpStage *httpCreateHandler(Http *http, cchar *name, int flags)
+HttpStage *httpCreateHandler(Http *http, cchar *name, int flags, MprModule *module)
 {
-    HttpStage     *stage;
-    
-    stage = httpCreateStage(http, name, flags);
-    stage->flags |= HTTP_STAGE_HANDLER;
-    return stage;
+    return httpCreateStage(http, name, flags | HTTP_STAGE_HANDLER, module);
 }
 
 
-HttpStage *httpCreateFilter(Http *http, cchar *name, int flags)
+HttpStage *httpCreateFilter(Http *http, cchar *name, int flags, MprModule *module)
 {
-    HttpStage     *stage;
-    
-    stage = httpCreateStage(http, name, flags);
-    stage->flags |= HTTP_STAGE_FILTER;
-    return stage;
+    return httpCreateStage(http, name, flags | HTTP_STAGE_FILTER, module);
 }
 
 
-HttpStage *httpCreateConnector(Http *http, cchar *name, int flags)
+HttpStage *httpCreateConnector(Http *http, cchar *name, int flags, MprModule *module)
 {
-    HttpStage     *stage;
-    
-    stage = httpCreateStage(http, name, flags);
-    stage->flags |= HTTP_STAGE_CONNECTOR;
-    return stage;
+    return httpCreateStage(http, name, flags | HTTP_STAGE_CONNECTOR, module);
 }
 
 

@@ -27,8 +27,7 @@ int httpOpenNetConnector(Http *http)
 {
     HttpStage     *stage;
 
-    stage = httpCreateConnector(http, "netConnector", HTTP_STAGE_ALL);
-    if (stage == 0) {
+    if ((stage = httpCreateConnector(http, "netConnector", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
     stage->outgoingService = netOutgoingService;

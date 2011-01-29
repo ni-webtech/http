@@ -33,13 +33,12 @@ int httpOpenPassHandler(Http *http)
 {
     HttpStage     *stage;
 
-    stage = httpCreateHandler(http, "passHandler", HTTP_STAGE_ALL | HTTP_STAGE_VIRTUAL);
-    if (stage == 0) {
+    if ((stage = httpCreateHandler(http, "passHandler", HTTP_STAGE_ALL | HTTP_STAGE_VIRTUAL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
+    http->passHandler = stage;
     stage->process = processPass;
     stage->open = openPass;
-    http->passHandler = stage;
     return 0;
 }
 

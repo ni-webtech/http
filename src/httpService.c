@@ -222,7 +222,7 @@ HttpLimits *httpCreateLimits(int serverSide)
 }
 
 
-void httpRegisterStage(Http *http, HttpStage *stage)
+void httpAddStage(Http *http, HttpStage *stage)
 {
     mprAddKey(http->stages, stage->name, stage);
 }
