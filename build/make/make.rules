@@ -284,7 +284,12 @@ projectsExtra:
 #
 #	Create a redistributable package
 #
-package: $(BUILD_CHECK) packagePriv packageDirs packageExtra
+package: $(BUILD_CHECK) packagePrepFirst packagePriv packageDirs packageExtra
+
+packagePrepFirst:
+	@T=packagePrep ; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
+
+packagePrep:
 
 packagePriv:
 
