@@ -101,6 +101,7 @@ static void testBasicHttpGet(MprTestGroup *gp)
 #if BLD_FEATURE_SSL && (BLD_FEATURE_MATRIXSSL || BLD_FEATURE_OPENSSL)
 static void testSecureHttpGet(MprTestGroup *gp)
 {
+    TestHttp    *th;
     Http        *http;
     HttpConn    *conn;
     int         rc, status;
