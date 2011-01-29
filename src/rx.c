@@ -951,6 +951,8 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         }
         httpSetState(conn, HTTP_STATE_RUNNING);
         return 1;
+    } else {
+        mprYield(0);
     }
     httpServiceQueues(conn);
     return conn->connError || (conn->input ? mprGetBufLength(conn->input->content) : 0);
