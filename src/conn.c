@@ -18,7 +18,7 @@ static void writeEvent(HttpConn *conn);
 /*
     Create a new connection object.
  */
-HttpConn *httpCreateConn(Http *http, HttpServer *server)
+HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatcher)
 {
     HttpConn    *conn;
 
@@ -35,16 +35,20 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server)
     conn->port = -1;
     conn->retries = HTTP_RETRIES;
     conn->server = server;
-    conn->time = mprGetTime();
-    conn->lastActivity = conn->time;
+    conn->lastActivity = http->now;
     conn->callback = (HttpCallback) httpEvent;
     conn->callbackArg = conn;
 
     httpInitTrace(conn->trace);
     httpInitSchedulerQueue(&conn->serviceq);
-    conn->dispatcher = mprGetDispatcher();
-    if (server) {
+    if (dispatcher) {
+        conn->dispatcher = dispatcher;
+    } else if (server) {
         conn->dispatcher = server->dispatcher;
+    } else {
+        conn->dispatcher = mprGetDispatcher();
+    }
+    if (server) {
         conn->notifier = server->notifier;
     }
     httpSetState(conn, HTTP_STATE_BEGIN);
@@ -254,8 +258,12 @@ void httpEvent(HttpConn *conn, MprEvent *event)
 {
     LOG(7, "httpEvent for fd %d, mask %d\n", conn->sock->fd, event->mask);
 
+#if UNUSED
     conn->lastActivity = conn->time = event->timestamp;
     mprAssert(conn->time);
+#else
+    conn->lastActivity = conn->http->now;
+#endif
 
     if (event->mask & MPR_WRITABLE) {
         writeEvent(conn);
@@ -343,7 +351,11 @@ void httpEnableConnEvents(HttpConn *conn)
     }
     tx = conn->tx;
     eventMask = 0;
+#if UNUSED
     conn->lastActivity = conn->time;
+#else
+    conn->lastActivity = conn->http->now;
+#endif
 
     if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
         if (tx) {
@@ -373,7 +385,7 @@ void httpEnableConnEvents(HttpConn *conn)
         if (eventMask) {
             if (conn->waitHandler.fd < 0) {
                 mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher, 
-                    (MprEventProc) conn->callback, conn->callbackArg);
+                    (MprEventProc) conn->callback, conn->callbackArg, 0);
             } else if (eventMask != conn->waitHandler.desiredMask) {
                 mprEnableWaitEvents(&conn->waitHandler, eventMask);
             }

@@ -27,6 +27,9 @@ HttpAuth *httpCreateAuth(HttpAuth *parent)
         auth->flags = parent->flags;
         auth->order = parent->order;
         auth->qop = parent->qop;
+        auth->requiredRealm = parent->requiredRealm;
+        auth->requiredUsers = parent->requiredUsers;
+        auth->requiredGroups = parent->requiredGroups;
 
         auth->userFile = parent->userFile;
         auth->groupFile = parent->groupFile;
@@ -114,6 +117,7 @@ void httpSetAuthRequiredGroups(HttpAuth *auth, cchar *groups)
 {
     auth->requiredGroups = sclone(groups);
     auth->flags |= HTTP_AUTH_REQUIRED;
+    auth->anyValidUser = 0;
 }
 
 
@@ -121,6 +125,7 @@ void httpSetAuthRequiredUsers(HttpAuth *auth, cchar *users)
 {
     auth->requiredUsers = sclone(users);
     auth->flags |= HTTP_AUTH_REQUIRED;
+    auth->anyValidUser = 0;
 }
 
 

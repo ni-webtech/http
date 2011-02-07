@@ -46,9 +46,11 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
 void httpDestroyTx(HttpTx *tx)
 {
     mprCloseFile(tx->file);
+#if UNUSED
     if (tx->dispatcher) {
         mprDestroyDispatcher(tx->dispatcher);
     }
+#endif
     if (tx->conn) {
         tx->conn->tx = 0;
         tx->conn = 0;
@@ -423,7 +425,7 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         domainAtt = "";
     }
     if (lifetime > 0) {
-        mprDecodeUniversalTime(&tm, conn->time + (lifetime * MPR_TICKS_PER_SEC));
+        mprDecodeUniversalTime(&tm, conn->http->now + (lifetime * MPR_TICKS_PER_SEC));
         expiresAtt = "; expires=";
         expires = mprFormatTime(MPR_HTTP_DATE, &tm);
 

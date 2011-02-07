@@ -215,10 +215,12 @@ static HttpPacket *createFinalRangePacket(HttpConn *conn)
 static void createRangeBoundary(HttpConn *conn)
 {
     HttpTx      *tx;
+    int         when;
 
     tx = conn->tx;
     mprAssert(tx->rangeBoundary == 0);
-    tx->rangeBoundary = mprAsprintf("%08X%08X", PTOI(tx) + PTOI(conn) * (int) conn->time, (int) conn->time);
+    when = (int) conn->http->now;
+    tx->rangeBoundary = mprAsprintf("%08X%08X", PTOI(tx) + PTOI(conn) * when, when);
 }
 
 

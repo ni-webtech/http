@@ -1,5 +1,6 @@
 /*
     client.c -- Client side specific support.
+
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
 
@@ -13,7 +14,7 @@ HttpConn *httpCreateClient(Http *http, MprDispatcher *dispatcher)
 {
     HttpConn    *conn;
 
-    conn = httpCreateConn(http, NULL);
+    conn = httpCreateConn(http, NULL, NULL);
     conn->dispatcher = dispatcher;
     return conn;
 }

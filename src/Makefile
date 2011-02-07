@@ -19,7 +19,7 @@ compileExtra: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	bld --library $(BLD_LIB_DIR)/libhttp --search "$(BLD_MPR_LIBPATHS) $(BLD_SSL_LIBPATHS)" \
-		--libs "$(BLD_SSL_LIBS) $(BLD_MPR_LIBS)" $(OBJECTS)
+		--libs "$(BLD_HTTP_WITHLIBS) $(BLD_SSL_LIBS) $(BLD_MPR_LIBS)" $(OBJECTS)
 
 #
 #   Local variables:

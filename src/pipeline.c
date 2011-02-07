@@ -80,12 +80,13 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     
     /* Incase a filter changed the handler */
     mprSetItem(tx->outputPipeline, 0, tx->handler);
+#if UNUSED
     if (tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
         /* Start with dispatcher disabled. Conn.c will enable */
         tx->dispatcher = mprCreateDispatcher(tx->handler->name, 0);
         conn->dispatcher = tx->dispatcher;
     }
-
+#endif
     /*  Create the outgoing queue heads and open the queues */
     q = &tx->queue[HTTP_QUEUE_TRANS];
     for (next = 0; (stage = mprGetNextItem(tx->outputPipeline, &next)) != 0; ) {

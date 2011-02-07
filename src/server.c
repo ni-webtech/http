@@ -33,7 +33,7 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     server->port = port;
     server->ip = sclone(ip);
     server->waitHandler.fd = -1;
-    server->dispatcher = (dispatcher) ? dispatcher : mprGetDispatcher(http);
+    server->dispatcher = dispatcher;
     if (server->ip && server->ip) {
         server->name = server->ip;
     }
@@ -127,7 +127,7 @@ int httpStartServer(HttpServer *server)
     }
     if (server->async) {
         mprInitWaitHandler(&server->waitHandler, server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
-            (MprEventProc) httpAcceptConn, server);
+            (MprEventProc) httpAcceptConn, server, (server->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
     } else {
         mprSetSocketBlockingMode(server->sock, 1);
     }
@@ -206,11 +206,12 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     Accept a new client connection on a new socket. If multithreaded, this will come in on a worker thread 
     dedicated to this connection. This is called from the listen wait handler.
  */
-HttpConn *httpAcceptConn(HttpServer *server)
+HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
 {
     HttpConn        *conn;
     MprSocket       *sock;
     MprEvent        e;
+    MprDispatcher   *dispatcher;
     int             level;
 
     mprAssert(server);
@@ -225,21 +226,22 @@ HttpConn *httpAcceptConn(HttpServer *server)
     if (sock == 0) {
         return 0;
     }
+    dispatcher = (event && server->dispatcher == 0) ? event->dispatcher: server->dispatcher;
     mprLog(4, "New connection from %s:%d to %s:%d %s",
         sock->ip, sock->port, sock->acceptIp, sock->acceptPort, server->sock->sslSocket ? "(secure)" : "");
 
-    if ((conn = httpCreateConn(server->http, server)) == 0) {
+    if ((conn = httpCreateConn(server->http, server, dispatcher)) == 0) {
         mprError("Can't create connect object. Insufficient memory.");
         mprCloseSocket(sock, 0);
         return 0;
     }
+    conn->notifier = server->notifier;
     conn->async = server->async;
     conn->server = server;
     conn->sock = sock;
     conn->port = sock->port;
     conn->ip = sclone(sock->ip);
     conn->secure = mprIsSocketSecure(sock);
-
     if (!httpValidateLimits(server, HTTP_VALIDATE_OPEN_CONN, conn)) {
         /* Prevent validate limits from */
         conn->server = 0;

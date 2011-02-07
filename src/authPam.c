@@ -29,7 +29,7 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 
 /*********************************** Code *************************************/
 
-cchar *maGetPamPassword(HttpAuth *auth, cchar *realm, cchar *user)
+cchar *httpGetPamPassword(HttpAuth *auth, cchar *realm, cchar *user)
 {
     /*  Can't return the password.
      */
@@ -37,7 +37,7 @@ cchar *maGetPamPassword(HttpAuth *auth, cchar *realm, cchar *user)
 }
 
 
-bool maValidatePamCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, cchar *requiredPass, char **msg)
+bool httpValidatePamCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, cchar *requiredPass, char **msg)
 {
     pam_handle_t        *pamh;
     UserInfo            info;

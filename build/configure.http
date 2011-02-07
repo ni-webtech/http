@@ -52,6 +52,7 @@ createFeatureConfig()
 #
 BLD_FEATURE_AUTH_FILE=$BLD_FEATURE_AUTH_FILE
 BLD_FEATURE_AUTH_PAM=$BLD_FEATURE_AUTH_PAM
+
 !EOF_FEATURE_CONFIG1
 }
 
@@ -79,13 +80,26 @@ Examples:
 
 parseArg()
 {
-    local ARG SW
+    local ARG SW lower
 
     ARG="${1#*=}"
     [ "$ARG" = "$1" ] && ARG=
 
     SW=`echo ${1#--} | tr '[A-Z]' '[a-z]'`
+    lower=`echo ${ARG#--} | tr '[A-Z]' '[a-z]'`
     case ${SW} in
+    auth=*)
+        if [ "$lower" = "file" ] ; then
+            BLD_FEATURE_AUTH_FILE=1
+            BLD_FEATURE_AUTH_PAM=0
+        elif [ "$lower" = "pam" ] ; then
+            BLD_FEATURE_AUTH_FILE=0
+            BLD_FEATURE_AUTH_PAM=1
+        else
+            echo "Unknown authorization backend for --auth"
+            exit 255
+        fi
+        ;;
     disable-all)
         BLD_DISABLE_ALL=1
         BLD_FEATURE_ASSERT=0
