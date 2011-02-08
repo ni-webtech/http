@@ -1266,7 +1266,6 @@ PREDEFINED             = WIN=1 \
                          BLD_FEATURE_FLOATING_POINT=1 \
                          BLD_FEATURE_INT64=1 \
                          BLD_FEATURE_LEGACY_API=1 \
-                         BLD_FEATURE_MULTITHREAD=1 \
                          BLD_FEATURE_SAFE_STRINGS=1 \
                          BLD_FEATURE_TEST=1 \
                          BLD_FEATURE_ROMFS=1 \
