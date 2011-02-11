@@ -32,7 +32,6 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
     server->limits = mprMemdup(http->serverLimits, sizeof(HttpLimits));
     server->port = port;
     server->ip = sclone(ip);
-    server->waitHandler.fd = -1;
     server->dispatcher = dispatcher;
     if (server->ip && server->ip) {
         server->name = server->ip;
@@ -46,8 +45,9 @@ HttpServer *httpCreateServer(Http *http, cchar *ip, int port, MprDispatcher *dis
 void httpDestroyServer(HttpServer *server)
 {
     mprLog(4, "Destroy server %s", server->name);
-    if (server->waitHandler.fd >= 0) {
-        mprRemoveWaitHandler(&server->waitHandler);
+    if (server->waitHandler) {
+        mprRemoveWaitHandler(server->waitHandler);
+        server->waitHandler = 0;
     }
     destroyServerConnections(server);
     if (server->sock) {
@@ -74,6 +74,7 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->sock);
         mprMark(server->dispatcher);
         mprMark(server->ssl);
+        mprMark(server->waitHandler);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyServer(server);
@@ -125,8 +126,8 @@ int httpStartServer(HttpServer *server)
             return MPR_ERR_CANT_OPEN;
         }
     }
-    if (server->async) {
-        mprInitWaitHandler(&server->waitHandler, server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
+    if (server->async && server->waitHandler ==  0) {
+        server->waitHandler = mprCreateWaitHandler(server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
             (MprEventProc) httpAcceptConn, server, (server->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
     } else {
         mprSetSocketBlockingMode(server->sock, 1);
@@ -220,8 +221,8 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
         This will block in sync mode until a connection arrives
      */
     sock = mprAcceptSocket(server->sock);
-    if (server->waitHandler.fd >= 0) {
-        mprEnableWaitEvents(&server->waitHandler, MPR_READABLE);
+    if (server->waitHandler) {
+        mprEnableWaitEvents(server->waitHandler, MPR_READABLE);
     }
     if (sock == 0) {
         return 0;

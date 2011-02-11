@@ -29,7 +29,6 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
     conn->canProceed = 1;
     conn->limits = (server) ? server->limits : http->clientLimits;
     conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
-    conn->waitHandler.fd = -1;
 
     conn->protocol = http->protocol;
     conn->port = -1;
@@ -107,6 +106,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->errorMsg);
         mprMark(conn->host);
         mprMark(conn->ip);
+        mprMark(conn->waitHandler);
 
         httpMarkQueueHead(&conn->serviceq);
         httpManageTrace(&conn->trace[0], flags);
@@ -141,8 +141,9 @@ void httpCloseConn(HttpConn *conn)
 
     if (conn->sock) {
         mprLog(6, "Closing connection");
-        if (conn->waitHandler.fd >= 0) {
-            mprRemoveWaitHandler(&conn->waitHandler);
+        if (conn->waitHandler) {
+            mprRemoveWaitHandler(conn->waitHandler);
+            conn->waitHandler = 0;
         }
         mprCloseSocket(conn->sock, 0);
         conn->sock = 0;
@@ -377,21 +378,21 @@ void httpEnableConnEvents(HttpConn *conn)
         }
         if (conn->startingThread) {
             conn->startingThread = 0;
-            if (conn->waitHandler.fd >= 0) {
-                mprRemoveWaitHandler(&conn->waitHandler);
-                conn->waitHandler.fd = -1;
+            if (conn->waitHandler) {
+                mprRemoveWaitHandler(conn->waitHandler);
+                conn->waitHandler = 0;
             }
         }
         if (eventMask) {
-            if (conn->waitHandler.fd < 0) {
-                mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher, 
+            if (conn->waitHandler == 0) {
+                conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, 
                     (MprEventProc) conn->callback, conn->callbackArg, 0);
-            } else if (eventMask != conn->waitHandler.desiredMask) {
-                mprEnableWaitEvents(&conn->waitHandler, eventMask);
+            } else if (eventMask != conn->waitHandler->desiredMask) {
+                mprEnableWaitEvents(conn->waitHandler, eventMask);
             }
         } else {
-            if (conn->waitHandler.fd >= 0 && eventMask != conn->waitHandler.desiredMask) {
-                mprEnableWaitEvents(&conn->waitHandler, eventMask);
+            if (conn->waitHandler && eventMask != conn->waitHandler->desiredMask) {
+                mprEnableWaitEvents(conn->waitHandler, eventMask);
             }
         }
         mprEnableDispatcher(conn->dispatcher);

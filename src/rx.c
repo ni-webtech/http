@@ -1310,14 +1310,14 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
         return MPR_ERR_BAD_STATE;
     } 
     saveAsync = conn->async;
-    if (conn->waitHandler.fd < 0) {
+    if (conn->waitHandler == 0) {
         conn->async = 1;
         eventMask = MPR_READABLE;
         if (!conn->writeComplete) {
             eventMask |= MPR_WRITABLE;
         }
-        mprInitWaitHandler(&conn->waitHandler, conn->sock->fd, eventMask, conn->dispatcher, (MprEventProc) waitHandler, 
-                conn, 0);
+        conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, (MprEventProc) waitHandler, 
+            conn, 0);
         addedHandler = 1;
     } else {
         addedHandler = 0;
@@ -1336,8 +1336,9 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
             break;
         }
     }
-    if (addedHandler && conn->waitHandler.fd >= 0) {
-        mprRemoveWaitHandler(&conn->waitHandler);
+    if (addedHandler && conn->waitHandler) {
+        mprRemoveWaitHandler(conn->waitHandler);
+        conn->waitHandler = 0;
         conn->async = saveAsync;
     }
     if (conn->sock == 0 || conn->error) {
