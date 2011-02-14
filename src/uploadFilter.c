@@ -84,7 +84,7 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
     pat = "multipart/form-data";
     len = strlen(pat);
     if (sncasecmp(rx->mimeType, pat, len) == 0) {
-        rx->upload = 1;
+        rx->flags |= HTTP_UPLOAD;
         return 1;
     } else {
         return 0;

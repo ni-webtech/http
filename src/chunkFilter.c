@@ -76,7 +76,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
     conn = q->conn;
     rx = conn->rx;
 
-    if (!(rx->flags & HTTP_REC_CHUNKED)) {
+    if (!(rx->flags & HTTP_CHUNKED)) {
         httpSendPacketToNext(q, packet);
         return;
     }

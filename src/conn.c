@@ -437,7 +437,7 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
              */
             if (req->remainingContent) {
                 len = req->remainingContent;
-                if (req->flags & HTTP_REC_CHUNKED) {
+                if (req->flags & HTTP_CHUNKED) {
                     len = max(len, HTTP_BUFSIZE);
                 }
             }
