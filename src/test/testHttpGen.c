@@ -110,7 +110,7 @@ static void testSecureHttpGet(MprTestGroup *gp)
     th->http = http = httpCreate(gp);
     assert(http != 0);
     th->conn = conn = httpCreateConn(http, NULL, NULL);
-    assert(conn);
+    assert(conn != 0);
 
     rc = httpConnect(conn, "GET", "https://www.amazon.com/index.html");
     assert(rc >= 0);
