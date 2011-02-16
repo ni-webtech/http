@@ -1961,12 +1961,14 @@ typedef struct HttpRx {
     MprTime         since;                  /**< If-Modified date */
 
     int             eof;                    /**< All read data has been received (eof) */
-    ssize           length;                 /**< Declared content length (ENV: CONTENT_LENGTH) */
     int             chunkState;             /**< Chunk encoding state */
-    ssize           chunkSize;              /**< Size of the next chunk */
     int             chunkRemainingData;     /**< Remaining chunk data to read */
     int             flags;                  /**< Rx modifiers */
     int             needInputPipeline;      /**< Input pipeline required to process received data */
+    int             rewrites;               /**< Count of request rewrites */
+
+    ssize           length;                 /**< Declared content length (ENV: CONTENT_LENGTH) */
+    ssize           chunkSize;              /**< Size of the next chunk */
     ssize           remainingContent;       /**< Remaining content data to read (in next chunk if chunked) */
     ssize           receivedContent;        /**< Length of content actually received */
     ssize           readContent;            /**< Length of content read by user */
@@ -2138,7 +2140,7 @@ extern void httpProtocolError(struct HttpConn *conn, int status, cchar *fmt, ...
 extern void httpProcess(HttpConn *conn, HttpPacket *packet);
 extern void httpProcessWriteEvent(HttpConn *conn);
 extern bool httpProcessCompletion(HttpConn *conn);
-extern int  httpSetUri(HttpConn *conn, cchar *newUri);
+extern int  httpSetUri(HttpConn *conn, cchar *newUri, cchar *query);
 extern void httpSetEtag(HttpConn *conn, MprPath *info);
 extern bool httpMatchEtag(HttpConn *conn, char *requestedEtag);
 extern bool httpMatchModified(HttpConn *conn, MprTime time);
