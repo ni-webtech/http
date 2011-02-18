@@ -51,9 +51,9 @@ static void manageRx(HttpRx *rx, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(rx->method);
         mprMark(rx->uri);
-        mprMark(rx->hostName);
         mprMark(rx->scriptName);
         mprMark(rx->pathInfo);
+        mprMark(rx->conn);
         mprMark(rx->etags);
         mprMark(rx->headerPacket);
         mprMark(rx->headers);
@@ -61,10 +61,20 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->loc);
         mprMark(rx->parsedUri);
         mprMark(rx->requestData);
+        mprMark(rx->statusMessage);
+        mprMark(rx->accept);
+        mprMark(rx->acceptCharset);
+        mprMark(rx->acceptEncoding);
+        mprMark(rx->cookie);
+        mprMark(rx->connection);
+        mprMark(rx->contentLength);
+        mprMark(rx->hostName);
         mprMark(rx->pathTranslated);
         mprMark(rx->pragma);
+        mprMark(rx->mimeType);
         mprMark(rx->redirect);
         mprMark(rx->referrer);
+        mprMark(rx->userAgent);
         mprMark(rx->formVars);
         mprMark(rx->ranges);
         mprMark(rx->inputRange);
@@ -145,7 +155,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     HttpTx      *tx;
-    HttpLoc     *loc;
     ssize       len;
     char        *start, *end;
 
@@ -185,9 +194,21 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         parseHeaders(conn, packet);
     }
     if (conn->server) {
+        httpMatchHost(conn);
+        if (httpSetUri(conn, rx->uri, "") < 0) {
+            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad URL format");
+            return 0;
+        }
+        if (!tx->handler) {
+            httpMatchHandler(conn);  
+        }
+        mprLog(3, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
         httpSetState(conn, HTTP_STATE_PARSED);        
+#if UNUSED
         loc = (rx->loc) ? rx->loc : conn->server->loc;
-        httpCreatePipeline(conn, loc, tx->handler);
+#endif
+        httpCreatePipeline(conn, rx->loc, tx->handler);
+
 #if FUTURE
         //  MOB -- TODO
         if (0 && tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
@@ -289,7 +310,10 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         break;
     }
     if (methodFlags == 0) {
+        methodFlags = HTTP_UNKNOWN;
+#if UNUSED
         httpProtocolError(conn, HTTP_CODE_BAD_METHOD, "Unknown method");
+#endif
     }
     uri = getToken(conn, " ");
     if (*uri == '\0') {
@@ -299,7 +323,6 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     }
     protocol = getToken(conn, "\r\n");
     if (strcmp(protocol, "HTTP/1.0") == 0) {
-        conn->keepAliveCount = 0;
         if (methodFlags & (HTTP_POST|HTTP_PUT)) {
             rx->remainingContent = MAXINT;
             rx->needInputPipeline = 1;
@@ -337,7 +360,6 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
 
     protocol = getToken(conn, " ");
     if (strcmp(protocol, "HTTP/1.0") == 0) {
-        conn->keepAliveCount = 0;
         conn->http10 = 1;
         conn->protocol = "HTTP/1.0";
     } else if (strcmp(protocol, "HTTP/1.1") != 0) {
@@ -349,7 +371,7 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
         httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Bad response status code");
     }
     rx->status = atoi(status);
-    rx->statusMessage = getToken(conn, "\r\n");
+    rx->statusMessage = sclone(getToken(conn, "\r\n"));
 
     if (slen(rx->statusMessage) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
@@ -499,9 +521,10 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             } else if (strcmp(key, "connection") == 0) {
                 rx->connection = sclone(value);
                 if (scasecmp(value, "KEEP-ALIVE") == 0) {
-                    keepAlive++;
+                    keepAlive = 1;
                 } else if (scasecmp(value, "CLOSE") == 0) {
-                    conn->keepAliveCount = -1;
+                    /*  Not really required, but set to 0 to be sure */
+                    conn->keepAliveCount = 0;
                 }
             }
             break;
@@ -566,17 +589,16 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'k':
             if (strcmp(key, "keep-alive") == 0) {
-                /*
-                    Keep-Alive: timeout=N, max=1
-                 */
                 len = (int) strlen(value);
                 if (len > 2 && value[len - 1] == '1' && value[len - 2] == '=' && tolower((int)(value[len - 3])) == 'x') {
-
                     /*  
+                        On second-last request (Keep-Alive: timeout=N, max=1)
                         IMPORTANT: Deliberately close the connection one request early. This ensures a client-led 
                         termination and helps relieve server-side TIME_WAIT conditions.
                      */
                     conn->keepAliveCount = 0;
+                } else {
+                    keepAlive = 1;
                 }
             }
             break;                
@@ -653,7 +675,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
         }
     }
-    if (conn->protocol == 0 && !keepAlive) {
+    if (!keepAlive) {
         conn->keepAliveCount = 0;
     }
     if (!(rx->flags & HTTP_CHUNKED)) {
@@ -667,11 +689,6 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     }
     if (rx->remainingContent == 0) {
         rx->eof = 1;
-    }
-    if (conn->server) {
-        if (httpSetUri(conn, rx->uri, "") < 0) {
-            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad URL format");
-        }
     }
 }
 
@@ -857,7 +874,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
 
     rx = conn->rx;
     tx = conn->tx;
-    q = &tx->queue[HTTP_QUEUE_RECEIVE];
+    q = tx->queue[HTTP_QUEUE_RECEIVE];
 
     content = packet->content;
     if (rx->flags & HTTP_CHUNKED) {
@@ -928,7 +945,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     HttpQueue   *q;
 
     rx = conn->rx;
-    q = &conn->tx->queue[HTTP_QUEUE_RECEIVE];
+    q = conn->tx->queue[HTTP_QUEUE_RECEIVE];
 
     if (packet == NULL) {
         return 0;
@@ -1156,7 +1173,6 @@ static void manageRange(HttpRange *range, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(range->next);
-    } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 
@@ -1250,12 +1266,36 @@ char *httpGetStatusMessage(HttpConn *conn)
 }
 
 
-int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
+int httpMapToStorage(HttpConn *conn)
 {
-    HttpRx  *rx;
-    char    *oldQuery;
+    HttpRx      *rx;
+    HttpTx      *tx;
+    HttpHost    *host;
 
     rx = conn->rx;
+    tx = conn->tx;
+    host = conn->host;
+
+    rx->loc = httpLookupBestLocation(host, rx->pathInfo);
+    rx->auth = rx->loc->auth;
+    rx->alias = httpGetAlias(host, rx->pathInfo);
+    tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
+    mprGetPathInfo(tx->filename, &tx->fileInfo);
+    tx->extension = httpGetExtension(conn);
+    return 0;
+}
+
+
+int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
+{
+    HttpRx      *rx;
+    HttpTx      *tx;
+    HttpHost    *host;
+    char        *oldQuery;
+
+    rx = conn->rx;
+    tx = conn->tx;
+    host = conn->host;
     oldQuery = rx->parsedUri ? rx->parsedUri->query : 0;
 
     if ((rx->parsedUri = httpCreateUri(uri, 0)) == 0) {
@@ -1271,20 +1311,8 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
      */
     rx->uri = rx->parsedUri->uri;
     rx->pathInfo = httpNormalizeUriPath(mprUriDecode(rx->parsedUri->path));
-    conn->tx->extension = sclone(rx->parsedUri->ext);
     rx->scriptName = mprEmptyString();
-
-    /*  
-        MOB -- should this be doing
-
-        alias = rx->alias = maGetAlias(host, rx->pathInfo);
-        if (alias->redirectCode) {
-            httpRedirect(conn, alias->redirectCode, alias->uri);
-            return NULL;
-        }
-        tx->filename = makeFilename(conn, rx->alias, rx->pathInfo, 1);
-        mprGetPathInfo(tx->filename, &tx->fileInfo);
-     */
+    httpMapToStorage(conn);
     return 0;
 }
 

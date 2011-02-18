@@ -104,6 +104,9 @@ HttpStage *httpCreateStage(Http *http, cchar *name, int flags, MprModule *module
     } else if ((stage = mprAllocObj(HttpStage, manageStage)) == 0) {
         return 0;
     }
+    if ((flags & HTTP_METHOD_MASK) == 0) {
+        flags |= HTTP_STAGE_METHODS;
+    }
     stage->flags = flags;
     stage->name = sclone(name);
     stage->open = defaultOpen;

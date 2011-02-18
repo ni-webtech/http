@@ -78,9 +78,6 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
     if (!(rx->flags & HTTP_POST) || rx->remainingContent <= 0) {
         return 0;
     }
-    if (rx->loc && rx->loc->uploadDir == NULL) {
-        return 0;
-    }
     pat = "multipart/form-data";
     len = strlen(pat);
     if (sncasecmp(rx->mimeType, pat, len) == 0) {
@@ -140,8 +137,6 @@ static void manageUpload(Upload *up, int flags)
         mprMark(up->clientFilename);
         mprMark(up->tmpPath);
         mprMark(up->id);
-
-    } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 
@@ -408,8 +403,6 @@ static void manageHttpUploadFile(HttpUploadFile *file, int flags)
         mprMark(file->filename);
         mprMark(file->clientFilename);
         mprMark(file->contentType);
-
-    } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 

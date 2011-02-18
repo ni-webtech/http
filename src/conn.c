@@ -21,25 +21,32 @@ static void writeEvent(HttpConn *conn);
 HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatcher)
 {
     HttpConn    *conn;
+    HttpHost    *host;
 
     if ((conn = mprAllocObj(HttpConn, manageConn)) == 0) {
         return 0;
     }
     conn->http = http;
     conn->canProceed = 1;
-    conn->limits = (server) ? server->limits : http->clientLimits;
-    conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
 
     conn->protocol = http->protocol;
     conn->port = -1;
     conn->retries = HTTP_RETRIES;
     conn->server = server;
     conn->lastActivity = http->now;
-    conn->callback = (HttpCallback) httpEvent;
-    conn->callbackArg = conn;
+    conn->ioCallback = httpEvent;
 
+    if (server) {
+        conn->notifier = server->notifier;
+        host = mprGetFirstItem(server->hosts);
+        conn->limits = (host) ? host->limits : http->serverLimits;
+    } else {
+        conn->limits = http->clientLimits;
+    }
+    conn->serviceq = httpCreateQueueHead(conn, "serviceq");
+
+    //  MOB -- this just sets to defaults. Who sets to what the config file has defined?
     httpInitTrace(conn->trace);
-    httpInitSchedulerQueue(&conn->serviceq);
     if (dispatcher) {
         conn->dispatcher = dispatcher;
     } else if (server) {
@@ -47,9 +54,7 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
     } else {
         conn->dispatcher = mprGetDispatcher();
     }
-    if (server) {
-        conn->notifier = server->notifier;
-    }
+    conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpAddConn(http, conn);
     return conn;
@@ -91,24 +96,29 @@ static void manageConn(HttpConn *conn, int flags)
     mprAssert(conn);
 
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(conn->callbackArg);
-        mprMark(conn->fillHeadersArg);
-        mprMark(conn->limits);
-        mprMark(conn->stages);
-        mprMark(conn->dispatcher);
-        mprMark(conn->sock);
-        mprMark(conn->documentRoot);
         mprMark(conn->rx);
         mprMark(conn->tx);
+        mprMark(conn->limits);
+        mprMark(conn->http);
+        mprMark(conn->stages);
+        mprMark(conn->dispatcher);
+        mprMark(conn->waitHandler);
+        mprMark(conn->server);
+        mprMark(conn->host);
+        mprMark(conn->sock);
+        mprMark(conn->serviceq);
+        mprMark(conn->currentq);
         mprMark(conn->input);
+        mprMark(conn->readq);
+        mprMark(conn->writeq);
         mprMark(conn->context);
         mprMark(conn->boundary);
         mprMark(conn->errorMsg);
         mprMark(conn->host);
         mprMark(conn->ip);
-        mprMark(conn->waitHandler);
+        mprMark(conn->protocol);
+        mprMark(conn->headersCallbackArg);
 
-        httpMarkQueueHead(&conn->serviceq);
         httpManageTrace(&conn->trace[0], flags);
         httpManageTrace(&conn->trace[1], flags);
 
@@ -172,7 +182,7 @@ void httpPrepServerConn(HttpConn *conn)
         conn->writeComplete = 0;
         conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
         httpSetState(conn, HTTP_STATE_BEGIN);
-        httpInitSchedulerQueue(&conn->serviceq);
+        httpInitSchedulerQueue(conn->serviceq);
         mprAssert(conn->rx == 0);
         mprAssert(conn->tx == 0);
     }
@@ -212,7 +222,7 @@ void httpPrepClientConn(HttpConn *conn, int keepHeaders)
     conn->rx = httpCreateRx(conn);
 
     httpSetState(conn, HTTP_STATE_BEGIN);
-    httpInitSchedulerQueue(&conn->serviceq);
+    httpInitSchedulerQueue(conn->serviceq);
     httpCreatePipeline(conn, NULL, NULL);
 }
 
@@ -258,13 +268,7 @@ void httpCallEvent(HttpConn *conn, int mask)
 void httpEvent(HttpConn *conn, MprEvent *event)
 {
     LOG(7, "httpEvent for fd %d, mask %d\n", conn->sock->fd, event->mask);
-
-#if UNUSED
-    conn->lastActivity = conn->time = event->timestamp;
-    mprAssert(conn->time);
-#else
     conn->lastActivity = conn->http->now;
-#endif
 
     if (event->mask & MPR_WRITABLE) {
         writeEvent(conn);
@@ -332,7 +336,7 @@ static void writeEvent(HttpConn *conn)
 
     conn->writeBlocked = 0;
     if (conn->tx) {
-        httpEnableQueue(conn->tx->queue[HTTP_QUEUE_TRANS].prevQ);
+        httpEnableQueue(conn->tx->queue[HTTP_QUEUE_TRANS]->prevQ);
         httpServiceQueues(conn);
         httpProcess(conn, NULL);
     }
@@ -352,15 +356,11 @@ void httpEnableConnEvents(HttpConn *conn)
     }
     tx = conn->tx;
     eventMask = 0;
-#if UNUSED
-    conn->lastActivity = conn->time;
-#else
     conn->lastActivity = conn->http->now;
-#endif
 
     if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
         if (tx) {
-            if (tx->queue[HTTP_QUEUE_TRANS].prevQ->count > 0) {
+            if (tx->queue[HTTP_QUEUE_TRANS]->prevQ->count > 0) {
                 eventMask |= MPR_WRITABLE;
             } else {
                 mprAssert(!conn->writeBlocked);
@@ -369,7 +369,7 @@ void httpEnableConnEvents(HttpConn *conn)
                 Allow read events even if the current request is not complete. The pipelined request will be buffered 
                 and will be ready when the current request completes.
              */
-            q = tx->queue[HTTP_QUEUE_RECEIVE].nextQ;
+            q = tx->queue[HTTP_QUEUE_RECEIVE]->nextQ;
             if (q->count < q->max) {
                 eventMask |= MPR_READABLE;
             }
@@ -386,7 +386,7 @@ void httpEnableConnEvents(HttpConn *conn)
         if (eventMask) {
             if (conn->waitHandler == 0) {
                 conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, 
-                    (MprEventProc) conn->callback, conn->callbackArg, 0);
+                    (MprEventProc) conn->ioCallback, conn, 0);
             } else if (eventMask != conn->waitHandler->desiredMask) {
                 mprEnableWaitEvents(conn->waitHandler, eventMask);
             }
@@ -581,25 +581,24 @@ void httpSetKeepAliveCount(HttpConn *conn, int count)
 }
 
 
-void httpSetCallback(HttpConn *conn, HttpCallback callback, void *arg)
-{
-    conn->callback = callback;
-    conn->callbackArg = arg;
-}
-
-
-void httpSetFillHeaders(HttpConn *conn, HttpFillHeadersProc fn, void *arg)
-{
-    conn->fillHeaders = fn;
-    conn->fillHeadersArg = arg;
-}
-
-
 void httpSetChunkSize(HttpConn *conn, ssize size)
 {
     if (conn->tx) {
         conn->tx->chunkSize = size;
     }
+}
+
+
+void httpSetHeadersCallback(HttpConn *conn, HttpHeadersCallback fn, void *arg)
+{
+    conn->headersCallback = fn;
+    conn->headersCallbackArg = arg;
+}
+
+
+void httpSetIOCallback(HttpConn *conn, HttpIOCallback fn)
+{
+    conn->ioCallback = fn;
 }
 
 
@@ -616,12 +615,12 @@ void httpSetConnHost(HttpConn *conn, void *host)
 
 
 /*  
-    Set the protocol to use for outbound requests. Protocol must be persistent .
+    Set the protocol to use for outbound requests
  */
 void httpSetProtocol(HttpConn *conn, cchar *protocol)
 {
     if (conn->state < HTTP_STATE_CONNECTED) {
-        conn->protocol = protocol;
+        conn->protocol = sclone(protocol);
         if (strcmp(protocol, "HTTP/1.0") == 0) {
             conn->keepAliveCount = -1;
         }

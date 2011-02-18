@@ -27,14 +27,15 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
     tx->entityLength = -1;
     tx->traceMethods = HTTP_STAGE_ALL;
     tx->chunkSize = -1;
-    httpInitQueue(conn, &tx->queue[HTTP_QUEUE_TRANS], "TxHead");
-    httpInitQueue(conn, &tx->queue[HTTP_QUEUE_RECEIVE], "RxHead");
+
+    tx->queue[HTTP_QUEUE_TRANS] = httpCreateQueueHead(conn, "TxHead");
+    tx->queue[HTTP_QUEUE_RECEIVE] = httpCreateQueueHead(conn, "RxHead");
 
     if (headers) {
         tx->headers = headers;
     } else if ((tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS)) != 0) {
         if (conn->server) {
-            httpAddSimpleHeader(conn, "Server", conn->server->software);
+            httpAddSimpleHeader(conn, "Server", conn->http->software);
         } else {
             httpAddSimpleHeader(conn, "User-Agent", sclone(HTTP_NAME));
         }
@@ -46,11 +47,6 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
 void httpDestroyTx(HttpTx *tx)
 {
     mprCloseFile(tx->file);
-#if UNUSED
-    if (tx->dispatcher) {
-        mprDestroyDispatcher(tx->dispatcher);
-    }
-#endif
     if (tx->conn) {
         tx->conn->tx = 0;
         tx->conn = 0;
@@ -61,11 +57,15 @@ void httpDestroyTx(HttpTx *tx)
 static void manageTx(HttpTx *tx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
+        mprMark(tx->conn);
         mprMark(tx->outputPipeline);
-        httpMarkQueueHead(&tx->queue[0]);
-        httpMarkQueueHead(&tx->queue[1]);
+        mprMark(tx->handler);
+        mprMark(tx->connector);
+        mprMark(tx->queue[0]);
+        mprMark(tx->queue[1]);
         mprMark(tx->parsedUri);
         mprMark(tx->currentRange);
+        mprMark(tx->headers);
         mprMark(tx->rangeBoundary);
         mprMark(tx->etag);
         mprMark(tx->method);
@@ -73,7 +73,6 @@ static void manageTx(HttpTx *tx, int flags)
         mprMark(tx->file);
         mprMark(tx->filename);
         mprMark(tx->extension);
-        mprMark(tx->headers);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyTx(tx);
@@ -292,7 +291,7 @@ void *httpGetQueueData(HttpConn *conn)
 {
     HttpQueue     *q;
 
-    q = &conn->tx->queue[HTTP_QUEUE_TRANS];
+    q = conn->tx->queue[HTTP_QUEUE_TRANS];
     return q->nextQ->queueData;
 }
 
@@ -328,8 +327,8 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
     prev = rx->parsedUri;
     target = httpCreateUri(targetUri, 0);
 
-    if (tx->redirectCallback) {
-        targetUri = (tx->redirectCallback)(conn, &status, target);
+    if (conn->http->redirectCallback) {
+        targetUri = (conn->http->redirectCallback)(conn, &status, target);
     }
     if (strstr(targetUri, "://") == 0) {
         port = strchr(targetUri, ':') ? prev->port : conn->server->port;
@@ -458,31 +457,12 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     cchar       *mimeType;
     char        *hdr;
     struct tm   tm;
-    int         handlerFlags;
 
     mprAssert(packet->flags == HTTP_PACKET_HEADER);
 
     rx = conn->rx;
     tx = conn->tx;
 
-    if (rx->flags & HTTP_TRACE) {
-        if (!conn->limits->enableTraceMethod) {
-            tx->status = HTTP_CODE_NOT_ACCEPTABLE;
-            httpFormatBody(conn, "Trace Request Denied", "<p>The TRACE method is disabled on this server.</p>");
-        } else {
-            tx->altBody = mprAsprintf("%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
-        }
-    } else if (rx->flags & HTTP_OPTIONS) {
-        handlerFlags = tx->traceMethods;
-        httpSetHeader(conn, "Allow", "OPTIONS%s%s%s%s%s%s",
-            (conn->limits->enableTraceMethod) ? ",TRACE" : "",
-            (handlerFlags & HTTP_STAGE_GET) ? ",GET" : "",
-            (handlerFlags & HTTP_STAGE_HEAD) ? ",HEAD" : "",
-            (handlerFlags & HTTP_STAGE_POST) ? ",POST" : "",
-            (handlerFlags & HTTP_STAGE_PUT) ? ",PUT" : "",
-            (handlerFlags & HTTP_STAGE_DELETE) ? ",DELETE" : "");
-        tx->length = 0;
-    }
     httpAddSimpleHeader(conn, "Date", conn->http->currentDate);
 
     if (tx->flags & HTTP_TX_DONT_CACHE) {
@@ -528,7 +508,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         httpAddHeader(conn, "Accept-Ranges", "bytes");
     }
     if (tx->extension) {
-        if ((mimeType = (char*) mprLookupMimeType(tx->extension)) != 0) {
+        if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->extension)) != 0) {
             httpAddSimpleHeader(conn, "Content-Type", mimeType);
         }
     }
@@ -557,7 +537,7 @@ void httpSetEntityLength(HttpConn *conn, ssize len)
 
 
 /*
-    Set the tx status.
+    Set the tx status
  */
 void httpSetStatus(HttpConn *conn, int status)
 {
@@ -589,8 +569,9 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->flags & HTTP_TX_HEADERS_CREATED) {
         return;
     }    
-    if (conn->fillHeaders) {
-        (conn->fillHeaders)(conn->fillHeadersArg);
+    if (conn->headersCallback) {
+        /* Must be before headers below */
+        (conn->headersCallback)(conn->headersCallbackArg);
     }
     setHeaders(conn, packet);
 
@@ -650,7 +631,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     if (tx->altBody) {
         mprPutStringToBuf(buf, tx->altBody);
-        httpDiscardData(tx->queue[HTTP_QUEUE_TRANS].nextQ, 0);
+        httpDiscardData(tx->queue[HTTP_QUEUE_TRANS]->nextQ, 0);
     }
     tx->headerSize = mprGetBufLength(buf);
     tx->flags |= HTTP_TX_HEADERS_CREATED;

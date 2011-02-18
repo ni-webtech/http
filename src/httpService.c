@@ -67,6 +67,7 @@ HttpStatusCode HttpStatusCodes[] = {
 /****************************** Forward Declarations **************************/
 
 static int httpTimer(Http *http, MprEvent *event);
+static bool isIdle();
 static void manageHttp(Http *http, int flags);
 static void updateCurrentDate(Http *http);
 
@@ -81,9 +82,12 @@ Http *httpCreate()
         return 0;
     }
     mprGetMpr()->httpService = http;
+    http->software = sclone(HTTP_NAME);
     http->protocol = sclone("HTTP/1.1");
     http->mutex = mprCreateLock(http);
     http->stages = mprCreateHash(-1, 0);
+    http->hosts = mprCreateList(-1, 0);
+    http->servers = mprCreateList(-1, 0);
     http->connections = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
 
     updateCurrentDate(http);
@@ -104,6 +108,8 @@ Http *httpCreate()
     http->clientLimits = httpCreateLimits(0);
     http->serverLimits = httpCreateLimits(1);
     http->clientLocation = httpInitLocation(http, 0);
+
+    mprSetIdleCallback(isIdle);
     return http;
 }
 
@@ -114,22 +120,26 @@ static void manageHttp(Http *http, int flags)
     int         next;
 
     if (flags & MPR_MANAGE_MARK) {
+        mprMark(http->servers);
+        mprMark(http->endpoints);
+        mprMark(http->connections);
         mprMark(http->stages);
-        mprMark(http->mimeTypes);
         mprMark(http->statusCodes);
         mprMark(http->clientLimits);
         mprMark(http->serverLimits);
         mprMark(http->clientLocation);
         mprMark(http->timer);
         mprMark(http->mutex);
+        mprMark(http->software);
+        mprMark(http->forkData);
         mprMark(http->context);
-        mprMark(http->secret);
-        mprMark(http->defaultHost);
-        mprMark(http->proxyHost);
         mprMark(http->currentDate);
         mprMark(http->expiresDate);
+        mprMark(http->secret);
         mprMark(http->protocol);
-        mprMark(http->connections);
+        mprMark(http->proxyHost);
+        mprMark(http->servers);
+        mprMark(http->hosts);
 
         /*
             Servers keep connections alive until a timeout. Keep marking even if no other references
@@ -147,10 +157,129 @@ static void manageHttp(Http *http, int flags)
 
 void httpDestroy(Http *http)
 {
-    mprGetMpr()->httpService = NULL;
+    MPR->httpService = NULL;
 }
 
 
+void httpAddServer(Http *http, HttpServer *server)
+{
+    mprAddItem(http->servers, server);
+}
+
+
+void httpRemoveServer(Http *http, HttpServer *server)
+{
+    mprAddItem(http->servers, server);
+}
+
+
+/*  
+    Lookup a host address. If ipAddr is null or port is -1, then those elements are wild.
+    MOB - wild cards are not being used - see asserts
+ */
+HttpServer *httpLookupServer(Http *http, cchar *ip, int port)
+{
+    HttpServer  *server;
+    int         next;
+
+    if (ip == 0) {
+        ip = "";
+    }
+    for (next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+        if (server->port <= 0 || port <= 0 || server->port == port) {
+            mprAssert(server->ip);
+            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
+                return server;
+            }
+        }
+    }
+    return 0;
+}
+
+
+int httpAddHostToServers(Http *http, struct HttpHost *host)
+{
+    HttpServer  *server;
+    cchar       *ip;
+    int         count, next;
+
+    ip = host->ip ? host->ip : "";
+    mprAssert(ip);
+
+    for (count = next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+        if (server->port <= 0 || host->port <= 0 || server->port == host->port) {
+            mprAssert(server->ip);
+            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
+                httpAddHostToServer(server, host);
+                count++;
+            }
+        }
+    }
+    return (count == 0) ? MPR_ERR_CANT_FIND : 0;
+}
+
+
+int httpSetNamedVirtualServers(Http *http, cchar *ip, int port)
+{
+    HttpServer  *server;
+    int         count, next;
+
+    if (ip == 0) {
+        ip = "";
+    }
+    for (count = next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+        if (server->port <= 0 || port <= 0 || server->port == port) {
+            mprAssert(server->ip);
+            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
+                httpSetNamedVirtualServer(server);
+                count++;
+            }
+        }
+    }
+    return (count == 0) ? MPR_ERR_CANT_FIND : 0;
+}
+
+
+void httpAddHost(Http *http, HttpHost *host)
+{
+    mprAddItem(http->hosts, host);
+#if UNUSED
+    if (http->defaultHost == 0) {
+        http->defaultHost = host;
+    }
+#endif
+}
+
+
+void httpRemoveHost(Http *http, HttpHost *host)
+{
+    mprRemoveItem(http->hosts, host);
+#if UNUSED
+    if (host == http->defaultHost) {
+        http->defaultHost = mprGetFirstItem(http->hosts);
+    }
+#endif
+}
+
+
+#if UNUSED
+//  MOB is this used?
+HttpHost *httpLookupHost(Http *http, cchar *name)
+{
+    HttpHost  *host;
+    int         next;
+
+    for (next = 0; (host = mprGetNextItem(http->hosts, &next)) != 0; ) {
+        if (strcmp(host->name, name) == 0) {
+            return host;
+        }
+    }
+    return 0;
+}
+#endif
+
+
+//  MOB - rename
 HttpLoc *httpInitLocation(Http *http, int serverSide)
 {
     HttpLoc     *loc;
@@ -255,6 +384,18 @@ void httpSetForkCallback(Http *http, MprForkCallback callback, void *data)
 }
 
 
+void httpSetListenCallback(Http *http, HttpListenCallback fn)
+{
+    http->listenCallback = fn;
+}
+
+
+void httpSetMatchCallback(Http *http, HttpMatchCallback fn)
+{
+    http->matchCallback = fn;
+}
+
+
 /*  
     Start the http timer. This may create multiple timers -- no worry. httpAddConn does its best to only schedule one.
  */
@@ -290,7 +431,7 @@ static int httpTimer(Http *http, MprEvent *event)
        Check for any inactive or expired connections (inactivityTimeout and requestTimeout)
      */
     lock(http);
-    mprLog(6, "httpTimer: %d active connections", mprGetListLength(http->connections));
+    mprLog(8, "httpTimer: %d active connections", mprGetListLength(http->connections));
     for (count = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; count++) {
         requestTimeout = conn->limits->requestTimeout ? conn->limits->requestTimeout : INT_MAX;
         inactivityTimeout = conn->limits->inactivityTimeout ? conn->limits->inactivityTimeout : INT_MAX;
@@ -352,6 +493,40 @@ static int httpTimer(Http *http, MprEvent *event)
     }
     unlock(http);
     return 0;
+}
+
+
+static bool isIdle()
+{
+    HttpConn        *conn;
+    Http            *http;
+    MprTime         now;
+    int             next;
+    static MprTime  lastTrace = 0;
+
+    http = (Http*) mprGetMpr()->httpService;
+    now = mprGetTime();
+
+    lock(http);
+    for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
+        if (conn->state != HTTP_STATE_BEGIN) {
+            if (lastTrace < now) {
+                mprLog(0, "Waiting for request %s to complete", *conn->rx->uri ? conn->rx->uri : conn->rx->pathInfo);
+                lastTrace = now;
+            }
+            unlock(http);
+            return 0;
+        }
+    }
+    unlock(http);
+    if (!mprServicesAreIdle()) {
+        if (lastTrace < now) {
+            mprLog(0, "Waiting for MPR services complete");
+            lastTrace = now;
+        }
+        return 0;
+    }
+    return 1;
 }
 
 
@@ -453,15 +628,15 @@ void httpSetContext(Http *http, void *context)
 }
 
 
-int httpGetDefaultPort(Http *http)
+int httpGetDefaultClientPort(Http *http)
 {
-    return http->defaultPort;
+    return http->defaultClientPort;
 }
 
 
-cchar *httpGetDefaultHost(Http *http)
+cchar *httpGetDefaultClientHost(Http *http)
 {
-    return http->defaultHost;
+    return http->defaultClientHost;
 }
 
 
@@ -482,15 +657,21 @@ int httpLoadSsl(Http *http)
 }
 
 
-void httpSetDefaultPort(Http *http, int port)
+void httpSetDefaultClientPort(Http *http, int port)
 {
-    http->defaultPort = port;
+    http->defaultClientPort = port;
 }
 
 
-void httpSetDefaultHost(Http *http, cchar *host)
+void httpSetDefaultClientHost(Http *http, cchar *host)
 {
-    http->defaultHost = sclone(host);
+    http->defaultClientHost = sclone(host);
+}
+
+
+void httpSetSoftware(Http *http, cchar *software)
+{
+    http->software = sclone(software);
 }
 
 

@@ -63,6 +63,10 @@
 		C95E4F5A10EBFCEF00982610 /* libmprssl.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C9513E4F10E98E7200F9E006 /* libmprssl.dylib */; };
 		C9723C2211138578002B2B3B /* authFile.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2011138578002B2B3B /* authFile.c */; };
 		C9723C2311138578002B2B3B /* authPam.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2111138578002B2B3B /* authPam.c */; };
+		C9AA68EC130F158300918B92 /* alias.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68E9130F158300918B92 /* alias.c */; };
+		C9AA68ED130F158300918B92 /* dir.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68EA130F158300918B92 /* dir.c */; };
+		C9AA68EE130F158300918B92 /* match.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68EB130F158300918B92 /* match.c */; };
+		C9AA6908130F160D00918B92 /* host.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA6907130F160D00918B92 /* host.c */; };
 		C9BE003711F367770013B994 /* sendConnector.c in Sources */ = {isa = PBXBuildFile; fileRef = C9BE003611F367770013B994 /* sendConnector.c */; };
 /* End PBXBuildFile section */
 
@@ -183,6 +187,10 @@
 		C95E4F5510EBFCD600982610 /* mprSsl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mprSsl.c; path = ../../../src/deps/mpr/mprSsl.c; sourceTree = SOURCE_ROOT; };
 		C9723C2011138578002B2B3B /* authFile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authFile.c; path = ../../../src/authFile.c; sourceTree = SOURCE_ROOT; };
 		C9723C2111138578002B2B3B /* authPam.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authPam.c; path = ../../../src/authPam.c; sourceTree = SOURCE_ROOT; };
+		C9AA68E9130F158300918B92 /* alias.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = alias.c; path = ../../../src/alias.c; sourceTree = SOURCE_ROOT; };
+		C9AA68EA130F158300918B92 /* dir.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = dir.c; path = ../../../src/dir.c; sourceTree = SOURCE_ROOT; };
+		C9AA68EB130F158300918B92 /* match.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = match.c; path = ../../../src/match.c; sourceTree = SOURCE_ROOT; };
+		C9AA6907130F160D00918B92 /* host.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = host.c; path = ../../../src/host.c; sourceTree = SOURCE_ROOT; };
 		C9BE003611F367770013B994 /* sendConnector.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = sendConnector.c; path = ../../../src/sendConnector.c; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -258,16 +266,20 @@
 		C90A19E60FD6DC6C006A9E86 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				C9AA6907130F160D00918B92 /* host.c */,
+				C9AA68E9130F158300918B92 /* alias.c */,
 				C9723C2011138578002B2B3B /* authFile.c */,
 				C9723C2111138578002B2B3B /* authPam.c */,
-				C93A68C510FD833D006B6C41 /* env.c */,
 				C93A68B910FD8311006B6C41 /* auth.c */,
 				C93A68BA10FD8311006B6C41 /* authFilter.c */,
 				C93A68BB10FD8311006B6C41 /* chunkFilter.c */,
 				C9513DB810E98C2E00F9E006 /* client.c */,
 				C9513DB910E98C2E00F9E006 /* conn.c */,
+				C9AA68EA130F158300918B92 /* dir.c */,
+				C93A68C510FD833D006B6C41 /* env.c */,
 				C923DFBB1112560600A2422E /* location.c */,
 				C9513DBA10E98C2E00F9E006 /* httpService.c */,
+				C9AA68EB130F158300918B92 /* match.c */,
 				C9513DBB10E98C2E00F9E006 /* netConnector.c */,
 				C9513DBC10E98C2E00F9E006 /* packet.c */,
 				C923DFBC1112560600A2422E /* passHandler.c */,
@@ -493,6 +505,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C9AA68EC130F158300918B92 /* alias.c in Sources */,
 				C9513DC410E98C2E00F9E006 /* client.c in Sources */,
 				C9513DC510E98C2E00F9E006 /* conn.c in Sources */,
 				C9513DC610E98C2E00F9E006 /* httpService.c in Sources */,
@@ -517,6 +530,9 @@
 				C949ABC2120B68FB00398DC6 /* rx.c in Sources */,
 				C949ABC3120B68FB00398DC6 /* tx.c in Sources */,
 				C949ABC7120B691100398DC6 /* trace.c in Sources */,
+				C9AA68ED130F158300918B92 /* dir.c in Sources */,
+				C9AA68EE130F158300918B92 /* match.c in Sources */,
+				C9AA6908130F160D00918B92 /* host.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

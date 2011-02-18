@@ -150,8 +150,6 @@ static void manageGroup(HttpGroup *group, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(group->name);
         mprMark(group->users);
-
-    } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 
@@ -204,8 +202,6 @@ static void manageUser(HttpUser *user, int flags)
         mprMark(user->password);
         mprMark(user->realm);
         mprMark(user->name);
-
-    } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 

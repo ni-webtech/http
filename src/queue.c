@@ -12,10 +12,21 @@
 static void manageQueue(HttpQueue *q, int flags);
 
 /************************************ Code ************************************/
-/*  
-    Createa a new queue for the given stage. If prev is given, then link the new queue after the previous queue.
- */
-HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, HttpQueue *prev)
+
+HttpQueue *httpCreateQueueHead(HttpConn *conn, cchar *name)
+{
+    HttpQueue   *q;
+
+    if ((q = mprAllocObj(HttpQueue, manageQueue)) == 0) {
+        return 0;
+    }
+    httpInitQueue(conn, q, name);
+    httpInitSchedulerQueue(q);
+    return q;
+}
+
+
+HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int dir, HttpQueue *prev)
 {
     HttpQueue   *q;
 
@@ -30,9 +41,9 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int direction, Http
     q->close = stage->close;
     q->open = stage->open;
     q->start = stage->start;
-    q->direction = direction;
+    q->direction = dir;
 
-    if (direction == HTTP_QUEUE_TRANS) {
+    if (dir == HTTP_QUEUE_TRANS) {
         q->put = stage->outgoingData;
         q->service = stage->outgoingService;
         
@@ -52,6 +63,16 @@ static void manageQueue(HttpQueue *q, int flags)
     HttpPacket      *packet;
 
     if (flags & MPR_MANAGE_MARK) {
+        mprMark(q->owner);
+        mprMark(q->stage);
+        mprMark(q->conn);
+        mprMark(q->nextQ);
+        mprMark(q->prevQ);
+        mprMark(q->scheduleNext);
+        mprMark(q->schedulePrev);
+        mprMark(q->pair);
+        mprMark(q->last);
+        mprMark(q->queueData);
         for (packet = q->first; packet; packet = packet->next) {
             mprMark(packet);
         }
@@ -64,12 +85,14 @@ static void manageQueue(HttpQueue *q, int flags)
 }
 
 
+#if UNUSED
 void httpMarkQueueHead(HttpQueue *q)
 {
     if (q->nextQ && q->nextQ->stage) {
         mprMark(q->nextQ);
     }
 }
+#endif
 
 
 void httpInitQueue(HttpConn *conn, HttpQueue *q, cchar *name)
@@ -77,7 +100,7 @@ void httpInitQueue(HttpConn *conn, HttpQueue *q, cchar *name)
     q->conn = conn;
     q->nextQ = q;
     q->prevQ = q;
-    q->owner = name;
+    q->owner = sclone(name);
     q->packetSize = conn->limits->stageBufferSize;
     q->max = conn->limits->stageBufferSize;
     q->low = q->max / 100 *  5;    
@@ -406,7 +429,7 @@ void httpScheduleQueue(HttpQueue *q)
     HttpQueue     *head;
     
     mprAssert(q->conn);
-    head = &q->conn->serviceq;
+    head = q->conn->serviceq;
     
     if (q->scheduleNext == q && !(q->flags & HTTP_QUEUE_DISABLED)) {
         q->scheduleNext = head;
@@ -427,8 +450,8 @@ void httpServiceQueue(HttpQueue *q)
         /*  
             Since we are servicing this "q" now, we can remove from the schedule queue if it is already queued.
          */
-        if (q->conn->serviceq.scheduleNext == q) {
-            httpGetNextQueueForService(&q->conn->serviceq);
+        if (q->conn->serviceq->scheduleNext == q) {
+            httpGetNextQueueForService(q->conn->serviceq);
         }
         if (!(q->flags & HTTP_QUEUE_DISABLED)) {
             q->servicing = 1;

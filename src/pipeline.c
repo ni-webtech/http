@@ -29,14 +29,16 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     rx = conn->rx;
     tx = conn->tx;
 
+    mprAssert(rx->pathInfo);
+    mprAssert(!conn->server || tx->filename);
+
     loc = (loc) ? loc : http->clientLocation;
 
     tx->outputPipeline = mprCreateList(-1, 0);
     tx->handler = proposedHandler ? proposedHandler : http->passHandler;
 
-    if (tx->handler) {
-        mprAddItem(tx->outputPipeline, tx->handler);
-    }
+    mprAddItem(tx->outputPipeline, tx->handler);
+
     if (loc->outputStages) {
         for (next = 0; (filter = mprGetNextItem(loc->outputStages, &next)) != 0; ) {
             if (matchFilter(conn, filter)) {
@@ -45,20 +47,16 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         }
     }
     if (tx->connector == 0) {
-        tx->connector = loc->connector;
-    }
-#if FUTURE
-    if (tx->connector == 0) {
+        //  MOB loc->connector is set to never selecting sendConnector
         if (loc && loc->connector) {
             tx->connector = loc->connector;
-        } else if (tx->handler == http->fileHandler && !rx->ranges && !conn->secure && 
-                tx->chunkSize <= 0 && !conn->traceMask) {
+        } else if (tx->handler == http->fileHandler && !rx->ranges && !conn->secure && tx->chunkSize <= 0) {
+            //  MOB - should not use this if tracing content is requested
             tx->connector = http->sendConnector;
         } else {
             tx->connector = http->netConnector;
         }
     }
-#endif
     mprAddItem(tx->outputPipeline, tx->connector);
 
     /*  
@@ -80,35 +78,37 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     
     /* Incase a filter changed the handler */
     mprSetItem(tx->outputPipeline, 0, tx->handler);
-#if UNUSED
+
+#if UNUSED && FUTURE
     if (tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
         /* Start with dispatcher disabled. Conn.c will enable */
         tx->dispatcher = mprCreateDispatcher(tx->handler->name, 0);
         conn->dispatcher = tx->dispatcher;
     }
 #endif
+
     /*  Create the outgoing queue heads and open the queues */
-    q = &tx->queue[HTTP_QUEUE_TRANS];
+    q = tx->queue[HTTP_QUEUE_TRANS];
     for (next = 0; (stage = mprGetNextItem(tx->outputPipeline, &next)) != 0; ) {
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_TRANS, q);
     }
 
     /*  Create the incoming queue heads and open the queues.  */
-    q = &tx->queue[HTTP_QUEUE_RECEIVE];
+    q = tx->queue[HTTP_QUEUE_RECEIVE];
     for (next = 0; (stage = mprGetNextItem(rx->inputPipeline, &next)) != 0; ) {
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_RECEIVE, q);
     }
     setEnvironment(conn);
 
-    conn->writeq = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
-    conn->readq = conn->tx->queue[HTTP_QUEUE_RECEIVE].prevQ;
+    conn->writeq = tx->queue[HTTP_QUEUE_TRANS]->nextQ;
+    conn->readq = tx->queue[HTTP_QUEUE_RECEIVE]->prevQ;
     httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
 
     /*  
         Pair up the send and receive queues
      */
-    qhead = &tx->queue[HTTP_QUEUE_TRANS];
-    rqhead = &tx->queue[HTTP_QUEUE_RECEIVE];
+    qhead = tx->queue[HTTP_QUEUE_TRANS];
+    rqhead = tx->queue[HTTP_QUEUE_RECEIVE];
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         for (rq = rqhead->nextQ; rq != rqhead; rq = rq->nextQ) {
             if (q->stage == rq->stage) {
@@ -122,7 +122,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         Open the queues (keep going on errors)
         Open in reverse order so the handler is opened last. This lets authFilter go early.
      */
-    qhead = &tx->queue[HTTP_QUEUE_TRANS];
+    qhead = tx->queue[HTTP_QUEUE_TRANS];
     for (q = qhead->prevQ; q != qhead; q = q->prevQ) {
         if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
             q->flags |= HTTP_QUEUE_OPEN;
@@ -131,7 +131,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     }
 
     if (rx->needInputPipeline) {
-        qhead = &tx->queue[HTTP_QUEUE_RECEIVE];
+        qhead = tx->queue[HTTP_QUEUE_RECEIVE];
         for (q = qhead->prevQ; q != qhead; q = q->prevQ) {
             if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
@@ -145,6 +145,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
 }
 
 
+//  MOB - who calls
 void httpSetPipeHandler(HttpConn *conn, HttpStage *handler)
 {
     conn->tx->handler = (handler) ? handler : conn->http->passHandler;
@@ -162,7 +163,7 @@ void httpSetSendConnector(HttpConn *conn, cchar *path)
     tx->filename = sclone(path);
     maxBody = conn->limits->transmissionBodySize;
 
-    qhead = &tx->queue[HTTP_QUEUE_TRANS];
+    qhead = tx->queue[HTTP_QUEUE_TRANS];
     for (q = conn->writeq; q != qhead; q = q->nextQ) {
         q->max = maxBody;
         q->packetSize = maxBody;
@@ -179,7 +180,7 @@ void httpDestroyPipeline(HttpConn *conn)
     if (conn->flags & HTTP_CONN_PIPE_CREATED && conn->tx) {
         tx = conn->tx;
         for (i = 0; i < HTTP_MAX_QUEUE; i++) {
-            qhead = &tx->queue[i];
+            qhead = tx->queue[i];
             for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
                 if (q->close && q->flags & HTTP_QUEUE_OPEN) {
                     q->flags &= ~HTTP_QUEUE_OPEN;
@@ -198,7 +199,7 @@ void httpStartPipeline(HttpConn *conn)
     HttpTx      *tx;
     
     tx = conn->tx;
-    qhead = &tx->queue[HTTP_QUEUE_TRANS];
+    qhead = tx->queue[HTTP_QUEUE_TRANS];
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
             q->flags |= HTTP_QUEUE_STARTED;
@@ -207,7 +208,7 @@ void httpStartPipeline(HttpConn *conn)
     }
 
     if (conn->rx->needInputPipeline) {
-        qhead = &tx->queue[HTTP_QUEUE_RECEIVE];
+        qhead = tx->queue[HTTP_QUEUE_RECEIVE];
         for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
             if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_STARTED)) {
@@ -224,7 +225,7 @@ void httpProcessPipeline(HttpConn *conn)
 {
     HttpQueue   *q;
     
-    q = conn->tx->queue[HTTP_QUEUE_TRANS].nextQ;
+    q = conn->tx->queue[HTTP_QUEUE_TRANS]->nextQ;
     if (q->stage->process) {
         HTTP_TIME(conn, q->stage->name, "process", q->stage->process(q));
     }
@@ -240,7 +241,7 @@ bool httpServiceQueues(HttpConn *conn)
     int         workDone;
 
     workDone = 0;
-    while (conn->state < HTTP_STATE_COMPLETE && (q = httpGetNextQueueForService(&conn->serviceq)) != NULL) {
+    while (conn->state < HTTP_STATE_COMPLETE && (q = httpGetNextQueueForService(conn->serviceq)) != NULL) {
         if (q->servicing) {
             q->flags |= HTTP_QUEUE_RESERVICE;
         } else {
@@ -262,7 +263,7 @@ void httpDiscardTransmitData(HttpConn *conn)
     if (tx == 0) {
         return;
     }
-    qhead = &tx->queue[HTTP_QUEUE_TRANS];
+    qhead = tx->queue[HTTP_QUEUE_TRANS];
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         httpDiscardData(q, 1);
     }
@@ -280,13 +281,15 @@ static void setEnvironment(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
 
+    mprAssert(tx->handler);
+
     if (tx->handler->flags & (HTTP_STAGE_VARS | HTTP_STAGE_ENV_VARS)) {
         rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-        if (rx->parsedUri->query) {
+        if (rx->parsedUri->query && (tx->handler->flags & HTTP_STAGE_VARS)) {
             httpAddVars(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
         }
     }
-    if (tx->handler && (tx->handler->flags & HTTP_STAGE_ENV_VARS)) {
+    if (tx->handler->flags & HTTP_STAGE_ENV_VARS) {
         httpCreateEnvVars(conn);
     }
 }
@@ -303,7 +306,7 @@ static bool matchFilter(HttpConn *conn, HttpStage *filter)
     if (filter->match) {
         return filter->match(conn, filter);
     }
-    if (filter->extensions && *tx->extension) {
+    if (filter->extensions && tx->extension) {
         return mprLookupHash(filter->extensions, tx->extension) != 0;
     }
     return 1;

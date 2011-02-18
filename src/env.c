@@ -15,17 +15,19 @@ void httpCreateEnvVars(HttpConn *conn)
 {
     HttpRx          *rx;
     HttpTx          *tx;
+    HttpHost        *host;
+    HttpUploadFile  *up;
+    HttpServer      *server;
     MprSocket       *sock;
     MprHashTable    *vars;
     MprHash         *hp;
-    HttpUploadFile  *up;
-    HttpServer      *server;
     int             index;
 
     rx = conn->rx;
     tx = conn->tx;
     vars = rx->formVars;
     server = conn->server;
+    host = conn->host;
 
     //  TODO - Vars for COOKIEs
     
@@ -56,7 +58,7 @@ void httpCreateEnvVars(HttpConn *conn)
 
     /*  HTTP/1.0 or HTTP/1.1 */
     mprAddKey(vars, "SERVER_PROTOCOL", conn->protocol);
-    mprAddKey(vars, "SERVER_SOFTWARE", server->software);
+    mprAddKey(vars, "SERVER_SOFTWARE", server->http->software);
 
     /*  This is the complete URI before decoding */ 
     mprAddKey(vars, "REQUEST_URI", rx->uri);
@@ -71,8 +73,8 @@ void httpCreateEnvVars(HttpConn *conn)
         mprAddKey(vars, "PATH_TRANSLATED", rx->pathTranslated);
     }
     //  MOB -- how do these relate to MVC apps and non-mvc apps
-    mprAddKey(vars, "DOCUMENT_ROOT", conn->documentRoot);
-    mprAddKey(vars, "SERVER_ROOT", server->serverRoot);
+    mprAddKey(vars, "DOCUMENT_ROOT", host->documentRoot);
+    mprAddKey(vars, "SERVER_ROOT", host->serverRoot);
 
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextHash(conn->rx->files, hp)) != 0; index++) {
@@ -83,6 +85,9 @@ void httpCreateEnvVars(HttpConn *conn)
             mprAddKey(vars, mprAsprintf("FILE_%d_NAME", index), hp->key);
             mprAddKeyFmt(vars, mprAsprintf("FILE_%d_SIZE", index), "%d", up->size);
         }
+    }
+    if (conn->http->envCallback) {
+        conn->http->envCallback(conn);
     }
 }
 

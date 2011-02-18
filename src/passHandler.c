@@ -13,12 +13,59 @@
 
 /*********************************** Code *************************************/
 
-static void openPass(HttpQueue *q)
+void httpHandleOptionsTrace(HttpQueue *q)
 {
+    HttpRx      *rx;
+    HttpTx      *tx;
+    HttpConn    *conn;
+    int         flags;
+
+    conn = q->conn;
+    tx = conn->tx;
+    rx = conn->rx;
+
+#if UNUSED
     /* Called only for the send queue */
     if (q->pair) {
         q->pair->max = q->max;
         q->pair->packetSize = q->packetSize;
+    }
+#endif
+
+    if (rx->flags & HTTP_TRACE) {
+        if (!conn->limits->enableTraceMethod) {
+            tx->status = HTTP_CODE_NOT_ACCEPTABLE;
+            httpFormatBody(conn, "Trace Request Denied", "<p>The TRACE method is disabled on this server.</p>");
+        } else {
+            tx->altBody = mprAsprintf("%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
+        }
+
+    } else if (rx->flags & HTTP_OPTIONS) {
+        flags = tx->traceMethods;
+        httpSetHeader(conn, "Allow", "OPTIONS%s%s%s%s%s%s",
+            (conn->limits->enableTraceMethod) ? ",TRACE" : "",
+            (flags & HTTP_STAGE_GET) ? ",GET" : "",
+            (flags & HTTP_STAGE_HEAD) ? ",HEAD" : "",
+            (flags & HTTP_STAGE_POST) ? ",POST" : "",
+            (flags & HTTP_STAGE_PUT) ? ",PUT" : "",
+            (flags & HTTP_STAGE_DELETE) ? ",DELETE" : "");
+        tx->length = 0;
+    }
+}
+
+
+static void openPass(HttpQueue *q)
+{
+#if UNUSED
+    /* Called only for the send queue */
+    if (q->pair) {
+        q->pair->max = q->max;
+        q->pair->packetSize = q->packetSize;
+    }
+#endif
+
+    if (q->conn->rx->flags & (HTTP_OPTIONS | HTTP_TRACE)) {
+        httpHandleOptionsTrace(q);
     }
 }
 
@@ -37,8 +84,8 @@ int httpOpenPassHandler(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     http->passHandler = stage;
-    stage->process = processPass;
     stage->open = openPass;
+    stage->process = processPass;
     return 0;
 }
 

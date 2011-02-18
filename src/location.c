@@ -16,14 +16,14 @@ static void manageLoc(HttpLoc *loc, int flags);
 
 /************************************ Code ************************************/
 
-HttpLoc *httpCreateLocation(Http *http)
+HttpLoc *httpCreateLocation()
 {
     HttpLoc  *loc;
 
     if ((loc = mprAllocObj(HttpLoc, manageLoc)) == 0) {
         return 0;
     }
-    loc->http = http;
+    loc->http = MPR->httpService;
     loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
     loc->handlers = mprCreateList(-1, 0);
     loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
@@ -41,37 +41,39 @@ static void manageLoc(HttpLoc *loc, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(loc->auth);
+        mprMark(loc->http);
         mprMark(loc->prefix);
+        mprMark(loc->connector);
+        mprMark(loc->handler);
         mprMark(loc->extensions);
         mprMark(loc->expires);
         mprMark(loc->handlers);
         mprMark(loc->inputStages);
         mprMark(loc->outputStages);
         mprMark(loc->errorDocuments);
+        mprMark(loc->parent);
         mprMark(loc->context);
         mprMark(loc->uploadDir);
         mprMark(loc->searchPath);
         mprMark(loc->script);
         mprMark(loc->ssl);
-
-    } else if (flags & MPR_MANAGE_FREE) {
     }
 }
 
 /*  
     Create a new location block. Inherit from the parent. We use a copy-on-write scheme if these are modified later.
  */
-HttpLoc *httpCreateInheritedLocation(Http *http, HttpLoc *parent)
+HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
 {
     HttpLoc  *loc;
 
     if (parent == 0) {
-        return httpCreateLocation(http);
+        return httpCreateLocation();
     }
     if ((loc = mprAllocObj(HttpLoc, manageLoc)) == 0) {
         return 0;
     }
-    loc->http = http;
+    loc->http = MPR->httpService;
     loc->prefix = sclone(parent->prefix);
     loc->parent = parent;
     loc->prefixLen = parent->prefixLen;
