@@ -5091,9 +5091,10 @@ extern void mprUnloadModule(MprModule *mp);
 /*
     Flags for mprCreateEvent
  */
-#define MPR_EVENT_CONTINUOUS    0x1
-#define MPR_EVENT_QUICK         0x2     /* Execute inline without executing via a thread */
-#define MPR_EVENT_DONT_QUEUE    0x4     /* Don't queue the event. User must call mprQueueEvent */
+#define MPR_EVENT_CONTINUOUS        0x1
+#define MPR_EVENT_QUICK             0x2     /* Execute inline without executing via a thread */
+#define MPR_EVENT_DONT_QUEUE        0x4     /* Don't queue the event. User must call mprQueueEvent */
+#define MPR_EVENT_STATIC_DATA       0x8     /* Event data is permanent and should not be marked by GC */
 
 #if UNUSED
 #define MPR_EVENT_STATIC        0x2

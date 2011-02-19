@@ -8602,11 +8602,14 @@ static void manageEvent(MprEvent *event, int flags)
          */
         mprAssert(event->dispatcher == 0 || event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
         mprMark(event->name);
-        mprMark(event->data);
         mprMark(event->dispatcher);
         mprMark(event->handler);
         mprMark(event->next);
         mprMark(event->prev);
+
+        if (!(event->flags & MPR_EVENT_STATIC_DATA)) {
+            mprMark(event->data);
+        }
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (event->next) {
