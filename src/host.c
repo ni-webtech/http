@@ -38,6 +38,9 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->logFormat);
         mprMark(host->logPath);
         mprMark(host->limits);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        httpRemoveHost(MPR->httpService, host);
     }
 }
 

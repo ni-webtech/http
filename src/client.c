@@ -48,8 +48,8 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
 #endif
     }
     if (*url == '/') {
-        ip = (http->proxyHost) ? http->proxyHost : "localhost";
-        port = (http->proxyHost) ? http->proxyPort : 80;
+        ip = (http->proxyHost) ? http->proxyHost : http->defaultClientHost;
+        port = (http->proxyHost) ? http->proxyPort : http->defaultClientPort;
     } else {
         ip = (http->proxyHost) ? http->proxyHost : uri->host;
         port = (http->proxyHost) ? http->proxyPort : uri->port;

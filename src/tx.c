@@ -454,6 +454,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpRange   *range;
     MprTime     expires;
+    MprPath     *info;
     cchar       *mimeType;
     char        *hdr;
     struct tm   tm;
@@ -462,6 +463,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 
     rx = conn->rx;
     tx = conn->tx;
+    info = &tx->fileInfo;
 
     httpAddSimpleHeader(conn, "Date", conn->http->currentDate);
 
@@ -480,6 +482,9 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             httpAddHeader(conn, "Cache-Control", "max-age=%d", expires);
             httpAddHeader(conn, "Expires", "%s", hdr);
         }
+    }
+    if (tx->etag == 0 && info->valid) {
+        tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
     }
     if (tx->etag) {
         httpAddHeader(conn, "ETag", "%s", tx->etag);

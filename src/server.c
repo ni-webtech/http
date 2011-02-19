@@ -57,6 +57,7 @@ void httpDestroyServer(HttpServer *server)
         mprCloseSocket(server->sock, 0);
         server->sock = 0;
     }
+    httpRemoveServer(MPR->httpService, server);
 }
 
 
@@ -69,9 +70,6 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->waitHandler);
         mprMark(server->clientLoad);
         mprMark(server->hosts);
-#if UNUSED
-        mprMark(server->defaultHost);
-#endif
         mprMark(server->name);
         mprMark(server->ip);
         mprMark(server->context);

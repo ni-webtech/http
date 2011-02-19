@@ -289,7 +289,8 @@ static HttpStage *mapToFile(HttpConn *conn, HttpStage *handler)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpHost    *host;
-    MprPath     *info;
+    MprPath     *info, ginfo;
+    char        *gfile;
 
     rx = conn->rx;
     tx = conn->tx;
@@ -309,9 +310,20 @@ static HttpStage *mapToFile(HttpConn *conn, HttpStage *handler)
         rx->auth = rx->dir->auth;
         if (info->isDir) {
             handler = processDirectory(conn, handler);
-        } else if (info->valid) {
-            tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
-        } else {
+
+        } else if (!info->valid) {
+            /*
+                File not found. See if a compressed variant exists.
+             */
+            if (rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
+                gfile = mprAsprintf("%s.gz", tx->filename);
+                if (mprGetPathInfo(gfile, &ginfo) == 0) {
+                    tx->filename = gfile;
+                    tx->fileInfo = ginfo;
+                    httpSetHeader(conn, "Content-Encoding", "gzip");
+                    return handler;
+                }
+            }
             if (!(rx->flags & HTTP_PUT) && (handler->flags & HTTP_STAGE_VERIFY_ENTITY) && 
                     (rx->auth == 0 || rx->auth->type == 0)) {
                 httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);

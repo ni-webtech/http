@@ -86,9 +86,11 @@ Http *httpCreate()
     http->protocol = sclone("HTTP/1.1");
     http->mutex = mprCreateLock(http);
     http->stages = mprCreateHash(-1, 0);
-    http->hosts = mprCreateList(-1, 0);
-    http->servers = mprCreateList(-1, 0);
+    http->hosts = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
+    http->servers = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     http->connections = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
+    http->defaultClientHost = sclone("127.0.0.1");
+    http->defaultClientPort = 80;
 
     updateCurrentDate(http);
     http->statusCodes = mprCreateHash(41, MPR_HASH_STATIC_VALUES | MPR_HASH_STATIC_KEYS);
@@ -120,8 +122,9 @@ static void manageHttp(Http *http, int flags)
     int         next;
 
     if (flags & MPR_MANAGE_MARK) {
+        /* Note servers and hosts are static values - contents are not marked so they can be collected */
         mprMark(http->servers);
-        mprMark(http->endpoints);
+        mprMark(http->hosts);
         mprMark(http->connections);
         mprMark(http->stages);
         mprMark(http->statusCodes);
@@ -139,10 +142,10 @@ static void manageHttp(Http *http, int flags)
         mprMark(http->protocol);
         mprMark(http->proxyHost);
         mprMark(http->servers);
-        mprMark(http->hosts);
+        mprMark(http->defaultClientHost);
 
         /*
-            Servers keep connections alive until a timeout. Keep marking even if no other references
+            Servers keep connections alive until a timeout. Keep marking even if no other references.
          */
         lock(http);
         for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
@@ -169,7 +172,7 @@ void httpAddServer(Http *http, HttpServer *server)
 
 void httpRemoveServer(Http *http, HttpServer *server)
 {
-    mprAddItem(http->servers, server);
+    mprRemoveItem(http->servers, server);
 }
 
 
@@ -521,7 +524,7 @@ static bool isIdle()
     unlock(http);
     if (!mprServicesAreIdle()) {
         if (lastTrace < now) {
-            mprLog(0, "Waiting for MPR services complete");
+            mprLog(4, "Waiting for MPR services complete");
             lastTrace = now;
         }
         return 0;

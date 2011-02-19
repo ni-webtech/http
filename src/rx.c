@@ -515,7 +515,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 if (rx->cookie && *rx->cookie) {
                     rx->cookie = sjoin(rx->cookie, "; ", value, NULL);
                 } else {
-                    rx->cookie = value;
+                    rx->cookie = sclone(value);
                 }
 
             } else if (strcmp(key, "connection") == 0) {
