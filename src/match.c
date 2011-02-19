@@ -418,7 +418,7 @@ static void setScriptName(HttpConn *conn)
     HttpAlias   *alias;
     HttpRx      *rx;
     HttpTx      *tx;
-    char        *cp, *extraPath, *start;
+    char        *cp, *extraPath, *start, *pathInfo;
     int         scriptLen;
 
     rx = conn->rx;
@@ -442,6 +442,10 @@ static void setScriptName(HttpConn *conn)
         if (rx->pathInfo[0]) {
             rx->pathTranslated = httpMakeFilename(conn, alias, rx->pathInfo, 0);
         }
+    } else {
+        pathInfo = rx->pathInfo;
+        rx->scriptName = rx->pathInfo;
+        rx->pathInfo = 0;
     }
 }
 

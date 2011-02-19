@@ -29,9 +29,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     rx = conn->rx;
     tx = conn->tx;
 
-    mprAssert(rx->pathInfo);
     mprAssert(!conn->server || tx->filename);
-
     loc = (loc) ? loc : http->clientLocation;
 
     tx->outputPipeline = mprCreateList(-1, 0);

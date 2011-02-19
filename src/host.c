@@ -148,7 +148,7 @@ void httpSetHostDocumentRoot(HttpHost *host, cchar *dir)
 
 void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
 {
-    host->serverRoot = sclone(serverRoot);
+    host->serverRoot = mprGetAbsPath(serverRoot);
 }
 
 
