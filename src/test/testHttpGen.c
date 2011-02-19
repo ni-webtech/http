@@ -84,7 +84,7 @@ static void testBasicHttpGet(MprTestGroup *gp)
     assert(rc >= 0);
     if (rc >= 0) {
         httpFinalize(conn);
-        httpWait(conn, conn->dispatcher, HTTP_STATE_COMPLETE, MPR_TIMEOUT_SOCKETS);
+        httpWait(conn, HTTP_STATE_COMPLETE, MPR_TIMEOUT_SOCKETS);
         status = httpGetStatus(conn);
         assert(status == 200 || status == 302);
         if (status != 200 && status != 302) {

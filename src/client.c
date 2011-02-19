@@ -10,16 +10,6 @@
 
 /*********************************** Code *************************************/
 
-HttpConn *httpCreateClient(Http *http, MprDispatcher *dispatcher)
-{
-    HttpConn    *conn;
-
-    conn = httpCreateConn(http, NULL, NULL);
-    conn->dispatcher = dispatcher;
-    return conn;
-}
-
-
 static HttpConn *openConnection(HttpConn *conn, cchar *url)
 {
     Http        *http;

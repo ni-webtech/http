@@ -483,9 +483,11 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             httpAddHeader(conn, "Expires", "%s", hdr);
         }
     }
+#if UNUSED
     if (tx->etag == 0 && info->valid) {
         tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
     }
+#endif
     if (tx->etag) {
         httpAddHeader(conn, "ETag", "%s", tx->etag);
     }

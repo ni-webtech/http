@@ -123,7 +123,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     }
 
     if (auth->type == HTTP_AUTH_DIGEST) {
-        if (strcmp(ad->qop, auth->qop) != 0) {
+        if (scmp(ad->qop, auth->qop) != 0) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied. Protection quality does not match", 0);
             return 1;
         }
@@ -136,7 +136,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
          */
         when = 0; secret = 0; etag = 0; realm = 0;
         parseDigestNonce(ad->nonce, &secret, &etag, &realm, &when);
-        if (strcmp(secret, http->secret) != 0 || strcmp(etag, tx->etag) != 0 || strcmp(realm, auth->requiredRealm) != 0) {
+        if (scmp(secret, http->secret) != 0 || scmp(etag, tx->etag) != 0 || scmp(realm, auth->requiredRealm) != 0) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, authentication error", "Nonce mismatch");
         } else if ((when + (5 * 60 * MPR_TICKS_PER_SEC)) < http->now) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, authentication error", "Nonce is stale");
@@ -345,12 +345,12 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
         etag = tx->etag ? tx->etag : "";
         nonce = createDigestNonce(conn->http->secret, etag, auth->requiredRealm);
 
-        if (strcmp(qopClass, "auth") == 0) {
+        if (scmp(qopClass, "auth") == 0) {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", domain=\"%s\", "
                 "qop=\"auth\", nonce=\"%s\", opaque=\"%s\", algorithm=\"MD5\", stale=\"FALSE\"", 
                 auth->requiredRealm, conn->server->name, nonce, etag);
 
-        } else if (strcmp(qopClass, "auth-int") == 0) {
+        } else if (scmp(qopClass, "auth-int") == 0) {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", domain=\"%s\", "
                 "qop=\"auth\", nonce=\"%s\", opaque=\"%s\", algorithm=\"MD5\", stale=\"FALSE\"", 
                 auth->requiredRealm, conn->server->name, nonce, etag);
@@ -398,7 +398,7 @@ static int parseDigestNonce(char *nonce, cchar **secret, cchar **etag, cchar **r
 
 static char *md5(cchar *string)
 {
-    return mprGetMD5Hash(string, strlen(string), NULL);
+    return mprGetMD5Hash(string, slen(string), NULL);
 }
 
 
@@ -433,10 +433,10 @@ static int calcDigest(char **digest, cchar *userName, cchar *password, cchar *re
     /*
         H(HA1:nonce:HA2)
      */
-    if (strcmp(qop, "auth") == 0) {
+    if (scmp(qop, "auth") == 0) {
         mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
 
-    } else if (strcmp(qop, "auth-int") == 0) {
+    } else if (scmp(qop, "auth-int") == 0) {
         mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2);
 
     } else {

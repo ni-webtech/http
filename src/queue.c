@@ -341,7 +341,7 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
         }
 #else
         if (conn->sock) {
-            httpWait(conn, conn->dispatcher, 0, MPR_TIMEOUT_SOCKETS);
+            httpWait(conn, 0, MPR_TIMEOUT_SOCKETS);
         }
 #endif
     }

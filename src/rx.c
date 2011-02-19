@@ -1271,17 +1271,22 @@ int httpMapToStorage(HttpConn *conn)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpHost    *host;
+    MprPath     *info;
 
     rx = conn->rx;
     tx = conn->tx;
     host = conn->host;
+    info = &tx->fileInfo;
 
     rx->loc = httpLookupBestLocation(host, rx->pathInfo);
     rx->auth = rx->loc->auth;
     rx->alias = httpGetAlias(host, rx->pathInfo);
     tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
-    mprGetPathInfo(tx->filename, &tx->fileInfo);
     tx->extension = httpGetExtension(conn);
+    mprGetPathInfo(tx->filename, info);
+    if (info->valid) {
+        tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
+    }
     return 0;
 }
 
@@ -1330,18 +1335,15 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 /*  
     Wait for the Http object to achieve a given state. Timeout is total wait time in msec. If <= 0, then dont wait.
  */
-int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
+int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
     Http        *http;
-    MprTime     expire;
-    int         eventMask, remainingTime, addedHandler, saveAsync, justOne;
+    MprTime     expire, remainingTime;
+    int         eventMask, addedHandler, saveAsync, justOne;
 
     http = conn->http;
-    //  MOB -- if always true, could remove dispatcher arg.
-    mprAssert(dispatcher == conn->dispatcher);
-
     if (timeout <= 0) {
-        timeout = 0;
+        timeout = MAXINT64;
     }
     if (state == 0) {
         state = HTTP_STATE_COMPLETE;
@@ -1370,7 +1372,7 @@ int httpWait(HttpConn *conn, MprDispatcher *dispatcher, int state, int timeout)
     expire = http->now + timeout;
 
     while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
-        remainingTime = (int) (expire - http->now);
+        remainingTime = (expire - http->now);
         if (remainingTime <= 0) {
             break;
         }
