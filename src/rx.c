@@ -1379,7 +1379,7 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     http->now = mprGetTime();
     expire = http->now + timeout;
 
-    while (!conn->error && conn->state <= state && conn->sock && !mprIsSocketEof(conn->sock)) {
+    while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
         httpServiceQueues(conn);
         remainingTime = (expire - http->now);
         if (remainingTime <= 0) {
