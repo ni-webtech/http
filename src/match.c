@@ -273,10 +273,14 @@ static HttpStage *findHandler(HttpConn *conn)
             }
         }
     }
-    if (handler == 0 && (handler = httpGetHandlerByExtension(loc, "")) == 0) {
-        handler = http->passHandler;
-        if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) {
-            httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Missing handler to match request %s", rx->pathInfo);
+    if (handler == 0) {
+        handler = checkHandler(conn, httpGetHandlerByExtension(loc, ""));
+        if (handler == 0) {
+            handler = http->passHandler;
+            if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) {
+                httpProtocolError(conn, HTTP_CODE_NOT_IMPLEMENTED, "No handler to service method \"%s\" for request \"%s\"", 
+                    rx->method, rx->pathInfo);
+            }
         }
     }
     return handler;
