@@ -1332,9 +1332,6 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 }
 
 
-/*  
-    Wait for the Http object to achieve a given state. Timeout is total wait time in msec. If <= 0, then dont wait.
- */
 int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
     Http        *http;
@@ -1371,7 +1368,8 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     http->now = mprGetTime();
     expire = http->now + timeout;
 
-    while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
+    while (!conn->error && conn->state <= state && conn->sock && !mprIsSocketEof(conn->sock)) {
+        httpServiceQueues(conn);
         remainingTime = (expire - http->now);
         if (remainingTime <= 0) {
             break;

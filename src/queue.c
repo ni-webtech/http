@@ -327,23 +327,9 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
     
     while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
-#if UNUSED
-        events = MPR_READABLE;
-        if (conn->sock && !mprSocketHasPendingData(conn->sock)) {
-            if (mprIsSocketEof(conn->sock)) {
-                break;
-            }
-            inactivityTimeout = conn->limits->inactivityTimeout ? conn->limits->inactivityTimeout : INT_MAX;
-            events = mprWaitForSingleIO(conn->sock->fd, MPR_READABLE, inactivityTimeout);
-        }
-        if (events) {
-            httpCallEvent(conn, MPR_READABLE);
-        }
-#else
         if (conn->sock) {
             httpWait(conn, 0, MPR_TIMEOUT_SOCKETS);
         }
-#endif
     }
     //  MOB - better place for this?
     conn->lastActivity = conn->http->now;

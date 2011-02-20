@@ -256,9 +256,6 @@ static HttpStage *findHandler(HttpConn *conn)
                 path = sjoin(tx->filename, ".", hp->key, NULL);
                 if (mprGetPathInfo(path, &tx->fileInfo) == 0) {
                     mprLog(5, "findHandler: Adding extension, new path %s\n", path);
-#if UNUSED
-                    tx->filename = path;
-#endif
                     httpSetUri(conn, sjoin(rx->uri, ".", hp->key, NULL), NULL);
                     break;
                 }

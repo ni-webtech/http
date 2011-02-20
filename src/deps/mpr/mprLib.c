@@ -2585,11 +2585,15 @@ static void startThreads(int flags)
 {
     MprThread   *tp;
 
-    if (!(flags & MPR_USER_EVENTS_THREAD)) {
+    if (flags & MPR_USER_EVENTS_THREAD) {
+        mprInitWindow();
+    } else {
         if ((tp = mprCreateThread("events", serviceEventsThread, NULL, 0)) == 0) {
             MPR->hasError = 1;
         } else {
+            MPR->cond = mprCreateCond();
             mprStartThread(tp);
+            mprWaitForCond(MPR->cond, MPR_TIMEOUT_START_TASK);
         }
     }
     mprStartGCService();
@@ -2599,6 +2603,8 @@ static void startThreads(int flags)
 static void serviceEventsThread(void *data, MprThread *tp)
 {
     mprLog(MPR_CONFIG, "Service thread started");
+    mprInitWindow();
+    mprSignalCond(MPR->cond);
     mprServiceEvents(-1, 0);
 }
 
@@ -3002,8 +3008,8 @@ int mprAddNotifier(MprWaitService *ws, MprWaitHandler *wp, int mask)
         if (mask & MPR_WRITABLE) {
             winMask |= FD_WRITE;
         }
-        WSAAsyncSelect(wp->fd, ws->hwnd, ws->socketMessage, winMask);
         wp->desiredMask = mask;
+        WSAAsyncSelect(wp->fd, ws->hwnd, ws->socketMessage, winMask);
     }
     unlock(ws);
     return 0;
@@ -3018,8 +3024,8 @@ void mprRemoveNotifier(MprWaitHandler *wp)
     mprAssert(ws->hwnd);
     lock(ws);
     mprAssert(wp->fd >= 0);
-    WSAAsyncSelect(wp->fd, ws->hwnd, ws->socketMessage, 0);
     wp->desiredMask = 0;
+    WSAAsyncSelect(wp->fd, ws->hwnd, ws->socketMessage, 0);
     unlock(ws);
 }
 
@@ -23193,6 +23199,12 @@ void mprWriteToOsLog(cchar *message, int flags, int level)
     syslog(sflag, "%s %s: %s\n", mprGetAppName(), msg, message);
 }
 
+
+int mprInitWindow()
+{
+    return 0;
+}
+
 #else
 void stubMprUnix() {}
 #endif /* BLD_UNIX_LIKE */
@@ -23394,6 +23406,11 @@ int usleep(uint msec)
     return 0;
 }
 
+
+int mprInitWindow()
+{
+    return 0;
+}
 
 #else
 void stubMprVxWorks() {}

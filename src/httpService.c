@@ -246,22 +246,12 @@ int httpSetNamedVirtualServers(Http *http, cchar *ip, int port)
 void httpAddHost(Http *http, HttpHost *host)
 {
     mprAddItem(http->hosts, host);
-#if UNUSED
-    if (http->defaultHost == 0) {
-        http->defaultHost = host;
-    }
-#endif
 }
 
 
 void httpRemoveHost(Http *http, HttpHost *host)
 {
     mprRemoveItem(http->hosts, host);
-#if UNUSED
-    if (host == http->defaultHost) {
-        http->defaultHost = mprGetFirstItem(http->hosts);
-    }
-#endif
 }
 
 
