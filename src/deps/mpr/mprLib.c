@@ -4685,7 +4685,7 @@ static ssize asyncRead(MprCmd *cmd, int channel, char *buf, ssize bufsize)
 }
 
 
-ssize mprReadCmdPipe(MprCmd *cmd, int channel, char *buf, ssize bufsize)
+ssize mprReadCmd(MprCmd *cmd, int channel, char *buf, ssize bufsize)
 {
 #if BLD_WIN_LIKE
 {
@@ -4792,7 +4792,7 @@ static int serviceWinCmdEvents(MprCmd *cmd, int channel, int timeout)
 /*
     Poll for I/O events on CGI pipes
  */
-void mprPollCmdPipes(MprCmd *cmd, int timeout)
+void mprPollCmd(MprCmd *cmd, int timeout)
 {
 #if BLD_WIN_LIKE && !WINCE
     if (cmd->files[MPR_CMD_STDOUT].handle) {
@@ -4844,7 +4844,7 @@ int mprWaitForCmd(MprCmd *cmd, int timeout)
             }
         }
         unlock(cmd);
-        mprPollCmdPipes(cmd, timeout);
+        mprPollCmd(cmd, timeout);
         remaining = (expires - mprGetTime());
         if (cmd->pid == 0 || remaining <= 0) {
             break;
@@ -5012,7 +5012,7 @@ static void cmdCallback(MprCmd *cmd, int channel, void *data)
         }
         space = mprGetBufSpace(buf);
     }
-    len = mprReadCmdPipe(cmd, channel, mprGetBufEnd(buf), space);
+    len = mprReadCmd(cmd, channel, mprGetBufEnd(buf), space);
     if (len <= 0) {
         if (len == 0 || (len < 0 && !(errno == EAGAIN || EWOULDBLOCK))) {
             if (channel == MPR_CMD_STDOUT && cmd->flags & MPR_CMD_ERR) {

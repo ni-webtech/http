@@ -6632,8 +6632,8 @@ typedef struct MprCmdFile {
         read, write and error data with the command. 
     @stability Evolving.
     @see mprGetCmdBuf mprCreateCmd mprIsCmdRunning mprStartCmd mprGetCmdExitStatus mprGetCmdFd mprMakeCmdIO 
-        mprReadCmdPipe mprReapCmd mprRunCmd mprRunCmdV mprWaitForCmd mprWriteCmd mprCloseCmdFd 
-        mprDisableCmdEvents mprDisconnectCmd mprEnableCmdEvents mprPollCmdPipes mprSetCmdCallback mprSetCmdDir 
+        mprReadCmd mprReapCmd mprRunCmd mprRunCmdV mprWaitForCmd mprWriteCmd mprCloseCmdFd 
+        mprDisableCmdEvents mprDisconnectCmd mprEnableCmdEvents mprPollCmd mprSetCmdCallback mprSetCmdDir 
         mprSetCmdEnv mprStopCmd
     @defgroup MprCmd MprCmd
  */
@@ -6787,7 +6787,7 @@ extern int mprMakeCmdIO(MprCmd *cmd);
     @return Zero if successful. Otherwise a negative MPR error code.
     @ingroup MprCmd
  */
-extern ssize mprReadCmdPipe(MprCmd *cmd, int channel, char *buf, ssize bufsize);
+extern ssize mprReadCmd(MprCmd *cmd, int channel, char *buf, ssize bufsize);
 
 /**
     Reap the command. This waits for and collect the command exit status. 
@@ -6859,7 +6859,7 @@ extern void mprSetCmdEnv(MprCmd *cmd, cchar **env);
 
 /**
     Start the command. This starts the command but does not wait for its completion. Once started, mprWriteCmd
-    can be used to write to the command and response data can be received via mprReadCmdPipe.
+    can be used to write to the command and response data can be received via mprReadCmd.
     @param cmd MprCmd object created via mprCreateCmd
     @param argc Count of arguments in argv
     @param argv Command arguments array
@@ -6896,7 +6896,7 @@ extern int mprWaitForCmd(MprCmd *cmd, int timeout);
     @param timeout Time in milliseconds to wait for the command to complete and exit.
     @ingroup MprCmd
  */
-extern void mprPollCmdPipes(MprCmd *cmd, int timeout);
+extern void mprPollCmd(MprCmd *cmd, int timeout);
 
 /**
     Write data to an I/O channel
