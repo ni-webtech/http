@@ -117,6 +117,7 @@ EXPORTS
   mprEscapeCmd
   mprEscapeHtml
   mprFatalError
+  mprFinalizeCmd
   mprFlushBuf
   mprFlushFile
   mprFlushSocket
@@ -289,7 +290,7 @@ EXPORTS
   mprParseTime
   mprPathExists
   mprPeekFileChar
-  mprPollCmdPipes
+  mprPollCmd
   mprPopItem
   mprPrintMem
   mprPrintf
@@ -308,7 +309,7 @@ EXPORTS
   mprQueueIOEvent
   mprRandom
   mprRawLog
-  mprReadCmdPipe
+  mprReadCmd
   mprReadFile
   mprReadRegistry
   mprReadSocket
@@ -459,7 +460,7 @@ EXPORTS
   mprWakeNotifier
   mprWakeWaitService
   mprWakeWorkers
-  mprWriteCmdPipe
+  mprWriteCmd
   mprWriteFile
   mprWriteFileFormat
   mprWriteFileString
