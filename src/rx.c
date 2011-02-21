@@ -1294,6 +1294,9 @@ int httpMapToStorage(HttpConn *conn)
     rx->alias = httpGetAlias(host, rx->pathInfo);
     tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
     tx->extension = httpGetExtension(conn);
+#if BLD_WIN_LIKE
+    tx->extension = slower(tx->extension);
+#endif
     mprGetPathInfo(tx->filename, info);
     if (info->valid) {
         tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
