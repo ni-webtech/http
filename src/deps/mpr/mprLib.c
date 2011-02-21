@@ -4324,7 +4324,7 @@ static void resetCmd(MprCmd *cmd)
     cmd->status = -1;
 
     if (cmd->pid && !(cmd->flags & MPR_CMD_DETACH)) {
-        mprStopCmd(cmd);
+        mprStopCmd(cmd, -1);
         mprReapCmd(cmd, 0);
         cmd->pid = 0;
     }
@@ -4351,6 +4351,7 @@ void mprDisconnectCmd(MprCmd *cmd)
  */
 void mprCloseCmdFd(MprCmd *cmd, int channel)
 {
+    mprAssert(cmd);
     mprAssert(0 <= channel && channel <= MPR_CMD_MAX_PIPE);
 
     lock(cmd);
@@ -4371,6 +4372,13 @@ void mprCloseCmdFd(MprCmd *cmd, int channel)
         }
     }
     unlock(cmd);
+}
+
+
+void mprFinalizeCmd(MprCmd *cmd)
+{
+    mprAssert(cmd);
+    mprCloseCmdFd(cmd, MPR_CMD_STDIN);
 }
 
 
@@ -4506,7 +4514,6 @@ int mprStartCmd(MprCmd *cmd, int argc, char **argv, char **envp, int flags)
         return MPR_ERR_BAD_STATE;
     }
 #endif
-
     resetCmd(cmd);
     program = argv[0];
     cmd->program = sclone(program);
@@ -4550,7 +4557,6 @@ int mprStartCmd(MprCmd *cmd, int argc, char **argv, char **envp, int flags)
       
         stdoutFd = cmd->files[MPR_CMD_STDOUT].fd; 
         stderrFd = cmd->files[MPR_CMD_STDERR].fd; 
-
         /*
             Put the stdout and stderr into non-blocking mode. Windows can't do this because both ends of the pipe
             share the same blocking mode (Ugh!).
@@ -4558,7 +4564,6 @@ int mprStartCmd(MprCmd *cmd, int argc, char **argv, char **envp, int flags)
 #if VXWORKS
         {
             int nonBlock = 1;
-
             if (stdoutFd >= 0) {
                 ioctl(stdoutFd, FIONBIO, (int) &nonBlock);
             }
@@ -4614,20 +4619,25 @@ int mprMakeCmdIO(MprCmd *cmd)
 
 /*
     Stop the command
+    MOB - should take signal arg
  */
-void mprStopCmd(MprCmd *cmd)
+int mprStopCmd(MprCmd *cmd, int signal)
 {
     mprLog(7, "cmd: stop");
 
+    if (signal < 0) {
+        signal = SIGTERM;
+    }
     if (cmd->pid) {
 #if BLD_WIN_LIKE
-        TerminateProcess(cmd->process, 2);
+        return TerminateProcess(cmd->process, 2);
 #elif VXWORKS
-        taskDelete(cmd->pid);
+        return taskDelete(cmd->pid);
 #else
-        kill(cmd->pid, SIGTERM);
+        return kill(cmd->pid, signal);
 #endif
     }
+    return 0;
 }
 
 
@@ -4706,7 +4716,7 @@ ssize mprReadCmdPipe(MprCmd *cmd, int channel, char *buf, ssize bufsize)
 /*
     Non-blocking read from a pipe. For windows which doesn't seem to have non-blocking pipes!
  */
-int mprWriteCmdPipe(MprCmd *cmd, int channel, char *buf, int bufsize)
+int mprWriteCmd(MprCmd *cmd, int channel, char *buf, ssize bufsize)
 {
 #if BLD_WIN_LIKE
     /*
@@ -5027,13 +5037,17 @@ static void cmdCallback(MprCmd *cmd, int channel, void *data)
 
 static void stdoutCallback(MprCmd *cmd, MprEvent *event)
 {
-    (cmd->callback)(cmd, MPR_CMD_STDOUT, cmd->callbackData);
+    if (cmd->callback) {
+        (cmd->callback)(cmd, MPR_CMD_STDOUT, cmd->callbackData);
+    }
 }
 
 
 static void stderrCallback(MprCmd *cmd, MprEvent *event)
 {
-    (cmd->callback)(cmd, MPR_CMD_STDERR, cmd->callbackData);
+    if (cmd->callback) {
+        (cmd->callback)(cmd, MPR_CMD_STDERR, cmd->callbackData);
+    }
 }
 
 
@@ -5044,6 +5058,7 @@ void mprSetCmdCallback(MprCmd *cmd, MprCmdProc proc, void *data)
 }
 
 
+//  MOB - need option to supply no timeout
 int mprGetCmdExitStatus(MprCmd *cmd, int *statusp)
 {
     mprAssert(statusp);
@@ -7372,9 +7387,7 @@ int mprServiceEvents(MprTime timeout, int flags)
         return 0;
     }
     MPR->eventing = 1;
-#if WIN
     mprInitWindow();
-#endif
     es = MPR->eventService;
     beginEventCount = eventCount = es->eventCount;
 

@@ -5714,8 +5714,8 @@ extern void mprManagePoll(MprWaitService *ws, int flags);
 extern void mprManageSelect(MprWaitService *ws, int flags);
 #endif
 
-#if BLD_WIN_LIKE
 extern int  mprInitWindow();
+#if BLD_WIN_LIKE
 extern void mprSetWinMsgCallback(MprWaitService *ws, MprMsgCallback callback);
 extern void mprServiceWinIO(MprWaitService *ws, int sockFd, int winMask);
 #endif
@@ -6632,7 +6632,7 @@ typedef struct MprCmdFile {
         read, write and error data with the command. 
     @stability Evolving.
     @see mprGetCmdBuf mprCreateCmd mprIsCmdRunning mprStartCmd mprGetCmdExitStatus mprGetCmdFd mprMakeCmdIO 
-        mprReadCmdPipe mprReapCmd mprRunCmd mprRunCmdV mprWaitForCmd mprWriteCmdPipe mprCloseCmdFd 
+        mprReadCmdPipe mprReapCmd mprRunCmd mprRunCmdV mprWaitForCmd mprWriteCmd mprCloseCmdFd 
         mprDisableCmdEvents mprDisconnectCmd mprEnableCmdEvents mprPollCmdPipes mprSetCmdCallback mprSetCmdDir 
         mprSetCmdEnv mprStopCmd
     @defgroup MprCmd MprCmd
@@ -6732,6 +6732,8 @@ extern void mprDestroyCmd(MprCmd *cmd);
     @ingroup MprCmd
  */
 extern void mprEnableCmdEvents(MprCmd *cmd, int channel);
+
+extern void mprFinalizeCmd(MprCmd *cmd);
 
 /**
     Get the command exit status
@@ -6856,7 +6858,7 @@ extern void mprSetCmdDir(MprCmd *cmd, cchar *dir);
 extern void mprSetCmdEnv(MprCmd *cmd, cchar **env);
 
 /**
-    Start the command. This starts the command but does not wait for its completion. Once started, mprWriteCmdPipe
+    Start the command. This starts the command but does not wait for its completion. Once started, mprWriteCmd
     can be used to write to the command and response data can be received via mprReadCmdPipe.
     @param cmd MprCmd object created via mprCreateCmd
     @param argc Count of arguments in argv
@@ -6877,7 +6879,7 @@ extern int mprStartCmd(MprCmd *cmd, int argc, char **argv, char **envp, int flag
     @param cmd MprCmd object created via mprCreateCmd
     @ingroup MprCmd
  */
-extern void mprStopCmd(MprCmd *cmd);
+extern int mprStopCmd(MprCmd *cmd, int signal);
 
 /**
     Wait for the command to complete.
@@ -6904,7 +6906,7 @@ extern void mprPollCmdPipes(MprCmd *cmd, int timeout);
     @param bufsize Size of buffer
     @ingroup MprCmd
  */
-extern int mprWriteCmdPipe(MprCmd *cmd, int channel, char *buf, int bufsize);
+extern int mprWriteCmd(MprCmd *cmd, int channel, char *buf, ssize bufsize);
 
 extern int mprIsCmdComplete(MprCmd *cmd);
 
