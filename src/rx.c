@@ -223,20 +223,33 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 }
 
 
-static int traceRequest(HttpConn *conn, HttpPacket *packet)
+static void traceRequest(HttpConn *conn, HttpPacket *packet)
 {
+    HttpRx  *rx;
     MprBuf  *content;
     cchar   *endp;
-    int     len;
+    int     len, level;
+
+    rx = conn->rx;
+
+    mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
 
     if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, conn->tx->extension) >= 0) {
         content = packet->content;
         endp = strstr((char*) content->start, "\r\n\r\n");
         len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
         httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
-        return 1;
+
+    } else if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) >= 0) {
+        content = packet->content;
+        endp = strstr((char*) content->start, "\r\n");
+        len = (endp) ? (int) (endp - mprGetBufStart(content) + 2) : 0;
+        if (len > 0) {
+            content->start[len - 2] = '\0';
+            mprLog(level, "%s", content->start);
+            content->start[len - 2] = '\r';
+        }
     }
-    return 0;
 }
 
 
@@ -248,9 +261,9 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     char        *method, *uri, *protocol;
-    int         methodFlags, level;
+    int         methodFlags;
 
-    mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
+    traceRequest(conn, packet);
 
     rx = conn->rx;
     uri = 0;
@@ -262,7 +275,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
 #endif
 
     method = getToken(conn, " ");
-    method = supper(method);
+    rx->method = method = supper(method);
 
     switch (method[0]) {
     case 'D':
@@ -321,26 +334,26 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     } else if ((int) strlen(uri) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad request. URI too long");
     }
-    protocol = getToken(conn, "\r\n");
+    protocol = conn->protocol = supper(getToken(conn, "\r\n"));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         if (methodFlags & (HTTP_POST|HTTP_PUT)) {
             rx->remainingContent = MAXINT;
             rx->needInputPipeline = 1;
         }
         conn->http10 = 1;
-        conn->protocol = "HTTP/1.0";
     } else if (strcmp(protocol, "HTTP/1.1") != 0) {
         httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
     rx->flags |= methodFlags;
-    rx->method = supper(method);
     rx->uri = uri;
 
     httpSetState(conn, HTTP_STATE_FIRST);
+#if UNUSED
     if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) >= 0) {
         mprLog(level, "%s %s %s", rx->method, uri, protocol);
     }
     traceRequest(conn, packet);
+#endif
 }
 
 
@@ -358,14 +371,12 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
 
     rx = conn->rx;
 
-    protocol = getToken(conn, " ");
+    protocol = conn->protocol = supper(getToken(conn, " "));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         conn->http10 = 1;
-        conn->protocol = "HTTP/1.0";
     } else if (strcmp(protocol, "HTTP/1.1") != 0) {
         httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
-
     status = getToken(conn, " ");
     if (*status == '\0') {
         httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Bad response status code");
