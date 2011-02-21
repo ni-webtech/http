@@ -143,7 +143,7 @@ static bool rewriteRequest(HttpConn *conn)
 
     if (alias->redirectCode) {
         httpRedirect(conn, alias->redirectCode, alias->uri);
-        return NULL;
+        return 1;
     }
     for (next = 0; (handler = mprGetNextItem(loc->handlers, &next)) != 0; ) {
         if (handler->rewrite && handler->rewrite(conn, handler)) {

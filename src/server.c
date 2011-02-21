@@ -113,6 +113,7 @@ HttpServer *httpCreateConfiguredServer(cchar *docRoot, cchar *ip, int port)
     } else {
         server = httpCreateServer(ip, port, NULL, HTTP_CREATE_HOST);
     }
+    host = mprGetFirstItem(server->hosts);
     if ((host->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
         host->mimeTypes = MPR->mimeTypes;
     }
