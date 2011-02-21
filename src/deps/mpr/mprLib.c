@@ -2431,7 +2431,7 @@ Mpr *mprCreate(int argc, char **argv, int flags)
 
     if (mpr->argv && mpr->argv[0] && *mpr->argv[0]) {
         name = mpr->argv[0];
-        if ((cp = strrchr(name, '/')) != 0) {
+        if ((cp = strrchr(name, '/')) != 0 || (cp = strrchr(name, '\\')) != 0) {
             name = &cp[1];
         }
         mpr->name = sclone(name);
@@ -4959,6 +4959,7 @@ int mprReapCmd(MprCmd *cmd, int timeout)
             rc = CloseHandle(cmd->thread);
             mprAssert(rc != 0);
             cmd->process = 0;
+            cmd->thread = 0;
             cmd->pid = 0;
             break;
         }
