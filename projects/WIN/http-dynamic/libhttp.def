@@ -264,6 +264,7 @@ EXPORTS
   httpSetHeadersCallback
   httpSetHostAddress
   httpSetHostDocumentRoot
+  httpSetHostLogRotation
   httpSetHostName
   httpSetHostProtocol
   httpSetHostServerRoot

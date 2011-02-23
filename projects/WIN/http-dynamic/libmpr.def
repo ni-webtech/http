@@ -13,6 +13,7 @@ EXPORTS
   itos
   mprAcceptSocket
   mprActivateWorker
+  mprAddCmdHandlers
   mprAddDuplicateKey
   mprAddFileSystem
   mprAddItem
