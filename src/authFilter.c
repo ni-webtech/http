@@ -41,6 +41,7 @@ int httpOpenAuthFilter(Http *http)
 {
     HttpStage     *filter;
 
+    mprLog(5, "Open auth filter");
     if ((filter = httpCreateFilter(http, "authFilter", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
@@ -102,7 +103,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     } else {
         actualAuthType = HTTP_AUTH_UNKNOWN;
     }
-    mprLog(4, "run: type %d, url %s\nDetails %s\n", auth->type, rx->pathInfo, rx->authDetails);
+    mprLog(4, "matchAuth: type %d, url %s\nDetails %s\n", auth->type, rx->pathInfo, rx->authDetails);
 
     if (ad->userName == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing user name", 0);
@@ -121,7 +122,6 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, authentication error", "User not defined");
         return 1;
     }
-
     if (auth->type == HTTP_AUTH_DIGEST) {
         if (scmp(ad->qop, auth->qop) != 0) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied. Protection quality does not match", 0);

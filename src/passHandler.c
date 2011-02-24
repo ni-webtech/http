@@ -31,7 +31,6 @@ void httpHandleOptionsTrace(HttpQueue *q)
         q->pair->packetSize = q->packetSize;
     }
 #endif
-
     if (rx->flags & HTTP_TRACE) {
         if (!conn->limits->enableTraceMethod) {
             tx->status = HTTP_CODE_NOT_ACCEPTABLE;
@@ -63,7 +62,7 @@ static void openPass(HttpQueue *q)
         q->pair->packetSize = q->packetSize;
     }
 #endif
-
+    mprLog(5, "Open passHandler");
     if (q->conn->rx->flags & (HTTP_OPTIONS | HTTP_TRACE)) {
         httpHandleOptionsTrace(q);
     }

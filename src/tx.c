@@ -284,6 +284,7 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
         emsg = mprEscapeHtml(msg);
         httpFormatBody(conn, statusMsg, "<h2>Access Error: %d -- %s</h2>\r\n<p>%s</p>\r\n", status, statusMsg, emsg);
     }
+    httpDontCache(conn);
 }
 
 

@@ -146,6 +146,13 @@ void httpSetHostDocumentRoot(HttpHost *host, cchar *dir)
 }
 
 
+void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize)
+{
+    host->logCount = logCount;
+    host->logSize = logSize;
+}
+
+
 void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
 {
     host->serverRoot = mprGetAbsPath(serverRoot);
@@ -381,7 +388,7 @@ HttpLoc *httpLookupBestLocation(HttpHost *host, cchar *uri)
     if (uri) {
         for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
             rc = sncmp(loc->prefix, uri, loc->prefixLen);
-            if (rc == 0 && uri[loc->prefixLen] == '/') {
+            if (rc == 0 /* UNUSED MOB && uri[loc->prefixLen] == '/' */) {
                 return loc;
             }
         }

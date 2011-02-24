@@ -31,7 +31,7 @@ HttpPacket *httpCreatePacket(ssize size)
             return 0;
         }
     }
-    mprLog(5, "DEBUG: httpCreate new packet %d\n", packet->entityLength);
+    mprLog(8, "DEBUG: httpCreate new packet %d", packet->entityLength);
     return packet;
 }
 

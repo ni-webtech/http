@@ -172,7 +172,6 @@ void httpPrepServerConn(HttpConn *conn)
         conn->abortPipeline = 0;
         conn->canProceed = 1;
         conn->complete = 0;
-        conn->connError = 0;
         conn->error = 0;
         conn->errorMsg = 0;
         conn->flags = 0;

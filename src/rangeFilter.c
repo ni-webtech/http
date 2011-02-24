@@ -24,6 +24,7 @@ int httpOpenRangeFilter(Http *http)
 {
     HttpStage     *filter;
 
+    mprLog(5, "Open range filter");
     if ((filter = httpCreateFilter(http, "rangeFilter", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
@@ -134,7 +135,7 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
                 count = min(count, q->nextQ->packetSize);
                 mprAssert(count > 0);
                 if (count < bytes) {
-                    //  TODO OPT> Only need to resize if this completes all the range data.
+                    //  TODO OPT. Only need to resize if this completes all the range data.
                     httpResizePacket(q, packet, count);
                 }
                 if (!httpWillNextQueueAcceptPacket(q, packet)) {
@@ -224,7 +225,8 @@ static void createRangeBoundary(HttpConn *conn)
 }
 
 
-/*  Ensure all the range limits are within the entity size limits. Fixup negative ranges.
+/*  
+    Ensure all the range limits are within the entity size limits. Fixup negative ranges.
  */
 static bool fixRangeLength(HttpConn *conn)
 {

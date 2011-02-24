@@ -24,6 +24,7 @@ int httpOpenChunkFilter(Http *http)
 {
     HttpStage     *filter;
 
+    mprLog(5, "Open chunk filter");
     if ((filter = httpCreateFilter(http, "chunkFilter", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }

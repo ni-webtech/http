@@ -27,6 +27,7 @@ int httpOpenNetConnector(Http *http)
 {
     HttpStage     *stage;
 
+    mprLog(5, "Open net connector");
     if ((stage = httpCreateConnector(http, "netConnector", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }

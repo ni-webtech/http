@@ -4835,8 +4835,9 @@ static int serviceWinCmdEvents(MprCmd *cmd, int channel, int timeout)
 {
     int     rc, count, status;
 
-    if (mprGetDebugMode()) {
-        timeout = MAXINT;
+    if (channel == MPR_CMD_STDIN) {
+        /* Nothing better to do */
+        return 1;
     }
     if (cmd->files[channel].handle) {
         rc = PeekNamedPipe(cmd->files[channel].handle, NULL, 0, NULL, &count, NULL);
@@ -4846,6 +4847,9 @@ static int serviceWinCmdEvents(MprCmd *cmd, int channel, int timeout)
     }
     if (cmd->process == 0) {
         return 1;
+    }
+    if (mprGetDebugMode()) {
+        timeout = MAXINT;
     }
     if ((status = WaitForSingleObject(cmd->process, timeout)) == WAIT_OBJECT_0) {
         if (cmd->requiredEof == 0) {
@@ -4882,6 +4886,11 @@ void mprPollCmd(MprCmd *cmd, int timeout)
 
     channel = -1;
 #if BLD_WIN_LIKE && !WINCE
+    if (cmd->files[MPR_CMD_STDIN].handle) {
+        if (serviceWinCmdEvents(cmd, MPR_CMD_STDIN, timeout) > 0 && (cmd->flags & MPR_CMD_IN)) {
+            invokeCallback(cmd, MPR_CMD_STDIN);
+        }
+    }
     if (cmd->files[MPR_CMD_STDOUT].handle) {
         if (serviceWinCmdEvents(cmd, MPR_CMD_STDOUT, timeout) > 0 && (cmd->flags & MPR_CMD_OUT)) {
             invokeCallback(cmd, MPR_CMD_STDOUT);
@@ -4891,13 +4900,6 @@ void mprPollCmd(MprCmd *cmd, int timeout)
             invokeCallback(cmd, MPR_CMD_STDERR);
         }
     }
-#if UNUSED
-    if (cmd->files[MPR_CMD_STDIN].handle) {
-        if (serviceWinCmdEvents(cmd, MPR_CMD_STDIN, timeout) > 0 && (cmd->flags & MPR_CMD_IN)) {
-            invokeCallback(cmd, MPR_CMD_STDIN);
-        }
-    }
-#endif
 #else
     if (cmd->files[MPR_CMD_STDOUT].fd >= 0) {
         if (mprWaitForSingleIO(cmd->files[MPR_CMD_STDOUT].fd, MPR_READABLE, timeout)) {
@@ -4923,7 +4925,7 @@ void mprPollCmd(MprCmd *cmd, int timeout)
  */
 int mprWaitForCmd(MprCmd *cmd, int timeout)
 {
-    MprTime     expires, remaining, delay;
+    MprTime     expires, remaining;
 
     if (timeout < 0) {
         timeout = MAXINT;
@@ -4943,28 +4945,16 @@ int mprWaitForCmd(MprCmd *cmd, int timeout)
             }
         }
         unlock(cmd);
-
-#if UNUSED
-        mprPollCmd(cmd, timeout);
-        remaining = (expires - mprGetTime());
-        if (cmd->pid == 0 || remaining <= 0) {
-            break;
-        }
-#else
-        if (cmd->pid == 0 || remaining <= 0) {
-            break;
-        }
-#endif
-        //  MOB - remove delay
-        delay = remaining;
-
-        if (cmd->flags & MPR_CMD_ASYNC) {
-            /* Add root to allow callers to use mprRunCmd without first managing the cmd */
-            mprAddRoot(cmd);
-            mprWaitForEvent(cmd->dispatcher, delay);
-            mprRemoveRoot(cmd);
-        } else {
-            mprPollCmd(cmd, timeout);
+        if (cmd->pid) {
+            if (cmd->flags & MPR_CMD_ASYNC && !BLD_WIN_LIKE) {
+                /* Add root to allow callers to use mprRunCmd without first managing the cmd */
+                mprAddRoot(cmd);
+                mprWaitForEvent(cmd->dispatcher, remaining);
+                mprRemoveRoot(cmd);
+            } else {
+                mprPollCmd(cmd, timeout);
+                mprWaitForEvent(cmd->dispatcher, 0);
+            }
         }
         remaining = (expires - mprGetTime());
     } while (cmd->pid && remaining >= 0);

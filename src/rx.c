@@ -7,6 +7,10 @@
 
 #include    "http.h"
 
+/********************************** Locals ************************************/
+
+static char *authTypes[] = { "none", "basic", "digest" };
+
 /***************************** Forward Declarations ***************************/
 
 static void addMatchEtag(HttpConn *conn, char *etag);
@@ -204,9 +208,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         }
         mprLog(3, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
         httpSetState(conn, HTTP_STATE_PARSED);        
-#if UNUSED
-        loc = (rx->loc) ? rx->loc : conn->server->loc;
-#endif
         httpCreatePipeline(conn, rx->loc, tx->handler);
 
 #if FUTURE
@@ -419,7 +420,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     limits = conn->limits;
     keepAlive = 0;
 
-    for (count = 0; content->start[0] != '\r' && !conn->error; count++) {
+    for (count = 0; content->start[0] != '\r' && !conn->connError; count++) {
         if (count >= limits->headerCount) {
             httpLimitError(conn, HTTP_CODE_BAD_REQUEST, "Too many headers");
             break;
@@ -958,15 +959,14 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     rx = conn->rx;
     q = conn->tx->queue[HTTP_QUEUE_RECEIVE];
 
-    if (packet == NULL) {
-        return 0;
-    }
     if (conn->complete || conn->connError || rx->remainingContent <= 0) {
         //  MOB -- this needs checking - upload too much data
         httpSetState(conn, HTTP_STATE_RUNNING);
         return 1;
     }
-    mprAssert(packet);
+    if (packet == NULL) {
+        return 0;
+    }
     if (!analyseContent(conn, packet)) {
         if (conn->connError) {
             /* Abort the content state if there is a connection oriented error */
@@ -974,8 +974,8 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         }
         return conn->error;
     }
-    if (rx->remainingContent == 0) {
-        if (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF)) {
+    if (rx->remainingContent == 0 || conn->error) {
+        if (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF) || conn->error) {
             rx->eof = 1;
             httpSendPacketToNext(q, httpCreateEndPacket());
         }
@@ -1001,7 +1001,8 @@ static bool processRunning(HttpConn *conn)
             httpProcessPipeline(conn);
         }
         if (conn->server) {
-            if (conn->complete || conn->writeComplete || conn->error) {
+            //  MOB - simplify test
+            if (conn->complete || conn->writeComplete) {
                 httpSetState(conn, HTTP_STATE_COMPLETE);
                 canProceed = 1;
             } else {
@@ -1303,6 +1304,10 @@ int httpMapToStorage(HttpConn *conn)
     if (info->valid) {
         tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
     }
+    mprLog(5, "Request Details: uri \"%s\"", rx->uri);
+    mprLog(5, "Filename: \"%s\", extension: \"%s\"", tx->filename, tx->extension);
+    mprLog(5, "Location: \"%s\", alias: \"%s\" => \"%s\"", rx->loc->prefix, rx->alias->prefix, rx->alias->filename);
+    mprLog(5, "Auth: \"%s\"", authTypes[rx->auth->type]);
     return 0;
 }
 

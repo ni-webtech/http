@@ -82,10 +82,10 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
     len = strlen(pat);
     if (sncasecmp(rx->mimeType, pat, len) == 0) {
         rx->flags |= HTTP_UPLOAD;
+        mprLog(5, "matchUpload for %s", rx->uri);
         return 1;
-    } else {
-        return 0;
-    }   
+    }
+    return 0;
 }
 
 
@@ -102,6 +102,7 @@ static void openUpload(HttpQueue *q)
     conn = q->conn;
     rx = conn->rx;
 
+    mprLog(5, "Open upload filter");
     if ((up = mprAllocObj(Upload, manageUpload)) == 0) {
         return;
     }
@@ -115,6 +116,8 @@ static void openUpload(HttpQueue *q)
         rx->uploadDir = sclone("/tmp");
 #endif
     }
+    mprLog(5, "Upload directory is %s", rx->uploadDir);
+
     if ((boundary = strstr(rx->mimeType, "boundary=")) != 0) {
         boundary += 9;
         up->boundary = sjoin("--", boundary, NULL);
@@ -155,7 +158,6 @@ static void closeUpload(HttpQueue *q)
     
     if (up->currentFile) {
         file = up->currentFile;
-        mprDeletePath(file->filename);
         file->filename = 0;
     }
     if (rx->autoDelete) {
@@ -187,7 +189,6 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
     if (httpGetPacketLength(packet) == 0) {
         if (up->contentState != HTTP_UPLOAD_CONTENT_END) {
             httpError(conn, HTTP_CODE_BAD_REQUEST, "Client supplied insufficient upload data");
-            return;
         }
         httpSendPacketToNext(q, packet);
         return;
@@ -450,8 +451,7 @@ static int writeToFile(HttpQueue *q, char *data, ssize len)
     file = up->currentFile;
 
     if ((file->size + len) > limits->uploadSize) {
-        httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Uploaded file %s exceeds maximum %d", 
-            up->tmpPath, limits->uploadSize);
+        httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Uploaded file exceeds maximum %d", limits->uploadSize);
         return MPR_ERR_CANT_WRITE;
     }
     if (len > 0) {
@@ -563,6 +563,7 @@ static int processContentData(HttpQueue *q)
         /*  
             Now have all the data (we've seen the boundary)
          */
+        mprCloseFile(up->file);
         up->file = 0;
         up->clientFilename = 0;
     }
