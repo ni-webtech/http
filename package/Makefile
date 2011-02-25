@@ -6,7 +6,7 @@
 
 include			.makedep
 
-STAGE_DIR			:= $(BLD_OUT_DIR)/staging
+STAGE_DIR		:= $(BLD_OUT_DIR)/dist
 TDIR			:= $(STAGE_DIR)/http-$(BLD_VERSION)
 REL_DIR			:= $(BLD_OUT_DIR)/releases
 DIST_VER_NAME	:= http-$(BLD_VERSION)-dist.tgz
