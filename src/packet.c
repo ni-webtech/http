@@ -201,10 +201,9 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
  */
 int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 {
-    int     len;
+    ssize   len;
 
     len = httpGetPacketLength(p);
-
     if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), len) != len) {
         return MPR_ERR_MEMORY;
     }

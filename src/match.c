@@ -423,7 +423,7 @@ static void setScriptName(HttpConn *conn)
     HttpRx      *rx;
     HttpTx      *tx;
     char        *cp, *extraPath, *start, *pathInfo;
-    int         scriptLen;
+    ssize       scriptLen;
 
     rx = conn->rx;
     tx = conn->tx;

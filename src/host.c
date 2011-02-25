@@ -349,7 +349,8 @@ HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
 HttpDir *httpLookupBestDir(HttpHost *host, cchar *path)
 {
     HttpDir *dir;
-    int     next, len, dlen;
+    ssize   dlen;
+    int     next, len;
 
     len = (int) strlen(path);
 
@@ -488,7 +489,7 @@ char *httpMakePath(HttpHost *host, cchar *file)
 
 static int matchRef(cchar *key, char **src)
 {
-    int     len;
+    ssize   len;
 
     mprAssert(src);
     mprAssert(key && *key);

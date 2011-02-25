@@ -1,331 +1,331 @@
 LIBRARY libhttp.dll
 EXPORTS
-  HttpStatusCodes
-  __pamAuth
-  httpAcceptConn
-  httpAddAlias
-  httpAddConn
-  httpAddDir
-  httpAddErrorDocument
-  httpAddFilter
-  httpAddGroup
-  httpAddHandler
-  httpAddHeader
-  httpAddHost
-  httpAddHostToServer
-  httpAddHostToServers
-  httpAddLocation
-  httpAddLocationExpiry
-  httpAddServer
-  httpAddSimpleHeader
-  httpAddStage
-  httpAddUploadFile
-  httpAddUser
-  httpAddUserToGroup
-  httpAddUsersToGroup
-  httpAddVars
-  httpAddVarsFromQueue
-  httpAppendHeader
-  httpAppendQueue
-  httpCallEvent
-  httpClearStages
-  httpClonePacket
-  httpCloneStage
-  httpCloneUri
-  httpCloseConn
-  httpCloseRx
-  httpCompareFormVar
-  httpCompleteRequest
-  httpCompleteUri
-  httpCompleteWriting
-  httpConnError
-  httpConnect
-  httpConsumeLastRequest
-  httpContentNotModified
-  httpCreate
-  httpCreateAlias
-  httpCreateAuth
-  httpCreateBareDir
-  httpCreateConfiguredServer
-  httpCreateConn
-  httpCreateConnector
-  httpCreateDataPacket
-  httpCreateDir
-  httpCreateEndPacket
-  httpCreateEnvVars
-  httpCreateFilter
-  httpCreateGroup
-  httpCreateHandler
-  httpCreateHeaderPacket
-  httpCreateHost
-  httpCreateInheritedLocation
-  httpCreateLimits
-  httpCreateLocation
-  httpCreatePacket
-  httpCreatePipeline
-  httpCreateQueue
-  httpCreateQueueHead
-  httpCreateRange
-  httpCreateRx
-  httpCreateSecret
-  httpCreateServer
-  httpCreateStage
-  httpCreateTx
-  httpCreateUri
-  httpCreateUriFromParts
-  httpCreateUser
-  httpCreateVirtualHost
-  httpDefaultOutgoingServiceStage
-  httpDestroy
-  httpDestroyConn
-  httpDestroyPipeline
-  httpDestroyRx
-  httpDestroyServer
-  httpDestroyTx
-  httpDisableGroup
-  httpDisableQueue
-  httpDisableUser
-  httpDiscardData
-  httpDiscardTransmitData
-  httpDontCache
-  httpEnableConnEvents
-  httpEnableGroup
-  httpEnableQueue
-  httpEnableTraceMethod
-  httpEnableUpload
-  httpEnableUser
-  httpError
-  httpEvent
-  httpFinalize
-  httpFinalizeLocation
-  httpFindPreviousQueue
-  httpFlush
-  httpFlushQueue
-  httpFollowRedirects
-  httpFormatBody
-  httpFormatError
-  httpFormatErrorV
-  httpFormatUri
-  httpGetAlias
-  httpGetAsync
-  httpGetChunkSize
-  httpGetConnContext
-  httpGetConnHost
-  httpGetContentLength
-  httpGetContext
-  httpGetCookies
-  httpGetDateString
-  httpGetDefaultClientHost
-  httpGetDefaultClientPort
-  httpGetError
-  httpGetExtension
-  httpGetFormVar
-  httpGetGroupAcl
-  httpGetHandlerByExtension
-  httpGetHeader
-  httpGetHeaderHash
-  httpGetHeaders
-  httpGetIntFormVar
-  httpGetMetaServer
-  httpGetNativePassword
-  httpGetNextQueueForService
-  httpGetPacket
-  httpGetQueryString
-  httpGetQueueData
-  httpGetQueueRoom
-  httpGetRelativeUri
-  httpGetServerAsync
-  httpGetServerContext
-  httpGetStageData
-  httpGetStatus
-  httpGetStatusMessage
-  httpHandleOptionsTrace
-  httpInitAuth
-  httpInitLimits
-  httpInitLocation
-  httpInitQueue
-  httpInitSchedulerQueue
-  httpInitTrace
-  httpInsertQueue
-  httpIsEof
-  httpIsFinalized
-  httpIsGroupEnabled
-  httpIsNamedVirtualServer
-  httpIsPacketTooBig
-  httpIsQueueEmpty
-  httpIsUserEnabled
-  httpJoinPacket
-  httpJoinPacketForService
-  httpJoinPackets
-  httpJoinUri
-  httpJoinUriPath
-  httpLimitError
-  httpLoadSsl
-  httpLookupAlias
-  httpLookupBestDir
-  httpLookupBestLocation
-  httpLookupDir
-  httpLookupErrorDocument
-  httpLookupHostByName
-  httpLookupLocation
-  httpLookupServer
-  httpLookupStage
-  httpLookupStatus
-  httpMakeFilename
-  httpMakePath
-  httpMakeUriLocal
-  httpManageTrace
-  httpMapToStorage
-  httpMatchEtag
-  httpMatchHandler
-  httpMatchHost
-  httpMatchModified
-  httpNeedRetry
-  httpNormalizeUri
-  httpNormalizeUriPath
-  httpOmitBody
-  httpOpenAuthFilter
-  httpOpenChunkFilter
-  httpOpenNetConnector
-  httpOpenPassHandler
-  httpOpenQueue
-  httpOpenRangeFilter
-  httpOpenSendConnector
-  httpOpenUploadFilter
-  httpParseAcl
-  httpPrepClientConn
-  httpPrepServerConn
-  httpProcess
-  httpProcessPipeline
-  httpProtocolError
-  httpPutBackPacket
-  httpPutForService
-  httpRead
-  httpReadGroupFile
-  httpReadString
-  httpReadUserFile
-  httpRedirect
-  httpRemoveAllUploadedFiles
-  httpRemoveConn
-  httpRemoveGroup
-  httpRemoveHeader
-  httpRemoveHost
-  httpRemoveQueue
-  httpRemoveServer
-  httpRemoveUploadFile
-  httpRemoveUser
-  httpRemoveUserFromGroup
-  httpRemoveUsersFromGroup
-  httpReplaceReferences
-  httpResetCredentials
-  httpResetHandlers
-  httpResetPipeline
-  httpResizePacket
-  httpResolveUri
-  httpScheduleQueue
-  httpSecureServer
-  httpSendOpen
-  httpSendOutgoingService
-  httpSendPacket
-  httpSendPacketToNext
-  httpSendPackets
-  httpServiceQueue
-  httpServiceQueues
-  httpSetAsync
-  httpSetAuthAllow
-  httpSetAuthAnyValidUser
-  httpSetAuthDeny
-  httpSetAuthGroup
-  httpSetAuthOrder
-  httpSetAuthQop
-  httpSetAuthRealm
-  httpSetAuthRequiredGroups
-  httpSetAuthRequiredUsers
-  httpSetAuthUser
-  httpSetChunkSize
-  httpSetConnContext
-  httpSetConnHost
-  httpSetConnNotifier
-  httpSetConnector
-  httpSetContentLength
-  httpSetContext
-  httpSetCookie
-  httpSetCredentials
-  httpSetDefaultClientHost
-  httpSetDefaultClientPort
-  httpSetDirIndex
-  httpSetDirPath
-  httpSetEntityLength
-  httpSetForkCallback
-  httpSetFormVar
-  httpSetGroupAcl
-  httpSetHandler
-  httpSetHeader
-  httpSetHeadersCallback
-  httpSetHostAddress
-  httpSetHostDocumentRoot
-  httpSetHostLogRotation
-  httpSetHostName
-  httpSetHostProtocol
-  httpSetHostServerRoot
-  httpSetHostTrace
-  httpSetHostTraceFilter
-  httpSetIOCallback
-  httpSetIntFormVar
-  httpSetKeepAliveCount
-  httpSetListenCallback
-  httpSetLocationAuth
-  httpSetLocationAutoDelete
-  httpSetLocationFlags
-  httpSetLocationPrefix
-  httpSetLocationScript
-  httpSetMatchCallback
-  httpSetMetaServer
-  httpSetMimeType
-  httpSetNamedVirtualServer
-  httpSetNamedVirtualServers
-  httpSetPipeHandler
-  httpSetProtocol
-  httpSetProxy
-  httpSetRequestNotifier
-  httpSetRequiredAcl
-  httpSetResponseBody
-  httpSetRetries
-  httpSetSendConnector
-  httpSetServerAddress
-  httpSetServerAsync
-  httpSetServerContext
-  httpSetServerLocation
-  httpSetServerName
-  httpSetServerNotifier
-  httpSetSimpleHeader
-  httpSetSoftware
-  httpSetStageData
-  httpSetState
-  httpSetStatus
-  httpSetTimeout
-  httpSetUniqueConnLimits
-  httpSetUri
-  httpSetWriteBlocked
-  httpSetupTrace
-  httpShouldTrace
-  httpSplitPacket
-  httpStartPipeline
-  httpStartServer
-  httpStopServer
-  httpTestFormVar
-  httpTraceContent
-  httpUpdateUserAcls
-  httpUriToString
-  httpValidateLimits
-  httpValidateNativeCredentials
-  httpWait
-  httpWillNextQueueAcceptPacket
-  httpWritable
-  httpWrite
-  httpWriteBlock
-  httpWriteGroupFile
-  httpWriteHeaders
-  httpWriteString
-  httpWriteUploadData
-  httpWriteUserFile
+HttpStatusCodes
+__pamAuth
+httpAcceptConn
+httpAddAlias
+httpAddConn
+httpAddDir
+httpAddErrorDocument
+httpAddFilter
+httpAddGroup
+httpAddHandler
+httpAddHeader
+httpAddHost
+httpAddHostToServer
+httpAddHostToServers
+httpAddLocation
+httpAddLocationExpiry
+httpAddServer
+httpAddSimpleHeader
+httpAddStage
+httpAddUploadFile
+httpAddUser
+httpAddUserToGroup
+httpAddUsersToGroup
+httpAddVars
+httpAddVarsFromQueue
+httpAppendHeader
+httpAppendQueue
+httpCallEvent
+httpClearStages
+httpClonePacket
+httpCloneStage
+httpCloneUri
+httpCloseConn
+httpCloseRx
+httpCompareFormVar
+httpCompleteRequest
+httpCompleteUri
+httpCompleteWriting
+httpConnError
+httpConnect
+httpConsumeLastRequest
+httpContentNotModified
+httpCreate
+httpCreateAlias
+httpCreateAuth
+httpCreateBareDir
+httpCreateConfiguredServer
+httpCreateConn
+httpCreateConnector
+httpCreateDataPacket
+httpCreateDir
+httpCreateEndPacket
+httpCreateEnvVars
+httpCreateFilter
+httpCreateGroup
+httpCreateHandler
+httpCreateHeaderPacket
+httpCreateHost
+httpCreateInheritedLocation
+httpCreateLimits
+httpCreateLocation
+httpCreatePacket
+httpCreatePipeline
+httpCreateQueue
+httpCreateQueueHead
+httpCreateRange
+httpCreateRx
+httpCreateSecret
+httpCreateServer
+httpCreateStage
+httpCreateTx
+httpCreateUri
+httpCreateUriFromParts
+httpCreateUser
+httpCreateVirtualHost
+httpDefaultOutgoingServiceStage
+httpDestroy
+httpDestroyConn
+httpDestroyPipeline
+httpDestroyRx
+httpDestroyServer
+httpDestroyTx
+httpDisableGroup
+httpDisableQueue
+httpDisableUser
+httpDiscardData
+httpDiscardTransmitData
+httpDontCache
+httpEnableConnEvents
+httpEnableGroup
+httpEnableQueue
+httpEnableTraceMethod
+httpEnableUpload
+httpEnableUser
+httpError
+httpEvent
+httpFinalize
+httpFinalizeLocation
+httpFindPreviousQueue
+httpFlush
+httpFlushQueue
+httpFollowRedirects
+httpFormatBody
+httpFormatError
+httpFormatErrorV
+httpFormatUri
+httpGetAlias
+httpGetAsync
+httpGetChunkSize
+httpGetConnContext
+httpGetConnHost
+httpGetContentLength
+httpGetContext
+httpGetCookies
+httpGetDateString
+httpGetDefaultClientHost
+httpGetDefaultClientPort
+httpGetError
+httpGetExtension
+httpGetFormVar
+httpGetGroupAcl
+httpGetHandlerByExtension
+httpGetHeader
+httpGetHeaderHash
+httpGetHeaders
+httpGetIntFormVar
+httpGetMetaServer
+httpGetNativePassword
+httpGetNextQueueForService
+httpGetPacket
+httpGetQueryString
+httpGetQueueData
+httpGetQueueRoom
+httpGetRelativeUri
+httpGetServerAsync
+httpGetServerContext
+httpGetStageData
+httpGetStatus
+httpGetStatusMessage
+httpHandleOptionsTrace
+httpInitAuth
+httpInitLimits
+httpInitLocation
+httpInitQueue
+httpInitSchedulerQueue
+httpInitTrace
+httpInsertQueue
+httpIsEof
+httpIsFinalized
+httpIsGroupEnabled
+httpIsNamedVirtualServer
+httpIsPacketTooBig
+httpIsQueueEmpty
+httpIsUserEnabled
+httpJoinPacket
+httpJoinPacketForService
+httpJoinPackets
+httpJoinUri
+httpJoinUriPath
+httpLimitError
+httpLoadSsl
+httpLookupAlias
+httpLookupBestDir
+httpLookupBestLocation
+httpLookupDir
+httpLookupErrorDocument
+httpLookupHostByName
+httpLookupLocation
+httpLookupServer
+httpLookupStage
+httpLookupStatus
+httpMakeFilename
+httpMakePath
+httpMakeUriLocal
+httpManageTrace
+httpMapToStorage
+httpMatchEtag
+httpMatchHandler
+httpMatchHost
+httpMatchModified
+httpNeedRetry
+httpNormalizeUri
+httpNormalizeUriPath
+httpOmitBody
+httpOpenAuthFilter
+httpOpenChunkFilter
+httpOpenNetConnector
+httpOpenPassHandler
+httpOpenQueue
+httpOpenRangeFilter
+httpOpenSendConnector
+httpOpenUploadFilter
+httpParseAcl
+httpPrepClientConn
+httpPrepServerConn
+httpProcess
+httpProcessPipeline
+httpProtocolError
+httpPutBackPacket
+httpPutForService
+httpRead
+httpReadGroupFile
+httpReadString
+httpReadUserFile
+httpRedirect
+httpRemoveAllUploadedFiles
+httpRemoveConn
+httpRemoveGroup
+httpRemoveHeader
+httpRemoveHost
+httpRemoveQueue
+httpRemoveServer
+httpRemoveUploadFile
+httpRemoveUser
+httpRemoveUserFromGroup
+httpRemoveUsersFromGroup
+httpReplaceReferences
+httpResetCredentials
+httpResetHandlers
+httpResetPipeline
+httpResizePacket
+httpResolveUri
+httpScheduleQueue
+httpSecureServer
+httpSendOpen
+httpSendOutgoingService
+httpSendPacket
+httpSendPacketToNext
+httpSendPackets
+httpServiceQueue
+httpServiceQueues
+httpSetAsync
+httpSetAuthAllow
+httpSetAuthAnyValidUser
+httpSetAuthDeny
+httpSetAuthGroup
+httpSetAuthOrder
+httpSetAuthQop
+httpSetAuthRealm
+httpSetAuthRequiredGroups
+httpSetAuthRequiredUsers
+httpSetAuthUser
+httpSetChunkSize
+httpSetConnContext
+httpSetConnHost
+httpSetConnNotifier
+httpSetConnector
+httpSetContentLength
+httpSetContext
+httpSetCookie
+httpSetCredentials
+httpSetDefaultClientHost
+httpSetDefaultClientPort
+httpSetDirIndex
+httpSetDirPath
+httpSetEntityLength
+httpSetForkCallback
+httpSetFormVar
+httpSetGroupAcl
+httpSetHandler
+httpSetHeader
+httpSetHeadersCallback
+httpSetHostAddress
+httpSetHostDocumentRoot
+httpSetHostLogRotation
+httpSetHostName
+httpSetHostProtocol
+httpSetHostServerRoot
+httpSetHostTrace
+httpSetHostTraceFilter
+httpSetIOCallback
+httpSetIntFormVar
+httpSetKeepAliveCount
+httpSetListenCallback
+httpSetLocationAuth
+httpSetLocationAutoDelete
+httpSetLocationFlags
+httpSetLocationPrefix
+httpSetLocationScript
+httpSetMatchCallback
+httpSetMetaServer
+httpSetMimeType
+httpSetNamedVirtualServer
+httpSetNamedVirtualServers
+httpSetPipeHandler
+httpSetProtocol
+httpSetProxy
+httpSetRequestNotifier
+httpSetRequiredAcl
+httpSetResponseBody
+httpSetRetries
+httpSetSendConnector
+httpSetServerAddress
+httpSetServerAsync
+httpSetServerContext
+httpSetServerLocation
+httpSetServerName
+httpSetServerNotifier
+httpSetSimpleHeader
+httpSetSoftware
+httpSetStageData
+httpSetState
+httpSetStatus
+httpSetTimeout
+httpSetUniqueConnLimits
+httpSetUri
+httpSetWriteBlocked
+httpSetupTrace
+httpShouldTrace
+httpSplitPacket
+httpStartPipeline
+httpStartServer
+httpStopServer
+httpTestFormVar
+httpTraceContent
+httpUpdateUserAcls
+httpUriToString
+httpValidateLimits
+httpValidateNativeCredentials
+httpWait
+httpWillNextQueueAcceptPacket
+httpWritable
+httpWrite
+httpWriteBlock
+httpWriteGroupFile
+httpWriteHeaders
+httpWriteString
+httpWriteUploadData
+httpWriteUserFile

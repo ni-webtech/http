@@ -23,7 +23,7 @@ HttpAlias *httpCreateAlias(cchar *prefix, cchar *target, int code)
 {
     HttpAlias   *ap;
     cchar       *seps;
-    int         len;
+    ssize       len;
 
     mprAssert(prefix);
     mprAssert(target && *target);
