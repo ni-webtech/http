@@ -836,7 +836,7 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 
 static bool processParsed(HttpConn *conn)
 {
-    if (!conn->abortPipeline) {
+    if (!conn->connError) {
         httpStartPipeline(conn);
         if (!conn->error && !conn->writeComplete && conn->rx->remainingContent > 0) {
             /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
@@ -931,7 +931,6 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     rx = conn->rx;
     q = conn->tx->queue[HTTP_QUEUE_RECEIVE];
 
-    //  MOB - if we should consume the data, then remove conn->complete
     if (conn->complete || conn->connError || rx->remainingContent <= 0) {
         //  MOB -- this needs checking - upload too much data
         httpSetState(conn, HTTP_STATE_RUNNING);
@@ -966,7 +965,7 @@ static bool processRunning(HttpConn *conn)
 {
     int     canProceed;
 
-    if (conn->abortPipeline) {
+    if (conn->connError) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
         canProceed = 1;
     } else {
@@ -974,7 +973,6 @@ static bool processRunning(HttpConn *conn)
             httpProcessPipeline(conn);
         }
         if (conn->server) {
-            //  MOB - simplify test
             if (conn->complete || conn->writeComplete) {
                 httpSetState(conn, HTTP_STATE_COMPLETE);
                 canProceed = 1;

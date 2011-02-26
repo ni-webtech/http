@@ -213,7 +213,6 @@ void httpPrepServerConn(HttpConn *conn)
         mprRemoveEvent(conn->timeout);
     }
     if (conn->state != HTTP_STATE_BEGIN) {
-        conn->abortPipeline = 0;
         conn->canProceed = 1;
         conn->complete = 0;
         conn->error = 0;
@@ -256,7 +255,6 @@ void httpPrepClientConn(HttpConn *conn, int keepHeaders)
     } else {
         conn->input = 0;
     }
-    conn->abortPipeline = 0;
     conn->canProceed = 1;
     conn->complete = 0;
     conn->connError = 0;
@@ -867,7 +865,6 @@ void httpConnError(HttpConn *conn, int status, cchar *fmt, ...)
         conn->connError = 1;
         conn->complete = 1;
         conn->writeComplete = 1;
-        conn->abortPipeline = 1;
         if (conn->server) {
             mprDisconnectSocket(conn->sock);
         } else {

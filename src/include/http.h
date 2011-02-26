@@ -1354,10 +1354,6 @@ typedef struct HttpConn {
 
     int             state;                  /**< Connection state */
     int             flags;                  /**< Connection flags */
-//  MOB - remove use connError + protoError if possible
-    int             abortPipeline;          /**< Connection errors (not proto errors) abort the pipeline */
-
-//  MOB - is this used?
     int             advancing;              /**< In httpProcess (reentrancy prevention) */
 //  MOB - remove complete if possible - need to advance through states
     int             complete;               /**< Request is complete and should step through all remaining states */
