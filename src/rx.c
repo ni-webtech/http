@@ -210,13 +210,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpSetState(conn, HTTP_STATE_PARSED);        
         httpCreatePipeline(conn, rx->loc, tx->handler);
 
-#if FUTURE
-        //  MOB -- TODO
-        if (0 && tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
-            threadRequest(conn);
-            return 0;
-        }
-#endif
     } else if (!(100 <= rx->status && rx->status < 200)) {
         httpSetState(conn, HTTP_STATE_PARSED);        
     }
@@ -841,27 +834,6 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 }
 
 
-#if FUTURE
-static void httpThreadEvent(HttpConn *conn)
-{
-    httpCallEvent(conn, 0);
-}
-
-
-static void threadRequest(HttpConn *conn)
-{
-    mprAssert(!conn->dispatcher->enabled);
-    mprAssert(conn->dispatcher != conn->server->dispatcher);
-
-    conn->threaded = 1;
-    conn->startingThread = 1;
-    mprInitEvent(conn->dispatcher, &conn->runEvent, "runEvent", 0, (MprEventProc) httpThreadEvent, conn, 0);
-    mprQueueEvent(conn->dispatcher, &conn->runEvent);
-    mprAssert(!conn->dispatcher->enabled);
-}
-#endif
-
-
 static bool processParsed(HttpConn *conn)
 {
     if (!conn->abortPipeline) {
@@ -959,6 +931,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     rx = conn->rx;
     q = conn->tx->queue[HTTP_QUEUE_RECEIVE];
 
+    //  MOB - if we should consume the data, then remove conn->complete
     if (conn->complete || conn->connError || rx->remainingContent <= 0) {
         //  MOB -- this needs checking - upload too much data
         httpSetState(conn, HTTP_STATE_RUNNING);
@@ -1380,8 +1353,7 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         if (!conn->writeComplete) {
             eventMask |= MPR_WRITABLE;
         }
-        conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, (MprEventProc) waitHandler, 
-            conn, 0);
+        conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, waitHandler, conn, 0);
         addedHandler = 1;
     } else {
         addedHandler = 0;

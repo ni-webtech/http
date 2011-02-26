@@ -66,7 +66,7 @@ HttpStatusCode HttpStatusCodes[] = {
 
 /****************************** Forward Declarations **************************/
 
-static int httpTimer(Http *http, MprEvent *event);
+static void httpTimer(Http *http, MprEvent *event);
 static bool isIdle();
 static void manageHttp(Http *http, int flags);
 static void updateCurrentDate(Http *http);
@@ -306,7 +306,7 @@ void httpInitLimits(HttpLimits *limits, int serverSide)
     limits->uriSize = MPR_MAX_URL;
 
     limits->inactivityTimeout = HTTP_INACTIVITY_TIMEOUT;
-    limits->requestTimeout = 0;
+    limits->requestTimeout = INT_MAX;
     limits->sessionTimeout = HTTP_SESSION_TIMEOUT;
 
     limits->clientCount = HTTP_MAX_CLIENTS;
@@ -395,8 +395,8 @@ void httpSetMatchCallback(Http *http, HttpMatchCallback fn)
 static void startTimer(Http *http)
 {
     updateCurrentDate(http);
-    http->timer = mprCreateTimerEvent(NULL, "httpTimer", HTTP_TIMER_PERIOD, (MprEventProc) httpTimer, 
-        http, MPR_EVENT_CONTINUOUS | MPR_EVENT_QUICK);
+    http->timer = mprCreateTimerEvent(NULL, "httpTimer", HTTP_TIMER_PERIOD, httpTimer, http, 
+        MPR_EVENT_CONTINUOUS | MPR_EVENT_QUICK);
 }
 
 
@@ -405,49 +405,38 @@ static void startTimer(Http *http)
     When multi-threaded, the http timer runs as an event off the service thread. Because we lock the http here,
     connections cannot be deleted while we are modifying the list.
  */
-static int httpTimer(Http *http, MprEvent *event)
+static void httpTimer(Http *http, MprEvent *event)
 {
     HttpConn    *conn;
     HttpStage   *stage;
+    HttpRx      *rx;
+    HttpLimits  *limits;
     MprModule   *module;
-    int64       diff;
-    int         next, count, inactivity, requestTimeout, inactivityTimeout;
+    int         next, count;
 
     mprAssert(event);
     
     updateCurrentDate(http);
     if (mprGetDebugMode(http)) {
-        return 0;
+        return;
     }
 
     /* 
-       Check for any inactive or expired connections (inactivityTimeout and requestTimeout)
+       Check for any inactive connections or expired requests (inactivityTimeout and requestTimeout)
      */
     lock(http);
     mprLog(8, "httpTimer: %d active connections", mprGetListLength(http->connections));
     for (count = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; count++) {
-        //  MOB - refactor this and have limits always set
-        requestTimeout = conn->limits->requestTimeout ? conn->limits->requestTimeout : INT_MAX;
-        inactivityTimeout = conn->limits->inactivityTimeout ? conn->limits->inactivityTimeout : INT_MAX;
-        /* 
-            Workaround for a GCC bug when comparing two 64bit numerics directly. Need a temporary.
-         */
-        diff = (conn->lastActivity + inactivityTimeout) - http->now;
-        inactivity = 1;
-        if (diff > 0 && conn->rx) {
-            diff = (conn->lastActivity + requestTimeout) - http->now;
-            inactivity = 0;
-        }
-
-        if (diff < 0 && !conn->complete) {
-            if (conn->rx) {
-                if (inactivity) {
-                    httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT,
-                        "Inactive request timed out. Exceeded inactivity timeout of %d sec. Uri: \"%s\"", 
-                        inactivityTimeout / 1000, conn->rx->uri);
-                } else {
-                    httpConnError(conn, HTTP_CODE_REQUEST_TIMEOUT, 
-                        "Request timed out, exceeded timeout %d sec. Url %s", requestTimeout / 1000, conn->rx->uri);
+        rx = conn->rx;
+        limits = conn->limits;
+        if ((conn->lastActivity + limits->requestTimeout) < http->now || 
+            (conn->started + limits->requestTimeout) < http->now) {
+            if (rx) {
+                /*
+                    Don't call APIs on the onn directly (thread-race). Schedule a timer on the connection's dispatcher
+                 */
+                if (!conn->timeout) {
+                    conn->timeout = mprCreateEvent(conn->dispatcher, "connTimeout", 0, httpConnTimeout, conn, 0);
                 }
             } else {
                 mprLog(6, "Idle connection timed out");
@@ -456,6 +445,7 @@ static int httpTimer(Http *http, MprEvent *event)
             }
         }
     }
+
     /*
         Check for unloadable modules
      */
@@ -486,7 +476,6 @@ static int httpTimer(Http *http, MprEvent *event)
         http->timer = 0;
     }
     unlock(http);
-    return 0;
 }
 
 

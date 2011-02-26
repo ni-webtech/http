@@ -407,11 +407,11 @@ void httpSetHostTrace(HttpHost *host, int level, int mask)
 }
 
 
-void httpSetHostTraceFilter(HttpHost *host, int len, cchar *include, cchar *exclude)
+void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *exclude)
 {
     char    *word, *tok, *line;
 
-    host->traceMaxLength = len;
+    host->traceMaxLength = (int) len;
 
     if (include && strcmp(include, "*") != 0) {
         host->traceInclude = mprCreateHash(0, 0);

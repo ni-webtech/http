@@ -39,6 +39,7 @@ httpCompleteRequest
 httpCompleteUri
 httpCompleteWriting
 httpConnError
+httpConnTimeout
 httpConnect
 httpConsumeLastRequest
 httpContentNotModified
