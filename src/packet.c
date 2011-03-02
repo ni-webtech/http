@@ -86,8 +86,7 @@ HttpPacket *httpCreateDataPacket(ssize size)
 {
     HttpPacket    *packet;
 
-    packet = httpCreatePacket(size);
-    if (packet == 0) {
+    if ((packet = httpCreatePacket(size)) == 0) {
         return 0;
     }
     packet->flags = HTTP_PACKET_DATA;
@@ -99,8 +98,7 @@ HttpPacket *httpCreateEndPacket()
 {
     HttpPacket    *packet;
 
-    packet = httpCreatePacket(0);
-    if (packet == 0) {
+    if ((packet = httpCreatePacket(0)) == 0) {
         return 0;
     }
     packet->flags = HTTP_PACKET_END;
@@ -112,8 +110,7 @@ HttpPacket *httpCreateHeaderPacket()
 {
     HttpPacket    *packet;
 
-    packet = httpCreatePacket(HTTP_BUFSIZE);
-    if (packet == 0) {
+    if ((packet = httpCreatePacket(HTTP_BUFSIZE)) == 0) {
         return 0;
     }
     packet->flags = HTTP_PACKET_HEADER;

@@ -440,8 +440,7 @@ static void httpTimer(Http *http, MprEvent *event)
                 }
             } else {
                 mprLog(6, "Idle connection timed out");
-                conn->complete = 1;
-                mprDisconnectSocket(conn->sock);
+                httpDisconnect(conn);
             }
         }
     }

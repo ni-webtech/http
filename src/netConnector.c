@@ -48,21 +48,19 @@ static void netOutgoingService(HttpQueue *q)
     tx = conn->tx;
     conn->lastActivity = conn->http->now;
     
+    //  MOB - remove
     if (conn->sock == 0 || conn->writeComplete) {
+        mprAssert(conn->sock && !conn->writeComplete);
         return;
     }
     if (tx->flags & HTTP_TX_NO_BODY) {
         httpDiscardData(q, 1);
     }
     if ((tx->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
-        httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, 
+        httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, 
             "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
-        if (tx->flags & HTTP_TX_HEADERS_CREATED) {
-            /* Must disconnect as the client must be notified somehow */
-            mprDisconnectSocket(conn->sock);
-            httpCompleteWriting(conn);
-            return;
-        }
+        httpCompleteWriting(conn);
+        return;
     }
     if (tx->flags & HTTP_TX_SENDFILE) {
         /* Relay via the send connector */
@@ -99,7 +97,7 @@ static void netOutgoingService(HttpQueue *q)
             if (errCode != EPIPE && errCode != ECONNRESET) {
                 LOG(5, "netOutgoingService write failed, error %d", errCode);
             }
-            httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
+            httpError(conn, HTTP_ABORT | HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
             httpCompleteWriting(conn);
             break;
 

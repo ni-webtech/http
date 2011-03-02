@@ -78,7 +78,7 @@ static void testBasicHttpGet(MprTestGroup *gp)
     th->http = http = httpCreate(gp);
     assert(http != 0);
 
-    th->conn = conn = httpCreateConn(http, NULL, NULL);
+    th->conn = conn = httpCreateConn(http, NULL, gp->dispatcher);
 
     rc = httpConnect(conn, "GET", "http://embedthis.com/index.html");
     assert(rc >= 0);
@@ -109,7 +109,7 @@ static void testSecureHttpGet(MprTestGroup *gp)
     th = gp->data;
     th->http = http = httpCreate(gp);
     assert(http != 0);
-    th->conn = conn = httpCreateConn(http, NULL, NULL);
+    th->conn = conn = httpCreateConn(http, NULL, gp->dispatcher);
     assert(conn != 0);
 
     rc = httpConnect(conn, "GET", "https://www.amazon.com/index.html");

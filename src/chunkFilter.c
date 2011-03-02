@@ -85,7 +85,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
 
     if (packet->content == 0) {
         if (rx->chunkState == HTTP_CHUNK_DATA) {
-            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk state");
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk state");
             return;
         }
         rx->chunkState = HTTP_CHUNK_EOF;
@@ -111,12 +111,12 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
         }
         bad += (cp[-1] != '\r' || cp[0] != '\n');
         if (bad) {
-            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
         }
         rx->chunkSize = (int) stoi(&start[2], 16, NULL);
         if (!isxdigit((int) start[2]) || rx->chunkSize < 0) {
-            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
         }
         mprAdjustBufStart(buf, (cp - start + 1));

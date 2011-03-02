@@ -199,7 +199,9 @@ void httpSetSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
 
 void httpDontCache(HttpConn *conn)
 {
-    conn->tx->flags |= HTTP_TX_DONT_CACHE;
+    if (conn->tx) {
+        conn->tx->flags |= HTTP_TX_DONT_CACHE;
+    }
 }
 
 
@@ -386,11 +388,9 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
     int         webkitVersion;
 
     rx = conn->rx;
-
     if (path == 0) {
         path = "/";
     }
-
     /* 
         Fix for Safari >= 3.2.1 with Bonjour addresses with a trailing ".". Safari discards cookies without a domain 
         specifier or with a domain that includes a trailing ".". Solution: include an explicit domain and trim the 

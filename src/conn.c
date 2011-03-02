@@ -45,6 +45,7 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
     }
     mprAssert(conn->limits->requestTimeout > 0);
     mprAssert(conn->limits->inactivityTimeout > 0);
+    conn->keepAliveCount = conn->limits->keepAliveCount;
 
     conn->serviceq = httpCreateQueueHead(conn, "serviceq");
 
@@ -57,7 +58,6 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
     } else {
         conn->dispatcher = mprGetDispatcher();
     }
-    conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpAddConn(http, conn);
     return conn;
@@ -145,9 +145,6 @@ static void manageConn(HttpConn *conn, int flags)
 
 /*  
     Close the connection but don't destroy the conn object.
-    WARNING: Once this is called, you can't get wait handler events. So handlers must not call this. 
-    Rather, handlers should call mprDisconnectSocket that will cause a readable event to come and readEvent can
-    then do an orderly close and free the connection structure.
  */
 void httpCloseConn(HttpConn *conn)
 {
@@ -194,77 +191,62 @@ void httpConnTimeout(HttpConn *conn)
 }
 
 
+static void commonPrep(HttpConn *conn)
+{
+    Http    *http;
+
+    http = conn->http;
+    lock(http);
+
+    if (conn->timeout) {
+        mprRemoveEvent(conn->timeout);
+    }
+    conn->canProceed = 1;
+    conn->error = 0;
+    conn->errorMsg = 0;
+    conn->flags = 0;
+    conn->state = 0;
+    conn->writeComplete = 0;
+
+    if (conn->dispatcher == 0) {
+        mprAssert(0);
+        conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
+    }
+    conn->lastActivity = conn->http->now;
+    httpSetState(conn, HTTP_STATE_BEGIN);
+    httpInitSchedulerQueue(conn->serviceq);
+    unlock(http);
+}
+
+
 /*  
     Prepare a connection for a new request after completing a prior request.
  */
 void httpPrepServerConn(HttpConn *conn)
 {
-    Http    *http;
-
     mprAssert(conn);
+    mprAssert(conn->rx == 0);
+    mprAssert(conn->tx == 0);
 
-    /*
-        Race with httpTimer
-     */ 
-    http = conn->http;
-    lock(http);
-
-    if (conn->timeout) {
-        mprRemoveEvent(conn->timeout);
-    }
-    if (conn->state != HTTP_STATE_BEGIN) {
-        conn->canProceed = 1;
-        conn->complete = 0;
-        conn->error = 0;
-        conn->errorMsg = 0;
-        conn->flags = 0;
-        conn->state = 0;
-        conn->readq = 0;
-        conn->writeq = 0;
-        conn->writeComplete = 0;
-        conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
-        httpSetState(conn, HTTP_STATE_BEGIN);
-        httpInitSchedulerQueue(conn->serviceq);
-        mprAssert(conn->rx == 0);
-        mprAssert(conn->tx == 0);
-    }
-    conn->lastActivity = conn->http->now;
-    unlock(http);
+    conn->readq = 0;
+    conn->writeq = 0;
+    conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
+    commonPrep(conn);
 }
 
 
 void httpPrepClientConn(HttpConn *conn, int keepHeaders)
 {
-    Http            *http;
     MprHashTable    *headers;
 
     mprAssert(conn);
 
-    /*
-        Race with httpTimer
-     */ 
-    http = conn->http;
-    lock(http);
-
-    if (conn->timeout) {
-        mprRemoveEvent(conn->timeout);
-    }
     if (conn->keepAliveCount >= 0 && conn->sock) {
         /* Eat remaining input incase last request did not consume all data */
         httpConsumeLastRequest(conn);
     } else {
         conn->input = 0;
     }
-    conn->canProceed = 1;
-    conn->complete = 0;
-    conn->connError = 0;
-    conn->error = 0;
-    conn->errorMsg = 0;
-    conn->flags = 0;
-    conn->state = 0;
-    conn->writeComplete = 0;
-    conn->lastActivity = conn->http->now;
-
     if (conn->tx) {
         conn->tx->conn = 0;
     }
@@ -274,11 +256,8 @@ void httpPrepClientConn(HttpConn *conn, int keepHeaders)
         conn->rx->conn = 0;
     }
     conn->rx = httpCreateRx(conn);
-
-    httpSetState(conn, HTTP_STATE_BEGIN);
-    httpInitSchedulerQueue(conn->serviceq);
     httpCreatePipeline(conn, NULL, NULL);
-    unlock(http);
+    commonPrep(conn);
 }
 
 
@@ -332,14 +311,17 @@ void httpEvent(HttpConn *conn, MprEvent *event)
         readEvent(conn);
     }
     if (conn->server) {
-        if (conn->connError || mprIsSocketEof(conn->sock) || (!conn->rx && conn->keepAliveCount < 0)) {
+#if UNUSED
+        if (conn->keepAliveCount < 0 || mprIsSocketEof(conn->sock))
+#endif
+        if (conn->keepAliveCount < 0) {
             /*  
                 NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
-                It should respond to the "Connection: close" and thus initiate a client-led close. 
-                This reduces TIME_WAIT states on the server. 
+                It should respond to the "Connection: close" and thus initiate a client-led close. This reduces 
+                TIME_WAIT states on the server. NOTE: after httpDestroyConn, conn structure and memory is still 
+                intact but conn->sock is zero.
              */
             httpDestroyConn(conn);
-            /* NOTE: conn structure and memory is still intact but conn->sock is zero */
             return;
         }
     }
@@ -355,7 +337,7 @@ static void readEvent(HttpConn *conn)
     HttpPacket  *packet;
     ssize       nbytes, len;
 
-    while ((packet = getPacket(conn, &len)) != 0) {
+    while (!conn->connError && (packet = getPacket(conn, &len)) != 0) {
         nbytes = mprReadSocket(conn->sock, mprGetBufEnd(packet->content), len);
         LOG(8, "http: read event. Got %d", nbytes);
        
@@ -366,19 +348,22 @@ static void readEvent(HttpConn *conn)
         } else if (nbytes < 0) {
             if (conn->state <= HTTP_STATE_CONNECTED) {
                 if (mprIsSocketEof(conn->sock)) {
-                    conn->connError = conn->error = 1;
+                    conn->keepAliveCount = -1;
                 }
                 break;
             } else if (conn->state < HTTP_STATE_COMPLETE) {
                 httpProcess(conn, packet);
+#if UNUSED
+                //  MOB - should be detected when request tries to write
                 if (!conn->error && conn->state < HTTP_STATE_COMPLETE && mprIsSocketEof(conn->sock)) {
-                    httpConnError(conn, HTTP_CODE_COMMS_ERROR, "Connection lost");
+                    httpError(conn, HTTP_ABORT | HTTP_CODE_COMMS_ERROR, "Connection lost");
                     break;
                 }
+#endif
             }
             break;
         }
-        if (nbytes == 0 || conn->connError || conn->state >= HTTP_STATE_RUNNING) {
+        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING) {
             break;
         }
     }
@@ -462,10 +447,10 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
 {
     HttpPacket  *packet;
     MprBuf      *content;
-    HttpRx      *req;
+    HttpRx      *rx;
     ssize       len;
 
-    req = conn->rx;
+    rx = conn->rx;
     len = HTTP_BUFSIZE;
 
     //  MOB -- simplify. Okay to lose some optimization for chunked data?
@@ -478,14 +463,14 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
     } else {
         content = packet->content;
         mprResetBufIfEmpty(content);
-        if (req) {
+        if (rx) {
             /*  
                 Don't read more than the remainingContent unless chunked. We do this to minimize requests split 
                 accross packets.
              */
-            if (req->remainingContent) {
-                len = req->remainingContent;
-                if (req->flags & HTTP_CHUNKED) {
+            if (rx->remainingContent) {
+                len = rx->remainingContent;
+                if (rx->flags & HTTP_CHUNKED) {
                     len = max(len, HTTP_BUFSIZE);
                 }
             }
@@ -494,14 +479,7 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
             if (mprGetBufSpace(content) < len) {
                 mprGrowBuf(content, len);
             }
-
         } else {
-            //  MOB -- but this logic is not in the oter "then" case above.
-            /* Still reading the headers */
-            if (mprGetBufLength(content) >= conn->limits->headerSize) {
-                httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
-                return 0;
-            }
             if (mprGetBufSpace(content) < HTTP_BUFSIZE) {
                 mprGrowBuf(content, HTTP_BUFSIZE);
             }
@@ -515,13 +493,6 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
 }
 
 
-void httpCompleteRequest(HttpConn *conn)
-{
-    httpFinalize(conn);
-    conn->complete = 1;
-}
-
-
 /*
     Called by connectors when writing the transmission is complete
  */
@@ -531,8 +502,6 @@ void httpCompleteWriting(HttpConn *conn)
     if (conn->tx) {
         conn->tx->finalized = 1;
     }
-    //  MOB -- id this necessary?
-    httpDiscardTransmitData(conn);
 }
 
 
@@ -732,12 +701,20 @@ void httpWritable(HttpConn *conn)
 
 void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
-    conn->errorMsg = mprAsprintfv(fmt, args);
-    if (status) {
-        if (conn->server && conn->tx) {
-            conn->tx->status = status;
-        } else if (conn->rx) {
-            conn->rx->status = status;
+    if (conn->errorMsg == 0) {
+        conn->errorMsg = mprAsprintfv(fmt, args);
+        if (status) {
+            if (conn->server && conn->tx) {
+                conn->tx->status = status;
+            } else if (conn->rx) {
+                conn->rx->status = status;
+            }
+        }
+        if (conn->rx == 0) {
+            mprLog(2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
+        } else {
+            mprLog(2, "Error: \"%s\", status %d for URI \"%s\": %s.",
+                httpLookupStatus(conn->http, status), status, conn->rx->uri ? conn->rx->uri : "", conn->errorMsg);
         }
     }
 }
@@ -761,117 +738,64 @@ void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...)
     overrides the normal output with an alternate error message. If the output has alread started (headers sent), then
     the connection MUST be closed so the client can get some indication the request failed.
  */
-static void httpErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
+static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
 {
     HttpRx      *rx;
     HttpTx      *tx;
+    int         status;
 
     mprAssert(fmt);
-
     rx = conn->rx;
+    tx = conn->tx;
 
-    if (!conn->error) {
-        conn->error = 1;
-        httpFormatErrorV(conn, status, fmt, args);
-        if (rx == 0) {
-            mprLog(2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
+    if (flags & HTTP_ABORT) {
+        conn->connError = 1;
+    }
+    conn->error = 1;
+    status = flags & HTTP_CODE_MASK;
+    httpFormatErrorV(conn, status, fmt, args);
+
+    if (flags & (HTTP_ABORT | HTTP_CLOSE)) {
+        conn->keepAliveCount = -1;
+    }
+    if (conn->server) {
+        /*
+            Server side must not call httpCloseConn() as it will remove wait handlers.
+         */
+        if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
+            /* 
+                If headers have been sent, must let the client know the request has failed - abort is the only way.
+                Disconnect will cause a readable (EOF) event
+             */
+            httpDisconnect(conn);
         } else {
-            mprLog(2, "Error: \"%s\", status %d for URI \"%s\": %s.",
-                httpLookupStatus(conn->http, status), status, rx->uri ? rx->uri : "", conn->errorMsg);
+            httpSetResponseBody(conn, status, conn->errorMsg);
         }
-        tx = conn->tx;
-        if (tx) {
-            if (conn->server) {
-                if (tx->flags & HTTP_TX_HEADERS_CREATED) {
-                    /* Headers and status have been sent, so must let the client know the request has failed */
-                    mprDisconnectSocket(conn->sock);
-                } else {
-                    httpSetResponseBody(conn, status, conn->errorMsg);
-                    httpFinalize(conn);
-                }
-            } else {
-                if (tx->flags & HTTP_TX_HEADERS_CREATED) {
-                    httpCloseConn(conn);
-                }
-            }
+    } else {
+        if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
+            httpCloseConn(conn);
         }
     }
 }
 
 
-void httpError(HttpConn *conn, int status, cchar *fmt, ...)
+void httpError(HttpConn *conn, int flags, cchar *fmt, ...)
 {
     va_list     args;
 
     va_start(args, fmt);
-    httpErrorV(conn, status, fmt, args);
+    httpErrorV(conn, flags, fmt, args);
     va_end(args);
 }
 
 
-/*
-    A resource limit error has occurred. For servers: best to stop future requests on the current connection, but 
-    try to send a meaningful response back to the client. For clients, just close the connection.
- */
-void httpLimitError(HttpConn *conn, int status, cchar *fmt, ...)
+void httpDisconnect(HttpConn *conn)
 {
-    va_list     args;
-
-    va_start(args, fmt);
-    httpErrorV(conn, status, fmt, args);
-    va_end(args);
-    conn->complete = 1;
+    if (conn->sock) {
+        mprDisconnectSocket(conn->sock);
+    }
     conn->connError = 1;
-    if (!conn->server) {
-        /* Handlers must not call CloseConn as it disables wait events */
-        httpCloseConn(conn);
-    }
-}
-
-
-/*
-    A HTTP protocol error has occurred. For servers: best to stop future requests on the current connection, but 
-    try to send a meaningful response back to the client. For clients, just close the connection.
- */
-void httpProtocolError(HttpConn *conn, int status, cchar *fmt, ...)
-{
-    va_list     args;
-
-    if (!conn->connError) { 
-        va_start(args, fmt);
-        httpErrorV(conn, status, fmt, args);
-        va_end(args);
-        conn->complete = 1;
-        conn->connError = 1;
-        if (!conn->server) {
-            /* Handlers must not call CloseConn as it disables wait events */
-            httpCloseConn(conn);
-        }
-    }
-}
-
-
-/*
-    The connection has been broken. Fail the current request and the processing pipeline. Close the connection.
- */
-void httpConnError(HttpConn *conn, int status, cchar *fmt, ...)
-{
-    va_list     args;
-
-    if (!conn->connError) { 
-        va_start(args, fmt);
-        httpErrorV(conn, status, fmt, args);
-        va_end(args);
-        conn->connError = 1;
-        conn->complete = 1;
-        conn->writeComplete = 1;
-        if (conn->server) {
-            mprDisconnectSocket(conn->sock);
-        } else {
-            /* Handlers must not call CloseConn as it disables wait events */
-            httpCloseConn(conn);
-        }
-    }
+    conn->keepAliveCount = -1;
 }
 
 /*

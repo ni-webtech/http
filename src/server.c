@@ -217,7 +217,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     case HTTP_VALIDATE_OPEN_CONN:
         if (server->clientCount >= limits->clientCount) {
             unlock(server->http);
-            httpConnError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, 
+            httpError(conn, HTTP_ABORT | HTTP_CODE_SERVICE_UNAVAILABLE, 
                 "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
             return 0;
         }
@@ -242,7 +242,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
         if (server->requestCount >= limits->requestCount) {
             //  MOB -- will CLOSE_REQUEST get called and thus set the limit to negative?
             unlock(server->http);
-            httpConnError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, 
+            httpError(conn, HTTP_ABORT | HTTP_CODE_SERVICE_UNAVAILABLE, 
                 "Too many concurrent requests %d/%d", server->requestCount, limits->requestCount);
             return 0;
         }

@@ -38,8 +38,8 @@ void httpMatchHost(HttpConn *conn)
 
     server = httpLookupServer(http, listenSock->ip, listenSock->port);
     if (server == 0 || (host = mprGetFirstItem(server->hosts)) == 0) {
-        httpProtocolError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, 
-            "No host to serve request from %s:%d", listenSock->ip, listenSock->port);
+        mprError("No host to serve request from %s:%d", listenSock->ip, listenSock->port);
+        mprCloseSocket(conn->sock, 0);
         return;
     }
     mprAssert(host);
@@ -55,16 +55,6 @@ void httpMatchHost(HttpConn *conn)
     mprAssert(host);
     mprLog(3, "Select host: \"%s\"", host->name);
     conn->host = host;
-#if UNUSED
-    //  MOB - who does this?
-    if (mprGetLogLevel(conn) >= host->traceLevel) {
-        conn->traceLevel = host->traceLevel;
-        conn->traceMaxLength = host->traceMaxLength;
-        conn->traceMask = host->traceMask;
-        conn->traceInclude = host->traceInclude;
-        conn->traceExclude = host->traceExclude;
-    }            
-#endif
 }
 
 
@@ -278,7 +268,7 @@ static HttpStage *findHandler(HttpConn *conn)
         if (handler == 0) {
             handler = http->passHandler;
             if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) {
-                httpProtocolError(conn, HTTP_CODE_NOT_IMPLEMENTED, "No handler to service method \"%s\" for request \"%s\"", 
+                httpError(conn, HTTP_CODE_NOT_IMPLEMENTED, "No handler to service method \"%s\" for request \"%s\"", 
                     rx->method, rx->pathInfo);
             }
         }

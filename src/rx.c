@@ -183,7 +183,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     mprAddNullToBuf(packet->content);
 
     if (len >= conn->limits->headerSize) {
-        httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
+        httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
         return 0;
     }
     if (conn->server) {
@@ -200,7 +200,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     if (conn->server) {
         httpMatchHost(conn);
         if (httpSetUri(conn, rx->uri, "") < 0) {
-            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad URL format");
+            httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad URL format");
             return 0;
         }
         if (!tx->handler) {
@@ -318,13 +318,10 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     }
     if (methodFlags == 0) {
         methodFlags = HTTP_UNKNOWN;
-#if UNUSED
-        httpProtocolError(conn, HTTP_CODE_BAD_METHOD, "Unknown method");
-#endif
     }
     uri = getToken(conn, " ");
     if (*uri == '\0') {
-        httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Empty URI");
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Empty URI");
     } else if ((int) strlen(uri) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad request. URI too long");
     }
@@ -336,7 +333,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         }
         conn->http10 = 1;
     } else if (strcmp(protocol, "HTTP/1.1") != 0) {
-        httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
     rx->flags |= methodFlags;
     rx->uri = uri;
@@ -369,11 +366,11 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         conn->http10 = 1;
     } else if (strcmp(protocol, "HTTP/1.1") != 0) {
-        httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
     status = getToken(conn, " ");
     if (*status == '\0') {
-        httpProtocolError(conn, HTTP_CODE_NOT_ACCEPTABLE, "Bad response status code");
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Bad response status code");
     }
     rx->status = atoi(status);
     rx->statusMessage = sclone(getToken(conn, "\r\n"));
@@ -415,11 +412,11 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
     for (count = 0; content->start[0] != '\r' && !conn->connError; count++) {
         if (count >= limits->headerCount) {
-            httpLimitError(conn, HTTP_CODE_BAD_REQUEST, "Too many headers");
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Too many headers");
             break;
         }
         if ((key = getToken(conn, ":")) == 0 || *key == '\0') {
-            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad header format");
+            httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad header format");
             break;
         }
         value = getToken(conn, "\r\n");
@@ -430,8 +427,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         LOG(8, "Key %s, value %s", key, value);
         if (strspn(key, "%<>/\\") > 0) {
-            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad header key value");
-            break;
+            httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad header key value");
         }
         if ((oldValue = mprLookupHash(rx->headers, key)) != 0) {
             mprAddKey(rx->headers, key, mprAsprintf("%s, %s", oldValue, value));
@@ -459,16 +455,16 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         case 'c':
             if (strcmp(key, "content-length") == 0) {
                 if (rx->length >= 0) {
-                    httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Mulitple content length headers");
+                    httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Mulitple content length headers");
                     break;
                 }
                 rx->length = atoi(value);
                 if (rx->length < 0) {
-                    httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad content length");
+                    httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad content length");
                     break;
                 }
                 if (rx->length >= conn->limits->receiveBodySize) {
-                    httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE,
+                    httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
                         "Request content length %d bytes is too big. Limit %d.", rx->length, conn->limits->receiveBodySize);
                     break;
                 }
@@ -839,6 +835,7 @@ static bool processParsed(HttpConn *conn)
     if (!conn->connError) {
         httpStartPipeline(conn);
         if (!conn->error && !conn->writeComplete && conn->rx->remainingContent > 0) {
+            //  MOB - why testing remainingContent above?
             /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
             httpWritable(conn);
         }
@@ -889,8 +886,9 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         rx->receivedContent += nbytes;
 
         if (rx->receivedContent >= conn->limits->receiveBodySize) {
-            httpLimitError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Request content body of %d bytes is too big. Limit %d.",
-                rx->receivedContent, conn->limits->receiveBodySize);
+            httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, 
+                "Request body of %d bytes is too big. Limit %d.", rx->receivedContent, conn->limits->receiveBodySize);
+            httpSetState(conn, HTTP_STATE_RUNNING);
             return 0;
         }
         if (packet == rx->headerPacket) {
@@ -904,15 +902,10 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             conn->input = httpSplitPacket(packet, nbytes);
         }
         if ((q->count + httpGetPacketLength(packet)) > q->max) {
-            /*  
-                MOB -- should flow control instead
-                httpLimitError(q->conn, HTTP_CODE_REQUEST_TOO_LARGE, "Too much body data");
-            */
+            //  MOB - is this right?
             return 0;
         }
-        if (!conn->error) {
-            httpSendPacketToNext(q, packet);
-        }
+        httpSendPacketToNext(q, packet);
 
     } else {
         conn->input = 0;
@@ -931,33 +924,25 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     rx = conn->rx;
     q = conn->tx->queue[HTTP_QUEUE_RECEIVE];
 
-    if (conn->complete || conn->connError || rx->remainingContent <= 0) {
-        //  MOB -- this needs checking - upload too much data
+    if (conn->connError || rx->remainingContent <= 0) {
         httpSetState(conn, HTTP_STATE_RUNNING);
         return 1;
     }
     if (packet == NULL) {
         return 0;
     }
-    if (!analyseContent(conn, packet)) {
-        if (conn->connError) {
-            /* Abort the content state if there is a connection oriented error */
-            httpSetState(conn, HTTP_STATE_RUNNING);
-        }
-        return conn->error;
-    }
-    if (rx->remainingContent == 0 || conn->error) {
-        if (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF) || conn->error) {
+    if (analyseContent(conn, packet)) {
+        if (conn->connError || 
+                (rx->remainingContent == 0 && (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF)))) {
             rx->eof = 1;
             httpSendPacketToNext(q, httpCreateEndPacket());
+            httpSetState(conn, HTTP_STATE_RUNNING);
+            return 1;
         }
-        httpSetState(conn, HTTP_STATE_RUNNING);
-        return 1;
-    } else {
-        mprYield(0);
     }
+    mprYield(0);
     httpServiceQueues(conn);
-    return conn->connError || (conn->input ? mprGetBufLength(conn->input->content) : 0);
+    return conn->error || (conn->input ? mprGetBufLength(conn->input->content) : 0);
 }
 
 
@@ -965,17 +950,15 @@ static bool processRunning(HttpConn *conn)
 {
     int     canProceed;
 
+    canProceed = 1;
+
     if (conn->connError) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
-        canProceed = 1;
     } else {
         if (conn->server) {
             httpProcessPipeline(conn);
-        }
-        if (conn->server) {
-            if (conn->complete || conn->writeComplete) {
+            if (conn->connError || conn->writeComplete) {
                 httpSetState(conn, HTTP_STATE_COMPLETE);
-                canProceed = 1;
             } else {
                 httpWritable(conn);
                 canProceed = httpServiceQueues(conn);
@@ -983,9 +966,7 @@ static bool processRunning(HttpConn *conn)
         } else {
             httpServiceQueues(conn);
             httpFinalize(conn);
-            conn->complete = 1;
             httpSetState(conn, HTTP_STATE_COMPLETE);
-            canProceed = 1;
         }
     }
     return canProceed;
@@ -1046,9 +1027,9 @@ static bool processCompletion(HttpConn *conn)
 void httpCloseRx(HttpConn *conn)
 {
     if (!conn->rx->eof) {
-        conn->connError = 1;
+        /* May not have consumed all read data, so can't be assured the next request will be okay */
+        conn->keepAliveCount = -1;
     }
-    httpFinalize(conn);
     if (conn->state < HTTP_STATE_COMPLETE && !conn->advancing) {
         httpProcess(conn, NULL);
     }
@@ -1081,14 +1062,14 @@ static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
             return 0;
         }
         if (start[0] != '\r' || start[1] != '\n') {
-            httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return 0;
         }
         for (cp = &start[2]; cp < (char*) buf->end && *cp != '\n'; cp++) {}
         if ((cp - start) < 2 || (cp[-1] != '\r' || cp[0] != '\n')) {
             /* Insufficient data */
             if ((cp - start) > 80) {
-                httpProtocolError(conn, HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+                httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
                 return 0;
             }
             return 0;
