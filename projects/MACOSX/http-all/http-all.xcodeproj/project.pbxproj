@@ -680,6 +680,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = "";
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -697,6 +699,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = "";
@@ -712,6 +716,8 @@
 		C90A1A020FD6DCEE006A9E86 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -734,6 +740,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
@@ -751,6 +759,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
@@ -771,6 +781,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
@@ -801,6 +813,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = "";
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -818,6 +832,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = "";
@@ -834,6 +850,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = "";
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -859,6 +877,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = "";

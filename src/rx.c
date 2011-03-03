@@ -1214,19 +1214,19 @@ MprHashTable *httpGetHeaderHash(HttpConn *conn)
 
 cchar *httpGetQueryString(HttpConn *conn)
 {
-    return conn->rx->parsedUri->query;
+    return (conn->rx && conn->rx->parsedUri) ? conn->rx->parsedUri->query : 0;
 }
 
 
 int httpGetStatus(HttpConn *conn)
 {
-    return conn->rx->status;
+    return (conn->rx) ? conn->rx->status : 0;
 }
 
 
 char *httpGetStatusMessage(HttpConn *conn)
 {
-    return conn->rx->statusMessage;
+    return (conn->rx) ? conn->rx->statusMessage : 0;
 }
 
 
