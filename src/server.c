@@ -185,6 +185,7 @@ int httpStartServer(HttpServer *server)
         return MPR_ERR_CANT_OPEN;
     }
     if (server->async && server->waitHandler ==  0) {
+        //  MOB -- this really should be in server->listen->handler
         server->waitHandler = mprCreateWaitHandler(server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
             httpAcceptConn, server, (server->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
     } else {
@@ -286,7 +287,12 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
     if (sock == 0) {
         return 0;
     }
-    dispatcher = (event && server->dispatcher == 0) ? event->dispatcher: server->dispatcher;
+
+    //  MOB - is this logic sufficient.
+    //  MOB - better to just do dispatcher =
+    // dispatcher = (event && server->dispatcher == 0) ? event->dispatcher: server->dispatcher;
+    dispatcher = event->dispatcher;
+
     mprLog(4, "New connection from %s:%d to %s:%d %s",
         sock->ip, sock->port, sock->acceptIp, sock->acceptPort, server->sock->sslSocket ? "(secure)" : "");
 

@@ -7478,8 +7478,10 @@ typedef struct MprTestService {
     MprMutex        *mutex;                 /* Multi-thread sync */
 } MprTestService;
 
+typedef int (*MprTestParser)(int argc, char **argv);
+
 extern MprTestService *mprCreateTestService();
-extern int          mprParseTestArgs(MprTestService *ts, int argc, char **argv);
+extern int          mprParseTestArgs(MprTestService *ts, int argc, char **argv, MprTestParser extraParser);
 extern int          mprRunTests(MprTestService *sp);
 extern void         mprReportTestResults(MprTestService *sp);
 

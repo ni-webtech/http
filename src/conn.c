@@ -49,8 +49,8 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
 
     conn->serviceq = httpCreateQueueHead(conn, "serviceq");
 
-    //  MOB -- this just sets to defaults. Who sets to what the config file has defined?
     httpInitTrace(conn->trace);
+
     if (dispatcher) {
         conn->dispatcher = dispatcher;
     } else if (server) {
@@ -207,11 +207,12 @@ static void commonPrep(HttpConn *conn)
     conn->flags = 0;
     conn->state = 0;
     conn->writeComplete = 0;
-
+#if UNUSED
     if (conn->dispatcher == 0) {
         mprAssert(0);
         conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
     }
+#endif
     conn->lastActivity = conn->http->now;
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpInitSchedulerQueue(conn->serviceq);
@@ -227,10 +228,14 @@ void httpPrepServerConn(HttpConn *conn)
     mprAssert(conn);
     mprAssert(conn->rx == 0);
     mprAssert(conn->tx == 0);
+    mprAssert(conn->server);
 
     conn->readq = 0;
     conn->writeq = 0;
+#if UNUSED
     conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
+            httpAcceptConn, server, (server->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
+#endif
     commonPrep(conn);
 }
 

@@ -16932,6 +16932,7 @@ static void signalHandler(int signo, siginfo_t *info, void *arg)
     maskSignal(signo);
     ip = &ssp->info[signo];
     ip->siginfo = *info;
+    ip->siginfo.si_signo = signo;
     ip->arg = arg;
     ip->triggered = 1;
     ssp->hasSignals = 1;
@@ -17095,7 +17096,7 @@ static void standardSignalHandler(void *ignored, MprSignal *sp)
     if (sp->signo == SIGTERM) {
         mprTerminate(MPR_EXIT_GRACEFUL);
 
-    } else if (sp->signo == SIGABRT) {
+    } else if (sp->signo == SIGINT) {
         mprTerminate(MPR_EXIT_IMMEDIATE);
 
     } else if (sp->signo == SIGPIPE || sp->signo == SIGXFSZ) {
@@ -19677,11 +19678,11 @@ static void manageTestService(MprTestService *ts, int flags)
 }
 
 
-int mprParseTestArgs(MprTestService *sp, int argc, char *argv[])
+int mprParseTestArgs(MprTestService *sp, int argc, char *argv[], MprTestParser extraParser)
 {
     cchar       *programName;
     char        *argp;
-    int         err, i, depth, nextArg, outputVersion;
+    int         rc, err, i, depth, nextArg, outputVersion;
 
     i = 0;
     err = 0;
@@ -19801,6 +19802,13 @@ int mprParseTestArgs(MprTestService *sp, int argc, char *argv[])
         } else if (*argp != '-') {
             break;
 
+        } else if (extraParser) {
+            rc = extraParser(argc - nextArg, &argv[nextArg]);
+            if (rc < 0) {
+                err++;
+            } else {
+                nextArg += rc;
+            }
         } else {
             mprError("Unknown arg %s", argp);
             err++;
