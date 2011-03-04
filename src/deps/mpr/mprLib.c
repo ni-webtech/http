@@ -4304,35 +4304,32 @@ static void manageCmd(MprCmd *cmd, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(cmd->program);
         mprMark(cmd->makeArgv);
-#if UNUSED
-        /* ARGV is passed in */
-        mprMark(cmd->argv);
-#endif
-        mprMark(cmd->dir);
-        mprMark(cmd->dispatcher);
-        mprMark(cmd->callbackData);
-        mprMark(cmd->forkData);
-        mprMark(cmd->signal);
-        mprMark(cmd->stdoutBuf);
-        mprMark(cmd->stderrBuf);
-        mprMark(cmd->userData);
-        for (i = 0; i < MPR_CMD_MAX_PIPE; i++) {
-            mprMark(cmd->files[i].name);
-        }
         mprMark(cmd->env);
-#if BLD_WIN_LIKE
-        mprMark(cmd->command);
-        mprMark(cmd->arg0);
-#else
+#if BLD_UNIX_LIKE
         if (cmd->env) {
             for (i = 0; cmd->env[i]; i++) {
                 mprMark(cmd->env);
             }
         }
 #endif
+        mprMark(cmd->dir);
+        for (i = 0; i < MPR_CMD_MAX_PIPE; i++) {
+            mprMark(cmd->files[i].name);
+        }
         for (i = 0; i < MPR_CMD_MAX_PIPE; i++) {
             mprMark(cmd->handlers[i]);
         }
+        mprMark(cmd->dispatcher);
+        mprMark(cmd->callbackData);
+        mprMark(cmd->signal);
+        mprMark(cmd->forkData);
+        mprMark(cmd->stdoutBuf);
+        mprMark(cmd->stderrBuf);
+        mprMark(cmd->userData);
+#if BLD_WIN_LIKE
+        mprMark(cmd->command);
+        mprMark(cmd->arg0);
+#endif
         mprMark(cmd->mutex);
 
     } else if (flags & MPR_MANAGE_FREE) {
@@ -16806,7 +16803,6 @@ void stubMprSelectWait() {}
 
 #if BLD_UNIX_LIKE
 
-
 static void manageSignal(MprSignal *sp, int flags);
 static void manageSignalService(MprSignalService *ssp, int flags);
 static void signalEvent(MprSignal *sp, MprEvent *event);
@@ -16832,15 +16828,9 @@ static void manageSignalService(MprSignalService *ssp, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(ssp->mutex);
-        mprMark(ssp->signals);
         mprMark(ssp->standard);
-#if UNUSED
-        for (i = 0; i < MPR_MAX_SIGNALS; i++) {
-            if ((sp = ssp->signals[i]) != 0) {
-                mprMark(sp);
-            }
-        }
-#endif
+        mprMark(ssp->signals);
+        /* Don't mark signals elements as it will prevent signal handlers being reclaimed */
     }
 }
 

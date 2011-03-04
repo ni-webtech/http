@@ -25,6 +25,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		C905BF7E1321653500B0F74E /* libmatrixsslstatic.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C905BF7D1321653500B0F74E /* libmatrixsslstatic.a */; };
 		C90A1AFB0FD6E319006A9E86 /* testHttp.c in Sources */ = {isa = PBXBuildFile; fileRef = C90A1AEA0FD6E319006A9E86 /* testHttp.c */; };
 		C90A1B060FD6E32E006A9E86 /* libhttp.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C90A19EE0FD6DCAD006A9E86 /* libhttp.dylib */; };
 		C90A1B090FD6E335006A9E86 /* libhttp.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C90A19EE0FD6DCAD006A9E86 /* libhttp.dylib */; };
@@ -151,6 +152,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		C905BF7D1321653500B0F74E /* libmatrixsslstatic.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmatrixsslstatic.a; path = ../../../../mpr/out/lib/libmatrixsslstatic.a; sourceTree = "<group>"; };
 		C90A19EE0FD6DCAD006A9E86 /* libhttp.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libhttp.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		C90A1A0F0FD6DD2D006A9E86 /* mpr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mpr.h; path = ../../../src/include/mpr.h; sourceTree = SOURCE_ROOT; };
 		C90A1A110FD6DD2D006A9E86 /* mprSsl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mprSsl.h; path = ../../../src/include/mprSsl.h; sourceTree = SOURCE_ROOT; };
@@ -236,6 +238,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C9513E5310E98EA500F9E006 /* libmpr.dylib in Frameworks */,
+				C905BF7E1321653500B0F74E /* libmatrixsslstatic.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -349,6 +352,7 @@
 		C9F8E4B1102B647A00492AB2 /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
+				C905BF7D1321653500B0F74E /* libmatrixsslstatic.a */,
 			);
 			name = Libraries;
 			sourceTree = "<group>";
@@ -866,8 +870,12 @@
 					../../../src/deps/mpr,
 				);
 				INSTALL_PATH = /usr/local/lib;
-				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_2)",
+				);
 				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../../lib\"";
+				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_2 = "\"$(SRCROOT)/../../../../mpr/out/lib\"";
 				PREBINDING = NO;
 				PRODUCT_NAME = libmprssl;
 			};
@@ -888,8 +896,10 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
+					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_2)",
 				);
 				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../../lib\"";
+				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_2 = "\"$(SRCROOT)/../../../../mpr/out/lib\"";
 				PREBINDING = NO;
 				PRODUCT_NAME = libmpr;
 				ZERO_LINK = NO;
