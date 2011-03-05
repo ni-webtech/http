@@ -6605,12 +6605,12 @@ typedef struct MprSignal {
 
 
 typedef struct MprSignalService {
-#if BLD_UNIX_LIKE
     MprSignal       **signals;              /**< Signal handlers */
     MprList         *standard;              /**< Standard signal handlers */
     MprMutex        *mutex;                 /**< Multithread sync */
     MprSignalInfo   info[MPR_MAX_SIGNALS];  /**< Actual signal info and arg */
     int             hasSignals;             /**< Signal sent to process */
+#if BLD_UNIX_LIKE
     struct sigaction prior[MPR_MAX_SIGNALS];/**< Prior sigaction handler before hooking */
 #endif
 } MprSignalService;
