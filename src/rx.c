@@ -930,16 +930,18 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     if (packet == NULL) {
         return 0;
     }
-    if (analyseContent(conn, packet)) {
-        if (conn->connError || 
-                (rx->remainingContent == 0 && (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF)))) {
-            rx->eof = 1;
-            httpSendPacketToNext(q, httpCreateEndPacket());
-            httpSetState(conn, HTTP_STATE_RUNNING);
-            return 1;
-        }
-    }
+    //  MOB - is this the best place? - move
     mprYield(0);
+    if (!analyseContent(conn, packet)) {
+        return 0;
+    }
+    if (conn->connError || 
+            (rx->remainingContent == 0 && (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF)))) {
+        rx->eof = 1;
+        httpSendPacketToNext(q, httpCreateEndPacket());
+        httpSetState(conn, HTTP_STATE_RUNNING);
+        return 1;
+    }
     httpServiceQueues(conn);
     return conn->error || (conn->input ? mprGetBufLength(conn->input->content) : 0);
 }

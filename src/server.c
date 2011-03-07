@@ -276,6 +276,7 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
     int             level;
 
     mprAssert(server);
+    mprAssert(event);
 
     /*
         This will block in sync mode until a connection arrives
