@@ -465,7 +465,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 if (rx->length >= conn->limits->receiveBodySize) {
                     httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
-                        "Request content length %d bytes is too big. Limit %d.", rx->length, conn->limits->receiveBodySize);
+                        "Request content length %d bytes is too big. Limit %d", rx->length, conn->limits->receiveBodySize);
                     break;
                 }
                 rx->contentLength = sclone(value);
@@ -886,10 +886,9 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         rx->receivedContent += nbytes;
 
         if (rx->receivedContent >= conn->limits->receiveBodySize) {
-            httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, 
-                "Request body of %d bytes is too big. Limit %d.", rx->receivedContent, conn->limits->receiveBodySize);
-            httpSetState(conn, HTTP_STATE_RUNNING);
-            return 0;
+            httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, 
+                "Request body of %d bytes is too big. Limit %d", rx->receivedContent, conn->limits->receiveBodySize);
+            return 1;
         }
         if (packet == rx->headerPacket) {
             /* Preserve headers if more data to come. Otherwise handlers may free the packet and destory the headers */
@@ -946,6 +945,9 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
 }
 
 
+/*
+    Note: may be called multiple times
+ */
 static bool processRunning(HttpConn *conn)
 {
     int     canProceed;
@@ -1309,7 +1311,7 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
     Http        *http;
     MprTime     expire, remainingTime;
-    int         eventMask, addedHandler, saveAsync, justOne;
+    int         eventMask, addedHandler, saveAsync, justOne, workDone;
 
     http = conn->http;
     if (timeout <= 0) {
@@ -1340,15 +1342,15 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     http->now = mprGetTime();
     expire = http->now + timeout;
 
-    while (!conn->error && conn->state < state && conn->sock && !mprIsSocketEof(conn->sock)) {
-        httpServiceQueues(conn);
+    while (!conn->error && conn->state < state) {
+        workDone = httpServiceQueues(conn);
         remainingTime = (expire - http->now);
         if (remainingTime <= 0) {
             break;
         }
         mprAssert(!mprSocketHasPendingData(conn->sock));
         mprWaitForEvent(conn->dispatcher, remainingTime);
-        if (justOne) {
+        if (justOne || (conn->sock && mprIsSocketEof(conn->sock) && !workDone)) {
             break;
         }
     }
@@ -1361,7 +1363,7 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         return MPR_ERR_CANT_CONNECT;
     }
     if (!justOne && conn->state < state) {
-        return MPR_ERR_TIMEOUT;
+        return (remainingTime <= 0) ? MPR_ERR_TIMEOUT : MPR_ERR_CANT_READ;
     }
     return 0;
 }

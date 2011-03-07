@@ -219,6 +219,9 @@ void httpStartPipeline(HttpConn *conn)
 }
 
 
+/*
+    Note: this may be called multiple times
+ */
 void httpProcessPipeline(HttpConn *conn)
 {
     HttpQueue   *q;

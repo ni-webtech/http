@@ -429,11 +429,11 @@ static void httpTimer(Http *http, MprEvent *event)
     for (count = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; count++) {
         rx = conn->rx;
         limits = conn->limits;
-        if ((conn->lastActivity + limits->requestTimeout) < http->now || 
+        if ((conn->lastActivity + limits->inactivityTimeout) < http->now || 
             (conn->started + limits->requestTimeout) < http->now) {
             if (rx) {
                 /*
-                    Don't call APIs on the onn directly (thread-race). Schedule a timer on the connection's dispatcher
+                    Don't call APIs on the conn directly (thread-race). Schedule a timer on the connection's dispatcher
                  */
                 if (!conn->timeout) {
                     conn->timeout = mprCreateEvent(conn->dispatcher, "connTimeout", 0, httpConnTimeout, conn, 0);

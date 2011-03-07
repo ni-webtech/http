@@ -181,12 +181,13 @@ void httpConnTimeout(HttpConn *conn)
         if ((conn->lastActivity + limits->inactivityTimeout) < now) {
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT,
                 "Inactive request timed out. Exceeded inactivity timeout of %d sec. Uri: \"%s\"", 
-                limits->requestTimeout / 1000, rx->uri);
+                limits->inactivityTimeout / 1000, rx->uri);
 
         } else if ((conn->started + limits->requestTimeout) < now) {
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT, 
                 "Request timed out, exceeded timeout %d sec. Url %s", limits->requestTimeout / 1000, rx->uri);
         }
+        httpFinalize(conn);
     }
 }
 
@@ -358,13 +359,10 @@ static void readEvent(HttpConn *conn)
                 break;
             } else if (conn->state < HTTP_STATE_COMPLETE) {
                 httpProcess(conn, packet);
-#if UNUSED
-                //  MOB - should be detected when request tries to write
                 if (!conn->error && conn->state < HTTP_STATE_COMPLETE && mprIsSocketEof(conn->sock)) {
                     httpError(conn, HTTP_ABORT | HTTP_CODE_COMMS_ERROR, "Connection lost");
                     break;
                 }
-#endif
             }
             break;
         }

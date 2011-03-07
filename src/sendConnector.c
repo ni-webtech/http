@@ -91,10 +91,12 @@ void httpSendOutgoingService(HttpQueue *q)
         httpDiscardData(q, 1);
     }
     if ((tx->bytesWritten + q->ioCount) > conn->limits->transmissionBodySize) {
-        httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
+        httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE | ((tx->bytesWritten) ? HTTP_ABORT : 0),
             "Http transmission aborted. Exceeded max body of %d bytes", conn->limits->transmissionBodySize);
-        httpCompleteWriting(conn);
-        return;
+        if (tx->bytesWritten) {
+            httpCompleteWriting(conn);
+            return;
+        }
     }
     /*
         Loop doing non-blocking I/O until blocked or all the packets received are written.
