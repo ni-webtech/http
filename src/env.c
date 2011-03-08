@@ -9,9 +9,9 @@
 
 /*********************************** Code *************************************/
 /*
-    Define standard CGI environment variables
+    Define standard CGI variables
  */
-void httpCreateEnvVars(HttpConn *conn)
+void httpCreateCGIVars(HttpConn *conn)
 {
     HttpRx          *rx;
     HttpTx          *tx;
@@ -97,17 +97,13 @@ void httpCreateEnvVars(HttpConn *conn)
     Make variables for each keyword in a query string. The buffer must be url encoded (ie. key=value&key2=value2..., 
     spaces converted to '+' and all else should be %HEX encoded).
  */
-void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
+MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
 {
-    HttpRx          *rx;
-    MprHashTable    *vars;
     cchar           *oldValue;
     char            *newValue, *decoded, *keyword, *value, *tok;
 
-    rx = conn->rx;
-    vars = rx->formVars;
-    if (vars == 0) {
-        return;
+    if (table == 0) {
+        table = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     }
     decoded = mprAlloc(len + 1);
     decoded[len] = '\0';
@@ -127,23 +123,23 @@ void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
             /*  
                 Append to existing keywords.
              */
-            oldValue = mprLookupHash(vars, keyword);
+            oldValue = mprLookupHash(table, keyword);
             if (oldValue != 0 && *oldValue) {
                 if (*value) {
                     newValue = sjoin(oldValue, " ", value, NULL);
-                    mprAddKey(vars, keyword, newValue);
+                    mprAddKey(table, keyword, newValue);
                 }
             } else {
-                mprAddKey(vars, keyword, sclone(value));
+                mprAddKey(table, keyword, sclone(value));
             }
         }
         keyword = stok(0, "&", &tok);
     }
-    /*  Must not free "decoded". This will be freed when the response completes */
+    return table;
 }
 
 
-void httpAddVarsFromQueue(HttpQueue *q)
+MprHashTable *httpAddVarsFromQueue(MprHashTable *table, HttpQueue *q)
 {
     HttpConn        *conn;
     MprBuf          *content;
@@ -152,11 +148,13 @@ void httpAddVarsFromQueue(HttpQueue *q)
     
     conn = q->conn;
     if (conn->rx->form && q->first && q->first->content) {
+        httpJoinPackets(q, -1);
         content = q->first->content;
         mprAddNullToBuf(content);
         mprLog(3, "Form body data: length %d, \"%s\"", mprGetBufLength(content), mprGetBufStart(content));
-        httpAddVars(conn, mprGetBufStart(content), mprGetBufLength(content));
+        table = httpAddVars(table, mprGetBufStart(content), mprGetBufLength(content));
     }
+    return table;
 }
 
 
@@ -164,8 +162,7 @@ int httpTestFormVar(HttpConn *conn, cchar *var)
 {
     MprHashTable    *vars;
     
-    vars = conn->rx->formVars;
-    if (vars == 0) {
+    if ((vars = conn->rx->formVars) == 0) {
         return 0;
     }
     return vars && mprLookupHash(vars, var) != 0;
@@ -177,8 +174,7 @@ cchar *httpGetFormVar(HttpConn *conn, cchar *var, cchar *defaultValue)
     MprHashTable    *vars;
     cchar           *value;
     
-    vars = conn->rx->formVars;
-    if (vars) {
+    if ((vars = conn->rx->formVars) == 0) {
         value = mprLookupHash(vars, var);
         return (value) ? value : defaultValue;
     }
@@ -191,8 +187,7 @@ int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
     MprHashTable    *vars;
     cchar           *value;
     
-    vars = conn->rx->formVars;
-    if (vars) {
+    if ((vars = conn->rx->formVars) == 0) {
         value = mprLookupHash(vars, var);
         return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
     }
@@ -204,8 +199,7 @@ void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value)
 {
     MprHashTable    *vars;
     
-    vars = conn->rx->formVars;
-    if (vars == 0) {
+    if ((vars = conn->rx->formVars) == 0) {
         /* This is allowed. Upload filter uses this when uploading to the file handler */
         return;
     }
@@ -217,8 +211,7 @@ void httpSetIntFormVar(HttpConn *conn, cchar *var, int value)
 {
     MprHashTable    *vars;
     
-    vars = conn->rx->formVars;
-    if (vars == 0) {
+    if ((vars = conn->rx->formVars) == 0) {
         /* This is allowed. Upload filter uses this when uploading to the file handler */
         return;
     }
@@ -230,9 +223,7 @@ int httpCompareFormVar(HttpConn *conn, cchar *var, cchar *value)
 {
     MprHashTable    *vars;
     
-    vars = conn->rx->formVars;
-    
-    if (vars == 0) {
+    if ((vars = conn->rx->formVars) == 0) {
         return 0;
     }
     if (strcmp(value, httpGetFormVar(conn, var, " __UNDEF__ ")) == 0) {

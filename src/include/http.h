@@ -959,8 +959,7 @@ extern void httpMarkQueueHead(HttpQueue *q);
 
 /******************************** Pipeline Stages *****************************/
 /*
-    The Http processing pipeline is comprised of a sequence of "stages". 
-    Stage Flags. Use request method flags as-is so we can quickly validate methods for stages.
+    Stage Flags
  */
 #define HTTP_STAGE_DELETE         HTTP_DELETE       /**< Support DELETE requests */
 #define HTTP_STAGE_GET            HTTP_GET          /**< Support GET requests */
@@ -977,20 +976,18 @@ extern void httpMarkQueueHead(HttpQueue *q);
 #define HTTP_STAGE_HANDLER        0x2000            /**< Stage is a handler  */
 #define HTTP_STAGE_FILTER         0x4000            /**< Stage is a filter  */
 #define HTTP_STAGE_MODULE         0x8000            /**< Stage is a filter  */
-#define HTTP_STAGE_VARS           0x10000           /**< Create query and form variables table */
-#define HTTP_STAGE_ENV_VARS       0x20000           /**< Create CGI style environment variables table */
-#define HTTP_STAGE_VIRTUAL        0x40000           /**< Handler serves virtual resources not the physical file system */
-#define HTTP_STAGE_PATH_INFO      0x80000           /**< Always do path info processing */
-#define HTTP_STAGE_AUTO_DIR       0x100000          /**< Want auto directory redirection */
-#define HTTP_STAGE_VERIFY_ENTITY  0x200000          /**< Verify the request entity exists */
-#if UNUSED
-#define HTTP_STAGE_THREAD         0x400000          /**< Run handler dispatcher in a worker thread */
-#endif
-#define HTTP_STAGE_MISSING_EXT    0x800000          /**< Support URIs with missing extensions */
-#define HTTP_STAGE_UNLOADED       0x1000000         /**< Stage module library has been unloaded */
-
-#define HTTP_STAGE_INCOMING       0x1000000
-#define HTTP_STAGE_OUTGOING       0x2000000
+#define HTTP_STAGE_CGI_VARS       0x10000           /**< Create CGI variables */
+#define HTTP_STAGE_FORM_VARS      0x20000           /**< Create variables from form body data */
+#define HTTP_STAGE_HEADER_VARS    0x40000           /**< Create variables from HTTP headers */
+#define HTTP_STAGE_QUERY_VARS     0x80000           /**< Create variables from URI query */
+#define HTTP_STAGE_VIRTUAL        0x100000          /**< Handler serves virtual resources not the physical file system */
+#define HTTP_STAGE_PATH_INFO      0x200000          /**< Always do path info processing */
+#define HTTP_STAGE_AUTO_DIR       0x400000          /**< Want auto directory redirection */
+#define HTTP_STAGE_VERIFY_ENTITY  0x800000          /**< Verify the request entity exists */
+#define HTTP_STAGE_MISSING_EXT    0x1000000         /**< Support URIs with missing extensions */
+#define HTTP_STAGE_UNLOADED       0x2000000         /**< Stage module library has been unloaded */
+#define HTTP_STAGE_INCOMING       0x4000000
+#define HTTP_STAGE_OUTGOING       0x8000000
 
 typedef int (*HttpParse)(Http *http, cchar *key, char *value, void *state);
 
@@ -1911,7 +1908,10 @@ extern void httpSetDirIndex(HttpDir *dir, cchar *name);
 
 /********************************** HttpLoc  *********************************/
 
-#define HTTP_LOC_PUT_DELETE       0x20      /**< Support PUT|DELETE */
+#define HTTP_LOC_PUT_DELETE     0x1         /**< Support PUT|DELETE */
+#define HTTP_LOC_BEFORE         0x2         /**< Start handler before content */
+#define HTTP_LOC_AFTER          0x4         /**< Start handler after content */
+#define HTTP_LOC_SMART          0x8         /**< Start handler after for forms and upload */
 
 /**
     Location Control
@@ -2002,7 +2002,10 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
 #define HTTP_CREATE_ENV         0x100       /**< Must create env for this request */
 #define HTTP_IF_MODIFIED        0x200       /**< If-[un]modified-since supplied */
 #define HTTP_CHUNKED            0x400       /**< Content is chunk encoded */
+
+#if UNUSED
 #define HTTP_UPLOAD             0x800       /**< Content has uploaded file content */
+#endif
 
 /*  
     Incoming chunk encoding states
@@ -2040,8 +2043,11 @@ typedef struct HttpRx {
     int             chunkState;             /**< Chunk encoding state */
     int             chunkRemainingData;     /**< Remaining chunk data to read */
     int             flags;                  /**< Rx modifiers */
+    int             form;                   /**< Using mime-type application/x-www-form-urlencoded */
     int             needInputPipeline;      /**< Input pipeline required to process received data */
+    int             startAfterContent;      /**< Start handler after receiving all body content */
     int             rewrites;               /**< Count of request rewrites */
+    int             upload;                 /**< Request is using file upload */
 
     ssize           length;                 /**< Declared content length (ENV: CONTENT_LENGTH) */
     ssize           chunkSize;              /**< Size of the next chunk */
@@ -2076,7 +2082,6 @@ typedef struct HttpRx {
     char            *redirect;              /**< Redirect location header */
     char            *referrer;              /**< Refering URL */
     char            *userAgent;             /**< User-Agent header */
-    int             form;                   /**< Using mime-type application/x-www-form-urlencoded */
 
     MprHashTable    *formVars;              /**< Query and post data variables */
     HttpRange       *ranges;                /**< Data ranges for body data */
@@ -2229,13 +2234,13 @@ extern bool httpMatchModified(HttpConn *conn, MprTime time);
     @param len Length of buf
     @ingroup HttpRx
  */
-extern void httpAddVars(HttpConn *conn, cchar *buf, ssize len);
+extern MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len);
 
 /**
     Add env vars from body data
     @param q Queue reference
  */
-extern void httpAddVarsFromQueue(HttpQueue *q);
+extern MprHashTable *httpAddVarsFromQueue(MprHashTable *table, HttpQueue *q);
 
 /**
     Compare a form variable
@@ -2322,7 +2327,7 @@ extern void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value);
 extern int httpTestFormVar(HttpConn *conn, cchar *var);
 
 //  MOB 
-extern void httpCreateEnvVars(HttpConn *conn);
+extern void httpCreateCGIVars(HttpConn *conn);
 
 /********************************** HttpTx *********************************/
 /*  
@@ -2853,7 +2858,6 @@ extern void httpSetServerAddress(HttpServer *server, cchar *ip, int port);
 extern struct HttpHost *httpLookupHostByName(HttpServer *server, cchar *name);
 
 extern HttpServer *httpCreateConfiguredServer(cchar *docRoot, cchar *ip, int port);
-
 
 /********************************** HttpHost ***************************************/
 /*

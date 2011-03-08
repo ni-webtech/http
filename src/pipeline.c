@@ -10,7 +10,7 @@
 /********************************** Forward ***********************************/
 
 static bool matchFilter(HttpConn *conn, HttpStage *filter);
-static void setEnvironment(HttpConn *conn);
+static void setVars(HttpConn *conn);
 
 /*********************************** Code *************************************/
 /*  
@@ -96,7 +96,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     for (next = 0; (stage = mprGetNextItem(rx->inputPipeline, &next)) != 0; ) {
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_RECEIVE, q);
     }
-    setEnvironment(conn);
+    setVars(conn);
 
     conn->writeq = tx->queue[HTTP_QUEUE_TRANS]->nextQ;
     conn->readq = tx->queue[HTTP_QUEUE_RECEIVE]->prevQ;
@@ -139,6 +139,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
             }
         }
     }
+
     conn->flags |= HTTP_CONN_PIPE_CREATED;
 }
 
@@ -216,6 +217,10 @@ void httpStartPipeline(HttpConn *conn)
             }
         }
     }
+    if (!conn->error && !conn->writeComplete && conn->rx->remainingContent > 0) {
+        /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
+        httpWritable(conn);
+    }
 }
 
 
@@ -226,6 +231,10 @@ void httpProcessPipeline(HttpConn *conn)
 {
     HttpQueue   *q;
     
+    if (conn->error) {
+        //  MOB -- is this the right place?
+        httpFinalize(conn);
+    }
     q = conn->tx->queue[HTTP_QUEUE_TRANS]->nextQ;
     if (q->stage->process) {
         HTTP_TIME(conn, q->stage->name, "process", q->stage->process(q));
@@ -274,7 +283,7 @@ void httpDiscardTransmitData(HttpConn *conn)
 /*
     Create the form variables based on the URI query. Also create formVars for CGI style programs (cgi | egi)
  */
-static void setEnvironment(HttpConn *conn)
+static void setVars(HttpConn *conn)
 {
     HttpRx      *rx;
     HttpTx      *tx;
@@ -284,14 +293,11 @@ static void setEnvironment(HttpConn *conn)
 
     mprAssert(tx->handler);
 
-    if (tx->handler->flags & (HTTP_STAGE_VARS | HTTP_STAGE_ENV_VARS)) {
-        rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-        if (rx->parsedUri->query && (tx->handler->flags & HTTP_STAGE_VARS)) {
-            httpAddVars(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
-        }
+    if (tx->handler->flags & HTTP_STAGE_QUERY_VARS && rx->parsedUri->query) {
+        rx->formVars = httpAddVars(rx->formVars, rx->parsedUri->query, slen(rx->parsedUri->query));
     }
-    if (tx->handler->flags & HTTP_STAGE_ENV_VARS) {
-        httpCreateEnvVars(conn);
+    if (tx->handler->flags & HTTP_STAGE_CGI_VARS) {
+        httpCreateCGIVars(conn);
     }
 }
 

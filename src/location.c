@@ -33,6 +33,7 @@ HttpLoc *httpCreateLocation()
     loc->prefix = mprEmptyString();
     loc->prefixLen = (int) strlen(loc->prefix);
     loc->auth = httpCreateAuth(0);
+    loc->flags = HTTP_LOC_SMART;
     return loc;
 }
 
@@ -114,11 +115,9 @@ static void graduate(HttpLoc *loc)
 
 void httpFinalizeLocation(HttpLoc *loc)
 {
-#if BLD_FEATURE_SSL
     if (loc->ssl) {
         mprConfigureSsl(loc->ssl);
     }
-#endif
 }
 
 

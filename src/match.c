@@ -10,7 +10,6 @@
 
 /***************************** Forward Declarations ***************************/
 
-static char *addIndexToUrl(HttpConn *conn, cchar *index);
 static char *getExtension(HttpConn *conn, cchar *path);
 static HttpStage *checkHandler(HttpConn *conn, HttpStage *stage);
 static HttpStage *findHandler(HttpConn *conn);
@@ -339,29 +338,34 @@ static HttpStage *processDirectory(HttpConn *conn, HttpStage *handler)
     HttpTx      *tx;
     MprPath     *info;
     HttpHost    *host;
-    char        *path, *index;
+    HttpUri     *prior;
+    char        *path, *index, *pathInfo, *uri;
 
     rx = conn->rx;
     tx = conn->tx;
     host = conn->host;
     info = &tx->fileInfo;
+    prior = rx->parsedUri;
 
     mprAssert(rx->dir);
     mprAssert(rx->pathInfo);
     mprAssert(info->isDir);
 
     index = rx->dir->indexName;
+    path = mprJoinPath(tx->filename, index);
+
     if (rx->pathInfo[slen(rx->pathInfo) - 1] == '/') {
         /*  
             Internal directory redirections
          */
-        path = mprJoinPath(tx->filename, index);
         if (mprPathExists(path, R_OK)) {
             /*  
                 Index file exists, so do an internal redirect to it. Client will not be aware of this happening.
                 Return zero so the request will be rematched on return.
              */
-            httpSetUri(conn, addIndexToUrl(conn, index), NULL);
+            pathInfo = mprJoinPath(rx->pathInfo, index);
+            httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
+            httpSetUri(conn, uri, 0);
             return 0;
         }
     } else {
@@ -369,15 +373,13 @@ static HttpStage *processDirectory(HttpConn *conn, HttpStage *handler)
             External redirect. Ask the client to re-issue a request for a new location. See if an index exists and if so, 
             construct a new location for the index. If the index can't be accessed, append a "/" to the URI and redirect.
          */
-        if (rx->parsedUri->query && rx->parsedUri->query[0]) {
-            path = mprAsprintf("%s/%s?%s", rx->pathInfo, index, rx->parsedUri->query);
-        } else {
-            path = mprJoinPath(rx->pathInfo, index);
-        }
         if (!mprPathExists(path, R_OK)) {
-            path = sjoin(rx->pathInfo, "/", NULL);
+            pathInfo = mprJoinPath(rx->pathInfo, index);
+        } else {
+            pathInfo = mprJoinPath(rx->pathInfo, "/");
         }
-        httpRedirect(conn, HTTP_CODE_MOVED_PERMANENTLY, path);
+        uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
+        httpRedirect(conn, HTTP_CODE_MOVED_PERMANENTLY, uri);
         handler = conn->http->passHandler;
     }
     return handler;
@@ -441,20 +443,6 @@ static void setScriptName(HttpConn *conn)
         rx->scriptName = rx->pathInfo;
         rx->pathInfo = 0;
     }
-}
-
-
-static char *addIndexToUrl(HttpConn *conn, cchar *index)
-{
-    HttpRx      *rx;
-    char        *path;
-
-    rx = conn->rx;
-    path = mprJoinPath(rx->pathInfo, index);
-    if (rx->parsedUri->query && rx->parsedUri->query[0]) {
-        return srejoin(path, "?", rx->parsedUri->query, NULL);
-    }
-    return path;
 }
 
 

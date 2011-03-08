@@ -159,6 +159,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     HttpTx      *tx;
+    HttpLoc     *loc;
     ssize       len;
     char        *start, *end;
 
@@ -194,21 +195,26 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     } else {
         parseResponseLine(conn, packet);
     }
-    if (!conn->connError) {
-        parseHeaders(conn, packet);
-    }
+    parseHeaders(conn, packet);
     if (conn->server) {
         httpMatchHost(conn);
         if (httpSetUri(conn, rx->uri, "") < 0) {
             httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad URL format");
             return 0;
         }
+        if (conn->secure) {
+            rx->parsedUri->scheme = sclone("https");
+        }
+        rx->parsedUri->port = conn->sock->port;
         if (!tx->handler) {
             httpMatchHandler(conn);  
         }
+        loc = rx->loc;
+        rx->startAfterContent = (loc->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && loc->flags & HTTP_LOC_SMART));
+
         mprLog(3, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
         httpSetState(conn, HTTP_STATE_PARSED);        
-        httpCreatePipeline(conn, rx->loc, tx->handler);
+        httpCreatePipeline(conn, loc, tx->handler);
 
     } else if (!(100 <= rx->status && rx->status < 200)) {
         httpSetState(conn, HTTP_STATE_PARSED);        
@@ -830,15 +836,13 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 }
 
 
+/*
+    Called once the entire request / response header has been parsed
+ */
 static bool processParsed(HttpConn *conn)
 {
-    if (!conn->connError) {
+    if (!conn->rx->startAfterContent) {
         httpStartPipeline(conn);
-        if (!conn->error && !conn->writeComplete && conn->rx->remainingContent > 0) {
-            //  MOB - why testing remainingContent above?
-            /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
-            httpWritable(conn);
-        }
     }
     httpSetState(conn, HTTP_STATE_CONTENT);
     return 1;
@@ -939,6 +943,9 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
             (rx->remainingContent == 0 && (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF)))) {
         rx->eof = 1;
         httpSendPacketToNext(q, httpCreateEndPacket());
+        if (rx->startAfterContent) {
+            httpStartPipeline(conn);
+        }
         httpSetState(conn, HTTP_STATE_RUNNING);
         return 1;
     }
@@ -948,6 +955,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
 
 
 /*
+    In the running state after all content has been received
     Note: may be called multiple times
  */
 static bool processRunning(HttpConn *conn)
@@ -1273,18 +1281,26 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpHost    *host;
-    char        *oldQuery;
+    HttpUri     *prior;
 
     rx = conn->rx;
     tx = conn->tx;
     host = conn->host;
-    oldQuery = rx->parsedUri ? rx->parsedUri->query : 0;
+    prior = rx->parsedUri;
 
     if ((rx->parsedUri = httpCreateUri(uri, 0)) == 0) {
         return MPR_ERR_BAD_ARGS;
     }
-    if (query == 0) {
-        rx->parsedUri->query = oldQuery;
+    if (prior) {
+        if (rx->parsedUri->scheme == 0) {
+            rx->parsedUri->scheme = prior->scheme;
+        }
+        if (rx->parsedUri->port == 0) {
+            rx->parsedUri->port = prior->port;
+        }
+    }
+    if (query == 0 && prior) {
+        rx->parsedUri->query = prior->query;
     } else if (*query) {
         rx->parsedUri->query = sclone(query);
     }

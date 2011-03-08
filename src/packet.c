@@ -213,15 +213,21 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
  */
 void httpJoinPackets(HttpQueue *q, ssize size)
 {
-    HttpPacket  *first, *next;
+    HttpPacket  *packet, *first, *next;
     ssize       maxPacketSize;
 
+    if (size < 0) {
+        size = MAXINT;
+    }
     if ((first = q->first) != 0 && first->next) {
+        if (first->flags & HTTP_PACKET_HEADER) {
+            first = first->next;
+        }
         maxPacketSize = min(q->nextQ->packetSize, size);
-        while ((next = first->next) != 0) {
-            if (next->content && (httpGetPacketLength(first) + httpGetPacketLength(next)) < maxPacketSize) {
-                httpJoinPacket(first, next);
-                first->next = next->next;
+        for (packet = first->next; packet; packet = next) {
+            next = packet->next;
+            if (packet->content && (httpGetPacketLength(first) + httpGetPacketLength(packet)) < maxPacketSize) {
+                httpJoinPacket(first, packet);
             } else {
                 break;
             }
