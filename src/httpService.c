@@ -417,10 +417,9 @@ static void httpTimer(Http *http, MprEvent *event)
     mprAssert(event);
     
     updateCurrentDate(http);
-    if (mprGetDebugMode(http)) {
+    if (mprGetDebugMode()) {
         return;
     }
-
     /* 
        Check for any inactive connections or expired requests (inactivityTimeout and requestTimeout)
      */

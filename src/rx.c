@@ -963,7 +963,6 @@ static bool processRunning(HttpConn *conn)
     int     canProceed;
 
     canProceed = 1;
-
     if (conn->connError) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
     } else {
