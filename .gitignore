@@ -43,3 +43,4 @@ x64
 *.xcworkspace
 xcuserdata
 mob.*
+.embedthis
