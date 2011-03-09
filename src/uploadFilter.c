@@ -82,6 +82,8 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter)
     len = strlen(pat);
     if (sncasecmp(rx->mimeType, pat, len) == 0) {
         rx->upload = 1;
+        mprAssert(rx->formVars == 0);
+        rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
         mprLog(5, "matchUpload for %s", rx->uri);
         return 1;
     }
@@ -262,7 +264,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
 
     if (mprGetBufLength(content) == 0) {
         /* 
-           Quicker to free the buffer so the packets don't have to be joined the next time 
+           Quicker to remove the buffer so the packets don't have to be joined the next time 
          */
         httpGetPacket(q);
         mprAssert(q->count >= 0);
@@ -515,11 +517,8 @@ static int processContentData(HttpQueue *q)
         }
     }
     data = mprGetBufStart(content);
-    if (bp) {
-        dataLen = (int) (bp - data);
-    } else {
-        dataLen = mprGetBufLength(content);
-    }
+    dataLen = (bp) ? (bp - data) : mprGetBufLength(content);
+
     if (dataLen > 0) {
         mprAdjustBufStart(content, dataLen);
         /*  
@@ -547,6 +546,7 @@ static int processContentData(HttpQueue *q)
             key = mprUriDecode(up->id);
             data = mprUriDecode(data);
             httpSetFormVar(conn, key, data);
+#if UNUSED
             if (packet == 0) {
                 packet = httpCreatePacket(HTTP_BUFSIZE);
             }
@@ -557,6 +557,7 @@ static int processContentData(HttpQueue *q)
                 mprPutCharToBuf(packet->content, '&');
             }
             mprPutFmtToBuf(packet->content, "%s=%s", up->id, data);
+#endif
         }
     }
     if (up->clientFilename) {

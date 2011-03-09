@@ -141,13 +141,16 @@ MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
 
 MprHashTable *httpAddVarsFromQueue(MprHashTable *table, HttpQueue *q)
 {
-    HttpConn        *conn;
-    MprBuf          *content;
+    HttpConn    *conn;
+    HttpRx      *rx;
+    MprBuf      *content;
 
     mprAssert(q);
     
     conn = q->conn;
-    if (conn->rx->form && q->first && q->first->content) {
+    rx = conn->rx;
+
+    if ((rx->form || rx->upload) && q->first && q->first->content) {
         httpJoinPackets(q, -1);
         content = q->first->content;
         mprAddNullToBuf(content);

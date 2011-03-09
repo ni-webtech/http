@@ -26,8 +26,7 @@ HttpPacket *httpCreatePacket(ssize size)
         return 0;
     }
     if (size != 0) {
-        packet->content = mprCreateBuf(size < 0 ? HTTP_BUFSIZE: size, -1);
-        if (packet->content == 0) {
+        if ((packet->content = mprCreateBuf(size < 0 ? HTTP_BUFSIZE: size, -1)) == 0) {
             return 0;
         }
     }
