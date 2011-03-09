@@ -16,18 +16,9 @@
 include		build/make/Makefile.top
 include		build/make/Makefile.http
 
-sync:
+diff import sync:
 	$(BLD_TOOLS_DIR)/import.sh --$@ ../tools/out/releases/tools-dist.tgz
 	$(BLD_TOOLS_DIR)/import.sh --$@ ../mpr/out/releases/mpr-dist.tgz
-
-diff import:
-	$(BLD_TOOLS_DIR)/import.sh --$@ ../mpr/out/releases/mpr-dist.tgz
-
-compileFinal:
-	make dist
-
-ext:
-	./configure --with-mpr=../mpr --with-ssl=../mpr 
 
 #
 #   Local variables:
