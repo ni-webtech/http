@@ -255,23 +255,6 @@ void httpRemoveHost(Http *http, HttpHost *host)
 }
 
 
-#if UNUSED
-//  MOB is this used?
-HttpHost *httpLookupHost(Http *http, cchar *name)
-{
-    HttpHost  *host;
-    int         next;
-
-    for (next = 0; (host = mprGetNextItem(http->hosts, &next)) != 0; ) {
-        if (strcmp(host->name, name) == 0) {
-            return host;
-        }
-    }
-    return 0;
-}
-#endif
-
-
 //  MOB - rename
 HttpLoc *httpInitLocation(Http *http, int serverSide)
 {

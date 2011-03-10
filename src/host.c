@@ -55,7 +55,13 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     if ((host = mprAllocObj(HttpHost, manageHost)) == 0) {
         return 0;
     }
-    host->name = mprAsprintf("%s:%d", ip ? ip : "*", port);
+    if (ip) {
+        if (port) {
+            host->name = mprAsprintf("%s:%d", ip, port);
+        } else {
+            host->name = sclone(ip);
+        }
+    }
     host->mutex = mprCreateLock();
     host->aliases = mprCreateList(-1, 0);
     host->dirs = mprCreateList(-1, 0);
@@ -162,6 +168,12 @@ void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
 void httpSetHostName(HttpHost *host, cchar *name)
 {
     host->name = sclone(name);
+}
+
+
+void httpSetHostInfoName(HttpHost *host, cchar *name)
+{
+    host->infoName = sclone(name);
 }
 
 

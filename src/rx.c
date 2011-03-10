@@ -206,7 +206,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
             rx->parsedUri->scheme = sclone("https");
         }
         rx->parsedUri->port = conn->sock->listenSock->port;
-        rx->parsedUri->host = conn->host->name;
+        rx->parsedUri->host = rx->hostName ? rx->hostName : conn->host->name;
         if (!tx->handler) {
             httpMatchHandler(conn);  
         }
@@ -365,10 +365,18 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     MprBuf      *content;
     cchar       *endp;
     char        *protocol, *status;
-    int         len, level;
+    int         len, level, traced;
 
     rx = conn->rx;
+    traced = 0;
 
+    if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, conn->tx->extension) >= 0) {
+        content = packet->content;
+        endp = strstr((char*) content->start, "\r\n\r\n");
+        len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
+        httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
+        traced = 1;
+    }
     protocol = conn->protocol = supper(getToken(conn, " "));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         conn->http10 = 1;
@@ -385,14 +393,8 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     if (slen(rx->statusMessage) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
     }
-    if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, conn->tx->extension)) >= 0) {
+    if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, conn->tx->extension)) >= 0) {
         mprLog(level, "%s %d %s", protocol, rx->status, rx->statusMessage);
-    }
-    if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, conn->tx->extension) >= 0) {
-        content = packet->content;
-        endp = strstr((char*) content->start, "\r\n\r\n");
-        len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
-        httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
     }
 }
 
