@@ -840,7 +840,7 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 
 
 /*
-    Called once the entire request / response header has been parsed
+    Called once the HTTP request/response headers have been parsed
  */
 static bool processParsed(HttpConn *conn)
 {
