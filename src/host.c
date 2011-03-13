@@ -79,7 +79,7 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     host->traceLevel = 3;
     host->traceMaxLength = INT_MAX;
 
-    host->loc = (loc) ? loc : httpCreateLocation(http);
+    host->loc = (loc) ? loc : httpCreateLocation();
     httpAddLocation(host, host->loc);
     host->loc->auth = httpCreateAuth(host->loc->auth);
     httpAddHost(http, host);
