@@ -417,8 +417,8 @@ static void httpTimer(Http *http, MprEvent *event)
                 /*
                     Don't call APIs on the conn directly (thread-race). Schedule a timer on the connection's dispatcher
                  */
-                if (!conn->timeout) {
-                    conn->timeout = mprCreateEvent(conn->dispatcher, "connTimeout", 0, httpConnTimeout, conn, 0);
+                if (!conn->timeoutEvent) {
+                    conn->timeoutEvent = mprCreateEvent(conn->dispatcher, "connTimeout", 0, httpConnTimeout, conn, 0);
                 }
             } else {
                 mprLog(6, "Idle connection timed out");
