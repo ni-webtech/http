@@ -153,6 +153,7 @@ void httpSetPipeHandler(HttpConn *conn, HttpStage *handler)
 
 void httpSetSendConnector(HttpConn *conn, cchar *path)
 {
+#if !BLD_FEATURE_ROMFS
     HttpTx      *tx;
     HttpQueue   *q, *qhead;
     ssize       maxBody;
@@ -167,6 +168,9 @@ void httpSetSendConnector(HttpConn *conn, cchar *path)
         q->max = maxBody;
         q->packetSize = maxBody;
     }
+#else
+    mprError("Send connector not available if ROMFS enabled");
+#endif
 }
 
 
