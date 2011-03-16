@@ -203,7 +203,8 @@ void httpStartPipeline(HttpConn *conn)
     
     tx = conn->tx;
     qhead = tx->queue[HTTP_QUEUE_TRANS];
-    for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
+
+    for (q = qhead->prevQ; q != qhead; q = q->prevQ) {
         if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
             q->flags |= HTTP_QUEUE_STARTED;
             HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));

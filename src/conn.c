@@ -122,6 +122,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->protocol);
         mprMark(conn->headersCallbackArg);
         mprMark(conn->timeoutEvent);
+        mprMark(conn->mark);
 
         httpManageTrace(&conn->trace[0], flags);
         httpManageTrace(&conn->trace[1], flags);
@@ -673,7 +674,7 @@ void httpSetState(HttpConn *conn, int state)
 
 
 /*
-    Set each timeout arg to -1 to skip. Set to zero for no timeout. Otherwise set to number of seconds
+    Set each timeout arg to -1 to skip. Set to zero for no timeout. Otherwise set to number of msecs
  */
 void httpSetTimeout(HttpConn *conn, int requestTimeout, int inactivityTimeout)
 {
@@ -681,14 +682,14 @@ void httpSetTimeout(HttpConn *conn, int requestTimeout, int inactivityTimeout)
         if (requestTimeout == 0) {
             conn->limits->requestTimeout = INT_MAX;
         } else {
-            conn->limits->requestTimeout = requestTimeout * MPR_TICKS_PER_SEC;
+            conn->limits->requestTimeout = requestTimeout;
         }
     }
     if (inactivityTimeout >= 0) {
         if (inactivityTimeout == 0) {
             conn->limits->inactivityTimeout = INT_MAX;
         } else {
-            conn->limits->inactivityTimeout = inactivityTimeout * MPR_TICKS_PER_SEC;
+            conn->limits->inactivityTimeout = inactivityTimeout;
         }
     }
 }
