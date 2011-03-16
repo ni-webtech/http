@@ -74,16 +74,8 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         mprAddItem(rx->inputPipeline, tx->handler);
     }
     
-    /* Incase a filter changed the handler */
+    /* Set the zero'th entry Incase a filter changed tx->handler */
     mprSetItem(tx->outputPipeline, 0, tx->handler);
-
-#if UNUSED && FUTURE
-    if (tx->handler->flags & HTTP_STAGE_THREAD && !conn->threaded) {
-        /* Start with dispatcher disabled. Conn.c will enable */
-        tx->dispatcher = mprCreateDispatcher(tx->handler->name, 0);
-        conn->dispatcher = tx->dispatcher;
-    }
-#endif
 
     /*  Create the outgoing queue heads and open the queues */
     q = tx->queue[HTTP_QUEUE_TRANS];
@@ -107,6 +99,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
      */
     qhead = tx->queue[HTTP_QUEUE_TRANS];
     rqhead = tx->queue[HTTP_QUEUE_RECEIVE];
+    mprAssert(q->nextQ != qhead);
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
         for (rq = rqhead->nextQ; rq != rqhead; rq = rq->nextQ) {
             if (q->stage == rq->stage) {
@@ -117,21 +110,13 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     }
 
     /*  
-        Open the queues (keep going on errors)
-        Open in reverse order so the handler is opened last. This lets authFilter go early.
+        Open the queues (keep going on errors). Open in data flow order (input first). Handler is last.
      */
-    qhead = tx->queue[HTTP_QUEUE_TRANS];
-    for (q = qhead->prevQ; q != qhead; q = q->prevQ) {
-        if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
-            q->flags |= HTTP_QUEUE_OPEN;
-            httpOpenQueue(q, conn->tx->chunkSize);
-        }
-    }
-
     if (rx->needInputPipeline) {
         qhead = tx->queue[HTTP_QUEUE_RECEIVE];
-        for (q = qhead->prevQ; q != qhead; q = q->prevQ) {
-            if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
+        //  MOB - check if this order is right. Auth must be last?
+        for (q = qhead->nextQ; q->nextQ != qhead; q = q->nextQ) {
+            if (q->open && !(q->flags & (HTTP_QUEUE_OPEN))) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
                     q->flags |= HTTP_QUEUE_OPEN;
                     httpOpenQueue(q, conn->tx->chunkSize);
@@ -139,7 +124,20 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
             }
         }
     }
-
+    qhead = tx->queue[HTTP_QUEUE_TRANS];
+    for (q = qhead->prevQ; q->prevQ != qhead; q = q->prevQ) {
+        if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
+            q->flags |= HTTP_QUEUE_OPEN;
+            httpOpenQueue(q, conn->tx->chunkSize);
+        }
+    }
+    /* Open the handler last */
+    q = qhead->nextQ;
+    if (q->open) {
+        mprAssert(!(q->flags & HTTP_QUEUE_OPEN));
+        q->flags |= HTTP_QUEUE_OPEN;
+        httpOpenQueue(q, conn->tx->chunkSize);
+    }
     conn->flags |= HTTP_CONN_PIPE_CREATED;
 }
 
@@ -202,18 +200,10 @@ void httpStartPipeline(HttpConn *conn)
     HttpTx      *tx;
     
     tx = conn->tx;
-    qhead = tx->queue[HTTP_QUEUE_TRANS];
-
-    for (q = qhead->prevQ; q != qhead; q = q->prevQ) {
-        if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
-            q->flags |= HTTP_QUEUE_STARTED;
-            HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
-        }
-    }
 
     if (conn->rx->needInputPipeline) {
         qhead = tx->queue[HTTP_QUEUE_RECEIVE];
-        for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
+        for (q = qhead->nextQ; q->nextQ != qhead; q = q->nextQ) {
             if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_STARTED)) {
                     q->flags |= HTTP_QUEUE_STARTED;
@@ -222,6 +212,21 @@ void httpStartPipeline(HttpConn *conn)
             }
         }
     }
+    qhead = tx->queue[HTTP_QUEUE_TRANS];
+    for (q = qhead->prevQ; q->prevQ != qhead; q = q->prevQ) {
+        if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
+            q->flags |= HTTP_QUEUE_STARTED;
+            HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
+        }
+    }
+    /* Start the handler last */
+    q = qhead->nextQ;
+    if (q->start) {
+        mprAssert(!(q->flags & HTTP_QUEUE_STARTED));
+        q->flags |= HTTP_QUEUE_STARTED;
+        HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
+    }
+
     if (!conn->error && !conn->writeComplete && conn->rx->remainingContent > 0) {
         /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
         httpWritable(conn);

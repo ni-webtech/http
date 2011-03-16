@@ -146,6 +146,11 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
             break;
         }
         packet = conn->input;
+        if (conn->newDispatcher) {
+            conn->dispatcher = conn->newDispatcher;
+            conn->newDispatcher = 0;
+            conn->canProceed = 0;
+        }
     }
     conn->advancing = 0;
 }

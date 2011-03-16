@@ -234,10 +234,6 @@ void httpPrepServerConn(HttpConn *conn)
 
     conn->readq = 0;
     conn->writeq = 0;
-#if UNUSED
-    conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
-            httpAcceptConn, server, (server->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
-#endif
     commonPrep(conn);
 }
 
