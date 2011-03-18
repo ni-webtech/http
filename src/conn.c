@@ -43,12 +43,8 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
     } else {
         conn->limits = http->clientLimits;
     }
-    mprAssert(conn->limits->requestTimeout > 0);
-    mprAssert(conn->limits->inactivityTimeout > 0);
     conn->keepAliveCount = conn->limits->keepAliveCount;
-
     conn->serviceq = httpCreateQueueHead(conn, "serviceq");
-
     httpInitTrace(conn->trace);
 
     if (dispatcher) {
@@ -89,7 +85,6 @@ void httpDestroyConn(HttpConn *conn)
             conn->tx = 0;
         }
         conn->http = 0;
-        // mprLog(0, "DEBUG: destroy/free conn %p", conn);
     }
 }
 
@@ -105,6 +100,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->http);
         mprMark(conn->stages);
         mprMark(conn->dispatcher);
+        mprMark(conn->newDispatcher);
         mprMark(conn->waitHandler);
         mprMark(conn->server);
         mprMark(conn->host);
@@ -122,6 +118,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->protocol);
         mprMark(conn->headersCallbackArg);
         mprMark(conn->timeoutEvent);
+        mprMark(conn->workerEvent);
         mprMark(conn->mark);
 
         httpManageTrace(&conn->trace[0], flags);
@@ -209,12 +206,6 @@ static void commonPrep(HttpConn *conn)
     conn->flags = 0;
     conn->state = 0;
     conn->writeComplete = 0;
-#if UNUSED
-    if (conn->dispatcher == 0) {
-        mprAssert(0);
-        conn->dispatcher = (conn->server) ? conn->server->dispatcher : mprGetDispatcher();
-    }
-#endif
     conn->lastActivity = conn->http->now;
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpInitSchedulerQueue(conn->serviceq);
@@ -295,10 +286,10 @@ void httpCallEvent(HttpConn *conn, int mask)
 
 
 /*  
-    IO event handler. This is invoked by the wait subsystem in response to I/O events. It is also invoked via relay
-    when an accept event is received by the server. Initially the conn->dispatcher will be set to the server->dispatcher 
-    and the first I/O event will be handled on the server thread (or main thread). A request handler may create a 
-    new conn->dispatcher and transfer execution to a worker thread if required.
+    IO event handler. This is invoked by the wait subsystem in response to I/O events. It is also invoked via relay when 
+    an accept event is received by the server. Initially the conn->dispatcher will be set to the server->dispatcher and 
+    the first I/O event will be handled on the server thread (or main thread). A request handler may create a new 
+    conn->dispatcher and transfer execution to a worker thread if required.
  */
 void httpEvent(HttpConn *conn, MprEvent *event)
 {
@@ -311,22 +302,17 @@ void httpEvent(HttpConn *conn, MprEvent *event)
     if (event->mask & MPR_READABLE) {
         readEvent(conn);
     }
-    if (conn->server) {
-#if UNUSED
-        if (conn->keepAliveCount < 0 || mprIsSocketEof(conn->sock))
-#endif
-        if (conn->keepAliveCount < 0) {
-            /*  
-                NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
-                It should respond to the "Connection: close" and thus initiate a client-led close. This reduces 
-                TIME_WAIT states on the server. NOTE: after httpDestroyConn, conn structure and memory is still 
-                intact but conn->sock is zero.
-             */
-            httpDestroyConn(conn);
-            return;
-        }
+    if (conn->server && conn->keepAliveCount < 0) {
+        /*  
+            NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
+            It should respond to the "Connection: close" and thus initiate a client-led close. This reduces 
+            TIME_WAIT states on the server. NOTE: after httpDestroyConn, conn structure and memory is still 
+            intact but conn->sock is zero.
+         */
+        httpDestroyConn(conn);
+    } else {
+        httpEnableConnEvents(conn);
     }
-    httpEnableConnEvents(conn);
 }
 
 
@@ -361,7 +347,7 @@ static void readEvent(HttpConn *conn)
             }
             break;
         }
-        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING) {
+        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || conn->workerEvent) {
             break;
         }
     }
@@ -385,6 +371,7 @@ void httpEnableConnEvents(HttpConn *conn)
 {
     HttpTx      *tx;
     HttpQueue   *q;
+    MprEvent    *event;
     int         eventMask;
 
     mprLog(7, "EnableConnEvents");
@@ -397,6 +384,13 @@ void httpEnableConnEvents(HttpConn *conn)
     conn->lastActivity = conn->http->now;
 
     if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
+        lock(conn->http);
+        if (conn->workerEvent) {
+            event = conn->workerEvent;
+            conn->workerEvent = 0;
+            conn->dispatcher = conn->newDispatcher;
+            mprQueueEvent(conn->dispatcher, event);
+        }
         if (tx) {
             if (tx->queue[HTTP_QUEUE_TRANS]->prevQ->count > 0) {
                 eventMask |= MPR_WRITABLE;
@@ -426,7 +420,11 @@ void httpEnableConnEvents(HttpConn *conn)
                 mprEnableWaitEvents(conn->waitHandler, eventMask);
             }
         }
+        mprAssert(conn->dispatcher->enabled);
+#if UNUSED
         mprEnableDispatcher(conn->dispatcher);
+#endif
+        unlock(conn->http);
     }
 }
 

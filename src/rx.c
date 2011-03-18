@@ -146,11 +146,6 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
             break;
         }
         packet = conn->input;
-        if (conn->newDispatcher) {
-            conn->dispatcher = conn->newDispatcher;
-            conn->newDispatcher = 0;
-            conn->canProceed = 0;
-        }
     }
     conn->advancing = 0;
 }
@@ -851,6 +846,9 @@ static bool processParsed(HttpConn *conn)
 {
     if (!conn->rx->startAfterContent) {
         httpStartPipeline(conn);
+        if (conn->workerEvent) {
+            return 0;
+        }
     }
     httpSetState(conn, HTTP_STATE_CONTENT);
     return 1;
@@ -953,6 +951,9 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         httpSendPacketToNext(q, httpCreateEndPacket());
         if (rx->startAfterContent) {
             httpStartPipeline(conn);
+            if (conn->workerEvent) {
+                return 0;
+            }
         }
         httpSetState(conn, HTTP_STATE_RUNNING);
         return 1;

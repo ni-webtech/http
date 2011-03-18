@@ -1379,6 +1379,7 @@ typedef struct HttpConn {
     MprTime         started;                /**< When the connection started */
     MprTime         lastActivity;           /**< Last activity on the connection */
     MprEvent        *timeoutEvent;          /**< Connection or request timeout event */
+    MprEvent        *workerEvent;           /**< Event for running connection via a worker thread */
     void            *context;               /**< Embedding context */
     void            *mark;                  /**< Reference for GC marking */
     char            *boundary;              /**< File upload boundary */
