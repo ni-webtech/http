@@ -101,6 +101,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->stages);
         mprMark(conn->dispatcher);
         mprMark(conn->newDispatcher);
+        mprMark(conn->oldDispatcher);
         mprMark(conn->waitHandler);
         mprMark(conn->server);
         mprMark(conn->host);
@@ -367,6 +368,9 @@ static void writeEvent(HttpConn *conn)
 }
 
 
+/*
+    This can be called by any thread
+ */
 void httpEnableConnEvents(HttpConn *conn)
 {
     HttpTx      *tx;
@@ -390,6 +394,8 @@ void httpEnableConnEvents(HttpConn *conn)
             conn->workerEvent = 0;
             conn->dispatcher = conn->newDispatcher;
             mprQueueEvent(conn->dispatcher, event);
+            unlock(conn->http);
+            return;
         }
         if (tx) {
             if (tx->queue[HTTP_QUEUE_TRANS]->prevQ->count > 0) {
@@ -459,6 +465,7 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
     } else {
         content = packet->content;
         mprResetBufIfEmpty(content);
+        mprAddNullToBuf(content);
         if (rx) {
             /*  
                 Don't read more than the remainingContent unless chunked. We do this to minimize requests split 

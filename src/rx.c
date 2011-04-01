@@ -417,7 +417,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     content = packet->content;
     conn->rx->headerPacket = packet;
     limits = conn->limits;
-    keepAlive = 0;
+    keepAlive = (conn->http10) ? 0 : 1;
 
     for (count = 0; content->start[0] != '\r' && !conn->connError; count++) {
         if (count >= limits->headerCount) {
