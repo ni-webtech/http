@@ -546,7 +546,8 @@ static int processContentData(HttpQueue *q)
             key = mprUriDecode(up->id);
             data = mprUriDecode(data);
             httpSetFormVar(conn, key, data);
-#if UNUSED
+
+            //  MOB - I think PHP needs to actually get the data if using --upload and --form
             if (packet == 0) {
                 packet = httpCreatePacket(HTTP_BUFSIZE);
             }
@@ -555,9 +556,11 @@ static int processContentData(HttpQueue *q)
                     Need to add www-form-urlencoding separators
                  */
                 mprPutCharToBuf(packet->content, '&');
+            } else {
+                conn->rx->mimeType = sclone("application/x-www-form-urlencoded");
+
             }
             mprPutFmtToBuf(packet->content, "%s=%s", up->id, data);
-#endif
         }
     }
     if (up->clientFilename) {

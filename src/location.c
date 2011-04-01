@@ -331,13 +331,14 @@ void httpSetLocationPrefix(HttpLoc *loc, cchar *uri)
 
     loc->prefix = sclone(uri);
     loc->prefixLen = (int) strlen(loc->prefix);
-
+#if UNUSED
     /*
         Always strip trailing "/". Note this is a Uri and not a path.
      */
     if (loc->prefixLen > 0 && loc->prefix[loc->prefixLen - 1] == '/') {
         loc->prefix[--loc->prefixLen] = '\0';
     }
+#endif
 }
 
 

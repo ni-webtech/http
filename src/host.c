@@ -401,7 +401,7 @@ HttpLoc *httpLookupBestLocation(HttpHost *host, cchar *uri)
     if (uri) {
         for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
             rc = sncmp(loc->prefix, uri, loc->prefixLen);
-            if (rc == 0 /* UNUSED MOB && uri[loc->prefixLen] == '/' */) {
+            if (rc == 0) {
                 return loc;
             }
         }

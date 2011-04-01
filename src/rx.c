@@ -846,11 +846,14 @@ static bool processParsed(HttpConn *conn)
 {
     if (!conn->rx->startAfterContent) {
         httpStartPipeline(conn);
-        if (conn->workerEvent) {
-            return 0;
-        }
     }
     httpSetState(conn, HTTP_STATE_CONTENT);
+    if (conn->workerEvent && !conn->rx->startAfterContent) {
+        if (conn->connError || conn->rx->remainingContent <= 0) {
+            httpSetState(conn, HTTP_STATE_RUNNING);
+        }
+        return 0;
+    }
     return 1;
 }
 
@@ -951,11 +954,11 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         httpSendPacketToNext(q, httpCreateEndPacket());
         if (rx->startAfterContent) {
             httpStartPipeline(conn);
-            if (conn->workerEvent) {
-                return 0;
-            }
         }
         httpSetState(conn, HTTP_STATE_RUNNING);
+        if (conn->workerEvent) {
+            return 0;
+        }
         return 1;
     }
     httpServiceQueues(conn);
