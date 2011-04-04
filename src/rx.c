@@ -233,7 +233,7 @@ static void traceRequest(HttpConn *conn, HttpPacket *packet)
 
     rx = conn->rx;
 
-    mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->ip, conn->sock->port);
+    mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->acceptIp, conn->sock->acceptPort);
 
     if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, conn->tx->extension) >= 0) {
         content = packet->content;

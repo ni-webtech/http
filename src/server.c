@@ -235,8 +235,8 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
             mprRemoveHash(server->clientLoad, conn->ip);
         }
         server->clientCount = mprGetHashLength(server->clientLoad);
-        mprLog(4, "Close connection %d. Active requests %d, active clients %d", 
-            conn->seqno, server->requestCount, server->clientCount);
+        mprLog(4, "Close connection %d. Active requests %d, active clients %d.", conn->seqno, server->requestCount, 
+            server->clientCount);
         break;
     
     case HTTP_VALIDATE_OPEN_REQUEST:
@@ -253,7 +253,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     case HTTP_VALIDATE_CLOSE_REQUEST:
         server->requestCount--;
         mprAssert(server->requestCount >= 0);
-        mprLog(4, "Close request. Active requests %d, active clients %d", server->requestCount, server->clientCount);
+        mprLog(4, "Close request. Active requests %d, active clients %d.", server->requestCount, server->clientCount);
         break;
     }
     mprLog(6, "Validate request. Counts: requests: %d/%d, clients %d/%d", 
@@ -294,9 +294,6 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
     // dispatcher = (event && server->dispatcher == 0) ? event->dispatcher: server->dispatcher;
     dispatcher = event->dispatcher;
 
-    mprLog(4, "New connection from %s:%d to %s:%d %s",
-        sock->ip, sock->port, sock->acceptIp, sock->acceptPort, server->sock->sslSocket ? "(secure)" : "");
-
     if ((conn = httpCreateConn(server->http, server, dispatcher)) == 0) {
         mprError("Can't create connect object. Insufficient memory.");
         mprCloseSocket(sock, 0);
@@ -320,8 +317,8 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
     httpSetState(conn, HTTP_STATE_CONNECTED);
 
     if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_CONN, NULL)) >= 0) {
-        mprLog(level, "### Incoming connection from %s:%d to %s:%d", 
-            conn->ip, conn->port, conn->sock->ip, conn->sock->port);
+        mprLog(level, "### Incoming connection from %s:%d to %s:%d %s", 
+            conn->ip, conn->port, sock->acceptIp, sock->acceptPort, conn->secure ? "(secure)" : "");
     }
     e.mask = MPR_READABLE;
     e.timestamp = mprGetTime();
