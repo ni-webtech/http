@@ -2724,7 +2724,7 @@ bool mprIsFinished()
 }
 
 
-void mprWaitTillIdle(MprTime timeout)
+int mprWaitTillIdle(MprTime timeout)
 {
     MprTime     mark;
 
@@ -2732,6 +2732,7 @@ void mprWaitTillIdle(MprTime timeout)
     while (!mprIsIdle() && mprGetRemainingTime(mark, timeout) > 0) {
         mprSleep(1);
     }
+    return mprIsIdle();
 }
 
 
@@ -8693,7 +8694,6 @@ void mprRemoveEvent(MprEvent *event)
     MprDispatcher       *dispatcher;
 
     mprAssert(event->dispatcher == 0 || event->dispatcher->magic == MPR_DISPATCHER_MAGIC);
-    mprAssert(event->magic == MPR_EVENT_MAGIC);
 
     dispatcher = event->dispatcher;
     if (dispatcher) {
@@ -15458,20 +15458,15 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list arg)
                 qname = va_arg(arg, MprEjsName);
                 if (qname.name) {
 #if BLD_CHAR_LEN == 1
-                    outString(&fmt, qname.name->value, qname.name->length);
-                    BPUT(&fmt, ':');
-                    BPUT(&fmt, ':');
-#if UNUSED
-                    es = va_arg(arg, MprEjsString*);
-#endif
                     outString(&fmt, qname.space->value, qname.space->length);
-#else
-                    outWideString(&fmt, qname.name->value, qname.name->length);
                     BPUT(&fmt, ':');
-#if UNUSED
-                    es = va_arg(arg, MprEjsString*);
-#endif
+                    BPUT(&fmt, ':');
+                    outString(&fmt, qname.name->value, qname.name->length);
+#else
                     outWideString(&fmt, qname.space->value, qname.space->length);
+                    BPUT(&fmt, ':');
+                    BPUT(&fmt, ':');
+                    outWideString(&fmt, qname.name->value, qname.name->length);
 #endif
                 } else {
                     outString(&fmt, NULL, 0);
