@@ -7460,6 +7460,7 @@ int mprWaitForEvent(MprDispatcher *dispatcher, MprTime timeout)
         if (runEvents) {
             makeRunnable(dispatcher);
             if (dispatchEvents(dispatcher)) {
+                signalled++;
                 break;
             }
         }
@@ -7471,15 +7472,18 @@ int mprWaitForEvent(MprDispatcher *dispatcher, MprTime timeout)
         mprYield(MPR_YIELD_STICKY);
         if (mprWaitForCond(dispatcher->cond, (int) delay) == 0) {
             mprResetYield();
-            signalled++;
             dispatcher->waitingOnCond = 0;
+            if (runEvents) {
+                makeRunnable(dispatcher);
+                dispatchEvents(dispatcher);
+            }
+            signalled++;
             break;
         }
         mprResetYield();
         dispatcher->waitingOnCond = 0;
         es->now = mprGetTime();
     }
-
     if (!wasRunning) {
         scheduleDispatcher(dispatcher);
         if (claimed) {

@@ -348,7 +348,8 @@ static void readEvent(HttpConn *conn)
             }
             break;
         }
-        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || conn->workerEvent || conn->readq->count > conn->readq->max) {
+        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || conn->workerEvent || 
+                (conn->readq && conn->readq->count > conn->readq->max)) {
             break;
         }
     }
