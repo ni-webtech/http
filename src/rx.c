@@ -914,10 +914,6 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             conn->input = httpSplitPacket(packet, nbytes);
         }
         httpSendPacketToNext(q, packet);
-        if ((conn->readq->count + httpGetPacketLength(packet)) > conn->readq->max) {
-            return 0;
-        }
-
     } else {
         conn->input = 0;
     }
@@ -961,6 +957,10 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         return 1;
     }
     httpServiceQueues(conn);
+
+    if ((conn->readq->count + httpGetPacketLength(packet)) > conn->readq->max) {
+        return 0;
+    }
     return conn->error || (conn->input ? mprGetBufLength(conn->input->content) : 0);
 }
 
