@@ -132,7 +132,7 @@ void httpDisableQueue(HttpQueue *q)
 void httpDiscardData(HttpQueue *q, bool removePackets)
 {
     HttpPacket  *packet, *prev, *next;
-    ssize       len;
+    MprOff      len;
 
     for (prev = 0, packet = q->first; packet; packet = next) {
         next = packet->next;
@@ -367,7 +367,7 @@ char *httpReadString(HttpConn *conn)
 {
     HttpRx      *rx;
     char        *content;
-    ssize       remaining, sofar, nbytes;
+    MprOff      remaining, sofar, nbytes;
 
     rx = conn->rx;
 
@@ -460,12 +460,16 @@ void httpServiceQueue(HttpQueue *q)
 bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
 {
     HttpQueue   *next;
-    ssize       size;
+    MprOff      size;
 
     next = q->nextQ;
 
+#if UNUSED
     size = packet->content ? mprGetBufLength(packet->content) : 0;
-    if (size == 0 || (size <= next->packetSize && (size + next->count) <= next->max)) {
+#else
+    size = httpGetPacketLength(packet);
+#endif
+    if (size <= next->packetSize && (size + next->count) <= next->max) {
         return 1;
     }
     if (httpResizePacket(q, packet, 0) < 0) {

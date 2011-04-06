@@ -467,7 +467,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Mulitple content length headers");
                     break;
                 }
-                rx->length = atoi(value);
+                rx->length = stoi(value, 10, 0);
                 if (rx->length < 0) {
                     httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad content length");
                     break;
@@ -864,7 +864,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpQueue   *q;
     MprBuf      *content;
-    ssize       nbytes, remaining;
+    MprOff      nbytes, remaining;
 
     rx = conn->rx;
     tx = conn->tx;
@@ -913,11 +913,10 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             LOG(7, "processContent: Split packet of %d at %d", httpGetPacketLength(packet), nbytes);
             conn->input = httpSplitPacket(packet, nbytes);
         }
-        if ((q->count + httpGetPacketLength(packet)) > q->max) {
-            //  MOB - is this right?
+        httpSendPacketToNext(q, packet);
+        if ((conn->readq->count + httpGetPacketLength(packet)) > conn->readq->max) {
             return 0;
         }
-        httpSendPacketToNext(q, packet);
 
     } else {
         conn->input = 0;
@@ -1337,6 +1336,10 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 }
 
 
+/*
+    Wait for an Http event until the http reaches a specified state or a timeout expires
+    If timeout is == -1, then no timeout is used. If state is zero, it waits for just one event.
+ */
 int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
     Http        *http;

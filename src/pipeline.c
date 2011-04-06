@@ -45,12 +45,11 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         }
     }
     if (tx->connector == 0) {
-        //  MOB loc->connector is set to never selecting sendConnector
-        if (loc && loc->connector) {
-            tx->connector = loc->connector;
-        } else if (tx->handler == http->fileHandler && !rx->ranges && !conn->secure && tx->chunkSize <= 0) {
+        if (tx->handler == http->fileHandler && !rx->ranges && !conn->secure && tx->chunkSize <= 0) {
             //  MOB - should not use this if tracing content is requested
             tx->connector = http->sendConnector;
+        } else if (loc && loc->connector) {
+            tx->connector = loc->connector;
         } else {
             tx->connector = http->netConnector;
         }

@@ -348,7 +348,7 @@ static void readEvent(HttpConn *conn)
             }
             break;
         }
-        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || conn->workerEvent) {
+        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || conn->workerEvent || conn->readq->count > conn->readq->max) {
             break;
         }
     }
@@ -450,7 +450,7 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
     HttpPacket  *packet;
     MprBuf      *content;
     HttpRx      *rx;
-    ssize       len;
+    MprOff      len;
 
     rx = conn->rx;
     len = HTTP_BUFSIZE;
@@ -681,14 +681,14 @@ void httpSetTimeout(HttpConn *conn, int requestTimeout, int inactivityTimeout)
 {
     if (requestTimeout >= 0) {
         if (requestTimeout == 0) {
-            conn->limits->requestTimeout = INT_MAX;
+            conn->limits->requestTimeout = MAXINT;
         } else {
             conn->limits->requestTimeout = requestTimeout;
         }
     }
     if (inactivityTimeout >= 0) {
         if (inactivityTimeout == 0) {
-            conn->limits->inactivityTimeout = INT_MAX;
+            conn->limits->inactivityTimeout = MAXINT;
         } else {
             conn->limits->inactivityTimeout = inactivityTimeout;
         }

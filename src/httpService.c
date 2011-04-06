@@ -289,7 +289,7 @@ void httpInitLimits(HttpLimits *limits, int serverSide)
     limits->uriSize = MPR_MAX_URL;
 
     limits->inactivityTimeout = HTTP_INACTIVITY_TIMEOUT;
-    limits->requestTimeout = INT_MAX;
+    limits->requestTimeout = MAXINT;
     limits->sessionTimeout = HTTP_SESSION_TIMEOUT;
 
     limits->clientCount = HTTP_MAX_CLIENTS;
@@ -324,6 +324,14 @@ HttpLimits *httpCreateLimits(int serverSide)
         httpInitLimits(limits, serverSide);
     }
     return limits;
+}
+
+
+void httpEaseLimits(HttpLimits *limits)
+{
+    limits->receiveBodySize = MAXOFF;
+    limits->transmissionBodySize = MAXOFF;
+    limits->uploadSize = MAXOFF;
 }
 
 

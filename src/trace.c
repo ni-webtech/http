@@ -129,7 +129,7 @@ void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssi
         return;
     }
     if (len <= 0) {
-        len = INT_MAX;
+        len = MAXINT;
     }
     if (packet->prefix) {
         size = mprGetBufLength(packet->prefix);

@@ -18,7 +18,7 @@ static void managePacket(HttpPacket *packet, int flags);
     used for incoming body content. If size > 0, then create a non-growable buffer 
     of the requested size.
  */
-HttpPacket *httpCreatePacket(ssize size)
+HttpPacket *httpCreatePacket(MprOff size)
 {
     HttpPacket  *packet;
 
@@ -81,7 +81,7 @@ void httpFreePacket(HttpQueue *q, HttpPacket *packet)
 #endif
 
 
-HttpPacket *httpCreateDataPacket(ssize size)
+HttpPacket *httpCreateDataPacket(MprOff size)
 {
     HttpPacket    *packet;
 
@@ -157,7 +157,7 @@ HttpPacket *httpGetPacket(HttpQueue *q)
  */
 bool httpIsPacketTooBig(HttpQueue *q, HttpPacket *packet)
 {
-    ssize   size;
+    MprOff      size;
     
     size = mprGetBufLength(packet->content);
     return size > q->max || size > q->packetSize;
@@ -197,7 +197,7 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
  */
 int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 {
-    ssize   len;
+    MprOff      len;
 
     len = httpGetPacketLength(p);
     if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), len) != len) {
@@ -210,10 +210,10 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 /*
     Join queue packets up to the maximum of the given size and the downstream queue packet size.
  */
-void httpJoinPackets(HttpQueue *q, ssize size)
+void httpJoinPackets(HttpQueue *q, MprOff size)
 {
     HttpPacket  *packet, *first, *next;
-    ssize       maxPacketSize;
+    MprOff      maxPacketSize;
 
     if (size < 0) {
         size = MAXINT;
@@ -282,15 +282,14 @@ void httpPutForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
     Split a packet if required so it fits in the downstream queue. Put back the 2nd portion of the split packet on the queue.
     Ensure that the packet is not larger than "size" if it is greater than zero.
  */
-int httpResizePacket(HttpQueue *q, HttpPacket *packet, ssize size)
+int httpResizePacket(HttpQueue *q, HttpPacket *packet, MprOff size)
 {
     HttpPacket  *tail;
-    ssize       len;
+    MprOff      len;
     
     if (size <= 0) {
         size = MAXINT;
     }
-
     /*  
         Calculate the size that will fit
      */
@@ -375,10 +374,10 @@ void httpSendPackets(HttpQueue *q)
     Split a packet at a given offset and return a new packet containing the data after the offset.
     The suffix data migrates to the new packet. 
  */
-HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
+HttpPacket *httpSplitPacket(HttpPacket *orig, MprOff offset)
 {
     HttpPacket  *packet;
-    ssize       count, size;
+    MprOff      count, size;
 
     if (offset >= httpGetPacketLength(orig)) {
         mprAssert(0);

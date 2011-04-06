@@ -376,7 +376,7 @@ void httpSetContentLength(HttpConn *conn, ssize length)
         return;
     }
     tx->length = length;
-    httpSetHeader(conn, "Content-Length", "%d", tx->length);
+    httpSetHeader(conn, "Content-Length", "%Ld", tx->length);
 }
 
 
@@ -500,7 +500,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             httpSetSimpleHeader(conn, "Transfer-Encoding", "chunked");
         }
     } else if (tx->length > 0) {
-        httpSetHeader(conn, "Content-Length", "%d", tx->length);
+        httpSetHeader(conn, "Content-Length", "%Ld", tx->length);
     }
     if (rx->ranges) {
         if (rx->ranges->next == 0) {
@@ -532,7 +532,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 }
 
 
-void httpSetEntityLength(HttpConn *conn, ssize len)
+void httpSetEntityLength(HttpConn *conn, int64 len)
 {
     HttpTx      *tx;
 

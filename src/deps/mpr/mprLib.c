@@ -640,7 +640,10 @@ static MprMem *growHeap(ssize required, int flags)
     rsize = MPR_ALLOC_ALIGN(sizeof(MprRegion));
     size = max(required + rsize, (ssize) heap->chunkSize);
     size = MPR_PAGE_ALIGN(size, heap->pageSize);
-
+    if (size < 0 || size >= ((ssize) 1 << MPR_SIZE_BITS)) {
+        allocException(size, 0);
+        return 0;
+    }
     if ((region = valloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
         return 0;
     }
@@ -2175,13 +2178,13 @@ static MPR_INLINE int flsl(ulong word)
 static int memoryNotifier(int flags, ssize size)
 {
     if (flags & MPR_MEM_DEPLETED) {
-        mprPrintfError("Can't allocate memory block of size %d\n", size);
-        mprPrintfError("Total memory used %d\n", mprGetMem());
+        mprPrintfError("Can't allocate memory block of size %,d bytes\n", size);
+        mprPrintfError("Total memory used %,d bytes\n", mprGetMem());
         exit(255);
 
     } else if (flags & MPR_MEM_LOW) {
-        mprPrintfError("Memory request for %d bytes exceeds memory red-line\n", size);
-        mprPrintfError("Total memory used %d\n", mprGetMem());
+        mprPrintfError("Memory request for %,d bytes exceeds memory red-line\n", size);
+        mprPrintfError("Total memory used %,d bytes\n", mprGetMem());
     }
     return 0;
 }
@@ -6778,14 +6781,14 @@ static ssize writeFile(MprFile *file, cvoid *buf, ssize count)
 }
 
 
-static MprOffset seekFile(MprFile *file, int seekType, MprOffset distance)
+static MprOff seekFile(MprFile *file, int seekType, MprOff distance)
 {
     mprAssert(file);
 
     if (file == 0) {
         return MPR_ERR_BAD_HANDLE;
     }
-    return (MprOffset) lseek(file->fd, distance, seekType);
+    return (MprOff) lseek(file->fd, distance, seekType);
 }
 
 
@@ -6981,7 +6984,7 @@ static char *getPathLink(MprDiskFileSystem *fileSystem, cchar *path)
 }
 
 
-static int truncateFile(MprDiskFileSystem *fileSystem, cchar *path, MprOffset size)
+static int truncateFile(MprDiskFileSystem *fileSystem, cchar *path, MprOff size)
 {
     if (!mprPathExists(path, F_OK)) {
         return MPR_ERR_CANT_ACCESS;
@@ -8980,13 +8983,13 @@ int mprFlushFile(MprFile *file)
 }
 
 
-MprOffset mprGetFilePosition(MprFile *file)
+MprOff mprGetFilePosition(MprFile *file)
 {
     return file->pos;
 }
 
 
-MprOffset mprGetFileSize(MprFile *file)
+MprOff mprGetFileSize(MprFile *file)
 {
     return file->size;
 }
@@ -9131,7 +9134,7 @@ char *mprGetFileString(MprFile *file, ssize maxline, ssize *lenp)
         } else {
             consumed = len;
         }
-        file->pos += (MprOffset) consumed;
+        file->pos += (MprOff) consumed;
         if (lenp) {
             *lenp += len;
         }
@@ -9165,7 +9168,7 @@ MprFile *mprOpenFile(cchar *path, int omode, int perms)
                 OPT. Should compute this lazily.
              */
             fs->getPathInfo(fs, path, &info);
-            file->size = (MprOffset) info.size;
+            file->size = (MprOff) info.size;
         }
         file->mode = omode;
         file->perms = perms;
@@ -9229,7 +9232,7 @@ ssize mprPutFileString(MprFile *file, cchar *str)
         count -= bytes;
         buf += bytes;
         total += bytes;
-        file->pos += (MprOffset) bytes;
+        file->pos += (MprOff) bytes;
     }
     return total;
 }
@@ -9321,12 +9324,12 @@ ssize mprReadFile(MprFile *file, void *buf, ssize size)
         }
         totalRead = ((char*) buf - (char*) bufStart);
     }
-    file->pos += (MprOffset) totalRead;
+    file->pos += (MprOff) totalRead;
     return totalRead;
 }
 
 
-MprOffset mprSeekFile(MprFile *file, int seekType, MprOffset pos)
+MprOff mprSeekFile(MprFile *file, int seekType, MprOff pos)
 {
     MprFileSystem   *fs;
 
@@ -9368,7 +9371,7 @@ MprOffset mprSeekFile(MprFile *file, int seekType, MprOffset pos)
 }
 
 
-int mprTruncateFile(cchar *path, MprOffset size)
+int mprTruncateFile(cchar *path, MprOff size)
 {
     MprFileSystem   *fs;
 
@@ -9413,7 +9416,7 @@ ssize mprWriteFile(MprFile *file, cvoid *buf, ssize count)
             buf = (char*) buf + bytes;
         }
     }
-    file->pos += (MprOffset) written;
+    file->pos += (MprOff) written;
     if (file->pos > file->size) {
         file->size = file->pos;
     }
@@ -18104,7 +18107,7 @@ ssize mprWriteSocketVector(MprSocket *sp, MprIOVec *iovec, int count)
 
 #if !BLD_FEATURE_ROMFS
 #if !LINUX || __UCLIBC__
-static ssize localSendfile(MprSocket *sp, MprFile *file, MprOffset offset, ssize len)
+static ssize localSendfile(MprSocket *sp, MprFile *file, MprOff offset, ssize len)
 {
     char    buf[MPR_BUFSIZE];
 
@@ -18122,15 +18125,15 @@ static ssize localSendfile(MprSocket *sp, MprFile *file, MprOffset offset, ssize
 /*  Write data from a file to a socket. Includes the ability to write header before and after the file data.
     Works even with a null "file" to just output the headers.
  */
-ssize mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOffset offset, ssize bytes, MprIOVec *beforeVec, 
-    int beforeCount, MprIOVec *afterVec, int afterCount)
+ssize mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOff offset, ssize bytes, MprIOVec *beforeVec, 
+    ssize beforeCount, MprIOVec *afterVec, ssize afterCount)
 {
 #if MACOSX && __MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
     struct sf_hdtr  def;
 #endif
-    ssize           rc, written;
+    ssize           rc, written, toWriteBefore, toWriteAfter, toWriteFile;
     off_t           off;
-    int             i, done, toWriteBefore, toWriteAfter, toWriteFile;
+    int             i, done;
 
     rc = 0;
 
@@ -18156,12 +18159,12 @@ ssize mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOffset offset, ssiz
         done = 0;
         written = 0;
         for (i = toWriteBefore = 0; i < beforeCount; i++) {
-            toWriteBefore += (int) beforeVec[i].len;
+            toWriteBefore += beforeVec[i].len;
         }
         for (i = toWriteAfter = 0; i < afterCount; i++) {
-            toWriteAfter += (int) afterVec[i].len;
+            toWriteAfter += afterVec[i].len;
         }
-        toWriteFile = (int) bytes - toWriteBefore - toWriteAfter;
+        toWriteFile = bytes - toWriteBefore - toWriteAfter;
         mprAssert(toWriteFile >= 0);
 
         /*

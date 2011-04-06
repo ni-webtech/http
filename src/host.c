@@ -77,7 +77,7 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     //  MOB -- not right
     host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     host->traceLevel = 3;
-    host->traceMaxLength = INT_MAX;
+    host->traceMaxLength = MAXINT;
 
     host->loc = (loc) ? loc : httpCreateLocation();
     httpAddLocation(host, host->loc);

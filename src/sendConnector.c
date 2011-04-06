@@ -77,8 +77,8 @@ void httpSendOutgoingService(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpTx      *tx;
-    ssize       written;
-    int         errCode, count;
+    ssize       written, count;
+    int         errCode;
 
     conn = q->conn;
     tx = conn->tx;
@@ -114,7 +114,7 @@ void httpSendOutgoingService(HttpQueue *q)
          */
         count = q->ioIndex - q->ioFileEntry;
         mprAssert(count >= 0);
-        written = mprSendFileToSocket(conn->sock, tx->file, (MprOffset) tx->pos, q->ioCount, q->iovec, count, NULL, 0);
+        written = mprSendFileToSocket(conn->sock, tx->file, tx->pos, q->ioCount, q->iovec, count, NULL, 0);
         mprLog(5, "Send connector wrote %d, written so far %d", written, tx->bytesWritten);
         if (written < 0) {
             errCode = mprGetError(q);
@@ -236,7 +236,7 @@ static void addPacketForSend(HttpQueue *q, HttpPacket *packet)
             addToSendVector(q, 0, httpGetPacketLength(packet));
             mprAssert(q->ioFileEntry == 0);
             q->ioFileEntry = 1;
-            q->ioFileOffset += (MprOffset) httpGetPacketLength(packet);
+            q->ioFileOffset += httpGetPacketLength(packet);
         }
     }
     item = (packet->flags & HTTP_PACKET_HEADER) ? HTTP_TRACE_HEADER : HTTP_TRACE_BODY;
