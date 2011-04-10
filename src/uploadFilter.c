@@ -223,7 +223,6 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
             mprAdjustBufStart(content, (int) (nextTok - line));
             line = strim(line, "\r", MPR_TRIM_END);
         }
-
         switch (up->contentState) {
         case HTTP_UPLOAD_BOUNDARY:
             if (processContentBoundary(q, line) < 0) {

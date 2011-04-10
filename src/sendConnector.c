@@ -53,8 +53,6 @@ void httpSendOpen(HttpQueue *q)
     /*  
         To write an entire file, reset the maximum and packet size to the maximum response body size (LimitResponseBody)
      */
-    //  MOB -- are these enforced somewhere as the packet will be empty
-    //  MOB -- should these not be set elsewhere?
     q->max = conn->limits->transmissionBodySize;
     q->packetSize = conn->limits->transmissionBodySize;
 
