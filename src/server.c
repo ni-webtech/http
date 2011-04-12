@@ -155,14 +155,6 @@ static bool validateServer(HttpServer *server)
     if (mprGetListLength(host->aliases) == 0) {
         httpAddAlias(host, httpCreateAlias("", host->documentRoot, 0));
     }
-#if UNUSED
-    if (!host->documentRoot) {
-        host->documentRoot = server->documentRoot;
-    }
-    if (!host->serverRoot) {
-        host->serverRoot = server->serverRoot;
-    }
-#endif
     return 1;
 }
 
@@ -449,24 +441,6 @@ void httpAddHostToServer(HttpServer *server, HttpHost *host)
         server->limits = host->limits;
     }
 }
-
-
-#if UNUSED
-HttpServer *httpRemoveHostFromServer(Http *http, cchar *ip, int port, HttpHost *host)
-{
-    HttpServer  *server;
-    int         next;
-
-    for (next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
-        if (server->port < 0 || port < 0 || server->port == port) {
-            if (ip == 0 || server->ip == 0 || strcmp(server->ip, ip) == 0) {
-                mprRemoveItem(server->hosts, host);
-            }
-        }
-    }
-    return 0;
-}
-#endif
 
 
 bool httpIsNamedVirtualServer(HttpServer *server)

@@ -85,16 +85,6 @@ static void manageQueue(HttpQueue *q, int flags)
 }
 
 
-#if UNUSED
-void httpMarkQueueHead(HttpQueue *q)
-{
-    if (q->nextQ && q->nextQ->stage) {
-        mprMark(q->nextQ);
-    }
-}
-#endif
-
-
 void httpInitQueue(HttpConn *conn, HttpQueue *q, cchar *name)
 {
     q->conn = conn;

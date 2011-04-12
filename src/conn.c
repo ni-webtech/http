@@ -427,10 +427,10 @@ void httpEnableConnEvents(HttpConn *conn)
                 mprEnableWaitEvents(conn->waitHandler, eventMask);
             }
         }
+        if (conn->input && httpGetPacketLength(conn->input) > 0 && conn->waitHandler) {
+            mprRecallWaitHandler(conn->waitHandler);
+        }
         mprAssert(conn->dispatcher->enabled);
-#if UNUSED
-        mprEnableDispatcher(conn->dispatcher);
-#endif
         unlock(conn->http);
     }
 }

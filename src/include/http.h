@@ -2039,7 +2039,9 @@ typedef struct HttpRx {
 
     int             eof;                    /**< All read data has been received (eof) */
     int             chunkState;             /**< Chunk encoding state */
+#if UNUSED
     int             chunkRemainingData;     /**< Remaining chunk data to read */
+#endif
     int             flags;                  /**< Rx modifiers */
     int             form;                   /**< Using mime-type application/x-www-form-urlencoded */
     int             needInputPipeline;      /**< Input pipeline required to process received data */

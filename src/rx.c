@@ -1330,9 +1330,6 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
 static void waitHandler(HttpConn *conn, struct MprEvent *event)
 {
     httpCallEvent(conn, event->mask);
-#if UNUSED
-    httpEnableConnEvents(conn);
-#endif
     mprSignalDispatcher(conn->dispatcher);
 }
 
@@ -1361,23 +1358,25 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         mprAssert(conn->state >= HTTP_STATE_BEGIN);
         return MPR_ERR_BAD_STATE;
     } 
-    saveAsync = conn->async;
-    if (conn->waitHandler == 0) {
-        conn->async = 1;
-        eventMask = MPR_READABLE;
-        if (!conn->writeComplete) {
-            eventMask |= MPR_WRITABLE;
-        }
-        conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, waitHandler, conn, 0);
-        addedHandler = 1;
-    } else {
-        addedHandler = 0;
+    if (conn->input && httpGetPacketLength(conn->input) > 0) {
+        httpProcess(conn, conn->input);
     }
     http->now = mprGetTime();
     expire = http->now + timeout;
     remainingTime = expire - http->now;
+    saveAsync = conn->async;
+    addedHandler = 0;
 
     while (!conn->error && conn->state < state) {
+        if (conn->waitHandler == 0) {
+            conn->async = 1;
+            eventMask = MPR_READABLE;
+            if (!conn->writeComplete) {
+                eventMask |= MPR_WRITABLE;
+            }
+            conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, waitHandler, conn, 0);
+            addedHandler = 1;
+        }
         workDone = httpServiceQueues(conn);
         remainingTime = expire - http->now;
         if (remainingTime <= 0) {
