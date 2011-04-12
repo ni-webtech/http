@@ -50,17 +50,22 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     HttpHost    *host;
     Http        *http;
 
+    mprAssert(port);
+
     http = MPR->httpService;
 
     if ((host = mprAllocObj(HttpHost, manageHost)) == 0) {
         return 0;
     }
     if (ip) {
+        //  MOB - isn't port always set?
         if (port) {
             host->name = mprAsprintf("%s:%d", ip, port);
         } else {
             host->name = sclone(ip);
         }
+    } else {
+        host->name = mprAsprintf("*:%d", port);
     }
     host->mutex = mprCreateLock();
     host->aliases = mprCreateList(-1, 0);

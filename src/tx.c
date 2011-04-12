@@ -520,7 +520,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
         }
     } else if (tx->length > 0 || conn->server) {
-        httpSetHeader(conn, "Content-Length", "%Ld", tx->length);
+        httpAddHeader(conn, "Content-Length", "%Ld", tx->length);
     }
     if (rx->ranges) {
         if (rx->ranges->next == 0) {

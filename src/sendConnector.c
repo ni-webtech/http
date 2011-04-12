@@ -114,7 +114,7 @@ void httpSendOutgoingService(HttpQueue *q)
         mprAssert(count >= 0);
         written = mprSendFileToSocket(conn->sock, q->ioFileEntry ? tx->file: 0, tx->pos, q->ioCount, q->iovec, 
             count, NULL, 0);
-        mprLog(0, "Send connector ioCount %d, wrote %d, written so far %d, fileEntry %d", 
+        mprLog(8, "Send connector ioCount %d, wrote %d, written so far %d, fileEntry %d", 
             q->ioCount, written, tx->bytesWritten, q->ioFileEntry);
         if (written < 0) {
             errCode = mprGetError(q);
