@@ -63,8 +63,8 @@ void httpCreateCGIVars(HttpConn *conn)
     mprAddKey(table, "SERVER_PROTOCOL", conn->protocol);
     mprAddKey(table, "SERVER_SOFTWARE", server->http->software);
 
-    /*  This is the complete URI before decoding */ 
-    mprAddKey(table, "REQUEST_URI", rx->uri);
+    /*  This is the original URI before decoding */ 
+    mprAddKey(table, "REQUEST_URI", rx->originalUri);
 
     /*  URLs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} */
     mprAddKey(table, "PATH_INFO", rx->pathInfo);

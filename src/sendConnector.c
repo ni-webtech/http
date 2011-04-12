@@ -112,8 +112,10 @@ void httpSendOutgoingService(HttpQueue *q)
          */
         count = q->ioIndex - q->ioFileEntry;
         mprAssert(count >= 0);
-        written = mprSendFileToSocket(conn->sock, tx->file, tx->pos, q->ioCount, q->iovec, count, NULL, 0);
-        mprLog(5, "Send connector wrote %d, written so far %d", written, tx->bytesWritten);
+        written = mprSendFileToSocket(conn->sock, q->ioFileEntry ? tx->file: 0, tx->pos, q->ioCount, q->iovec, 
+            count, NULL, 0);
+        mprLog(0, "Send connector ioCount %d, wrote %d, written so far %d, fileEntry %d", 
+            q->ioCount, written, tx->bytesWritten, q->ioFileEntry);
         if (written < 0) {
             errCode = mprGetError(q);
             if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
@@ -312,9 +314,11 @@ static void adjustSendVec(HttpQueue *q, ssize written)
         /*  
             Entire vector written. Just reset.
          */
+        tx->pos = q->ioFileOffset;
         q->ioIndex = 0;
         q->ioCount = 0;
-        tx->pos = q->ioFileOffset;
+        q->ioFileEntry = 0;
+        q->ioFileOffset = 0;
 
     } else {
         /*  

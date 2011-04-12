@@ -35,9 +35,9 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
         tx->headers = headers;
     } else if ((tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS)) != 0) {
         if (conn->server) {
-            httpAddSimpleHeader(conn, "Server", conn->http->software);
+            httpAddHeaderString(conn, "Server", conn->http->software);
         } else {
-            httpAddSimpleHeader(conn, "User-Agent", sclone(HTTP_NAME));
+            httpAddHeaderString(conn, "User-Agent", sclone(HTTP_NAME));
         }
     }
     return tx;
@@ -130,9 +130,9 @@ void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 
 
 /*
-    Add a simple (non-formatted) header if not already defined
+    Add a header string if not already defined
  */
-void httpAddSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
+void httpAddHeaderString(HttpConn *conn, cchar *key, cchar *value)
 {
 
     mprAssert(key && *key);
@@ -170,6 +170,26 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 }
 
 
+/* 
+   Append a header string. If already defined, the value is catenated to the pre-existing value after a ", " separator.
+   As per the HTTP/1.1 spec.
+ */
+void httpAppendHeaderString(HttpConn *conn, cchar *key, cchar *value)
+{
+    cchar   *oldValue;
+
+    mprAssert(key && *key);
+    mprAssert(value && *value);
+
+    oldValue = mprLookupHash(conn->tx->headers, key);
+    if (oldValue) {
+        addHeader(conn, key, mprAsprintf("%s, %s", oldValue, value));
+    } else {
+        addHeader(conn, key, value);
+    }
+}
+
+
 /*  
     Set a http header. Overwrite if present.
  */
@@ -188,7 +208,7 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 }
 
 
-void httpSetSimpleHeader(HttpConn *conn, cchar *key, cchar *value)
+void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 {
     mprAssert(key && *key);
     mprAssert(value);
@@ -361,8 +381,8 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         "<!DOCTYPE html>\r\n"
         "<html><head><title>%s</title></head>\r\n"
         "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p>\r\n"
-        "<address>%s at %s Port %d</address></body>\r\n</html>\r\n",
-        msg, msg, targetUri, HTTP_NAME, conn->server->name, prev->port);
+        "<address>%s at %s</address></body>\r\n</html>\r\n",
+        msg, msg, targetUri, HTTP_NAME, conn->host->name);
     httpOmitBody(conn);
 }
 
@@ -466,10 +486,10 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     tx = conn->tx;
     info = &tx->fileInfo;
 
-    httpAddSimpleHeader(conn, "Date", conn->http->currentDate);
+    httpAddHeaderString(conn, "Date", conn->http->currentDate);
 
     if (tx->flags & HTTP_TX_DONT_CACHE) {
-        httpAddSimpleHeader(conn, "Cache-Control", "no-cache");
+        httpAddHeaderString(conn, "Cache-Control", "no-cache");
 
     } else if (rx->loc && rx->loc->expires) {
         mimeType = mprLookupHash(tx->headers, "Content-Type");
@@ -497,9 +517,9 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     }
     if (tx->chunkSize > 0 && !tx->altBody) {
         if (!(rx->flags & HTTP_HEAD)) {
-            httpSetSimpleHeader(conn, "Transfer-Encoding", "chunked");
+            httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
         }
-    } else if (tx->length > 0) {
+    } else if (tx->length > 0 || conn->server) {
         httpSetHeader(conn, "Content-Length", "%Ld", tx->length);
     }
     if (rx->ranges) {
@@ -517,16 +537,16 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     }
     if (tx->extension) {
         if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->extension)) != 0) {
-            httpAddSimpleHeader(conn, "Content-Type", mimeType);
+            httpAddHeaderString(conn, "Content-Type", mimeType);
         }
     }
     if (conn->server) {
         if (--conn->keepAliveCount > 0) {
-            httpSetSimpleHeader(conn, "Connection", "keep-alive");
+            httpSetHeaderString(conn, "Connection", "keep-alive");
             httpSetHeader(conn, "Keep-Alive", "timeout=%d, max=%d", conn->limits->inactivityTimeout / 1000, 
                 conn->keepAliveCount);
         } else {
-            httpSetSimpleHeader(conn, "Connection", "close");
+            httpSetHeaderString(conn, "Connection", "close");
         }
     }
 }
@@ -555,7 +575,7 @@ void httpSetStatus(HttpConn *conn, int status)
 
 void httpSetMimeType(HttpConn *conn, cchar *mimeType)
 {
-    httpSetSimpleHeader(conn, "Content-Type", sclone(mimeType));
+    httpSetHeaderString(conn, "Content-Type", sclone(mimeType));
 }
 
 

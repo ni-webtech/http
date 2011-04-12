@@ -150,20 +150,24 @@ static int setClientHeaders(HttpConn *conn)
         }
         conn->sentCredentials = 1;
     }
-    httpSetSimpleHeader(conn, "Host", conn->ip);
+    if (conn->port != 80) {
+        httpSetHeader(conn, "Host", "%s:%d", conn->ip, conn->port);
+    } else {
+        httpSetHeaderString(conn, "Host", conn->ip);
+    }
 
     if (strcmp(conn->protocol, "HTTP/1.1") == 0) {
         /* If zero, we ask the client to close one request early. This helps with client led closes */
         if (conn->keepAliveCount > 0) {
-            httpSetSimpleHeader(conn, "Connection", "Keep-Alive");
+            httpSetHeaderString(conn, "Connection", "Keep-Alive");
         } else {
-            httpSetSimpleHeader(conn, "Connection", "close");
+            httpSetHeaderString(conn, "Connection", "close");
         }
 
     } else {
         /* Set to zero to let the client initiate the close */
         conn->keepAliveCount = 0;
-        httpSetSimpleHeader(conn, "Connection", "close");
+        httpSetHeaderString(conn, "Connection", "close");
     }
     return 0;
 }

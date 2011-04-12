@@ -54,6 +54,7 @@ static void manageRx(HttpRx *rx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(rx->method);
+        mprMark(rx->originalUri);
         mprMark(rx->uri);
         mprMark(rx->scriptName);
         mprMark(rx->pathInfo);
@@ -343,7 +344,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
     rx->flags |= methodFlags;
-    rx->uri = uri;
+    rx->originalUri = rx->uri = sclone(uri);
 
     httpSetState(conn, HTTP_STATE_FIRST);
 #if UNUSED
@@ -1318,7 +1319,7 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
     /*
         Start out with no scriptName and the entire URI in the pathInfo. Stages may rewrite.
      */
-    rx->uri = rx->parsedUri->uri;
+    rx->uri = rx->parsedUri->path;
     rx->pathInfo = httpNormalizeUriPath(mprUriDecode(rx->parsedUri->path));
     rx->scriptName = mprEmptyString();
     httpMapToStorage(conn);

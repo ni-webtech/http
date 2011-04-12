@@ -384,6 +384,8 @@ HttpLoc *httpLookupLocation(HttpHost *host, cchar *prefix)
     HttpLoc     *loc;
     int         next;
 
+    mprAssert(host);
+
     for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
         if (strcmp(prefix, loc->prefix) == 0) {
             return loc;
@@ -399,6 +401,7 @@ HttpLoc *httpLookupBestLocation(HttpHost *host, cchar *uri)
     int         next, rc;
 
     if (uri) {
+        mprAssert(host);
         for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
             rc = sncmp(loc->prefix, uri, loc->prefixLen);
             if (rc == 0) {

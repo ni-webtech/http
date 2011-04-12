@@ -48,6 +48,7 @@ void httpMatchHost(HttpConn *conn)
         if ((host = httpLookupHostByName(server, rx->hostName)) == 0) {
             httpSetConnHost(conn, host);
             httpError(conn, HTTP_CODE_NOT_FOUND, "No host to serve request. Searching for %s", rx->hostName);
+            conn->host = mprGetFirstItem(server->hosts);
             return;
         }
     }
@@ -369,15 +370,20 @@ static HttpStage *processDirectory(HttpConn *conn, HttpStage *handler)
             return 0;
         }
     } else {
+#if UNUSED
         /*  
             External redirect. Ask the client to re-issue a request for a new location. See if an index exists and if so, 
             construct a new location for the index. If the index can't be accessed, append a "/" to the URI and redirect.
          */
-        if (!mprPathExists(path, R_OK)) {
+        if (mprPathExists(path, R_OK)) {
             pathInfo = mprJoinPath(rx->pathInfo, index);
         } else {
-            pathInfo = mprJoinPath(rx->pathInfo, "/");
+            pathInfo = sjoin(rx->pathInfo, "/", NULL);
         }
+#else
+        /* Must not append the index for the external redirect - Messes up PHP wordpress */
+        pathInfo = sjoin(rx->pathInfo, "/", NULL);
+#endif
         uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
         httpRedirect(conn, HTTP_CODE_MOVED_PERMANENTLY, uri);
         handler = conn->http->passHandler;
