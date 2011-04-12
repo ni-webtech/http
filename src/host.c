@@ -50,10 +50,7 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     HttpHost    *host;
     Http        *http;
 
-    mprAssert(port);
-
     http = MPR->httpService;
-
     if ((host = mprAllocObj(HttpHost, manageHost)) == 0) {
         return 0;
     }
@@ -65,7 +62,9 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
             host->name = sclone(ip);
         }
     } else {
-        host->name = mprAsprintf("*:%d", port);
+        if (port) {
+            host->name = mprAsprintf("*:%d", port);
+        }
     }
     host->mutex = mprCreateLock();
     host->aliases = mprCreateList(-1, 0);
