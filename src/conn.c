@@ -586,11 +586,12 @@ void httpSetConnNotifier(HttpConn *conn, HttpNotifier notifier)
 }
 
 
+#if UNUSED
 void httpSetRequestNotifier(HttpConn *conn, HttpNotifier notifier)
 {
     conn->requestNotifier = notifier;
 }
-
+#endif
 
 void httpSetCredentials(HttpConn *conn, cchar *user, cchar *password)
 {
