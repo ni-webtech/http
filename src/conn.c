@@ -348,8 +348,14 @@ static void readEvent(HttpConn *conn)
             }
             break;
         }
-        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || conn->workerEvent || 
-                (conn->readq && conn->readq->count > conn->readq->max)) {
+        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || conn->workerEvent) {
+            break;
+        }
+        if (conn->readq && conn->readq->count > conn->readq->max) {
+#if UNUSED
+            /* Must break out of this routine as the read queue is overflowing. Schedule a recall */
+            conn->recall = 1;
+#endif
             break;
         }
     }
@@ -409,7 +415,7 @@ void httpEnableConnEvents(HttpConn *conn)
                 and will be ready when the current request completes.
              */
             q = tx->queue[HTTP_QUEUE_RECEIVE]->nextQ;
-            if (q->count < q->max) {
+            if (q->count < q->max || conn->recall) {
                 eventMask |= MPR_READABLE;
             }
         } else {
@@ -427,9 +433,12 @@ void httpEnableConnEvents(HttpConn *conn)
                 mprEnableWaitEvents(conn->waitHandler, eventMask);
             }
         }
-        if (conn->input && httpGetPacketLength(conn->input) > 0 && conn->waitHandler) {
+#if UNUSED
+        if (conn->recall && conn->waitHandler) {
             mprRecallWaitHandler(conn->waitHandler);
         }
+#endif
+        conn->recall = 0;
         mprAssert(conn->dispatcher->enabled);
         unlock(conn->http);
     }

@@ -57,7 +57,7 @@ struct HttpUri;
     #define HTTP_MAX_REQUESTS          20                    /**< Max concurrent requests */
     #define HTTP_MAX_CLIENTS           10                    /**< Max concurrent client endpoints */
     #define HTTP_MAX_SESSIONS          100                   /**< Max concurrent sessions */
-    #define HTTP_MAX_STAGE_BUFFER      (16 * 1024)           /**< Max buffer for any stage */
+    #define HTTP_MAX_STAGE_BUFFER      (32 * 1024)           /**< Max buffer for any stage */
     #define HTTP_CLIENTS_HASH          (131)                 /**< Hash table for client IP addresses */
 
 #elif BLD_TUNE == MPR_TUNE_BALANCED
@@ -73,7 +73,7 @@ struct HttpUri;
     #define HTTP_MAX_REQUESTS          50
     #define HTTP_MAX_CLIENTS           25
     #define HTTP_MAX_SESSIONS          500
-    #define HTTP_MAX_STAGE_BUFFER      (32 * 1024)
+    #define HTTP_MAX_STAGE_BUFFER      (64 * 1024)
     #define HTTP_CLIENTS_HASH          (257)
 
 #else
@@ -89,13 +89,12 @@ struct HttpUri;
     #define HTTP_MAX_REQUESTS          1000
     #define HTTP_MAX_CLIENTS           500
     #define HTTP_MAX_SESSIONS          5000
-    #define HTTP_MAX_STAGE_BUFFER      (64 * 1024)
+    #define HTTP_MAX_STAGE_BUFFER      (128 * 1024)
     #define HTTP_CLIENTS_HASH          (1009)
 #endif
 
 #define HTTP_MAX_TRANSMISSION_BODY (INT_MAX)             /**< Max buffer for response data */
 #define HTTP_MAX_UPLOAD            (INT_MAX)
-
 
 /*  
     Other constants
@@ -1387,6 +1386,7 @@ typedef struct HttpConn {
     int             http10;                 /**< Using legacy HTTP/1.0 */
 
     int             port;                   /**< Remote port */
+    int             recall;                 /**< Recall I/O handler requrired */
     int             retries;                /**< Client request retries */
     int             secure;                 /**< Using https */
     int             seqno;                  /**< Unique connection sequence number */
@@ -1634,7 +1634,13 @@ extern void httpSetConnHost(HttpConn *conn, void *host);
  */
 extern void httpSetConnNotifier(HttpConn *conn, HttpNotifier fn);
 
-//  MOB
+/** 
+    Define a notifier callback for this request.
+    @description The notifier callback will be invoked as the Http request changes state.
+    @param conn HttpConn connection object created via $httpCreateConn
+    @param fn Notifier function. 
+    @ingroup HttpConn
+*/
 extern void httpSetRequestNotifier(HttpConn *conn, HttpNotifier fn);
 
 /** 

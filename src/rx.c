@@ -941,6 +941,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     }
     //  MOB - is this the best place? - move
     mprYield(0);
+
     if (!analyseContent(conn, packet)) {
         return 0;
     }
@@ -952,16 +953,14 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
             httpStartPipeline(conn);
         }
         httpSetState(conn, HTTP_STATE_RUNNING);
-        if (conn->workerEvent) {
-            return 0;
-        }
-        return 1;
+        return conn->workerEvent ? 0 : 1;
     }
     httpServiceQueues(conn);
-
+#if UNUSED
     if ((conn->readq->count + httpGetPacketLength(packet)) > conn->readq->max) {
         return 0;
     }
+#endif
     return conn->error || (conn->input ? mprGetBufLength(conn->input->content) : 0);
 }
 
