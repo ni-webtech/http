@@ -159,7 +159,9 @@ void httpSetSendConnector(HttpConn *conn, cchar *path)
     tx = conn->tx;
     tx->flags |= HTTP_TX_SENDFILE;
     tx->filename = sclone(path);
-    maxBody = conn->limits->transmissionBodySize;
+
+    //  MOB - does this limit max transmission?
+    maxBody = (ssize) conn->limits->transmissionBodySize;
 
     qhead = tx->queue[HTTP_QUEUE_TRANS];
     for (q = conn->writeq; q != qhead; q = q->nextQ) {

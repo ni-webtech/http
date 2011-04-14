@@ -490,7 +490,7 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
             len = min(len, HTTP_BUFSIZE);
             mprAssert(len > 0);
             if (mprGetBufSpace(content) < len) {
-                mprGrowBuf(content, len);
+                mprGrowBuf(content, (ssize) len);
             }
         } else {
             if (mprGetBufSpace(content) < HTTP_BUFSIZE) {
@@ -501,7 +501,7 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
     }
     mprAssert(packet == conn->input);
     mprAssert(len > 0);
-    *bytesToRead = len;
+    *bytesToRead = (ssize) len;
     return packet;
 }
 
