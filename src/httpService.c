@@ -38,7 +38,7 @@ HttpStatusCode HttpStatusCodes[] = {
     { 404, "404", "Not Found" },
     { 405, "405", "Method Not Allowed" },
     { 406, "406", "Not Acceptable" },
-    { 408, "408", "Request Time-out" },
+    { 408, "408", "Request Timeout" },
     { 409, "409", "Conflict" },
     { 410, "410", "Length Required" },
     { 411, "411", "Length Required" },
@@ -52,7 +52,7 @@ HttpStatusCode HttpStatusCodes[] = {
     { 501, "501", "Not Implemented" },
     { 502, "502", "Bad Gateway" },
     { 503, "503", "Service Unavailable" },
-    { 504, "504", "Gateway Time-out" },
+    { 504, "504", "Gateway Timeout" },
     { 505, "505", "Http Version Not Supported" },
     { 507, "507", "Insufficient Storage" },
 
@@ -204,12 +204,12 @@ int httpAddHostToServers(Http *http, struct HttpHost *host)
 {
     HttpServer  *server;
     cchar       *ip;
-    int         count, next;
+    int         next, count;
 
     ip = host->ip ? host->ip : "";
     mprAssert(ip);
 
-    for (count = next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
         if (server->port <= 0 || host->port <= 0 || server->port == host->port) {
             mprAssert(server->ip);
             if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
@@ -225,12 +225,12 @@ int httpAddHostToServers(Http *http, struct HttpHost *host)
 int httpSetNamedVirtualServers(Http *http, cchar *ip, int port)
 {
     HttpServer  *server;
-    int         count, next;
+    int         next, count;
 
     if (ip == 0) {
         ip = "";
     }
-    for (count = next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
         if (server->port <= 0 || port <= 0 || server->port == port) {
             mprAssert(server->ip);
             if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
@@ -419,8 +419,9 @@ static void httpTimer(Http *http, MprEvent *event)
     for (count = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; count++) {
         rx = conn->rx;
         limits = conn->limits;
-        if ((conn->lastActivity + limits->inactivityTimeout) < http->now || 
-            (conn->started + limits->requestTimeout) < http->now) {
+        if (!conn->timeoutEvent && (
+            (conn->lastActivity + limits->inactivityTimeout) < http->now || 
+            (conn->started + limits->requestTimeout) < http->now)) {
             if (rx) {
                 /*
                     Don't call APIs on the conn directly (thread-race). Schedule a timer on the connection's dispatcher

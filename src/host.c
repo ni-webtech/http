@@ -198,8 +198,8 @@ void httpSetHostProtocol(HttpHost *host, cchar *protocol)
 
 int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
 {
-    HttpAlias     *alias;
-    int         rc, next;
+    HttpAlias   *alias;
+    int         next, rc;
 
     if (host->parent && host->aliases == host->parent->aliases) {
         host->aliases = mprCloneList(host->parent->aliases);
@@ -233,7 +233,7 @@ int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
 int httpAddDir(HttpHost *host, HttpDir *dir)
 {
     HttpDir     *dp;
-    int         rc, next;
+    int         next, rc;
 
     mprAssert(dir);
     mprAssert(dir->path);
@@ -298,7 +298,7 @@ int httpAddLocation(HttpHost *host, HttpLoc *newLocation)
 HttpAlias *httpGetAlias(HttpHost *host, cchar *uri)
 {
     HttpAlias     *alias;
-    int         next;
+    int           next;
 
     if (uri) {
         for (next = 0; (alias = mprGetNextItem(host->aliases, &next)) != 0; ) {
@@ -332,9 +332,9 @@ HttpAlias *httpLookupAlias(HttpHost *host, cchar *prefix)
 
 HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
 {
-    HttpDir       *dir;
+    HttpDir     *dir;
     char        *path, *tmpPath;
-    int         next, len;
+    int         next;
 
     if (!mprIsAbsPath(pathArg)) {
         path = tmpPath = mprGetAbsPath(pathArg);
@@ -342,8 +342,6 @@ HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
         path = (char*) pathArg;
         tmpPath = 0;
     }
-    len = (int) strlen(path);
-
     for (next = 0; (dir = mprGetNextItem(host->dirs, &next)) != 0; ) {
         mprAssert(strlen(dir->path) == 0 || dir->path[strlen(dir->path) - 1] != '/');
         if (dir->path != 0) {
@@ -364,11 +362,9 @@ HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
  */
 HttpDir *httpLookupBestDir(HttpHost *host, cchar *path)
 {
-    HttpDir *dir;
-    ssize   dlen;
-    int     next, len;
-
-    len = (int) strlen(path);
+    HttpDir     *dir;
+    ssize       dlen;
+    int         next;
 
     for (next = 0; (dir = mprGetNextItem(host->dirs, &next)) != 0; ) {
         dlen = dir->pathLen;

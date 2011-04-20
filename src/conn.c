@@ -179,14 +179,17 @@ void httpConnTimeout(HttpConn *conn)
     } else {
         if ((conn->lastActivity + limits->inactivityTimeout) < now) {
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT,
-                "Inactive request timed out. Exceeded inactivity timeout of %d sec. Uri: \"%s\"", 
-                limits->inactivityTimeout / 1000, rx->uri);
+                "Exceeded inactivity timeout of %d sec", limits->inactivityTimeout / 1000);
 
         } else if ((conn->started + limits->requestTimeout) < now) {
-            httpError(conn, HTTP_CODE_REQUEST_TIMEOUT, 
-                "Request timed out, exceeded timeout %d sec. Url %s", limits->requestTimeout / 1000, rx->uri);
+            httpError(conn, HTTP_CODE_REQUEST_TIMEOUT, "Exceeded timeout %d sec", limits->requestTimeout / 1000);
         }
         httpFinalize(conn);
+#if UNUSED
+        httpSetState(conn, HTTP_STATE_COMPLETE);
+        httpProcess(conn, NULL);
+#endif
+        httpDisconnect(conn);
     }
 }
 
@@ -251,7 +254,9 @@ void httpPrepClientConn(HttpConn *conn, int keepHeaders)
         conn->rx->conn = 0;
     }
     conn->rx = httpCreateRx(conn);
+#if UNUSED
     httpCreatePipeline(conn, NULL, NULL);
+#endif
     commonPrep(conn);
 }
 
@@ -352,10 +357,6 @@ static void readEvent(HttpConn *conn)
             break;
         }
         if (conn->readq && conn->readq->count > conn->readq->max) {
-#if UNUSED
-            /* Must break out of this routine as the read queue is overflowing. Schedule a recall */
-            conn->recall = 1;
-#endif
             break;
         }
     }
@@ -364,7 +365,8 @@ static void readEvent(HttpConn *conn)
 
 static void writeEvent(HttpConn *conn)
 {
-    LOG(6, "httpProcessWriteEvent, state %d", conn->state);
+    //  MOB 6
+    LOG(3, "httpProcessWriteEvent, state %d", conn->state);
 
     conn->writeBlocked = 0;
     if (conn->tx) {
@@ -405,11 +407,10 @@ void httpEnableConnEvents(HttpConn *conn)
             return;
         }
         if (tx) {
-            if (tx->queue[HTTP_QUEUE_TRANS]->prevQ->count > 0) {
+            //  MOB OPT - can we just test writeBlocked?
+            if (conn->writeBlocked || tx->queue[HTTP_QUEUE_TRANS]->prevQ->count > 0) {
                 eventMask |= MPR_WRITABLE;
-            } else {
-                mprAssert(!conn->writeBlocked);
-            } 
+            }
             /*
                 Allow read events even if the current request is not complete. The pipelined request will be buffered 
                 and will be ready when the current request completes.
@@ -460,7 +461,8 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
     HttpPacket  *packet;
     MprBuf      *content;
     HttpRx      *rx;
-    MprOff      len;
+    MprOff      remaining;
+    ssize       len;
 
     rx = conn->rx;
     len = HTTP_BUFSIZE;
@@ -482,10 +484,11 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
                 accross packets.
              */
             if (rx->remainingContent) {
-                len = rx->remainingContent;
+                remaining = rx->remainingContent;
                 if (rx->flags & HTTP_CHUNKED) {
-                    len = max(len, HTTP_BUFSIZE);
+                    remaining = max(remaining, HTTP_BUFSIZE);
                 }
+                len = (ssize) min(remaining, MAXSSIZE);
             }
             len = min(len, HTTP_BUFSIZE);
             mprAssert(len > 0);
@@ -735,7 +738,7 @@ void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
                 conn->rx->status = status;
             }
         }
-        if (conn->rx == 0) {
+        if (conn->rx == 0 || conn->rx->uri == 0) {
             mprLog(2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
         } else {
             mprLog(2, "Error: \"%s\", status %d for URI \"%s\": %s.",

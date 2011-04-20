@@ -360,7 +360,7 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
         }
     }
     httpError(conn, code, "Authentication Error: %s", msg);
-    httpSetPipeHandler(conn, conn->http->passHandler);
+    httpSetPipelineHandler(conn, conn->http->passHandler);
 }
 
 
