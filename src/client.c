@@ -200,10 +200,11 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     conn->startTime = mprGetTime();
     conn->startTicks = mprGetTicks();
 #endif
-
     if (openConnection(conn, url) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
+    httpCreatePipeline(conn, NULL, NULL);
+
     if (setClientHeaders(conn) < 0) {
         return MPR_ERR_CANT_INITIALIZE;
     }
@@ -263,20 +264,34 @@ static int blockingFileCopy(HttpConn *conn, cchar *path)
 {
     MprFile     *file;
     char        buf[MPR_BUFSIZE];
-    ssize       bytes;
+    ssize       bytes, nbytes, offset;
+    int         oldMode;
 
     file = mprOpenFile(path, O_RDONLY | O_BINARY, 0);
     if (file == 0) {
         mprError("Can't open %s", path);
         return MPR_ERR_CANT_OPEN;
     }
+    mprAddRoot(file);
+    oldMode = mprSetSocketBlockingMode(conn->sock, 1);
     while ((bytes = mprReadFile(file, buf, sizeof(buf))) > 0) {
-        if (httpWriteBlock(conn->writeq, buf, bytes) != bytes) {
-            mprCloseFile(file);
-            return MPR_ERR_CANT_WRITE;
+        offset = 0;
+        while (bytes > 0) {
+            if ((nbytes = httpWriteBlock(conn->writeq, &buf[offset], bytes)) < 0) {
+                mprCloseFile(file);
+                mprRemoveRoot(file);
+                return MPR_ERR_CANT_WRITE;
+            }
+            bytes -= nbytes;
+            offset += nbytes;
+            mprAssert(bytes >= 0);
         }
+        mprYield(0);
     }
+    httpFlushQueue(conn->writeq, 1);
+    mprSetSocketBlockingMode(conn->sock, oldMode);
     mprCloseFile(file);
+    mprRemoveRoot(file);
     return 0;
 }
 

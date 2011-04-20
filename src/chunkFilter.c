@@ -83,7 +83,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
     }
     buf = packet->content;
 
-    if (packet->content == 0) {
+    if (buf == 0) {
         if (rx->chunkState == HTTP_CHUNK_DATA) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk state");
             return;
