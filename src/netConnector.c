@@ -15,7 +15,7 @@
 
 static void addPacketForNet(HttpQueue *q, HttpPacket *packet);
 static void adjustNetVec(HttpQueue *q, ssize written);
-static ssize buildNetVec(HttpQueue *q);
+static MprOff buildNetVec(HttpQueue *q);
 static void freeNetPackets(HttpQueue *q, ssize written);
 static void netOutgoingService(HttpQueue *q);
 
@@ -127,7 +127,7 @@ static void netOutgoingService(HttpQueue *q)
 /*
     Build the IO vector. Return the count of bytes to be written. Return -1 for EOF.
  */
-static ssize buildNetVec(HttpQueue *q)
+static MprOff buildNetVec(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpTx      *tx;

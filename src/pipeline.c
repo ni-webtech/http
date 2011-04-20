@@ -45,8 +45,8 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         }
     }
     if (tx->connector == 0) {
-        if (tx->handler == http->fileHandler && rx->flags & HTTP_GET && !rx->ranges && !conn->secure && tx->chunkSize <= 0) {
-            //  MOB - should not use this if tracing content is requested
+        if (tx->handler == http->fileHandler && rx->flags & HTTP_GET && !rx->ranges && !conn->secure && tx->chunkSize <= 0 &&
+                httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, NULL) < 0) {
             tx->connector = http->sendConnector;
         } else if (loc && loc->connector) {
             tx->connector = loc->connector;
@@ -142,8 +142,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
 }
 
 
-//  MOB - who calls
-void httpSetPipeHandler(HttpConn *conn, HttpStage *handler)
+void httpSetPipelineHandler(HttpConn *conn, HttpStage *handler)
 {
     conn->tx->handler = (handler) ? handler : conn->http->passHandler;
 }
@@ -153,21 +152,10 @@ void httpSetSendConnector(HttpConn *conn, cchar *path)
 {
 #if !BLD_FEATURE_ROMFS
     HttpTx      *tx;
-    HttpQueue   *q, *qhead;
-    ssize       maxBody;
 
     tx = conn->tx;
     tx->flags |= HTTP_TX_SENDFILE;
     tx->filename = sclone(path);
-
-    //  MOB - does this limit max transmission?
-    maxBody = (ssize) conn->limits->transmissionBodySize;
-
-    qhead = tx->queue[HTTP_QUEUE_TRANS];
-    for (q = conn->writeq; q != qhead; q = q->nextQ) {
-        q->max = maxBody;
-        q->packetSize = maxBody;
-    }
 #else
     mprError("Send connector not available if ROMFS enabled");
 #endif
@@ -198,14 +186,15 @@ void httpDestroyPipeline(HttpConn *conn)
 
 void httpStartPipeline(HttpConn *conn)
 {
-    HttpQueue   *qhead, *q;
+    HttpQueue   *qhead, *q, *prevQ, *nextQ;
     HttpTx      *tx;
     
     tx = conn->tx;
 
     if (conn->rx->needInputPipeline) {
         qhead = tx->queue[HTTP_QUEUE_RECEIVE];
-        for (q = qhead->nextQ; q->nextQ != qhead; q = q->nextQ) {
+        for (q = qhead->nextQ; q->nextQ != qhead; q = nextQ) {
+            nextQ = q->nextQ;
             if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_STARTED)) {
                     q->flags |= HTTP_QUEUE_STARTED;
@@ -215,7 +204,8 @@ void httpStartPipeline(HttpConn *conn)
         }
     }
     qhead = tx->queue[HTTP_QUEUE_TRANS];
-    for (q = qhead->prevQ; q->prevQ != qhead; q = q->prevQ) {
+    for (q = qhead->prevQ; q->prevQ != qhead; q = prevQ) {
+        prevQ = q->prevQ;
         if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
             q->flags |= HTTP_QUEUE_STARTED;
             HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));

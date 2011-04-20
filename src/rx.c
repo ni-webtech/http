@@ -174,11 +174,14 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     rx = conn->rx;
     tx = conn->tx;
     
-    if ((len = mprGetBufLength(packet->content)) == 0) {
+    if ((len = httpGetPacketLength(packet)) == 0) {
         return 0;
     }
     start = mprGetBufStart(packet->content);
     if ((end = scontains(start, "\r\n\r\n", len)) == 0) {
+        if (len >= conn->limits->headerSize) {
+            httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
+        }
         return 0;
     }
     len = (int) (end - start);
@@ -340,7 +343,10 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
             rx->needInputPipeline = 1;
         }
         conn->http10 = 1;
-    } else if (strcmp(protocol, "HTTP/1.1") != 0) {
+        conn->protocol = protocol;
+    } else if (strcmp(protocol, "HTTP/1.1") == 0) {
+        conn->protocol = protocol;
+    } else {
         httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
     rx->flags |= methodFlags;
@@ -475,7 +481,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 if (rx->length >= conn->limits->receiveBodySize) {
                     httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
-                        "Request content length %d bytes is too big. Limit %d", rx->length, conn->limits->receiveBodySize);
+                        "Request content length %Ld bytes is too big. Limit %Ld", rx->length, conn->limits->receiveBodySize);
                     break;
                 }
                 rx->contentLength = sclone(value);
@@ -492,7 +498,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     Where n1 is first byte pos and n2 is last byte pos
                  */
                 char    *sp;
-                int     start, end, size;
+                MprOff  start, end, size;
 
                 start = end = size = -1;
                 sp = value;
@@ -500,16 +506,16 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     sp++;
                 }
                 if (*sp) {
-                    start = (int) stoi(sp, 10, NULL);
+                    start = stoi(sp, 10, NULL);
                     if ((sp = strchr(sp, '-')) != 0) {
-                        end = (int) stoi(++sp, 10, NULL);
+                        end = stoi(++sp, 10, NULL);
                     }
                     if ((sp = strchr(sp, '/')) != 0) {
                         /*
                             Note this is not the content length transmitted, but the original size of the input of which
                             the client is transmitting only a portion.
                          */
-                        size = (int) stoi(++sp, 10, NULL);
+                        size = stoi(++sp, 10, NULL);
                     }
                 }
                 if (start < 0 || end < 0 || size < 0 || end <= start) {
@@ -694,7 +700,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             Step over "\r\n" after headers. As an optimization, don't do this if chunked so chunking can parse a single
             chunk delimiter of "\r\nSIZE ...\r\n"
          */
-        if (mprGetBufLength(content) >= 2) {
+        if (httpGetPacketLength(packet) >= 2) {
             mprAdjustBufStart(content, 2);
         }
     }
@@ -865,7 +871,8 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpQueue   *q;
     MprBuf      *content;
-    MprOff      nbytes, remaining;
+    MprOff      remaining;
+    ssize       nbytes;
 
     rx = conn->rx;
     tx = conn->tx;
@@ -883,7 +890,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     } else {
         remaining = rx->remainingContent;
     }
-    nbytes = min(remaining, mprGetBufLength(content));
+    nbytes = (ssize) min(remaining, mprGetBufLength(content));
     mprAssert(nbytes >= 0);
 
     if (nbytes > 0) {
@@ -897,11 +904,11 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         mprAssert(httpGetPacketLength(packet) > 0);
         remaining -= nbytes;
         rx->remainingContent -= nbytes;
-        rx->receivedContent += nbytes;
+        rx->bytesRead += nbytes;
 
-        if (rx->receivedContent >= conn->limits->receiveBodySize) {
+        if (rx->bytesRead >= conn->limits->receiveBodySize) {
             httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, 
-                "Request body of %d bytes is too big. Limit %d", rx->receivedContent, conn->limits->receiveBodySize);
+                "Request body of %Ld bytes is too big. Limit %Ld", rx->bytesRead, conn->limits->receiveBodySize);
             return 1;
         }
         if (packet == rx->headerPacket) {
@@ -909,7 +916,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             packet = httpSplitPacket(packet, 0);
         }
         conn->input = 0;
-        if (remaining == 0 && mprGetBufLength(packet->content) > nbytes) {
+        if (remaining == 0 && httpGetPacketLength(packet) > nbytes) {
             /*  Split excess data belonging to the next pipelined request.  */
             LOG(7, "processContent: Split packet of %d at %d", httpGetPacketLength(packet), nbytes);
             conn->input = httpSplitPacket(packet, nbytes);
@@ -961,7 +968,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         return 0;
     }
 #endif
-    return conn->error || (conn->input ? mprGetBufLength(conn->input->content) : 0);
+    return conn->error || (conn->input ? httpGetPacketLength(conn->input) : 0);
 }
 
 
@@ -1010,10 +1017,10 @@ static void measure(HttpConn *conn)
         elapsed = mprGetTime() - conn->startTime;
 #if MPR_HIGH_RES_TIMER
         if (elapsed < 1000) {
-            mprLog(4, "TIME: Request %s took %,d msec %,d ticks", uri, elapsed, mprGetTicks() - conn->startTicks);
+            mprLog(6, "TIME: Request %s took %,d msec %,d ticks", uri, elapsed, mprGetTicks() - conn->startTicks);
         } else
 #endif
-            mprLog(4, "TIME: Request %s took %,d msec", uri, elapsed);
+            mprLog(6, "TIME: Request %s took %,d msec", uri, elapsed);
     }
 }
 #else
@@ -1030,14 +1037,13 @@ static bool processCompletion(HttpConn *conn)
 
     httpDestroyPipeline(conn);
     measure(conn);
-
-    if (conn->server) {
+    if (conn->server && conn->rx) {
         conn->rx->conn = 0;
         conn->tx->conn = 0;
         conn->rx = 0;
         conn->tx = 0;
         packet = conn->input;
-        more = packet && !conn->connError && (mprGetBufLength(packet->content) > 0);
+        more = packet && !conn->connError && (httpGetPacketLength(packet) > 0);
         httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
         httpPrepServerConn(conn);
         return more;
@@ -1065,14 +1071,14 @@ static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
 {
     HttpRx      *rx;
     char        *start, *cp;
-    ssize       need, size;
+    ssize       size, need;
 
     rx = conn->rx;
     need = 0;
 
     switch (rx->chunkState) {
     case HTTP_CHUNK_DATA:
-        need = rx->remainingContent;
+        need = (ssize) min(MAXSSIZE, rx->remainingContent);
         if (need != 0) {
             break;
         }
@@ -1141,7 +1147,7 @@ bool httpContentNotModified(HttpConn *conn)
 }
 
 
-HttpRange *httpCreateRange(HttpConn *conn, int start, int end)
+HttpRange *httpCreateRange(HttpConn *conn, MprOff start, MprOff end)
 {
     HttpRange     *range;
 
@@ -1163,7 +1169,7 @@ static void manageRange(HttpRange *range, int flags)
 }
 
 
-ssize httpGetContentLength(HttpConn *conn)
+MprOff httpGetContentLength(HttpConn *conn)
 {
     if (conn->rx == 0) {
         mprAssert(conn->rx);
@@ -1407,7 +1413,8 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
  */
 void httpSetWriteBlocked(HttpConn *conn)
 {
-    mprLog(7, "Write Blocked");
+//  MOB
+    mprLog(3, "Write Blocked");
     conn->canProceed = 0;
     conn->writeBlocked = 1;
 }
@@ -1468,7 +1475,6 @@ bool httpMatchEtag(HttpConn *conn, char *requestedEtag)
     if (requestedEtag == 0) {
         return 0;
     }
-
     for (next = 0; (tag = mprGetNextItem(rx->etags, &next)) != 0; ) {
         if (strcmp(tag, requestedEtag) == 0) {
             return (rx->ifMatch) ? 0 : 1;

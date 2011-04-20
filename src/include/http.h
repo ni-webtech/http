@@ -538,11 +538,8 @@ typedef ssize (*HttpFillProc)(struct HttpQueue *q, struct HttpPacket *packet, Mp
 typedef struct HttpPacket {
     MprBuf          *prefix;                /**< Prefix message to be emitted before the content */
     MprBuf          *content;               /**< Chunk content */
-#if UNUSED
-    MprBuf          *suffix;                /**< Prefix message to be emitted after the content */
-#endif
-    MprOff          vsize;                  /**< Data size in virtual entity */
-    MprOff          vpos;                   /**< Data position in virtual entity */
+    MprOff          esize;                  /**< Data size in entity (file) */
+    MprOff          epos;                   /**< Data position in entity (file) */
     HttpFillProc    fill;                   /**< Callback to fill packet with data */
     int             flags;                  /**< Packet flags */
     struct HttpPacket *next;                /**< Next packet in chain */
@@ -626,7 +623,7 @@ extern ssize httpGetPacketLength(HttpPacket *packet);
 #else
 #define httpGetPacketLength(p) (p->content ? mprGetBufLength(p->content) : 0)
 #endif
-#define httpGetPacketVLength(p) (p->content ? mprGetBufLength(p->content) : packet->vsize)
+#define httpGetPacketEntityLength(p) (p->content ? mprGetBufLength(p->content) : packet->esize)
 
 /** 
     Get the next packet from a queue
@@ -713,8 +710,8 @@ extern void httpSendPacketToNext(struct HttpQueue *q, HttpPacket *packet);
  */
 extern int httpResizePacket(struct HttpQueue *q, HttpPacket *packet, ssize size);
 
-extern void httpAdjustPacketStart(HttpPacket *packet, ssize size);
-extern void httpAdjustPacketEnd(HttpPacket *packet, ssize size);
+extern void httpAdjustPacketStart(HttpPacket *packet, MprOff size);
+extern void httpAdjustPacketEnd(HttpPacket *packet, MprOff size);
 
 /************************************* Queue *********************************/
 /*  

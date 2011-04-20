@@ -381,7 +381,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
 }
 
 
-void httpSetContentLength(HttpConn *conn, ssize length)
+void httpSetContentLength(HttpConn *conn, MprOff length)
 {
     HttpTx      *tx;
 
