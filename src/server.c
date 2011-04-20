@@ -216,7 +216,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
         }
         count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
         mprAddKey(server->clientLoad, conn->ip, ITOP(count + 1));
-        server->clientCount = mprGetHashLength(server->clientLoad);
+        server->clientCount = (int) mprGetHashLength(server->clientLoad);
         break;
 
     case HTTP_VALIDATE_CLOSE_CONN:
@@ -226,7 +226,7 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
         } else {
             mprRemoveHash(server->clientLoad, conn->ip);
         }
-        server->clientCount = mprGetHashLength(server->clientLoad);
+        server->clientCount = (int) mprGetHashLength(server->clientLoad);
         mprLog(4, "Close connection %d. Active requests %d, active clients %d.", conn->seqno, server->requestCount, 
             server->clientCount);
         break;
@@ -418,7 +418,7 @@ int httpSecureServer(cchar *ip, int port, struct MprSsl *ssl)
     if (ip == 0) {
         ip = "";
     }
-    for (count = next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
         if (server->port <= 0 || port <= 0 || server->port == port) {
             mprAssert(server->ip);
             if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {

@@ -71,7 +71,7 @@ static void testBasicHttpGet(MprTestGroup *gp)
     TestHttp    *th;
     Http        *http;
     HttpConn    *conn;
-    ssize       length;
+    MprOff      length;
     int         rc, status;
 
     th = gp->data;
