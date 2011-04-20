@@ -206,7 +206,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
     packet = q->first;
     content = packet->content;
     mprAddNullToBuf(content);
-    count = mprGetBufLength(content);
+    count = httpGetPacketLength(packet);
 
     for (done = 0, line = 0; !done; ) {
         if  (up->contentState == HTTP_UPLOAD_BOUNDARY || up->contentState == HTTP_UPLOAD_CONTENT_HEADER) {
@@ -241,7 +241,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
             if (rc < 0) {
                 done++;
             }
-            if (mprGetBufLength(content) < up->boundaryLen) {
+            if (httpGetPacketLength(packet) < up->boundaryLen) {
                 /*  Incomplete boundary - return to get more data */
                 done++;
             }
@@ -258,10 +258,10 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
     if (packet != rx->headerPacket) {
         mprCompactBuf(content);
     }
-    q->count -= (count - mprGetBufLength(content));
+    q->count -= (count - httpGetPacketLength(packet));
     mprAssert(q->count >= 0);
 
-    if (mprGetBufLength(content) == 0) {
+    if (httpGetPacketLength(packet) == 0) {
         /* 
            Quicker to remove the buffer so the packets don't have to be joined the next time 
          */
@@ -452,7 +452,7 @@ static int writeToFile(HttpQueue *q, char *data, ssize len)
     file = up->currentFile;
 
     if ((file->size + len) > limits->uploadSize) {
-        httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Uploaded file exceeds maximum %d", limits->uploadSize);
+        httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Uploaded file exceeds maximum %Ld", limits->uploadSize);
         return MPR_ERR_CANT_WRITE;
     }
     if (len > 0) {
@@ -550,7 +550,7 @@ static int processContentData(HttpQueue *q)
             if (packet == 0) {
                 packet = httpCreatePacket(HTTP_BUFSIZE);
             }
-            if (mprGetBufLength(packet->content) > 0) {
+            if (httpGetPacketLength(packet) > 0) {
                 /*
                     Need to add www-form-urlencoding separators
                  */
