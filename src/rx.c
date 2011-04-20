@@ -351,14 +351,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     }
     rx->flags |= methodFlags;
     rx->originalUri = rx->uri = sclone(uri);
-
     httpSetState(conn, HTTP_STATE_FIRST);
-#if UNUSED
-    if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, NULL)) >= 0) {
-        mprLog(level, "%s %s %s", rx->method, uri, protocol);
-    }
-    traceRequest(conn, packet);
-#endif
 }
 
 
