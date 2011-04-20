@@ -184,7 +184,7 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
 
 
 /*  
-    Set a handler to universally apply to requests in this location block.
+    Set a handler to apply to requests in this location block.
  */
 int httpSetHandler(HttpLoc *loc, cchar *name)
 {
