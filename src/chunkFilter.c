@@ -39,7 +39,14 @@ int httpOpenChunkFilter(Http *http)
 
 static bool matchChunk(HttpConn *conn, HttpStage *handler)
 {
-    return (conn->tx->length <= 0) ? 1 : 0;
+    HttpTx  *tx;
+
+    /*
+        Don't match if chunking is explicitly turned off vi a the X_APPWEB_CHUNK_SIZE header which sets the chunk 
+        size to zero. Also remove if the response length is already known.
+     */
+    tx = conn->tx;
+    return (tx->length < 0 && tx->chunkSize != 0) ? 1 : 0;
 }
 
 
@@ -196,7 +203,9 @@ static void outgoingChunkService(HttpQueue *q)
     } else {
         for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
             if (!(packet->flags & HTTP_PACKET_HEADER)) {
+                httpPutBackPacket(q, packet);
                 httpJoinPackets(q, tx->chunkSize);
+                packet = httpGetPacket(q);
                 if (httpGetPacketLength(packet) > tx->chunkSize) {
                     httpResizePacket(q, packet, tx->chunkSize);
                 }

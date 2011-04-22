@@ -58,6 +58,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->uri);
         mprMark(rx->scriptName);
         mprMark(rx->pathInfo);
+        mprMark(rx->extraPath);
         mprMark(rx->conn);
         mprMark(rx->etags);
         mprMark(rx->headerPacket);
@@ -73,8 +74,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->cookie);
         mprMark(rx->connection);
         mprMark(rx->contentLength);
-        mprMark(rx->hostName);
-        mprMark(rx->pathTranslated);
+        mprMark(rx->hostHeader);
         mprMark(rx->pragma);
         mprMark(rx->mimeType);
         mprMark(rx->redirect);
@@ -210,11 +210,12 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
             rx->parsedUri->scheme = sclone("https");
         }
         rx->parsedUri->port = conn->sock->listenSock->port;
-        rx->parsedUri->host = rx->hostName ? rx->hostName : conn->host->name;
+        rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
         if (!tx->handler) {
             httpMatchHandler(conn);  
         }
         loc = rx->loc;
+        mprAssert(loc);
 
         mprLog(3, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
         httpSetState(conn, HTTP_STATE_PARSED);        
@@ -448,7 +449,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             if (strcmp(key, "authorization") == 0) {
                 value = sclone(value);
                 rx->authType = stok(value, " \t", &tok);
-                rx->authDetails = tok;
+                rx->authDetails = sclone(tok);
 
             } else if (strcmp(key, "accept-charset") == 0) {
                 rx->acceptCharset = sclone(value);
@@ -541,7 +542,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'h':
             if (strcmp(key, "host") == 0) {
-                rx->hostName = sclone(value);
+                rx->hostHeader = sclone(value);
             }
             break;
 
@@ -1256,24 +1257,46 @@ int httpMapToStorage(HttpConn *conn)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpHost    *host;
-    MprPath     *info;
+    MprPath     *info, ginfo;
+    char        *gfile;
 
     rx = conn->rx;
     tx = conn->tx;
     host = conn->host;
     info = &tx->fileInfo;
 
-    rx->loc = httpLookupBestLocation(host, rx->pathInfo);
-    rx->auth = rx->loc->auth;
     rx->alias = httpGetAlias(host, rx->pathInfo);
     tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
+
     tx->extension = httpGetExtension(conn);
 #if BLD_WIN_LIKE
     if (tx->extension) {
         tx->extension = slower(tx->extension);
     }
 #endif
+    if ((rx->dir = httpLookupBestDir(host, tx->filename)) == 0) {
+        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing directory block for \"%s\"", tx->filename);
+        return MPR_ERR_CANT_ACCESS;
+    }
+    if (rx->dir->auth) {
+        rx->auth = rx->dir->auth;
+    }
+    if ((rx->loc = httpLookupBestLocation(host, rx->pathInfo)) == 0) {
+        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing location block for \"%s\"", rx->pathInfo);
+        return MPR_ERR_CANT_ACCESS;
+    }
+    if (rx->auth == 0) {
+        rx->auth = rx->loc->auth;
+    }
     mprGetPathInfo(tx->filename, info);
+    if (!info->valid && rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
+        gfile = mprAsprintf("%s.gz", tx->filename);
+        if (mprGetPathInfo(gfile, &ginfo) == 0) {
+            tx->filename = gfile;
+            tx->fileInfo = ginfo;
+            httpSetHeader(conn, "Content-Encoding", "gzip");
+        }
+    }
     if (info->valid) {
         tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
     }
@@ -1612,6 +1635,35 @@ cvoid *httpGetStageData(HttpConn *conn, cchar *key)
         return NULL;
     }
     return mprLookupHash(rx->requestData, key);
+}
+
+
+char *httpMakeFilename(HttpConn *conn, HttpAlias *alias, cchar *url, bool skipAliasPrefix)
+{
+    cchar   *seps;
+    char    *path;
+    int     len;
+
+    mprAssert(alias);
+    mprAssert(url);
+
+    if (skipAliasPrefix) {
+        url += alias->prefixLen;
+    }
+    while (*url == '/') {
+        url++;
+    }
+    len = (int) strlen(alias->filename);
+    if ((path = mprAlloc(len + strlen(url) + 2)) == 0) {
+        return 0;
+    }
+    strcpy(path, alias->filename);
+    if (*url) {
+        seps = mprGetPathSeparators(path);
+        path[len++] = seps[0];
+        strcpy(&path[len], url);
+    }
+    return mprGetNativePath(path);
 }
 
 

@@ -353,7 +353,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
             /*
                 Absolute URL. If hostName has a port specifier, it overrides prev->port.
              */
-            uri = httpFormatUri(prev->scheme, rx->hostName, port, target->path, target->reference, target->query, 1);
+            uri = httpFormatUri(prev->scheme, rx->hostHeader, port, target->path, target->reference, target->query, 1);
         } else {
             /*
                 Relative file redirection to a file in the same directory as the previous request.
@@ -364,7 +364,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
                 *cp = '\0';
             }
             path = sjoin(dir, "/", target->path, NULL);
-            uri = httpFormatUri(prev->scheme, rx->hostName, port, path, target->reference, target->query, 1);
+            uri = httpFormatUri(prev->scheme, rx->hostHeader, port, path, target->reference, target->query, 1);
         }
         targetUri = uri;
     }
@@ -421,7 +421,7 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         }
     }
     if (webkitVersion >= 312) {
-        domain = sclone(rx->hostName);
+        domain = sclone(rx->hostHeader);
         if ((cp = strchr(domain, ':')) != 0) {
             *cp = '\0';
         }

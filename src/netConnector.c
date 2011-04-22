@@ -82,7 +82,6 @@ static void netOutgoingService(HttpQueue *q)
         if (q->ioIndex == 0 && buildNetVec(q) <= 0) {
             break;
         }
-
         /*  
             Issue a single I/O request to write all the blocks in the I/O vector
          */

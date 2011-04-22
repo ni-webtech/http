@@ -87,7 +87,13 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     for (next = 0; (stage = mprGetNextItem(rx->inputPipeline, &next)) != 0; ) {
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_RECEIVE, q);
     }
-    //  MOB - don't want to call this when using file handler
+    if ((tx->handler->flags & HTTP_STAGE_VERIFY_ENTITY) && !tx->fileInfo.valid && !(rx->flags & HTTP_PUT)) {
+        httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
+    }
+
+    /*
+        Create form and environment vars if required
+     */
     setVars(conn);
 
     conn->writeq = tx->queue[HTTP_QUEUE_TRANS]->nextQ;
@@ -282,6 +288,38 @@ void httpDiscardTransmitData(HttpConn *conn)
 }
 
 
+static void trimExtraPath(HttpConn *conn)
+{
+    HttpAlias   *alias;
+    HttpRx      *rx;
+    HttpTx      *tx;
+    char        *cp, *extra, *start;
+    ssize       len;
+
+    rx = conn->rx;
+    tx = conn->tx;
+    alias = rx->alias;
+
+    /*
+        Find the script name in the uri. This is assumed to be either:
+        - The original uri up to and including first path component containing a ".", or
+        - The entire original uri
+        Once found, set the scriptName and trim the extraPath from pathInfo
+        The filename is used to search for a component with "." because we want to skip the alias prefix.
+     */
+    start = &tx->filename[strlen(alias->filename)];
+    if ((cp = strchr(start, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
+        len = alias->prefixLen + extra - start;
+        if (0 < len && len < slen(rx->pathInfo)) {
+            *extra = '\0';
+            rx->extraPath = sclone(&rx->pathInfo[len]);
+            rx->pathInfo[len] = '\0';
+            return;
+        }
+    }
+}
+
+
 /*
     Create the form variables based on the URI query. Also create formVars for CGI style programs (cgi | egi)
  */
@@ -293,8 +331,9 @@ static void setVars(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
 
-    mprAssert(tx->handler);
-
+    if (tx->handler->flags & HTTP_STAGE_EXTRA_PATH) {
+        trimExtraPath(conn);
+    }
     if (tx->handler->flags & HTTP_STAGE_QUERY_VARS && rx->parsedUri->query) {
         rx->formVars = httpAddVars(rx->formVars, rx->parsedUri->query, slen(rx->parsedUri->query));
     }

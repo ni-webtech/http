@@ -75,17 +75,6 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     if ((ad = mprAllocObj(AuthData, NULL)) == 0) {
         return 1;
     }
-    //  MOB -- fix
-#if UNUSED
-    if (auth == 0) {
-        httpError(conn, HTTP_CODE_UNAUTHORIZED, "Access Denied, Authorization not enabled");
-        return 1;
-    }
-    if (auth->type == 0) {
-        formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Authorization required.", 0);
-        return 1;
-    }
-#endif
     if (rx->authDetails == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
         return 1;
@@ -145,6 +134,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     if (!(http->validateCred)(auth, auth->requiredRealm, ad->userName, ad->password, requiredPassword, &msg)) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, authentication error", msg);
     }
+    rx->authenticated = 1;
     return 1;
 }
 
@@ -344,16 +334,17 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
         qopClass = auth->qop;
         etag = tx->etag ? tx->etag : "";
         nonce = createDigestNonce(conn->http->secret, etag, auth->requiredRealm);
+        mprAssert(conn->host);
 
         if (scmp(qopClass, "auth") == 0) {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", domain=\"%s\", "
                 "qop=\"auth\", nonce=\"%s\", opaque=\"%s\", algorithm=\"MD5\", stale=\"FALSE\"", 
-                auth->requiredRealm, conn->server->name, nonce, etag);
+                auth->requiredRealm, conn->host->name, nonce, etag);
 
         } else if (scmp(qopClass, "auth-int") == 0) {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", domain=\"%s\", "
                 "qop=\"auth\", nonce=\"%s\", opaque=\"%s\", algorithm=\"MD5\", stale=\"FALSE\"", 
-                auth->requiredRealm, conn->server->name, nonce, etag);
+                auth->requiredRealm, conn->host->name, nonce, etag);
 
         } else {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", nonce=\"%s\"", auth->requiredRealm, nonce);

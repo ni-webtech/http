@@ -21,6 +21,8 @@ static void manageHost(HttpHost *host, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(host->name);
+        mprMark(host->hostname);
+        mprMark(host->infoName);
         mprMark(host->parent);
         mprMark(host->aliases);
         mprMark(host->dirs);
@@ -55,16 +57,17 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
         return 0;
     }
     if (ip) {
-        //  MOB - isn't port always set?
         if (port) {
             host->name = mprAsprintf("%s:%d", ip, port);
+            host->hostname = sclone(ip);
         } else {
-            host->name = sclone(ip);
+            host->hostname = host->name = sclone(ip);
         }
     } else {
         if (port) {
             host->name = mprAsprintf("*:%d", port);
         }
+        host->hostname = sclone("127.0.0.1");
     }
     host->mutex = mprCreateLock();
     host->aliases = mprCreateList(-1, 0);
@@ -86,6 +89,8 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     host->loc = (loc) ? loc : httpCreateLocation();
     httpAddLocation(host, host->loc);
     host->loc->auth = httpCreateAuth(host->loc->auth);
+    httpAddDir(host, httpCreateBareDir("."));
+
     httpAddHost(http, host);
     return host;
 }
@@ -171,10 +176,20 @@ void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
 
 void httpSetHostName(HttpHost *host, cchar *name)
 {
+    cchar   *cp;
+
     host->name = sclone(name);
+    if ((cp = schr(name, ':')) != 0) {
+        host->hostname = snclone(name, cp - name);
+    } else {
+        host->hostname = host->name;
+    }
 }
 
 
+/*
+    Informational names are used in logs
+ */
 void httpSetHostInfoName(HttpHost *host, cchar *name)
 {
     host->infoName = sclone(name);

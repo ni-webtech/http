@@ -1,5 +1,5 @@
 /*
-    env.c -- Manage the request environment
+    var.c -- Manage the request variables
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
 
@@ -17,7 +17,6 @@ void httpCreateCGIVars(HttpConn *conn)
     HttpTx          *tx;
     HttpHost        *host;
     HttpUploadFile  *up;
-    HttpServer      *server;
     MprSocket       *sock;
     MprHashTable    *table;
     MprHash         *hp;
@@ -25,13 +24,15 @@ void httpCreateCGIVars(HttpConn *conn)
 
     rx = conn->rx;
     tx = conn->tx;
-    server = conn->server;
     host = conn->host;
+
+    //  MOB - cleanup
 
     table = rx->formVars;
     if (table == 0) {
         table = rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     }
+
     //  TODO - Vars for COOKIEs
     
     /*  Alias for REMOTE_USER. Define both for broader compatibility with CGI */
@@ -56,24 +57,27 @@ void httpCreateCGIVars(HttpConn *conn)
     
     sock = conn->sock;
     mprAddKey(table, "SERVER_ADDR", sock->acceptIp);
-    mprAddKey(table, "SERVER_NAME", server->name);
+    mprAddKey(table, "SERVER_NAME", host->hostname);
     mprAddKeyFmt(table, "SERVER_PORT", "%d", sock->acceptPort);
 
     /*  HTTP/1.0 or HTTP/1.1 */
     mprAddKey(table, "SERVER_PROTOCOL", conn->protocol);
-    mprAddKey(table, "SERVER_SOFTWARE", server->http->software);
+    mprAddKey(table, "SERVER_SOFTWARE", conn->http->software);
 
     /*  This is the original URI before decoding */ 
     mprAddKey(table, "REQUEST_URI", rx->originalUri);
 
-    /*  URLs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} */
-    mprAddKey(table, "PATH_INFO", rx->pathInfo);
-    mprAddKey(table, "SCRIPT_NAME", rx->scriptName);
+    /*  
+        URIs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} 
+        NOTE: For CGI|PHP, scriptName is empty and pathInfo has the script. PATH_INFO is stored in extraPath.
+     */
+    mprAddKey(table, "PATH_INFO", rx->extraPath);
+    mprAddKey(table, "SCRIPT_NAME", rx->pathInfo);
     mprAddKey(table, "SCRIPT_FILENAME", tx->filename);
 
-    if (rx->pathTranslated) {
-        /*  Only set PATH_TRANSLATED if PATH_INFO is set (CGI spec) */
-        mprAddKey(table, "PATH_TRANSLATED", rx->pathTranslated);
+    if (rx->extraPath) {
+        /*  Only set PATH_TRANSLATED if extraPath is set (CGI spec) */
+        mprAddKey(table, "PATH_TRANSLATED", httpMakeFilename(conn, rx->alias, rx->extraPath, 0));
     }
     //  MOB -- how do these relate to MVC apps and non-mvc apps
     mprAddKey(table, "DOCUMENT_ROOT", host->documentRoot);
@@ -102,8 +106,8 @@ void httpCreateCGIVars(HttpConn *conn)
  */
 MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
 {
-    cchar           *oldValue;
-    char            *newValue, *decoded, *keyword, *value, *tok;
+    cchar   *oldValue;
+    char    *newValue, *decoded, *keyword, *value, *tok;
 
     if (table == 0) {
         table = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
@@ -124,7 +128,7 @@ MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
 
         if (*keyword) {
             /*  
-                Append to existing keywords.
+                Append to existing keywords
              */
             oldValue = mprLookupHash(table, keyword);
             if (oldValue != 0 && *oldValue) {

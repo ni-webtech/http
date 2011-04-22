@@ -10,14 +10,11 @@
 
 /***************************** Forward Declarations ***************************/
 
+static HttpStage *checkDirectory(HttpConn *conn, HttpStage *handler);
 static char *getExtension(HttpConn *conn, cchar *path);
 static HttpStage *checkHandler(HttpConn *conn, HttpStage *stage);
 static HttpStage *findHandler(HttpConn *conn);
-static HttpStage *findLocationHandler(HttpConn *conn);
-static HttpStage *mapToFile(HttpConn *conn, HttpStage *handler);
-static HttpStage *processDirectory(HttpConn *conn, HttpStage *handler);
 static bool rewriteRequest(HttpConn *conn);
-static void setScriptName(HttpConn *conn);
 
 /*********************************** Code *************************************/
 /*
@@ -45,9 +42,9 @@ void httpMatchHost(HttpConn *conn)
 
     if (httpIsNamedVirtualServer(server)) {
         rx = conn->rx;
-        if ((host = httpLookupHostByName(server, rx->hostName)) == 0) {
+        if ((host = httpLookupHostByName(server, rx->hostHeader)) == 0) {
             httpSetConnHost(conn, host);
-            httpError(conn, HTTP_CODE_NOT_FOUND, "No host to serve request. Searching for %s", rx->hostName);
+            httpError(conn, HTTP_CODE_NOT_FOUND, "No host to serve request. Searching for %s", rx->hostHeader);
             conn->host = mprGetFirstItem(server->hosts);
             return;
         }
@@ -76,37 +73,23 @@ void httpMatchHandler(HttpConn *conn)
     host = conn->host;
     handler = 0;
 
+    mprAssert(rx->pathInfo);
     mprAssert(rx->uri);
     mprAssert(rx->loc);
     mprAssert(rx->alias);
     mprAssert(tx->filename);
     mprAssert(tx->fileInfo.checked);
 
-    /*
-        Get the best (innermost) location block and see if a handler is explicitly set for that location block.
-        Possibly rewrite the url and retry.
-     */
-    while (!handler && !conn->error && rx->rewrites++ < HTTP_MAX_REWRITE) {
-        /*
-            Give stages a cance to rewrite the request, then match the location handler. If that doesn't match,
-            try to match by extension and/or handler match() routines. This may invoke processDirectory which
-            may redirect and thus require reprocessing -- hence the loop.
-        */
+    for (handler = 0; !handler && !conn->error && (rx->rewrites < HTTP_MAX_REWRITE); rx->rewrites++) {
         if (!rewriteRequest(conn)) {
-            if ((handler = findLocationHandler(conn)) == 0) {
-                handler = findHandler(conn);
-            }
-            handler = mapToFile(conn, handler);
+            handler = findHandler(conn);
         }
     }
-    if (handler == 0 || conn->error || ((tx->flags & HTTP_TX_NO_BODY) && !(rx->flags & HTTP_HEAD))) {
+    if (!handler || conn->error || ((tx->flags & HTTP_TX_NO_BODY) && !(rx->flags & HTTP_HEAD))) {
         handler = http->passHandler;
         if (!conn->error && rx->rewrites >= HTTP_MAX_REWRITE) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");
         }
-    }
-    if (handler->flags & HTTP_STAGE_PATH_INFO) {
-        setScriptName(conn);
     }
     tx->handler = handler;
 }
@@ -147,23 +130,6 @@ static bool rewriteRequest(HttpConn *conn)
         }
     }
     return 0;
-}
-
-
-static HttpStage *findLocationHandler(HttpConn *conn)
-{
-    HttpRx      *rx;
-    HttpTx      *tx;
-    HttpLoc     *loc;
-    HttpHost    *host;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    host = httpGetConnHost(conn);
-    loc = rx->loc = httpLookupBestLocation(host, rx->pathInfo);
-    rx->auth = loc->auth;
-    mprAssert(loc);
-    return checkHandler(conn, loc->handler);
 }
 
 
@@ -211,6 +177,7 @@ char *httpGetExtension(HttpConn *conn)
 static HttpStage *findHandler(HttpConn *conn)
 {
     Http        *http;
+    HttpHost    *host;
     HttpRx      *rx;
     HttpTx      *tx;
     HttpStage   *handler;
@@ -224,107 +191,58 @@ static HttpStage *findHandler(HttpConn *conn)
     tx = conn->tx;
     loc = rx->loc;
     handler = 0;
+    host = httpGetConnHost(conn);
 
     mprAssert(rx->uri);
     mprAssert(tx->filename);
     mprAssert(tx->fileInfo.checked);
     mprAssert(rx->pathInfo);
+    mprAssert(host);
 
-    if (rx->pathInfo == 0) {
-        handler = http->passHandler;
-
-    } else if (tx->extension) {
-        handler = checkHandler(conn, httpGetHandlerByExtension(loc, tx->extension));
-
-    } else if (!tx->fileInfo.valid) {
-        /*
-            URI has no extension, check if the addition of configured  extensions results in a valid filename.
+    /*
+        Check for any explicitly defined handlers (SetHandler directive)
+     */
+    if ((handler = checkHandler(conn, loc->handler)) == 0) {
+        /* 
+            Perform custom handler matching first on all defined handlers 
          */
-        for (path = 0, hp = 0; (hp = mprGetNextHash(loc->extensions, hp)) != 0; ) {
-            handler = (HttpStage*) hp->data;
-            if (*hp->key && (handler->flags & HTTP_STAGE_MISSING_EXT)) {
-                path = sjoin(tx->filename, ".", hp->key, NULL);
-                if (mprGetPathInfo(path, &tx->fileInfo) == 0) {
-                    mprLog(5, "findHandler: Adding extension, new path %s\n", path);
-                    httpSetUri(conn, sjoin(rx->uri, ".", hp->key, NULL), NULL);
-                    break;
-                }
-            }
-        }
-        if (hp == 0) {
-            handler = 0;
-        }
-    }
-    if (handler == 0) {
-        /* Failed to match by extension, so perform custom handler matching on all defined handlers */
         for (next = 0; (handler = mprGetNextItem(loc->handlers, &next)) != 0; ) {
             if (checkHandler(conn, handler)) {
                 break;
             }
         }
-    }
-    if (handler == 0) {
-        handler = checkHandler(conn, httpGetHandlerByExtension(loc, ""));
         if (handler == 0) {
-            handler = http->passHandler;
-            if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) {
-                httpError(conn, HTTP_CODE_NOT_IMPLEMENTED, "No handler to service method \"%s\" for request \"%s\"", 
-                    rx->method, rx->pathInfo);
-            }
-        }
-    }
-    return handler;
-}
+            if (tx->extension) {
+                handler = checkHandler(conn, httpGetHandlerByExtension(loc, tx->extension));
 
-
-static HttpStage *mapToFile(HttpConn *conn, HttpStage *handler)
-{
-    HttpRx      *rx;
-    HttpTx      *tx;
-    HttpHost    *host;
-    MprPath     *info, ginfo;
-    char        *gfile;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    host = conn->host;
-    info = &tx->fileInfo;
-
-    mprAssert(handler);
-    mprAssert(tx->filename);
-    mprAssert(info->checked);
-
-    if (!handler || (handler->flags & HTTP_STAGE_VIRTUAL)) {
-        return handler;
-    }
-    if ((rx->dir = httpLookupBestDir(host, tx->filename)) == 0) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing directory block for %s", tx->filename);
-    } else {
-        rx->auth = rx->dir->auth;
-        if (info->isDir) {
-            handler = processDirectory(conn, handler);
-
-        } else if (!info->valid) {
-            /*
-                File not found. See if a compressed variant exists.
-             */
-            if (rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
-                gfile = mprAsprintf("%s.gz", tx->filename);
-                if (mprGetPathInfo(gfile, &ginfo) == 0) {
-                    tx->filename = gfile;
-                    tx->fileInfo = ginfo;
-                    tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", ginfo.inode, ginfo.size, ginfo.mtime);
-                    httpSetHeader(conn, "Content-Encoding", "gzip");
-                    return handler;
+            } else if (!tx->fileInfo.valid) {
+                /*
+                    URI has no extension, check if the addition of configured  extensions results in a valid filename.
+                 */
+                for (path = 0, hp = 0; (hp = mprGetNextHash(loc->extensions, hp)) != 0; ) {
+                    handler = (HttpStage*) hp->data;
+                    if (*hp->key && (handler->flags & HTTP_STAGE_MISSING_EXT)) {
+                        path = sjoin(tx->filename, ".", hp->key, NULL);
+                        if (mprGetPathInfo(path, &tx->fileInfo) == 0) {
+                            mprLog(5, "findHandler: Adding extension, new path %s\n", path);
+                            httpSetUri(conn, sjoin(rx->uri, ".", hp->key, NULL), NULL);
+                            break;
+                        }
+                    }
                 }
             }
-            if (!(rx->flags & HTTP_PUT) && (handler->flags & HTTP_STAGE_VERIFY_ENTITY) && 
-                    (rx->auth == 0 || rx->auth->type == 0)) {
-                httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
+            if (handler == 0) {
+                handler = checkHandler(conn, httpGetHandlerByExtension(loc, ""));
+                if (handler == 0) {
+                    if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) {
+                        httpError(conn, HTTP_CODE_NOT_IMPLEMENTED, "No handler for \"%s\" \"%s\"", rx->method, rx->pathInfo);
+                    }
+                    handler = http->passHandler;
+                }
             }
         }
     }
-    return handler;
+    return checkDirectory(conn, handler);
 }
 
 
@@ -333,14 +251,14 @@ static HttpStage *mapToFile(HttpConn *conn, HttpStage *handler)
     (transparent) redirection and serve different content back to the browser. This routine may modify the requested 
     URI and/or the request handler.
  */
-static HttpStage *processDirectory(HttpConn *conn, HttpStage *handler)
+static HttpStage *checkDirectory(HttpConn *conn, HttpStage *handler)
 {
     HttpRx      *rx;
     HttpTx      *tx;
     MprPath     *info;
     HttpHost    *host;
     HttpUri     *prior;
-    char        *path, *index, *pathInfo, *uri;
+    char        *path, *pathInfo, *uri;
 
     rx = conn->rx;
     tx = conn->tx;
@@ -349,106 +267,36 @@ static HttpStage *processDirectory(HttpConn *conn, HttpStage *handler)
     prior = rx->parsedUri;
 
     mprAssert(rx->dir);
+    mprAssert(rx->dir->indexName);
     mprAssert(rx->pathInfo);
-    mprAssert(info->isDir);
 
-    index = rx->dir->indexName;
-    path = mprJoinPath(tx->filename, index);
-
-    if (rx->pathInfo[slen(rx->pathInfo) - 1] == '/') {
+    if (!tx->fileInfo.isDir || handler == 0 || handler->flags & HTTP_STAGE_VIRTUAL) {
+        return handler;
+    }
+    if (sends(rx->pathInfo, "/")) {
         /*  
             Internal directory redirections
          */
+        path = mprJoinPath(tx->filename, rx->dir->indexName);
         if (mprPathExists(path, R_OK)) {
             /*  
                 Index file exists, so do an internal redirect to it. Client will not be aware of this happening.
                 Return zero so the request will be rematched on return.
              */
-            pathInfo = mprJoinPath(rx->pathInfo, index);
+            pathInfo = mprJoinPath(rx->pathInfo, rx->dir->indexName);
             uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
             httpSetUri(conn, uri, 0);
+            /* Force a rematch */
             return 0;
         }
     } else {
-#if UNUSED
-        /*  
-            External redirect. Ask the client to re-issue a request for a new location. See if an index exists and if so, 
-            construct a new location for the index. If the index can't be accessed, append a "/" to the URI and redirect.
-         */
-        if (mprPathExists(path, R_OK)) {
-            pathInfo = mprJoinPath(rx->pathInfo, index);
-        } else {
-            pathInfo = sjoin(rx->pathInfo, "/", NULL);
-        }
-#else
-        /* Must not append the index for the external redirect - Messes up PHP wordpress */
+        /* Must not append the index for the external redirect */
         pathInfo = sjoin(rx->pathInfo, "/", NULL);
-#endif
         uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
         httpRedirect(conn, HTTP_CODE_MOVED_PERMANENTLY, uri);
         handler = conn->http->passHandler;
     }
     return handler;
-}
-
-
-#if UNUSED
-static bool fileExists(cchar *path) {
-    if (mprPathExists(path, R_OK)) {
-        return 1;
-    }
-#if BLD_WIN_LIKE
-{
-    char    *file;
-    file = sjoin(path, ".exe", NULL);
-    if (mprPathExists(file, R_OK)) {
-        return 1;
-    }
-    file = sjoin(path, ".bat", NULL);
-    if (mprPathExists(file, R_OK)) {
-        return 1;
-    }
-}
-#endif
-    return 0;
-}
-#endif
-
-
-static void setScriptName(HttpConn *conn)
-{
-    HttpAlias   *alias;
-    HttpRx      *rx;
-    HttpTx      *tx;
-    char        *cp, *extraPath, *start, *pathInfo;
-    ssize       scriptLen;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    alias = rx->alias;
-
-    /*
-        Find the script name in the filename. This is assumed to be either:
-        - The original filename up to and including first portion containing a "."
-        - The entire original filename
-        Once found, set the scriptName and trim the extraPath from both the filename and the pathInfo
-     */
-    start = &tx->filename[strlen(alias->filename)];
-    if ((cp = strchr(start, '.')) != 0 && (extraPath = strchr(cp, '/')) != 0) {
-        rx->scriptName = sclone(rx->pathInfo);
-        scriptLen = alias->prefixLen + extraPath - start;
-        rx->pathInfo = sclone(&rx->scriptName[scriptLen]);
-        rx->scriptName[0] = '\0';
-        *extraPath = '\0';
-        httpMapToStorage(conn);
-        if (rx->pathInfo[0]) {
-            rx->pathTranslated = httpMakeFilename(conn, alias, rx->pathInfo, 0);
-        }
-    } else {
-        pathInfo = rx->pathInfo;
-        rx->scriptName = rx->pathInfo;
-        rx->pathInfo = 0;
-    }
 }
 
 
@@ -470,35 +318,6 @@ static HttpStage *checkHandler(HttpConn *conn, HttpStage *stage)
         }
     }
     return stage;
-}
-
-
-char *httpMakeFilename(HttpConn *conn, HttpAlias *alias, cchar *url, bool skipAliasPrefix)
-{
-    cchar   *seps;
-    char    *path;
-    int     len;
-
-    mprAssert(alias);
-    mprAssert(url);
-
-    if (skipAliasPrefix) {
-        url += alias->prefixLen;
-    }
-    while (*url == '/') {
-        url++;
-    }
-    len = (int) strlen(alias->filename);
-    if ((path = mprAlloc(len + strlen(url) + 2)) == 0) {
-        return 0;
-    }
-    strcpy(path, alias->filename);
-    if (*url) {
-        seps = mprGetPathSeparators(path);
-        path[len++] = seps[0];
-        strcpy(&path[len], url);
-    }
-    return mprGetNativePath(path);
 }
 
 

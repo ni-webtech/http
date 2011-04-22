@@ -32,9 +32,11 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
     server->port = port;
     server->ip = sclone(ip);
     server->dispatcher = dispatcher;
+#if UNUSED
     if (server->ip && *server->ip) {
         server->name = server->ip;
     }
+#endif
     server->loc = httpInitLocation(http, 1);
     server->hosts = mprCreateList(-1, 0);
     httpAddServer(http, server);
@@ -47,7 +49,7 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
 
 void httpDestroyServer(HttpServer *server)
 {
-    mprLog(4, "Destroy server %s", server->name ? server->name : server->ip);
+    mprLog(4, "Destroy server %s", /* MOB server->name ? server->name : */ server->ip);
     if (server->waitHandler) {
         mprRemoveWaitHandler(server->waitHandler);
         server->waitHandler = 0;
@@ -70,7 +72,9 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->waitHandler);
         mprMark(server->clientLoad);
         mprMark(server->hosts);
+#if UNUSED
         mprMark(server->name);
+#endif
         mprMark(server->ip);
         mprMark(server->context);
         mprMark(server->meta);
@@ -275,7 +279,7 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
      */
     sock = mprAcceptSocket(server->sock);
     if (server->waitHandler) {
-        mprEnableWaitEvents(server->waitHandler, MPR_READABLE);
+        mprWaitOn(server->waitHandler, MPR_READABLE);
     }
     if (sock == 0) {
         return 0;
@@ -393,11 +397,13 @@ void httpSetServerLocation(HttpServer *server, HttpLoc *loc)
 }
 
 
+#if UNUSED
 void httpSetServerName(HttpServer *server, cchar *name)
 {
     mprAssert(server);
     server->name = sclone(name);
 }
+#endif
 
 
 void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)

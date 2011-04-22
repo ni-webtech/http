@@ -66,6 +66,8 @@ void httpSendOpen(HttpQueue *q)
 
 static void sendIncomingService(HttpQueue *q)
 {
+    //  MOB - why
+    mprAssert(0);
     httpEnableConnEvents(q->conn);
 }
 

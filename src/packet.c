@@ -147,10 +147,9 @@ bool httpIsPacketTooBig(HttpQueue *q, HttpPacket *packet)
 void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 {
     if (q->first == 0) {
-        /*  
-            Just use the service queue as a holding queue while we aggregate the post data.
-         */
+        /*  Just use the service queue as a holding queue while we aggregate the post data.  */
         httpPutForService(q, packet, 0);
+
     } else {
         q->count += httpGetPacketLength(packet);
         /* Skip over the header packet */
@@ -158,9 +157,7 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
             packet = q->first->next;
             q->first = packet;
         } else {
-            /*
-                Aggregate all data into one packet and free the packet.
-             */
+            /* Aggregate all data into one packet and free the packet.  */
             httpJoinPacket(q->first, packet);
         }
     }
@@ -193,24 +190,28 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
  */
 void httpJoinPackets(HttpQueue *q, ssize size)
 {
-    HttpPacket  *packet, *first, *next;
-    ssize       maxPacketSize;
+    HttpPacket  *packet, *first;
+    ssize       maxPacketSize, len;
 
     if (size < 0) {
         size = MAXINT;
     }
     if ((first = q->first) != 0 && first->next) {
         if (first->flags & HTTP_PACKET_HEADER) {
+            /* Step over a header packet */
             first = first->next;
         }
         maxPacketSize = min(q->nextQ->packetSize, size);
-        for (packet = first->next; packet; packet = next) {
-            next = packet->next;
-            if (packet->content && (httpGetPacketLength(first) + httpGetPacketLength(packet)) < maxPacketSize) {
-                httpJoinPacket(first, packet);
-            } else {
+        for (packet = first->next; packet; packet = packet->next) {
+            if (packet->content == 0 || (len = httpGetPacketLength(packet)) == 0) {
                 break;
             }
+            if ((httpGetPacketLength(first) + len) > maxPacketSize) {
+                break;
+            }
+            httpJoinPacket(first, packet);
+            /* Unlink the packet */
+            first->next = packet->next;
         }
     }
 }

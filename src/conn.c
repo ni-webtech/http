@@ -377,9 +377,7 @@ static void writeEvent(HttpConn *conn)
 }
 
 
-/*
-    This can be called by any thread
- */
+//  MOB - refactor
 void httpEnableConnEvents(HttpConn *conn)
 {
     HttpTx      *tx;
@@ -407,7 +405,7 @@ void httpEnableConnEvents(HttpConn *conn)
             return;
         }
         if (tx) {
-            //  MOB OPT - can we just test writeBlocked?
+            //  MOB OPT - can we just test writeBlocked? or count?
             if (conn->writeBlocked || tx->queue[HTTP_QUEUE_TRANS]->prevQ->count > 0) {
                 eventMask |= MPR_WRITABLE;
             }
@@ -426,19 +424,12 @@ void httpEnableConnEvents(HttpConn *conn)
             if (conn->waitHandler == 0) {
                 conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, conn->ioCallback, 
                     conn, 0);
-            } else if (eventMask != conn->waitHandler->desiredMask) {
-                mprEnableWaitEvents(conn->waitHandler, eventMask);
+            } else {
+                mprWaitOn(conn->waitHandler, eventMask);
             }
-        } else {
-            if (conn->waitHandler && eventMask != conn->waitHandler->desiredMask) {
-                mprEnableWaitEvents(conn->waitHandler, eventMask);
-            }
+        } else if (conn->waitHandler) {
+            mprWaitOn(conn->waitHandler, eventMask);
         }
-#if UNUSED
-        if (conn->recall && conn->waitHandler) {
-            mprRecallWaitHandler(conn->waitHandler);
-        }
-#endif
         conn->recall = 0;
         mprAssert(conn->dispatcher->enabled);
         unlock(conn->http);
