@@ -1604,6 +1604,9 @@ static bool parseRange(HttpConn *conn, char *value)
             return 0;
         }
         if (next) {
+            if (range->end < 0) {
+                return 0;
+            }
             if (next->start >= 0 && range->end > next->start) {
                 return 0;
             }

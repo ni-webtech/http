@@ -414,7 +414,7 @@ void httpEnableConnEvents(HttpConn *conn)
                 eventMask |= MPR_WRITABLE;
             }
 #else
-            if (conn->connq->count > 0) {
+            if (conn->connq && conn->connq->count > 0) {
                 eventMask |= MPR_WRITABLE;
             }
 #endif
