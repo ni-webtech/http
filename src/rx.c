@@ -1429,8 +1429,7 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
  */
 void httpSetWriteBlocked(HttpConn *conn)
 {
-//  MOB
-    mprLog(3, "Write Blocked");
+    mprLog(6, "Write Blocked");
     conn->canProceed = 0;
     conn->writeBlocked = 1;
 }
