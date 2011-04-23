@@ -98,6 +98,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
 
     conn->writeq = tx->queue[HTTP_QUEUE_TRANS]->nextQ;
     conn->readq = tx->queue[HTTP_QUEUE_RECEIVE]->prevQ;
+    conn->connq = tx->queue[HTTP_QUEUE_TRANS]->prevQ;
     httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
 
     /*  

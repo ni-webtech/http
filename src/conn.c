@@ -109,8 +109,12 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->serviceq);
         mprMark(conn->currentq);
         mprMark(conn->input);
+
+        //  MOB - these 3 should not be required
         mprMark(conn->readq);
         mprMark(conn->writeq);
+        mprMark(conn->connq);
+
         mprMark(conn->context);
         mprMark(conn->boundary);
         mprMark(conn->errorMsg);
@@ -370,7 +374,7 @@ static void writeEvent(HttpConn *conn)
 
     conn->writeBlocked = 0;
     if (conn->tx) {
-        httpEnableQueue(conn->tx->queue[HTTP_QUEUE_TRANS]->prevQ);
+        httpEnableQueue(conn->connq);
         httpServiceQueues(conn);
         httpProcess(conn, NULL);
     }
@@ -405,10 +409,15 @@ void httpEnableConnEvents(HttpConn *conn)
             return;
         }
         if (tx) {
-            //  MOB OPT - can we just test writeBlocked? or count?
-            if (conn->writeBlocked || tx->queue[HTTP_QUEUE_TRANS]->prevQ->count > 0) {
+#if UNUSED
+            if (conn->writeBlocked || conn->connq->count > 0) {
                 eventMask |= MPR_WRITABLE;
             }
+#else
+            if (conn->connq->count > 0) {
+                eventMask |= MPR_WRITABLE;
+            }
+#endif
             /*
                 Allow read events even if the current request is not complete. The pipelined request will be buffered 
                 and will be ready when the current request completes.
