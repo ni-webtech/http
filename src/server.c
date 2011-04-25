@@ -32,11 +32,6 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
     server->port = port;
     server->ip = sclone(ip);
     server->dispatcher = dispatcher;
-#if UNUSED
-    if (server->ip && *server->ip) {
-        server->name = server->ip;
-    }
-#endif
     server->loc = httpInitLocation(http, 1);
     server->hosts = mprCreateList(-1, 0);
     httpAddServer(http, server);
@@ -72,9 +67,6 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->waitHandler);
         mprMark(server->clientLoad);
         mprMark(server->hosts);
-#if UNUSED
-        mprMark(server->name);
-#endif
         mprMark(server->ip);
         mprMark(server->context);
         mprMark(server->meta);
@@ -395,15 +387,6 @@ void httpSetServerLocation(HttpServer *server, HttpLoc *loc)
     mprAssert(loc);
     server->loc = loc;
 }
-
-
-#if UNUSED
-void httpSetServerName(HttpServer *server, cchar *name)
-{
-    mprAssert(server);
-    server->name = sclone(name);
-}
-#endif
 
 
 void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)

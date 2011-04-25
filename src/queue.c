@@ -163,20 +163,11 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
 {
     HttpConn    *conn;
     HttpQueue   *next;
-#if UNUSED
-    int         oldMode;
-#endif
 
     conn = q->conn;
     LOG(6, "httpFlushQueue blocking %d", blocking);
     mprAssert(conn->sock);
 
-#if UNUSED
-    if (q->flags & HTTP_QUEUE_DISABLED || conn->sock == 0) {
-        return 0;
-    }
-    oldMode = mprSetSocketBlockingMode(conn->sock, blocking);
-#endif
     do {
         httpScheduleQueue(q);
         next = q->nextQ;
@@ -188,9 +179,6 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
             break;
         }
     } while (blocking && q->count >= q->max);
-#if UNUSED
-    mprSetSocketBlockingMode(conn->sock, oldMode);
-#endif
     return (q->count < q->max) ? 1 : 0;
 }
 

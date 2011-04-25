@@ -957,11 +957,6 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         return conn->workerEvent ? 0 : 1;
     }
     httpServiceQueues(conn);
-#if UNUSED
-    if ((conn->readq->count + httpGetPacketLength(packet)) > conn->readq->max) {
-        return 0;
-    }
-#endif
     return conn->error || (conn->input ? httpGetPacketLength(conn->input) : 0);
 }
 

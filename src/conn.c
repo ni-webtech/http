@@ -189,10 +189,6 @@ void httpConnTimeout(HttpConn *conn)
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT, "Exceeded timeout %d sec", limits->requestTimeout / 1000);
         }
         httpFinalize(conn);
-#if UNUSED
-        httpSetState(conn, HTTP_STATE_COMPLETE);
-        httpProcess(conn, NULL);
-#endif
         httpDisconnect(conn);
     }
 }
@@ -258,9 +254,6 @@ void httpPrepClientConn(HttpConn *conn, int keepHeaders)
         conn->rx->conn = 0;
     }
     conn->rx = httpCreateRx(conn);
-#if UNUSED
-    httpCreatePipeline(conn, NULL, NULL);
-#endif
     commonPrep(conn);
 }
 
@@ -584,13 +577,6 @@ void httpSetConnNotifier(HttpConn *conn, HttpNotifier notifier)
     conn->notifier = notifier;
 }
 
-
-#if UNUSED
-void httpSetRequestNotifier(HttpConn *conn, HttpNotifier notifier)
-{
-    conn->requestNotifier = notifier;
-}
-#endif
 
 void httpSetCredentials(HttpConn *conn, cchar *user, cchar *password)
 {

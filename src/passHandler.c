@@ -24,13 +24,6 @@ void httpHandleOptionsTrace(HttpQueue *q)
     tx = conn->tx;
     rx = conn->rx;
 
-#if UNUSED
-    /* Called only for the send queue */
-    if (q->pair) {
-        q->pair->max = q->max;
-        q->pair->packetSize = q->packetSize;
-    }
-#endif
     if (rx->flags & HTTP_TRACE) {
         if (!conn->limits->enableTraceMethod) {
             tx->status = HTTP_CODE_NOT_ACCEPTABLE;
@@ -55,13 +48,6 @@ void httpHandleOptionsTrace(HttpQueue *q)
 
 static void openPass(HttpQueue *q)
 {
-#if UNUSED
-    /* Called only for the send queue */
-    if (q->pair) {
-        q->pair->max = q->max;
-        q->pair->packetSize = q->packetSize;
-    }
-#endif
     mprLog(5, "Open passHandler");
     if (q->conn->rx->flags & (HTTP_OPTIONS | HTTP_TRACE)) {
         httpHandleOptionsTrace(q);
