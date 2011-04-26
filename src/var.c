@@ -25,17 +25,16 @@ void httpCreateCGIVars(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
     host = conn->host;
-
-    //  MOB - cleanup
+    sock = conn->sock;
 
     table = rx->formVars;
     if (table == 0) {
         table = rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     }
 
-    //  TODO - Vars for COOKIEs
-    
-    /*  Alias for REMOTE_USER. Define both for broader compatibility with CGI */
+    /*  
+        Alias for REMOTE_USER. Define both for broader compatibility with CGI 
+     */
     mprAddKey(table, "AUTH_TYPE", rx->authType);
     mprAddKey(table, "AUTH_USER", conn->authUser);
     mprAddKey(table, "AUTH_GROUP", conn->authGroup);
@@ -50,17 +49,17 @@ void httpCreateCGIVars(HttpConn *conn)
     }
     mprAddKeyFmt(table, "REMOTE_PORT", "%d", conn->port);
 
-    /*  Same as AUTH_USER (yes this is right) */
+    /*  
+            Same as AUTH_USER (yes this is right) 
+     */
     mprAddKey(table, "REMOTE_USER", conn->authUser);
     mprAddKey(table, "REQUEST_METHOD", rx->method);
     mprAddKey(table, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
     
-    sock = conn->sock;
     mprAddKey(table, "SERVER_ADDR", sock->acceptIp);
     mprAddKey(table, "SERVER_NAME", host->hostname);
     mprAddKeyFmt(table, "SERVER_PORT", "%d", sock->acceptPort);
 
-    /*  HTTP/1.0 or HTTP/1.1 */
     mprAddKey(table, "SERVER_PROTOCOL", conn->protocol);
     mprAddKey(table, "SERVER_SOFTWARE", conn->http->software);
 
@@ -76,10 +75,12 @@ void httpCreateCGIVars(HttpConn *conn)
     mprAddKey(table, "SCRIPT_FILENAME", tx->filename);
 
     if (rx->extraPath) {
-        /*  Only set PATH_TRANSLATED if extraPath is set (CGI spec) */
+        /*  
+            Only set PATH_TRANSLATED if extraPath is set (CGI spec) 
+         */
         mprAddKey(table, "PATH_TRANSLATED", httpMakeFilename(conn, rx->alias, rx->extraPath, 0));
     }
-    //  MOB -- how do these relate to MVC apps and non-mvc apps
+
     mprAddKey(table, "DOCUMENT_ROOT", host->documentRoot);
     mprAddKey(table, "SERVER_ROOT", host->serverRoot);
 

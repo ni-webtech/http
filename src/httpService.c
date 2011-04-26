@@ -178,7 +178,6 @@ void httpRemoveServer(Http *http, HttpServer *server)
 
 /*  
     Lookup a host address. If ipAddr is null or port is -1, then those elements are wild.
-    MOB - wild cards are not being used - see asserts
  */
 HttpServer *httpLookupServer(Http *http, cchar *ip, int port)
 {
@@ -255,7 +254,6 @@ void httpRemoveHost(Http *http, HttpHost *host)
 }
 
 
-//  MOB - rename
 HttpLoc *httpInitLocation(Http *http, int serverSide)
 {
     HttpLoc     *loc;
@@ -506,8 +504,6 @@ static bool isIdle()
 void httpAddConn(Http *http, HttpConn *conn)
 {
     lock(http);
-    //  MOB
-    mprAssert(http->connections->length < 25);
     mprAddItem(http->connections, conn);
     conn->started = mprGetTime();
     conn->seqno = http->connCount++;

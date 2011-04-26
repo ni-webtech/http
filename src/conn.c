@@ -110,7 +110,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->currentq);
         mprMark(conn->input);
 
-        //  MOB - these 3 should not be required
+        //  OPT - these 3 should not be required
         mprMark(conn->readq);
         mprMark(conn->writeq);
         mprMark(conn->connq);
@@ -373,7 +373,7 @@ static void writeEvent(HttpConn *conn)
 }
 
 
-//  MOB - refactor
+//  TODO - refactor
 void httpEnableConnEvents(HttpConn *conn)
 {
     HttpTx      *tx;
@@ -456,7 +456,7 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
     rx = conn->rx;
     len = HTTP_BUFSIZE;
 
-    //  MOB -- simplify. Okay to lose some optimization for chunked data?
+    //  TODO -- simplify. Okay to lose some optimization for chunked data?
     /*  
         The input packet may have pipelined headers and data left from the prior request. It may also have incomplete
         chunk boundary data.

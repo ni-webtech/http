@@ -19,7 +19,6 @@ static void addPacketForSend(HttpQueue *q, HttpPacket *packet);
 static void adjustSendVec(HttpQueue *q, MprOff written);
 static MprOff buildSendVec(HttpQueue *q);
 static void adjustPacketData(HttpQueue *q, MprOff written);
-static void sendIncomingService(HttpQueue *q);
 
 /*********************************** Code *************************************/
 
@@ -33,7 +32,6 @@ int httpOpenSendConnector(Http *http)
     }
     stage->open = httpSendOpen;
     stage->outgoingService = httpSendOutgoingService; 
-    stage->incomingService = sendIncomingService; 
     http->sendConnector = stage;
     return 0;
 }
@@ -61,14 +59,6 @@ void httpSendOpen(HttpQueue *q)
             httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
         }
     }
-}
-
-
-static void sendIncomingService(HttpQueue *q)
-{
-    //  MOB - why
-    mprAssert(0);
-    httpEnableConnEvents(q->conn);
 }
 
 

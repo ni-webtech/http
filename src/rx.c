@@ -940,7 +940,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     if (packet == NULL) {
         return 0;
     }
-    //  MOB - is this the best place? - move
+    //  TODO - is this the best place? - move
     mprYield(0);
 
     if (!analyseContent(conn, packet)) {
@@ -1188,13 +1188,12 @@ cchar *httpGetHeader(HttpConn *conn, cchar *key)
 }
 
 
-//  MOB -- why does this allocate?
 char *httpGetHeaders(HttpConn *conn)
 {
     HttpRx      *rx;
     MprHash     *hp;
     char        *headers, *key, *cp;
-    int         len;
+    ssize       len;
 
     if (conn->rx == 0) {
         mprAssert(conn->rx);
@@ -1212,7 +1211,7 @@ char *httpGetHeaders(HttpConn *conn)
             }
         }
         headers = srejoin(headers, ": ", hp->data, "\n", NULL);
-        len = (int) strlen(headers);
+        len = strlen(headers);
         hp = mprGetNextHash(rx->headers, hp);
     }
     return headers;

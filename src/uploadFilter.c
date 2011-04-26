@@ -546,7 +546,6 @@ static int processContentData(HttpQueue *q)
             data = mprUriDecode(data);
             httpSetFormVar(conn, key, data);
 
-            //  MOB - I think PHP needs to actually get the data if using --upload and --form
             if (packet == 0) {
                 packet = httpCreatePacket(HTTP_BUFSIZE);
             }
