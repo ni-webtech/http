@@ -121,7 +121,6 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
      */
     if (rx->needInputPipeline) {
         qhead = tx->queue[HTTP_QUEUE_RECEIVE];
-        //  MOB - check if this order is right. Auth must be last?
         for (q = qhead->nextQ; q->nextQ != qhead; q = q->nextQ) {
             if (q->open && !(q->flags & (HTTP_QUEUE_OPEN))) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
@@ -241,7 +240,6 @@ void httpProcessPipeline(HttpConn *conn)
     HttpQueue   *q;
     
     if (conn->error) {
-        //  MOB -- is this the right place?
         httpFinalize(conn);
     }
     q = conn->tx->queue[HTTP_QUEUE_TRANS]->nextQ;

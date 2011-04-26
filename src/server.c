@@ -44,7 +44,7 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
 
 void httpDestroyServer(HttpServer *server)
 {
-    mprLog(4, "Destroy server %s", /* MOB server->name ? server->name : */ server->ip);
+    mprLog(4, "Destroy server %s", server->ip);
     if (server->waitHandler) {
         mprRemoveWaitHandler(server->waitHandler);
         server->waitHandler = 0;
@@ -173,7 +173,7 @@ int httpStartServer(HttpServer *server)
         return MPR_ERR_CANT_OPEN;
     }
     if (server->async && server->waitHandler ==  0) {
-        //  MOB -- this really should be in server->listen->handler
+        //  TODO -- this really should be in server->listen->handler
         server->waitHandler = mprCreateWaitHandler(server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
             httpAcceptConn, server, (server->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
     } else {
@@ -229,7 +229,6 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
     
     case HTTP_VALIDATE_OPEN_REQUEST:
         if (server->requestCount >= limits->requestCount) {
-            //  MOB -- will CLOSE_REQUEST get called and thus set the limit to negative?
             unlock(server->http);
             httpError(conn, HTTP_ABORT | HTTP_CODE_SERVICE_UNAVAILABLE, 
                 "Too many concurrent requests %d/%d", server->requestCount, limits->requestCount);
@@ -276,10 +275,6 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
     if (sock == 0) {
         return 0;
     }
-
-    //  MOB - is this logic sufficient.
-    //  MOB - better to just do dispatcher =
-    // dispatcher = (event && server->dispatcher == 0) ? event->dispatcher: server->dispatcher;
     dispatcher = event->dispatcher;
 
     if ((conn = httpCreateConn(server->http, server, dispatcher)) == 0) {
@@ -315,7 +310,6 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
 }
 
 
-//  MOB Is this used / needed
 void *httpGetMetaServer(HttpServer *server)
 {
     return server->meta;

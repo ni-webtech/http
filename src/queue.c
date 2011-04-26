@@ -242,7 +242,7 @@ void httpInitSchedulerQueue(HttpQueue *q)
 
 /*  
     Insert a queue after the previous element
-    MOB - rename append
+    TODO - rename append
  */
 void httpInsertQueue(HttpQueue *prev, HttpQueue *q)
 {
@@ -315,7 +315,7 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
             httpWait(conn, 0, MPR_TIMEOUT_SOCKETS);
         }
     }
-    //  MOB - better place for this?
+    //  TODO - better place for this?
     conn->lastActivity = conn->http->now;
 
     for (nbytes = 0; size > 0 && q->count > 0; ) {

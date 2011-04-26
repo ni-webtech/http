@@ -81,7 +81,6 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     host->mimeTypes = MPR->mimeTypes;
     host->documentRoot = host->serverRoot = sclone(".");
 
-    //  MOB -- not right
     host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
@@ -428,8 +427,6 @@ HttpLoc *httpLookupBestLocation(HttpHost *host, cchar *uri)
 }
 
 
-//  MOB -- order this file
-
 void httpSetHostTrace(HttpHost *host, int level, int mask)
 {
     host->traceMask = mask;
@@ -537,7 +534,6 @@ static int matchRef(cchar *key, char **src)
     Replace a limited set of $VAR references. Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT
     TODO - Expand and formalize this. Should support many more variables.
  */
-//  MOB - rename
 char *httpReplaceReferences(HttpHost *host, cchar *str)
 {
     MprBuf  *buf;

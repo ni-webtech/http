@@ -185,7 +185,6 @@ static void outgoingChunkService(HttpQueue *q)
             and can bypass the chunk handler.
          */
         if (q->last->flags & HTTP_PACKET_END) {
-            //  MOB -- but what if a content-length header has been defined but not set tx->length
             if (tx->chunkSize < 0 && tx->length <= 0) {
                 /*  
                     Set the response content length and thus disable chunking -- not needed as we know the entity length.

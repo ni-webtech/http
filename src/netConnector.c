@@ -48,8 +48,8 @@ static void netOutgoingService(HttpQueue *q)
     tx = conn->tx;
     conn->lastActivity = conn->http->now;
     
-    //  MOB - remove
     if (conn->sock == 0 || conn->writeComplete) {
+        /* TODO - Should never happen */
         mprAssert(conn->sock && !conn->writeComplete);
         return;
     }
