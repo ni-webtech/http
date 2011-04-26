@@ -19,7 +19,6 @@ EXPORTS
   mprAddKey
   mprAddKeyFmt
   mprAddMime
-  mprAddNotifier
   mprAddNullToBuf
   mprAddRoot
   mprAddSocketHandler
@@ -41,6 +40,7 @@ EXPORTS
   mprAttachFileFd
   mprBreakpoint
   mprCheckBlock
+  mprClaimDispatcher
   mprClearList
   mprCloneBuf
   mprCloneHash
@@ -52,6 +52,7 @@ EXPORTS
   mprCompareTime
   mprConnectSocket
   mprCopyList
+  mprCopyName
   mprCopyPath
   mprCopyright
   mprCreate
@@ -100,7 +101,6 @@ EXPORTS
   mprDestroyMemService
   mprDisableCmdEvents
   mprDisableFileBuffering
-  mprDisableWaitEvents
   mprDisconnectCmd
   mprDisconnectSocket
   mprDispatchersAreIdle
@@ -113,7 +113,6 @@ EXPORTS
   mprEnableFileBuffering
   mprEnableGC
   mprEnableSocketEvents
-  mprEnableWaitEvents
   mprEncode64
   mprError
   mprEscapeCmd
@@ -178,7 +177,7 @@ EXPORTS
   mprGetLastPathSeparator
   mprGetListCapacity
   mprGetListLength
-  mprGetLogFd
+  mprGetLogFile
   mprGetLogHandler
   mprGetLogLevel
   mprGetMD5Hash
@@ -285,6 +284,7 @@ EXPORTS
   mprMemdup
   mprMemoryError
   mprNop
+  mprNotifyOn
   mprOpenFile
   mprParseIp
   mprParseTestArgs
@@ -315,6 +315,7 @@ EXPORTS
   mprReadSocket
   mprRealloc
   mprRecallWaitHandler
+  mprRecallWaitHandlerByFd
   mprRefillBuf
   mprRelayEvent
   mprRelease
@@ -325,7 +326,6 @@ EXPORTS
   mprRemoveItem
   mprRemoveItemAtPos
   mprRemoveLastItem
-  mprRemoveNotifier
   mprRemoveRangeOfItems
   mprRemoveRoot
   mprRemoveSignalHandler
@@ -357,7 +357,6 @@ EXPORTS
   mprServiceSignals
   mprServiceWinIO
   mprServicesAreIdle
-  mprSetAltLogData
   mprSetAppName
   mprSetBufMax
   mprSetBufRefillProc
@@ -376,7 +375,7 @@ EXPORTS
   mprSetIpAddr
   mprSetItem
   mprSetListLimits
-  mprSetLogFd
+  mprSetLogFile
   mprSetLogHandler
   mprSetLogLevel
   mprSetManager
@@ -449,6 +448,7 @@ EXPORTS
   mprUriDecode
   mprUriEncode
   mprUserError
+  mprUsingDefaultLogHandler
   mprVerifyMem
   mprVirtAlloc
   mprVirtFree
@@ -459,12 +459,13 @@ EXPORTS
   mprWaitForMultiCond
   mprWaitForSingleIO
   mprWaitForTestToComplete
+  mprWaitOn
   mprWaitTillIdle
   mprWakeDispatchers
   mprWakeGCService
   mprWakeNotifier
-  mprWakeWaitService
   mprWakeWorkers
+  mprWarn
   mprWriteCmd
   mprWriteFile
   mprWriteFileFormat

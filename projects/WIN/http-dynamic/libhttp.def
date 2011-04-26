@@ -11,13 +11,13 @@ EXPORTS
   httpAddGroup
   httpAddHandler
   httpAddHeader
+  httpAddHeaderString
   httpAddHost
   httpAddHostToServer
   httpAddHostToServers
   httpAddLocation
   httpAddLocationExpiry
   httpAddServer
-  httpAddSimpleHeader
   httpAddStage
   httpAddUploadFile
   httpAddUser
@@ -25,7 +25,10 @@ EXPORTS
   httpAddUsersToGroup
   httpAddVars
   httpAddVarsFromQueue
+  httpAdjustPacketEnd
+  httpAdjustPacketStart
   httpAppendHeader
+  httpAppendHeaderString
   httpAppendQueue
   httpCallEvent
   httpClearStages
@@ -45,13 +48,14 @@ EXPORTS
   httpCreateAlias
   httpCreateAuth
   httpCreateBareDir
+  httpCreateCGIVars
   httpCreateConfiguredServer
   httpCreateConn
   httpCreateConnector
   httpCreateDataPacket
   httpCreateDir
   httpCreateEndPacket
-  httpCreateEnvVars
+  httpCreateEntityPacket
   httpCreateFilter
   httpCreateGroup
   httpCreateHandler
@@ -88,6 +92,7 @@ EXPORTS
   httpDiscardTransmitData
   httpDisconnect
   httpDontCache
+  httpEaseLimits
   httpEnableConnEvents
   httpEnableGroup
   httpEnableQueue
@@ -259,9 +264,11 @@ EXPORTS
   httpSetGroupAcl
   httpSetHandler
   httpSetHeader
+  httpSetHeaderString
   httpSetHeadersCallback
   httpSetHostAddress
   httpSetHostDocumentRoot
+  httpSetHostInfoName
   httpSetHostLogRotation
   httpSetHostName
   httpSetHostProtocol
@@ -282,10 +289,9 @@ EXPORTS
   httpSetMimeType
   httpSetNamedVirtualServer
   httpSetNamedVirtualServers
-  httpSetPipeHandler
+  httpSetPipelineHandler
   httpSetProtocol
   httpSetProxy
-  httpSetRequestNotifier
   httpSetRequiredAcl
   httpSetResponseBody
   httpSetRetries
@@ -294,9 +300,7 @@ EXPORTS
   httpSetServerAsync
   httpSetServerContext
   httpSetServerLocation
-  httpSetServerName
   httpSetServerNotifier
-  httpSetSimpleHeader
   httpSetSoftware
   httpSetStageData
   httpSetState
@@ -319,6 +323,7 @@ EXPORTS
   httpValidateNativeCredentials
   httpWait
   httpWillNextQueueAcceptPacket
+  httpWillNextQueueAcceptSize
   httpWritable
   httpWrite
   httpWriteBlock
