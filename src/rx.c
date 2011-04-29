@@ -217,7 +217,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         loc = rx->loc;
         mprAssert(loc);
 
-        mprLog(3, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
+        mprLog(4, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
         httpSetState(conn, HTTP_STATE_PARSED);        
         httpCreatePipeline(conn, loc, tx->handler);
         rx->startAfterContent = (loc->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && loc->flags & HTTP_LOC_SMART));
@@ -539,7 +539,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
             } else if (strcmp(key, "content-type") == 0) {
                 rx->mimeType = sclone(value);
-                rx->form = scontains(rx->mimeType, "application/x-www-form-urlencoded", -1) != 0;
+                rx->form = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "application/x-www-form-urlencoded", -1);
 
             } else if (strcmp(key, "cookie") == 0) {
                 if (rx->cookie && *rx->cookie) {

@@ -50,7 +50,7 @@ void httpMatchHost(HttpConn *conn)
         }
     }
     mprAssert(host);
-    mprLog(3, "Select host: \"%s\"", host->name);
+    mprLog(4, "Select host: \"%s\"", host->name);
     conn->host = host;
 }
 
