@@ -35,7 +35,6 @@
 		C93A68C010FD8311006B6C41 /* chunkFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BB10FD8311006B6C41 /* chunkFilter.c */; };
 		C93A68C110FD8311006B6C41 /* rangeFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BC10FD8311006B6C41 /* rangeFilter.c */; };
 		C93A68C210FD8311006B6C41 /* uploadFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BD10FD8311006B6C41 /* uploadFilter.c */; };
-		C93A68C610FD833D006B6C41 /* env.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68C510FD833D006B6C41 /* env.c */; };
 		C949ABC2120B68FB00398DC6 /* rx.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC0120B68FB00398DC6 /* rx.c */; };
 		C949ABC3120B68FB00398DC6 /* tx.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC1120B68FB00398DC6 /* tx.c */; };
 		C949ABC7120B691100398DC6 /* trace.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC6120B691100398DC6 /* trace.c */; };
@@ -63,6 +62,7 @@
 		C95E4F5A10EBFCEF00982610 /* libmprssl.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C9513E4F10E98E7200F9E006 /* libmprssl.dylib */; };
 		C9723C2211138578002B2B3B /* authFile.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2011138578002B2B3B /* authFile.c */; };
 		C9723C2311138578002B2B3B /* authPam.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2111138578002B2B3B /* authPam.c */; };
+		C9802FF7136B2114008395A8 /* var.c in Sources */ = {isa = PBXBuildFile; fileRef = C9802FF6136B2114008395A8 /* var.c */; };
 		C9AA68EC130F158300918B92 /* alias.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68E9130F158300918B92 /* alias.c */; };
 		C9AA68ED130F158300918B92 /* dir.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68EA130F158300918B92 /* dir.c */; };
 		C9AA68EE130F158300918B92 /* match.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68EB130F158300918B92 /* match.c */; };
@@ -164,7 +164,6 @@
 		C93A68BB10FD8311006B6C41 /* chunkFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = chunkFilter.c; path = ../../../src/chunkFilter.c; sourceTree = SOURCE_ROOT; };
 		C93A68BC10FD8311006B6C41 /* rangeFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = rangeFilter.c; path = ../../../src/rangeFilter.c; sourceTree = SOURCE_ROOT; };
 		C93A68BD10FD8311006B6C41 /* uploadFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = uploadFilter.c; path = ../../../src/uploadFilter.c; sourceTree = SOURCE_ROOT; };
-		C93A68C510FD833D006B6C41 /* env.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = env.c; path = ../../../src/env.c; sourceTree = SOURCE_ROOT; };
 		C949ABC0120B68FB00398DC6 /* rx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = rx.c; path = ../../../src/rx.c; sourceTree = SOURCE_ROOT; };
 		C949ABC1120B68FB00398DC6 /* tx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = tx.c; path = ../../../src/tx.c; sourceTree = SOURCE_ROOT; };
 		C949ABC6120B691100398DC6 /* trace.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = trace.c; path = ../../../src/trace.c; sourceTree = SOURCE_ROOT; };
@@ -191,6 +190,7 @@
 		C96B2F4C134CDA8100F5C4AF /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		C9723C2011138578002B2B3B /* authFile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authFile.c; path = ../../../src/authFile.c; sourceTree = SOURCE_ROOT; };
 		C9723C2111138578002B2B3B /* authPam.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authPam.c; path = ../../../src/authPam.c; sourceTree = SOURCE_ROOT; };
+		C9802FF6136B2114008395A8 /* var.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = var.c; path = ../../../src/var.c; sourceTree = "<group>"; };
 		C9AA68E9130F158300918B92 /* alias.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = alias.c; path = ../../../src/alias.c; sourceTree = SOURCE_ROOT; };
 		C9AA68EA130F158300918B92 /* dir.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = dir.c; path = ../../../src/dir.c; sourceTree = SOURCE_ROOT; };
 		C9AA68EB130F158300918B92 /* match.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = match.c; path = ../../../src/match.c; sourceTree = SOURCE_ROOT; };
@@ -271,6 +271,7 @@
 		C90A19E60FD6DC6C006A9E86 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				C9802FF6136B2114008395A8 /* var.c */,
 				C9AA6907130F160D00918B92 /* host.c */,
 				C9AA68E9130F158300918B92 /* alias.c */,
 				C9723C2011138578002B2B3B /* authFile.c */,
@@ -281,7 +282,6 @@
 				C9513DB810E98C2E00F9E006 /* client.c */,
 				C9513DB910E98C2E00F9E006 /* conn.c */,
 				C9AA68EA130F158300918B92 /* dir.c */,
-				C93A68C510FD833D006B6C41 /* env.c */,
 				C923DFBB1112560600A2422E /* location.c */,
 				C9513DBA10E98C2E00F9E006 /* httpService.c */,
 				C9AA68EB130F158300918B92 /* match.c */,
@@ -546,7 +546,6 @@
 				C93A68C010FD8311006B6C41 /* chunkFilter.c in Sources */,
 				C93A68C110FD8311006B6C41 /* rangeFilter.c in Sources */,
 				C93A68C210FD8311006B6C41 /* uploadFilter.c in Sources */,
-				C93A68C610FD833D006B6C41 /* env.c in Sources */,
 				C923DFBD1112560600A2422E /* location.c in Sources */,
 				C923DFBE1112560600A2422E /* passHandler.c in Sources */,
 				C9723C2211138578002B2B3B /* authFile.c in Sources */,
@@ -558,6 +557,7 @@
 				C9AA68ED130F158300918B92 /* dir.c in Sources */,
 				C9AA68EE130F158300918B92 /* match.c in Sources */,
 				C9AA6908130F160D00918B92 /* host.c in Sources */,
+				C9802FF7136B2114008395A8 /* var.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
