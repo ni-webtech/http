@@ -68,8 +68,10 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->clientLoad);
         mprMark(server->hosts);
         mprMark(server->ip);
+#if UNUSED
         mprMark(server->context);
         mprMark(server->meta);
+#endif
         mprMark(server->sock);
         mprMark(server->dispatcher);
         mprMark(server->ssl);
@@ -278,7 +280,6 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
     dispatcher = event->dispatcher;
 
     if ((conn = httpCreateConn(server->http, server, dispatcher)) == 0) {
-        mprError("Can't create connect object. Insufficient memory.");
         mprCloseSocket(sock, 0);
         return 0;
     }
@@ -310,10 +311,12 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
 }
 
 
+#if UNUSED
 void *httpGetMetaServer(HttpServer *server)
 {
     return server->meta;
 }
+#endif
 
 
 void *httpGetServerContext(HttpServer *server)
@@ -348,10 +351,12 @@ void httpSetServerAddress(HttpServer *server, cchar *ip, int port)
     }
 }
 
+#if UNUSED
 void httpSetMetaServer(HttpServer *server, void *meta)
 {
     server->meta = meta;
 }
+#endif
 
 
 void httpSetServerAsync(HttpServer *server, int async)

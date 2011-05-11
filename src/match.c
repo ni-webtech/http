@@ -17,10 +17,7 @@ static HttpStage *findHandler(HttpConn *conn);
 static bool rewriteRequest(HttpConn *conn);
 
 /*********************************** Code *************************************/
-/*
-    Match a request to a Host. This is an initial match which may be revised if the request includes a Host header.
-    This is typically invoked from the server state change notifier on transition to the PARSED state.
- */
+
 void httpMatchHost(HttpConn *conn)
 { 
     MprSocket       *listenSock;

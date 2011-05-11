@@ -199,6 +199,12 @@ HttpServer *httpLookupServer(Http *http, cchar *ip, int port)
 }
 
 
+HttpServer *httpGetFirstServer(Http *http)
+{
+    return mprGetFirstItem(http->servers);
+}
+
+
 int httpAddHostToServers(Http *http, struct HttpHost *host)
 {
     HttpServer  *server;

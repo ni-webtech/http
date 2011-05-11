@@ -125,6 +125,8 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->timeoutEvent);
         mprMark(conn->workerEvent);
         mprMark(conn->mark);
+        mprMark(conn->pool);
+        mprMark(conn->ejs);
 
         httpManageTrace(&conn->trace[0], flags);
         httpManageTrace(&conn->trace[1], flags);
