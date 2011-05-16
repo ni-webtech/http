@@ -367,6 +367,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     } else if (strcmp(protocol, "HTTP/1.1") == 0) {
         conn->protocol = protocol;
     } else {
+        conn->protocol = sclone("HTTP/1.1");
         httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
     rx->flags |= methodFlags;

@@ -299,7 +299,9 @@ void httpInitLimits(HttpLimits *limits, int serverSide)
     limits->clientCount = HTTP_MAX_CLIENTS;
     limits->keepAliveCount = HTTP_MAX_KEEP_ALIVE;
     limits->requestCount = HTTP_MAX_REQUESTS;
+#if UNUSED
     limits->sessionCount = HTTP_MAX_SESSIONS;
+#endif
 
 #if FUTURE
     mprSetMaxSocketClients(server, atoi(value));
