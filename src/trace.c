@@ -50,11 +50,11 @@ int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext)
         return -1;
     }
     if (ext) {
-        if (trace->include && !mprLookupHash(trace->include, ext)) {
+        if (trace->include && !mprLookupKey(trace->include, ext)) {
             trace->disable = 1;
             return -1;
         }
-        if (trace->exclude && mprLookupHash(trace->exclude, ext)) {
+        if (trace->exclude && mprLookupKey(trace->exclude, ext)) {
             trace->disable = 1;
             return -1;
         }

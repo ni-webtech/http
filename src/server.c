@@ -212,17 +212,17 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
                 "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
             return 0;
         }
-        count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
+        count = (int) PTOL(mprLookupKey(server->clientLoad, conn->ip));
         mprAddKey(server->clientLoad, conn->ip, ITOP(count + 1));
         server->clientCount = (int) mprGetHashLength(server->clientLoad);
         break;
 
     case HTTP_VALIDATE_CLOSE_CONN:
-        count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
+        count = (int) PTOL(mprLookupKey(server->clientLoad, conn->ip));
         if (count > 1) {
             mprAddKey(server->clientLoad, conn->ip, ITOP(count - 1));
         } else {
-            mprRemoveHash(server->clientLoad, conn->ip);
+            mprRemoveKey(server->clientLoad, conn->ip);
         }
         server->clientCount = (int) mprGetHashLength(server->clientLoad);
         mprLog(4, "Close connection %d. Active requests %d, active clients %d.", conn->seqno, server->requestCount, 

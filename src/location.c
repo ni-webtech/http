@@ -321,7 +321,7 @@ void httpResetHandlers(HttpLoc *loc)
 
 HttpStage *httpGetHandlerByExtension(HttpLoc *loc, cchar *ext)
 {
-    return (HttpStage*) mprLookupHash(loc->extensions, ext);
+    return (HttpStage*) mprLookupKey(loc->extensions, ext);
 }
 
 
@@ -367,7 +367,7 @@ cchar *httpLookupErrorDocument(HttpLoc *loc, int code)
         return 0;
     }
     itos(numBuf, sizeof(numBuf), code, 10);
-    return (cchar*) mprLookupHash(loc->errorDocuments, numBuf);
+    return (cchar*) mprLookupKey(loc->errorDocuments, numBuf);
 }
 
 

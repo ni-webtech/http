@@ -459,7 +459,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         if (strspn(key, "%<>/\\") > 0) {
             httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad header key value");
         }
-        if ((oldValue = mprLookupHash(rx->headers, key)) != 0) {
+        if ((oldValue = mprLookupKey(rx->headers, key)) != 0) {
             mprAddKey(rx->headers, key, mprAsprintf("%s, %s", oldValue, value));
         } else {
             mprAddKey(rx->headers, key, sclone(value));
@@ -1204,7 +1204,7 @@ cchar *httpGetHeader(HttpConn *conn, cchar *key)
         mprAssert(conn->rx);
         return 0;
     }
-    return mprLookupHash(conn->rx->headers, slower(key));
+    return mprLookupKey(conn->rx->headers, slower(key));
 }
 
 
@@ -1221,7 +1221,7 @@ char *httpGetHeaders(HttpConn *conn)
     }
     rx = conn->rx;
     headers = 0;
-    for (len = 0, hp = mprGetFirstHash(rx->headers); hp; ) {
+    for (len = 0, hp = mprGetFirstKey(rx->headers); hp; ) {
         headers = srejoin(headers, hp->key, NULL);
         key = &headers[len];
         for (cp = &key[1]; *cp; cp++) {
@@ -1232,7 +1232,7 @@ char *httpGetHeaders(HttpConn *conn)
         }
         headers = srejoin(headers, ": ", hp->data, "\n", NULL);
         len = strlen(headers);
-        hp = mprGetNextHash(rx->headers, hp);
+        hp = mprGetNextKey(rx->headers, hp);
     }
     return headers;
 }
@@ -1650,7 +1650,7 @@ cvoid *httpGetStageData(HttpConn *conn, cchar *key)
     if (rx->requestData == 0) {
         return NULL;
     }
-    return mprLookupHash(rx->requestData, key);
+    return mprLookupKey(rx->requestData, key);
 }
 
 

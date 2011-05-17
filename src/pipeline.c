@@ -354,7 +354,7 @@ static bool matchFilter(HttpConn *conn, HttpStage *filter)
         return filter->match(conn, filter);
     }
     if (filter->extensions && tx->extension) {
-        return mprLookupHash(filter->extensions, tx->extension) != 0;
+        return mprLookupKey(filter->extensions, tx->extension) != 0;
     }
     return 1;
 }

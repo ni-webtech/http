@@ -98,7 +98,7 @@ int httpRemoveHeader(HttpConn *conn, cchar *key)
     if (conn->tx == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
-    return mprRemoveHash(conn->tx->headers, key);
+    return mprRemoveKey(conn->tx->headers, key);
 }
 
 
@@ -117,7 +117,7 @@ void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     value = mprAsprintfv(fmt, vargs);
     va_end(vargs);
 
-    if (!mprLookupHash(conn->tx->headers, key)) {
+    if (!mprLookupKey(conn->tx->headers, key)) {
         addHeader(conn, key, value);
     }
 }
@@ -132,7 +132,7 @@ void httpAddHeaderString(HttpConn *conn, cchar *key, cchar *value)
     mprAssert(key && *key);
     mprAssert(value);
 
-    if (!mprLookupHash(conn->tx->headers, key)) {
+    if (!mprLookupKey(conn->tx->headers, key)) {
         addHeader(conn, key, sclone(value));
     }
 }
@@ -155,7 +155,7 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     value = mprAsprintfv(fmt, vargs);
     va_end(vargs);
 
-    oldValue = mprLookupHash(conn->tx->headers, key);
+    oldValue = mprLookupKey(conn->tx->headers, key);
     if (oldValue) {
         addHeader(conn, key, mprAsprintf("%s, %s", oldValue, value));
     } else {
@@ -175,7 +175,7 @@ void httpAppendHeaderString(HttpConn *conn, cchar *key, cchar *value)
     mprAssert(key && *key);
     mprAssert(value && *value);
 
-    oldValue = mprLookupHash(conn->tx->headers, key);
+    oldValue = mprLookupKey(conn->tx->headers, key);
     if (oldValue) {
         addHeader(conn, key, mprAsprintf("%s, %s", oldValue, value));
     } else {
@@ -486,10 +486,10 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         httpAddHeaderString(conn, "Cache-Control", "no-cache");
 
     } else if (rx->loc && rx->loc->expires) {
-        mimeType = mprLookupHash(tx->headers, "Content-Type");
-        expires = PTOL(mprLookupHash(rx->loc->expires, mimeType ? mimeType : ""));
+        mimeType = mprLookupKey(tx->headers, "Content-Type");
+        expires = PTOL(mprLookupKey(rx->loc->expires, mimeType ? mimeType : ""));
         if (expires == 0) {
-            expires = PTOL(mprLookupHash(rx->loc->expires, ""));
+            expires = PTOL(mprLookupKey(rx->loc->expires, ""));
         }
         if (expires) {
             mprDecodeUniversalTime(&tm, mprGetTime() + (expires * MPR_TICKS_PER_SEC));
@@ -629,7 +629,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     /* 
        Output headers
      */
-    hp = mprGetFirstHash(conn->tx->headers);
+    hp = mprGetFirstKey(conn->tx->headers);
     while (hp) {
         mprPutStringToBuf(packet->content, hp->key);
         mprPutStringToBuf(packet->content, ": ");
@@ -637,7 +637,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
             mprPutStringToBuf(packet->content, hp->data);
         }
         mprPutStringToBuf(packet->content, "\r\n");
-        hp = mprGetNextHash(conn->tx->headers, hp);
+        hp = mprGetNextKey(conn->tx->headers, hp);
     }
 
     /* 

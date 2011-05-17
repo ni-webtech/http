@@ -85,7 +85,7 @@ void httpCreateCGIVars(HttpConn *conn)
     mprAddKey(table, "SERVER_ROOT", host->serverRoot);
 
     if (rx->files) {
-        for (index = 0, hp = 0; (hp = mprGetNextHash(conn->rx->files, hp)) != 0; index++) {
+        for (index = 0, hp = 0; (hp = mprGetNextKey(conn->rx->files, hp)) != 0; index++) {
             up = (HttpUploadFile*) hp->data;
             mprAddKey(table, mprAsprintf("FILE_%d_FILENAME", index), up->filename);
             mprAddKey(table, mprAsprintf("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
@@ -131,7 +131,7 @@ MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
             /*  
                 Append to existing keywords
              */
-            oldValue = mprLookupHash(table, keyword);
+            oldValue = mprLookupKey(table, keyword);
             if (oldValue != 0 && *oldValue) {
                 if (*value) {
                     newValue = sjoin(oldValue, " ", value, NULL);
@@ -176,7 +176,7 @@ int httpTestFormVar(HttpConn *conn, cchar *var)
     if ((vars = conn->rx->formVars) == 0) {
         return 0;
     }
-    return vars && mprLookupHash(vars, var) != 0;
+    return vars && mprLookupKey(vars, var) != 0;
 }
 
 
@@ -186,7 +186,7 @@ cchar *httpGetFormVar(HttpConn *conn, cchar *var, cchar *defaultValue)
     cchar           *value;
     
     if ((vars = conn->rx->formVars) == 0) {
-        value = mprLookupHash(vars, var);
+        value = mprLookupKey(vars, var);
         return (value) ? value : defaultValue;
     }
     return defaultValue;
@@ -199,7 +199,7 @@ int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
     cchar           *value;
     
     if ((vars = conn->rx->formVars) == 0) {
-        value = mprLookupHash(vars, var);
+        value = mprLookupKey(vars, var);
         return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
     }
     return defaultValue;
@@ -263,7 +263,7 @@ void httpRemoveUploadFile(HttpConn *conn, cchar *id)
 
     rx = conn->rx;
 
-    upfile = (HttpUploadFile*) mprLookupHash(rx->files, id);
+    upfile = (HttpUploadFile*) mprLookupKey(rx->files, id);
     if (upfile) {
         mprDeletePath(upfile->filename);
         upfile->filename = 0;
@@ -279,7 +279,7 @@ void httpRemoveAllUploadedFiles(HttpConn *conn)
 
     rx = conn->rx;
 
-    for (hp = 0; rx->files && (hp = mprGetNextHash(rx->files, hp)) != 0; ) {
+    for (hp = 0; rx->files && (hp = mprGetNextKey(rx->files, hp)) != 0; ) {
         upfile = (HttpUploadFile*) hp->data;
         if (upfile->filename) {
             mprDeletePath(upfile->filename);

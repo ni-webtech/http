@@ -470,10 +470,10 @@ void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *ex
 int httpSetupTrace(HttpHost *host, cchar *ext)
 {
     if (ext) {
-        if (host->traceInclude && !mprLookupHash(host->traceInclude, ext)) {
+        if (host->traceInclude && !mprLookupKey(host->traceInclude, ext)) {
             return 0;
         }
-        if (host->traceExclude && mprLookupHash(host->traceExclude, ext)) {
+        if (host->traceExclude && mprLookupKey(host->traceExclude, ext)) {
             return 0;
         }
     }

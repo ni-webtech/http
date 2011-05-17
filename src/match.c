@@ -124,7 +124,7 @@ static bool rewriteRequest(HttpConn *conn)
             return 1;
         }
     }
-    for (he = 0; (he = mprGetNextHash(loc->extensions, he)) != 0; ) {
+    for (he = 0; (he = mprGetNextKey(loc->extensions, he)) != 0; ) {
         handler = (HttpStage*) he->data;
         if (handler->rewrite && handler->rewrite(conn, handler)) {
             return 1;
@@ -220,7 +220,7 @@ static HttpStage *findHandler(HttpConn *conn)
                 /*
                     URI has no extension, check if the addition of configured  extensions results in a valid filename.
                  */
-                for (path = 0, hp = 0; (hp = mprGetNextHash(loc->extensions, hp)) != 0; ) {
+                for (path = 0, hp = 0; (hp = mprGetNextKey(loc->extensions, hp)) != 0; ) {
                     handler = (HttpStage*) hp->data;
                     if (*hp->key && (handler->flags & HTTP_STAGE_MISSING_EXT)) {
                         path = sjoin(tx->filename, ".", hp->key, NULL);
