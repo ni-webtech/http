@@ -9744,7 +9744,6 @@ MprHashTable *mprCreateHash(int hashSize, int flags)
     if ((table = mprAllocObj(MprHashTable, manageHashTable)) == 0) {
         return 0;
     }
-    /*  TODO -- should support rehashing */
     if (hashSize < MPR_DEFAULT_HASH_SIZE) {
         hashSize = MPR_DEFAULT_HASH_SIZE;
     }
@@ -9992,7 +9991,7 @@ static MprHash *lookupHash(int *bucketIndex, MprHash **prevSp, MprHashTable *tab
         return 0;
     }
     if (table->length > table->hashSize) {
-        hashSize = getHashSize(table->length);
+        hashSize = getHashSize(table->length * 4 / 3);
         if (table->hashSize < hashSize) {
             if ((buckets = mprAllocZeroed(sizeof(MprHash*) * hashSize)) != 0) {
                 table->length = 0;
@@ -10007,6 +10006,7 @@ static MprHash *lookupHash(int *bucketIndex, MprHash **prevSp, MprHashTable *tab
                             sp->next = 0;
                         }
                         buckets[index] = sp;
+                        sp->bucket = index;
                         table->length++;
                     }
                 }
