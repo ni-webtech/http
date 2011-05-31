@@ -34,7 +34,6 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
 
     tx->outputPipeline = mprCreateList(-1, 0);
     tx->handler = proposedHandler ? proposedHandler : http->passHandler;
-
     mprAddItem(tx->outputPipeline, tx->handler);
 
     if (loc->outputStages) {

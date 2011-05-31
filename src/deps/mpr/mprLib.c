@@ -365,6 +365,7 @@ void *mprAllocBlock(ssize usize, int flags)
     int         padWords;
 
     mprAssert(!MPR->marking);
+    mprAssert(usize >= 0);
 
     padWords = padding[flags & MPR_ALLOC_PAD_MASK];
     size = usize + sizeof(MprMem) + (padWords * sizeof(void*));
@@ -2448,7 +2449,7 @@ Mpr *mprCreate(int argc, char **argv, int flags)
 
     mpr->dispatcher = mprCreateDispatcher("main", 1);
     mpr->nonBlock = mprCreateDispatcher("nonblock", 1);
-    mpr->searchPath = sclone(getenv("PATH"));
+    mpr->pathEnv = sclone(getenv("PATH"));
 
     startThreads(flags);
 
@@ -2493,7 +2494,7 @@ static void manageMpr(Mpr *mpr, int flags)
         mprMark(mpr->mutex);
         mprMark(mpr->spin);
         mprMark(mpr->emptyString);
-        mprMark(mpr->searchPath);
+        mprMark(mpr->pathEnv);
         mprMark(mpr->heap.markerCond);
     }
 }
@@ -4591,7 +4592,7 @@ int mprStartCmd(MprCmd *cmd, int argc, char **argv, char **envp, int flags)
         mprAssert(!MPR_ERR_MEMORY);
         return MPR_ERR_MEMORY;
     }
-    if ((program = mprSearchPath(program, MPR_SEARCH_EXE, MPR->searchPath, NULL)) == 0) {
+    if ((program = mprSearchPath(program, MPR_SEARCH_EXE, MPR->pathEnv, NULL)) == 0) {
         mprLog(1, "cmd: can't access %s, errno %d", cmd->program, mprGetOsError());
         return MPR_ERR_CANT_ACCESS;
     }
@@ -9004,6 +9005,7 @@ int mprFlushFile(MprFile *file)
 }
 
 
+//  MOB - naming vs mprSeekFile or mprSetFilePosition or mprTellFile
 MprOff mprGetFilePosition(MprFile *file)
 {
     return file->pos;
@@ -12845,31 +12847,12 @@ static void manageModuleService(MprModuleService *ms, int flags);
 MprModuleService *mprCreateModuleService()
 {
     MprModuleService    *ms;
-    cchar               *searchPath;
 
-    ms = mprAllocObj(MprModuleService, manageModuleService);
-    if (ms == 0) {
+    if ((ms = mprAllocObj(MprModuleService, manageModuleService)) == 0) {
         return 0;
     }
     ms->modules = mprCreateList(-1, 0);
-
-    /*
-        Define the default module search path
-     */
-    if (ms->searchPath == 0) {
-#if BLD_DEBUG
-        /*
-            Put the mod prefix here incase running an installed debug build
-         */
-        searchPath = ".:" BLD_MOD_NAME ":../" BLD_MOD_NAME ":../../" BLD_MOD_NAME ":../../../" BLD_MOD_NAME ":" \
-            BLD_MOD_PREFIX;
-#else
-        searchPath = BLD_MOD_PREFIX ":.";
-#endif
-    } else {
-        searchPath = ms->searchPath;
-    }
-    ms->searchPath = sclone((searchPath) ? searchPath : (cchar*) ".");
+    ms->searchPath = sfmt(".:%s:%s/../%s:%s", mprGetAppDir(), mprGetAppDir(), BLD_MOD_NAME, BLD_MOD_PREFIX);
     ms->mutex = mprCreateLock();
     return ms;
 }
@@ -13057,12 +13040,10 @@ void mprSetModuleSearchPath(char *searchPath)
 
 #if BLD_WIN_LIKE && !WINCE
     {
-        char    *path;
-
         /*
-            So dependent DLLs can be loaded by LoadLibrary
+            Set PATH so dependent DLLs can be loaded by LoadLibrary
          */
-        path = sjoin("PATH=", searchPath, ";", getenv("PATH"), NULL);
+        char *path = sjoin("PATH=", searchPath, ";", getenv("PATH"), NULL);
         mprMapSeparators(path, '\\');
         putenv(path);
     }
