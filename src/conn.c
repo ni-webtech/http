@@ -393,6 +393,9 @@ void httpEnableConnEvents(HttpConn *conn)
     eventMask = 0;
     conn->lastActivity = conn->http->now;
 
+    cchar *name = conn->dispatcher->name;
+    mprLog(0, "EnableConnEvents %s, state %d, same %d", name, conn->state, conn->dispatcher == conn->oldDispatcher);
+
     if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
         lock(conn->http);
         if (conn->workerEvent) {
@@ -402,6 +405,13 @@ void httpEnableConnEvents(HttpConn *conn)
             mprQueueEvent(conn->dispatcher, event);
             unlock(conn->http);
             return;
+
+        //  MOB - refactor
+        } else if (conn->state == HTTP_STATE_BEGIN && conn->oldDispatcher && conn->dispatcher != conn->oldDispatcher) {
+            conn->dispatcher = conn->oldDispatcher;
+            conn->newDispatcher = 0;
+            conn->oldDispatcher = 0;
+            conn->ejs = 0;
         }
         if (tx) {
             /*

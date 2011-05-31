@@ -122,7 +122,7 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
     conn->advancing = 1;
 
     while (conn->canProceed) {
-        LOG(7, "httpProcess, state %d, error %d", conn->state, conn->error);
+        LOG(0, "httpProcess %s, state %d, error %d", conn->dispatcher->name, conn->state, conn->error);
 
         switch (conn->state) {
         case HTTP_STATE_BEGIN:
