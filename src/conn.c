@@ -100,7 +100,6 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->http);
         mprMark(conn->stages);
         mprMark(conn->dispatcher);
-        mprMark(conn->newDispatcher);
         mprMark(conn->oldDispatcher);
         mprMark(conn->waitHandler);
         mprMark(conn->server);
@@ -353,7 +352,8 @@ static void readEvent(HttpConn *conn)
             }
             break;
         }
-        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || conn->workerEvent) {
+        //  MOB - refactor these tests
+        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || !conn->canProceed) {
             break;
         }
         if (conn->readq && conn->readq->count > conn->readq->max) {
@@ -376,6 +376,35 @@ static void writeEvent(HttpConn *conn)
 }
 
 
+void httpUseWorker(HttpConn *conn, MprDispatcher *dispatcher, MprEvent *event)
+{
+    //  MOB -- locking should not be needed
+    lock(conn->http);
+    conn->oldDispatcher = conn->dispatcher;
+    conn->dispatcher = dispatcher;
+    conn->worker = 1;
+
+    mprAssert(!conn->workerEvent);
+    conn->workerEvent = event;
+    unlock(conn->http);
+}
+
+
+void httpUsePrimary(HttpConn *conn)
+{
+    //  MOB -- locking should not be needed
+    lock(conn->http);
+    mprAssert(conn->worker);
+    mprAssert(conn->state == HTTP_STATE_BEGIN);
+    mprAssert(conn->oldDispatcher && conn->dispatcher != conn->oldDispatcher);
+
+    conn->dispatcher = conn->oldDispatcher;
+    conn->oldDispatcher = 0;
+    conn->worker = 0;
+    unlock(conn->http);
+}
+
+
 //  TODO - refactor
 void httpEnableConnEvents(HttpConn *conn)
 {
@@ -393,26 +422,14 @@ void httpEnableConnEvents(HttpConn *conn)
     eventMask = 0;
     conn->lastActivity = conn->http->now;
 
-    cchar *name = conn->dispatcher->name;
-    mprLog(0, "EnableConnEvents %s, state %d, same %d", name, conn->state, conn->dispatcher == conn->oldDispatcher);
-
+    if (conn->workerEvent) {
+        event = conn->workerEvent;
+        conn->workerEvent = 0;
+        mprQueueEvent(conn->dispatcher, event);
+    }
     if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
+        //  MOB - why locking here?
         lock(conn->http);
-        if (conn->workerEvent) {
-            event = conn->workerEvent;
-            conn->workerEvent = 0;
-            conn->dispatcher = conn->newDispatcher;
-            mprQueueEvent(conn->dispatcher, event);
-            unlock(conn->http);
-            return;
-
-        //  MOB - refactor
-        } else if (conn->state == HTTP_STATE_BEGIN && conn->oldDispatcher && conn->dispatcher != conn->oldDispatcher) {
-            conn->dispatcher = conn->oldDispatcher;
-            conn->newDispatcher = 0;
-            conn->oldDispatcher = 0;
-            conn->ejs = 0;
-        }
         if (tx) {
             /*
                 Can be writeBlocked with data in the iovec and none in the queue
@@ -425,7 +442,7 @@ void httpEnableConnEvents(HttpConn *conn)
                 and will be ready when the current request completes.
              */
             q = tx->queue[HTTP_QUEUE_RECEIVE]->nextQ;
-            if (q->count < q->max || conn->recall) {
+            if (q->count < q->max /* UNUSED || conn->recall */) {
                 eventMask |= MPR_READABLE;
             }
         } else {
@@ -436,12 +453,16 @@ void httpEnableConnEvents(HttpConn *conn)
                 conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, conn->ioCallback, 
                     conn, 0);
             } else {
+                //  MOB API for this
+                conn->waitHandler->dispatcher = conn->dispatcher;
                 mprWaitOn(conn->waitHandler, eventMask);
             }
         } else if (conn->waitHandler) {
             mprWaitOn(conn->waitHandler, eventMask);
         }
+#if UNUSED
         conn->recall = 0;
+#endif
         mprAssert(conn->dispatcher->enabled);
         unlock(conn->http);
     }
