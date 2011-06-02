@@ -124,6 +124,7 @@ EXPORTS
   httpGetDefaultClientPort
   httpGetError
   httpGetExtension
+  httpGetFirstServer
   httpGetFormVar
   httpGetGroupAcl
   httpGetHandlerByExtension
@@ -131,7 +132,6 @@ EXPORTS
   httpGetHeaderHash
   httpGetHeaders
   httpGetIntFormVar
-  httpGetMetaServer
   httpGetNativePassword
   httpGetNextQueueForService
   httpGetPacket
@@ -285,7 +285,6 @@ EXPORTS
   httpSetLocationPrefix
   httpSetLocationScript
   httpSetMatchCallback
-  httpSetMetaServer
   httpSetMimeType
   httpSetNamedVirtualServer
   httpSetNamedVirtualServers
@@ -319,6 +318,8 @@ EXPORTS
   httpTraceContent
   httpUpdateUserAcls
   httpUriToString
+  httpUsePrimary
+  httpUseWorker
   httpValidateLimits
   httpValidateNativeCredentials
   httpWait

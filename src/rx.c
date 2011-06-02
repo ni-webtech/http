@@ -1277,8 +1277,7 @@ int httpMapToStorage(HttpConn *conn)
     tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
 
     tx->extension = httpGetExtension(conn);
-#if BLD_WIN_LIKE
-    //  TODO genercise
+#if UNUSED && BLD_WIN_LIKE
     if (tx->extension) {
         tx->extension = slower(tx->extension);
     }
