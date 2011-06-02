@@ -93,6 +93,7 @@ HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
     loc->script = parent->script;
     loc->searchPath = parent->searchPath;
     loc->ssl = parent->ssl;
+    loc->workers = parent->workers;
     return loc;
 }
 

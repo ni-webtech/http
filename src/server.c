@@ -269,14 +269,13 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
 
     /*
         This will block in sync mode until a connection arrives
-        MOB -- this is calling WaitOn in ejs
      */
-    sock = mprAcceptSocket(server->sock);
-    if (server->waitHandler) {
-        mprWaitOn(server->waitHandler, MPR_READABLE);
-    }
-    if (sock == 0) {
+    if ((sock = mprAcceptSocket(server->sock)) == 0) {
         return 0;
+    }
+    if (server->waitHandler) {
+//  MOB - what is this doing here?
+        mprWaitOn(server->waitHandler, MPR_READABLE);
     }
     dispatcher = event->dispatcher;
 
