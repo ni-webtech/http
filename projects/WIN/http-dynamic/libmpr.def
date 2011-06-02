@@ -163,8 +163,8 @@ EXPORTS
   mprGetFilePosition
   mprGetFileSize
   mprGetFileString
-  mprGetFirstHash
   mprGetFirstItem
+  mprGetFirstKey
   mprGetFirstPathSeparator
   mprGetHashLength
   mprGetHeapFlags
@@ -189,8 +189,8 @@ EXPORTS
   mprGetMpr
   mprGetNativePath
   mprGetNextEvent
-  mprGetNextHash
   mprGetNextItem
+  mprGetNextKey
   mprGetNonBlockDispatcher
   mprGetNormalizedPath
   mprGetOsError
@@ -264,9 +264,9 @@ EXPORTS
   mprLookAtLastCharInBuf
   mprLookAtNextCharInBuf
   mprLookupFileSystem
-  mprLookupHash
-  mprLookupHashEntry
   mprLookupItem
+  mprLookupKey
+  mprLookupKeyEntry
   mprLookupMime
   mprLookupModule
   mprLookupModuleData
@@ -322,9 +322,9 @@ EXPORTS
   mprReleaseWorker
   mprReleaseWorkerFromDispatcher
   mprRemoveEvent
-  mprRemoveHash
   mprRemoveItem
   mprRemoveItemAtPos
+  mprRemoveKey
   mprRemoveLastItem
   mprRemoveRangeOfItems
   mprRemoveRoot
