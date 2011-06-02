@@ -73,6 +73,7 @@ void httpDestroyConn(HttpConn *conn)
             HTTP_NOTIFY(conn, HTTP_STATE_COMPLETE, 0);
         }
         HTTP_NOTIFY(conn, HTTP_EVENT_CLOSE, 0);
+        mprAssert(conn->http);
         httpRemoveConn(conn->http, conn);
         httpCloseConn(conn);
         conn->input = 0;
@@ -426,8 +427,8 @@ void httpEnableConnEvents(HttpConn *conn)
         event = conn->workerEvent;
         conn->workerEvent = 0;
         mprQueueEvent(conn->dispatcher, event);
-    }
-    if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
+
+    } else if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
         //  MOB - why locking here?
         lock(conn->http);
         if (tx) {
@@ -442,7 +443,7 @@ void httpEnableConnEvents(HttpConn *conn)
                 and will be ready when the current request completes.
              */
             q = tx->queue[HTTP_QUEUE_RECEIVE]->nextQ;
-            if (q->count < q->max /* UNUSED || conn->recall */) {
+            if (q->count < q->max) {
                 eventMask |= MPR_READABLE;
             }
         } else {
@@ -460,9 +461,6 @@ void httpEnableConnEvents(HttpConn *conn)
         } else if (conn->waitHandler) {
             mprWaitOn(conn->waitHandler, eventMask);
         }
-#if UNUSED
-        conn->recall = 0;
-#endif
         mprAssert(conn->dispatcher->enabled);
         unlock(conn->http);
     }
