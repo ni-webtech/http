@@ -999,8 +999,9 @@ void *mprVirtAlloc(ssize size, int mode)
         allocException(size, 0);
         return 0;
     }
-    //  TODO locking
+    lockHeap();
     heap->stats.bytesAllocated += size;
+    unlockHeap();
     return ptr;
 }
 
@@ -1020,9 +1021,10 @@ void mprVirtFree(void *ptr, ssize size)
 #else
     free(ptr);
 #endif
-    //  TODO locking
+    lockHeap();
     heap->stats.bytesAllocated -= size;
     mprAssert(heap->stats.bytesAllocated >= 0);
+    unlockHeap();
 }
 
 
@@ -19699,7 +19701,7 @@ int mprParseTestArgs(MprTestService *sp, int argc, char *argv[], MprTestParser e
         if (strcmp(argp, "--continue") == 0) {
             sp->continueOnFailures = 1; 
 
-        } else if (strcmp(argp, "--depth") == 0) {
+        } else if (strcmp(argp, "--depth") == 0 || strcmp(argp, "-d") == 0) {
             if (nextArg >= argc) {
                 err++;
             } else {
