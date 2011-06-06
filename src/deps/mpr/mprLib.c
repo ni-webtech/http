@@ -8951,8 +8951,7 @@ MprFile *mprAttachFileFd(int fd, cchar *name, int omode)
 
     fs = mprLookupFileSystem("/");
 
-    file = mprAllocObj(MprFile, manageFile);
-    if (file) {
+    if ((file = mprAllocObj(MprFile, manageFile)) != 0) {
         file->fd = fd;
         file->fileSystem = fs;
         file->path = sclone(name);
@@ -11884,6 +11883,22 @@ void mprSetLogLevel(int level)
 }
 
 
+int mprSetCmdlineLogging(int on)
+{
+    int     wasLogging;
+
+    wasLogging = MPR->cmdlineLogging;
+    MPR->cmdlineLogging = on;
+    return wasLogging;
+}
+
+
+int mprGetCmdlineLogging()
+{
+    return MPR->cmdlineLogging;
+}
+
+
 /*
     Output a log message to the log handler
  */
@@ -13105,14 +13120,14 @@ static char *probe(cchar *filename)
 
     mprAssert(filename && *filename);
 
-    mprLog(6, "Probe for native module %s", filename);
+    mprLog(7, "Probe for native module %s", filename);
     if (mprPathExists(filename, R_OK)) {
         return sclone(filename);
     }
 
     if (strstr(filename, BLD_SHOBJ) == 0) {
         path = sjoin(filename, BLD_SHOBJ, NULL);
-        mprLog(6, "Probe for native module %s", path);
+        mprLog(7, "Probe for native module %s", path);
         if (mprPathExists(path, R_OK)) {
             return path;
         }
@@ -20753,7 +20768,7 @@ MprThread *mprGetCurrentThread()
         lock(ts->threads);
     }
     for (i = 0; i < ts->threads->length; i++) {
-        tp = (MprThread*) mprGetItem(ts->threads, i);
+        tp = mprGetItem(ts->threads, i);
         if (tp->osThread == id) {
             unlock(ts->threads);
             return tp;
@@ -21274,7 +21289,6 @@ void mprSetMinWorkers(int n)
         worker = createWorker(ws, ws->stackSize);
         ws->numThreads++;
         ws->maxUseThreads = max(ws->numThreads, ws->maxUseThreads);
-        ws->pruneHighWater = max(ws->numThreads, ws->pruneHighWater);
         changeState(worker, MPR_WORKER_BUSY);
         mprStartThread(worker->thread);
     }
@@ -21402,8 +21416,6 @@ int mprStartWorker(MprWorkerProc proc, void *data)
 
         ws->numThreads++;
         ws->maxUseThreads = max(ws->numThreads, ws->maxUseThreads);
-        ws->pruneHighWater = max(ws->numThreads, ws->pruneHighWater);
-
         worker->proc = proc;
         worker->data = data;
 
@@ -21432,25 +21444,18 @@ int mprStartWorker(MprWorkerProc proc, void *data)
 static void pruneWorkers(MprWorkerService *ws, MprEvent *timer)
 {
     MprWorker     *worker;
-    int           index, toTrim;
+    int           index;
 
     if (mprGetDebugMode()) {
         return;
     }
-    /*
-        Prune half the idle threads for exponentional decay. Use the high water mark seen in the last period.
-     */
     mprLock(ws->mutex);
-    toTrim = (ws->pruneHighWater - ws->minThreads) / 2;
-
-    for (index = 0; toTrim-- > 0 && index < ws->idleThreads->length; index++) {
-        worker = (MprWorker*) mprGetItem(ws->idleThreads, index);
-        /*
-            Leave floating -- in no queue. The thread will kill itself.
-         */
-        changeState(worker, MPR_WORKER_PRUNED);
+    for (index = 0; index < ws->idleThreads->length; index++) {
+        worker = mprGetItem(ws->idleThreads, index);
+        if ((worker->lastActivity + MPR_TIMEOUT_WORKER) < MPR->eventService->now) {
+            changeState(worker, MPR_WORKER_PRUNED);
+        }
     }
-    ws->pruneHighWater = ws->minThreads;
     mprUnlock(ws->mutex);
 }
 
@@ -21492,7 +21497,6 @@ void mprGetWorkerServiceStats(MprWorkerService *ws, MprWorkerStats *stats)
     stats->minThreads = ws->minThreads;
     stats->numThreads = ws->numThreads;
     stats->maxUse = ws->maxUseThreads;
-    stats->pruneHighWater = ws->pruneHighWater;
     stats->idleThreads = (int) ws->idleThreads->length;
     stats->busyThreads = (int) ws->busyThreads->length;
 }
@@ -21553,6 +21557,7 @@ static void workerMain(MprWorker *worker, MprThread *tp)
             mprLock(ws->mutex);
             worker->proc = 0;
         }
+        worker->lastActivity = MPR->eventService->now;
         changeState(worker, MPR_WORKER_SLEEPING);
 
         //  TODO -- is this used?

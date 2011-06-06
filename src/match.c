@@ -181,7 +181,7 @@ static HttpStage *findHandler(HttpConn *conn)
     HttpHost    *host;
     HttpRx      *rx;
     HttpTx      *tx;
-    HttpStage   *handler;
+    HttpStage   *handler, *h;
     HttpLoc     *loc;
     MprHash     *hp;
     char        *path;
@@ -207,8 +207,9 @@ static HttpStage *findHandler(HttpConn *conn)
         /* 
             Perform custom handler matching first on all defined handlers 
          */
-        for (next = 0; (handler = mprGetNextItem(loc->handlers, &next)) != 0; ) {
-            if (checkHandler(conn, handler)) {
+        for (next = 0; (h = mprGetNextItem(loc->handlers, &next)) != 0; ) {
+            if (checkHandler(conn, h)) {
+                handler = h;
                 break;
             }
         }

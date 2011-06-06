@@ -307,7 +307,6 @@ void httpEvent(HttpConn *conn, MprEvent *event)
     if (event->mask & MPR_READABLE) {
         readEvent(conn);
     }
-//  MOB -- must not do this if using a worker event
     if (conn->server && conn->keepAliveCount < 0) {
         /*  
             NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 

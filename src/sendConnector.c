@@ -236,7 +236,6 @@ static void addPacketForSend(HttpQueue *q, HttpPacket *packet)
     Clear entries from the IO vector that have actually been transmitted. This supports partial writes due to the socket
     being full. Don't come here if we've seen all the packets and all the data has been completely written. ie. small files
     don't come here.
-    MOB - rename - not really freeing anymore
  */
 static void adjustPacketData(HttpQueue *q, MprOff bytes)
 {

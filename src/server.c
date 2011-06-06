@@ -274,7 +274,7 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
         return 0;
     }
     if (server->waitHandler) {
-//  MOB - what is this doing here?
+        /* Re-enable events on the listen socket */
         mprWaitOn(server->waitHandler, MPR_READABLE);
     }
     dispatcher = event->dispatcher;

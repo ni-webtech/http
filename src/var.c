@@ -27,45 +27,30 @@ void httpCreateCGIVars(HttpConn *conn)
     host = conn->host;
     sock = conn->sock;
 
-    table = rx->formVars;
-    if (table == 0) {
+    if ((table = rx->formVars) == 0) {
         table = rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     }
-
-    /*  
-        Alias for REMOTE_USER. Define both for broader compatibility with CGI 
-     */
     mprAddKey(table, "AUTH_TYPE", rx->authType);
     mprAddKey(table, "AUTH_USER", conn->authUser);
     mprAddKey(table, "AUTH_GROUP", conn->authGroup);
     mprAddKey(table, "AUTH_ACL", MPR->emptyString);
     mprAddKey(table, "CONTENT_LENGTH", rx->contentLength);
     mprAddKey(table, "CONTENT_TYPE", rx->mimeType);
+    mprAddKey(table, "DOCUMENT_ROOT", host->documentRoot);
     mprAddKey(table, "GATEWAY_INTERFACE", sclone("CGI/1.1"));
     mprAddKey(table, "QUERY_STRING", rx->parsedUri->query);
-
-    if (conn->sock) {
-        mprAddKey(table, "REMOTE_ADDR", conn->ip);
-    }
+    mprAddKey(table, "REMOTE_ADDR", conn->ip);
     mprAddKeyFmt(table, "REMOTE_PORT", "%d", conn->port);
-
-    /*  
-            Same as AUTH_USER (yes this is right) 
-     */
     mprAddKey(table, "REMOTE_USER", conn->authUser);
     mprAddKey(table, "REQUEST_METHOD", rx->method);
     mprAddKey(table, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
-    
     mprAddKey(table, "SERVER_ADDR", sock->acceptIp);
     mprAddKey(table, "SERVER_NAME", host->hostname);
     mprAddKeyFmt(table, "SERVER_PORT", "%d", sock->acceptPort);
-
     mprAddKey(table, "SERVER_PROTOCOL", conn->protocol);
+    mprAddKey(table, "SERVER_ROOT", host->serverRoot);
     mprAddKey(table, "SERVER_SOFTWARE", conn->http->software);
-
-    /*  This is the original URI before decoding */ 
     mprAddKey(table, "REQUEST_URI", rx->originalUri);
-
     /*  
         URIs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} 
         NOTE: For CGI|PHP, scriptName is empty and pathInfo has the script. PATH_INFO is stored in extraPath.
@@ -73,17 +58,12 @@ void httpCreateCGIVars(HttpConn *conn)
     mprAddKey(table, "PATH_INFO", rx->extraPath);
     mprAddKey(table, "SCRIPT_NAME", rx->pathInfo);
     mprAddKey(table, "SCRIPT_FILENAME", tx->filename);
-
     if (rx->extraPath) {
         /*  
             Only set PATH_TRANSLATED if extraPath is set (CGI spec) 
          */
         mprAddKey(table, "PATH_TRANSLATED", httpMakeFilename(conn, rx->alias, rx->extraPath, 0));
     }
-
-    mprAddKey(table, "DOCUMENT_ROOT", host->documentRoot);
-    mprAddKey(table, "SERVER_ROOT", host->serverRoot);
-
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextKey(conn->rx->files, hp)) != 0; index++) {
             up = (HttpUploadFile*) hp->data;
