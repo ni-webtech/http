@@ -998,7 +998,7 @@ struct  MprXml;
     #define MPR_TIME_HASH_SIZE      67            /**< Hash size for time token lookup */
     #define MPR_MEM_REGION_SIZE     (128 * 1024)  /**< Memory allocation chunk size */
     #define MPR_GC_LOW_MEM          (32 * 1024)   /**< Free memory low water mark before invoking GC */
-    #define MPR_NEW_QUOTA           (4 * 1024)    /**< new allocations before a GC is worthwhile */
+    #define MPR_NEW_QUOTA           (4 * 1024)    /**< Number of new allocations before a GC is worthwhile */
     #define MPR_GC_WORKERS          0             /**< Run garbage collection non-concurrently */
     
 #elif BLD_TUNE == MPR_TUNE_BALANCED
@@ -1052,8 +1052,8 @@ struct  MprXml;
     #define MPR_FILES_HASH_SIZE     61
     #define MPR_TIME_HASH_SIZE      97
     #define MPR_MEM_REGION_SIZE     (1024 * 1024)
-    #define MPR_GC_LOW_MEM          (128 * 1024)
-    #define MPR_NEW_QUOTA           (1024 * 32) 
+    #define MPR_GC_LOW_MEM          (512 * 1024)
+    #define MPR_NEW_QUOTA           (32 * 1024) 
     #define MPR_GC_WORKERS          2
 #endif
 
@@ -1745,6 +1745,7 @@ typedef struct MprMem {
 #define MPR_PAGE_ALIGN(x, psize)    ((((ssize) (x)) + ((ssize) (psize)) - 1) & ~(((ssize) (psize)) - 1))
 #define MPR_PAGE_ALIGNED(x, psize)  ((((ssize) (x)) % ((ssize) (psize))) == 0)
 #define MPR_ALLOC_MAGIC             0xe814ecab
+#define MPR_ALLOC_PER_MANAGER       2053
 
 /*
     The allocator free map is a two dimensional array of free queues. The first dimension is indexed by
@@ -1842,6 +1843,12 @@ typedef struct MprFreeMem {
     struct MprFreeMem *prev;                /* Previous free block */
 } MprFreeMem;
 
+typedef struct MprLocationStats {
+    ssize           count;                  /* Total allocations for this manager */
+    cchar           *name;                  /* Manager name */
+    int             collision;              /* Name collision */
+} MprLocationStats;
+
 
 /**
     Memory allocator statistics
@@ -1874,6 +1881,8 @@ typedef struct MprMemStats {
     uint64          reuse;                  /* Count of times a block was reused from a free queue */
     uint64          splits;                 /* Count of times a block was split */
     uint64          unpins;                 /* Count of times a block was unpinned and released back to the O/S */
+
+    MprLocationStats locations[MPR_ALLOC_PER_MANAGER];  /* Per location allocation stats */
 #endif
 } MprMemStats;
 
@@ -1935,6 +1944,7 @@ typedef struct MprHeap {
     ssize            priorFree;              /**< Last sweep free memory */
     int              rootIndex;              /**< Marker root scan index */
     int              scribble;               /**< Scribble over freed memory (slow) */
+    int              track;                  /**< Track memory allocations */
     int              verify;                 /**< Verify memory contents (very slow) */
 } MprHeap;
 
@@ -1955,7 +1965,7 @@ extern void mprStartGCService();
 extern void mprDestroyMemService();
 
 /*
-    Flags for mprAllocBlock
+    Flags for mprAllocMem
  */
 #define MPR_ALLOC_MANAGER           0x1         /**< Reserve room for a manager */
 #define MPR_ALLOC_ZERO              0x2         /**< Zero memory */
@@ -1975,7 +1985,7 @@ extern void mprDestroyMemService();
     @remarks Do not mix calls to malloc and mprAlloc.
     @ingroup MprMem
  */
-extern void *mprAllocBlock(ssize size, int flags);
+extern void *mprAllocMem(ssize size, int flags);
 
 /**
     Return the current allocation memory statistics block
@@ -2193,26 +2203,26 @@ extern void mprVirtFree(void *ptr, ssize size);
     extern void *mprSetName(void *ptr, cchar *name);
     extern void *mprCopyName(void *dest, void *src);
     #define mprGetName(ptr) (MPR_GET_MEM(ptr)->name)
-    #define mprPassName(ptr, name) mprSetName(ptr, name)
+    extern void *mprSetAllocName(void *ptr, cchar *name);
 #else
     #define mprCopyName(dest, src)
     #define mprGetName(ptr) ""
-    #define mprPassName(ptr, name) ptr
+    #define mprSetAllocName(ptr, name) ptr
     #define mprSetName(ptr, name)
 #endif
 
-#define mprAlloc(size) mprPassName(mprAllocBlock(size, 0), MPR_LOC)
-#define mprAllocZeroed(size) mprPassName(mprAllocBlock(size, MPR_ALLOC_ZERO), MPR_LOC)
+#define mprAlloc(size) mprSetAllocName(mprAllocMem(size, 0), MPR_LOC)
+#define mprMemdup(ptr, size) mprSetAllocName(mprMemdupMem(ptr, size), MPR_LOC)
+#define mprRealloc(ptr, size) mprSetAllocName(mprReallocMem(ptr, size), MPR_LOC)
+#define mprAllocZeroed(size) mprSetAllocName(mprAllocMem(size, MPR_ALLOC_ZERO), MPR_LOC)
+#define mprAllocBlock(size, flags) mprSetAllocName(mprAllocMem(size, flags), MPR_LOC)
 #define mprAllocObj(type, manage) \
     ((manage != NULL) ? \
         ((type*) mprSetManager( \
-            mprPassName(mprAllocBlock(sizeof(type), MPR_ALLOC_MANAGER | MPR_ALLOC_ZERO), #type "@" MPR_LOC), \
+            mprSetAllocName(mprAllocMem(sizeof(type), MPR_ALLOC_MANAGER | MPR_ALLOC_ZERO), \
+                #type "@" MPR_LOC), \
             (MprManager) manage)) : \
-        (type*) mprPassName(mprAllocBlock(sizeof(type), MPR_ALLOC_ZERO), #type "@" MPR_LOC))
-#define mprAllocWithManager(size, manage) \
-    mprSetManager(mprPassName(mprAllocBlock(size, MPR_ALLOC_MANAGER), MPR_LOC), (MprManager) manage)
-
-#define DM(ptr) mprPassName(ptr, MPR_LOC)
+        (type*) mprSetAllocName(mprAllocMem(sizeof(type), MPR_ALLOC_ZERO), #type "@" MPR_LOC))
 
 #if DOXYGEN
 typedef void *Type;
@@ -2255,9 +2265,9 @@ extern void *mprAllocObj(Type type, MprManager manager) { return 0;}
 extern void *mprAllocZeroed(ssize size);
 
 #else /* !DOXYGEN */
-extern void *mprAllocBlock(ssize size, int flags);
-extern void *mprRealloc(void *ptr, ssize size);
-extern void *mprMemdup(cvoid *ptr, ssize size);
+extern void *mprAllocMem(ssize size, int flags);
+extern void *mprReallocMem(void *ptr, ssize size);
+extern void *mprMemdupMem(cvoid *ptr, ssize size);
 extern void mprCheckBlock(MprMem *bp);
 #endif
 
@@ -7192,7 +7202,9 @@ extern Mpr *mprGetMpr();
 #define MPR_USER_EVENTS_THREAD  0x10        /**< User will explicitly manage own mprServiceEvents calls */
 
 #if BLD_TUNE == MPR_TUNE_SPEED
-    #define MPR_THREAD_PATTERN (MPR_MARK_THREAD | MPR_SWEEP_THREAD)
+    // #define MPR_THREAD_PATTERN (MPR_MARK_THREAD | MPR_SWEEP_THREAD)
+    //  Sweep thread not fully debugged
+    #define MPR_THREAD_PATTERN (MPR_MARK_THREAD)
 #else
     #define MPR_THREAD_PATTERN (MPR_MARK_THREAD)
 #endif
