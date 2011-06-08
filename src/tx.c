@@ -482,6 +482,11 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 
     httpAddHeaderString(conn, "Date", conn->http->currentDate);
 
+    if (tx->extension) {
+        if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->extension)) != 0) {
+            httpAddHeaderString(conn, "Content-Type", mimeType);
+        }
+    }
     if (tx->flags & HTTP_TX_DONT_CACHE) {
         httpAddHeaderString(conn, "Cache-Control", "no-cache");
 
@@ -493,8 +498,9 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         }
         if (expires) {
             mprDecodeUniversalTime(&tm, mprGetTime() + (expires * MPR_TICKS_PER_SEC));
-            hdr = mprFormatTime(MPR_HTTP_DATE, &tm);
             httpAddHeader(conn, "Cache-Control", "max-age=%d", expires);
+            /* Expires is for old HTTP/1.0 clients */
+            hdr = mprFormatTime(MPR_HTTP_DATE, &tm);
             httpAddHeader(conn, "Expires", "%s", hdr);
         }
     }
@@ -523,11 +529,6 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             httpSetHeader(conn, "Content-Type", "multipart/byteranges; boundary=%s", tx->rangeBoundary);
         }
         httpAddHeader(conn, "Accept-Ranges", "bytes");
-    }
-    if (tx->extension) {
-        if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->extension)) != 0) {
-            httpAddHeaderString(conn, "Content-Type", mimeType);
-        }
     }
     if (conn->server) {
         if (--conn->keepAliveCount > 0) {
