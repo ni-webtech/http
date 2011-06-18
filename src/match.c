@@ -82,11 +82,7 @@ void httpMatchHandler(HttpConn *conn)
             handler = findHandler(conn);
         }
     }
-#if UNUSED
-    if (!handler || conn->error || ((tx->flags & HTTP_TX_NO_BODY) && !(rx->flags & HTTP_HEAD)))
-#else
     if (!handler || conn->error) {
-#endif
         handler = http->passHandler;
         if (!conn->error && rx->rewrites >= HTTP_MAX_REWRITE) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");

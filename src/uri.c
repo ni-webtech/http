@@ -94,19 +94,9 @@ HttpUri *httpCreateUri(cchar *uri, int complete)
         if ((cp = srchr(up->path, '/')) != NULL) {
             if (cp <= tok) {
                 up->ext = sclone(++tok);
-#if UNUSED && BLD_WIN_LIKE
-                for (cp = up->ext; *cp; cp++) {
-                    *cp = (char) tolower((int) *cp);
-                }
-#endif
             }
         } else {
             up->ext = sclone(++tok);
-#if UNUSED && BLD_WIN_LIKE
-            for (cp = up->ext; *cp; cp++) {
-                *cp = (char) tolower((int) *cp);
-            }
-#endif
         }
     }
     if (up->path == 0) {
@@ -177,19 +167,9 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
         if ((cp = srchr(up->path, '/')) != NULL) {
             if (cp <= tok) {
                 up->ext = sclone(&tok[1]);
-#if UNUSED && BLD_WIN_LIKE
-                for (cp = up->ext; *cp; cp++) {
-                    *cp = (char) tolower((int) *cp);
-                }
-#endif
             }
         } else {
             up->ext = sclone(&tok[1]);
-#if UNUSED && BLD_WIN_LIKE
-            for (cp = up->ext; *cp; cp++) {
-                *cp = (char) tolower((int) *cp);
-            }
-#endif
         }
     }
     return up;
@@ -243,19 +223,9 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
         if ((cp = srchr(up->path, '/')) != NULL) {
             if (cp <= tok) {
                 up->ext = sclone(&tok[1]);
-#if UNUSED && BLD_WIN_LIKE
-                for (cp = up->ext; *cp; cp++) {
-                    *cp = (char) tolower((int) *cp);
-                }
-#endif
             }
         } else {
             up->ext = sclone(&tok[1]);
-#if UNUSED && BLD_WIN_LIKE
-            for (cp = up->ext; *cp; cp++) {
-                *cp = (char) tolower((int) *cp);
-            }
-#endif
         }
     }
     return up;

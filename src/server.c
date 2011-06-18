@@ -68,10 +68,6 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->clientLoad);
         mprMark(server->hosts);
         mprMark(server->ip);
-#if UNUSED
-        mprMark(server->context);
-        mprMark(server->meta);
-#endif
         mprMark(server->sock);
         mprMark(server->dispatcher);
         mprMark(server->ssl);
@@ -342,14 +338,6 @@ void httpSetServerAddress(HttpServer *server, cchar *ip, int port)
         httpStartServer(server);
     }
 }
-
-#if UNUSED
-void httpSetMetaServer(HttpServer *server, void *meta)
-{
-    server->meta = meta;
-}
-#endif
-
 
 void httpSetServerAsync(HttpServer *server, int async)
 {
