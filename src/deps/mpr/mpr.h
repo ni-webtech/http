@@ -1745,7 +1745,6 @@ typedef struct MprMem {
 #define MPR_PAGE_ALIGN(x, psize)    ((((ssize) (x)) + ((ssize) (psize)) - 1) & ~(((ssize) (psize)) - 1))
 #define MPR_PAGE_ALIGNED(x, psize)  ((((ssize) (x)) % ((ssize) (psize))) == 0)
 #define MPR_ALLOC_MAGIC             0xe814ecab
-#define MPR_ALLOC_PER_MANAGER       2053
 
 /*
     The allocator free map is a two dimensional array of free queues. The first dimension is indexed by
@@ -1843,11 +1842,16 @@ typedef struct MprFreeMem {
     struct MprFreeMem *prev;                /* Previous free block */
 } MprFreeMem;
 
+
+#if BLD_MEMORY_STATS
+#define MPR_TRACK_HASH        2053          /* Size of location name hash */
+#define MPR_TRACK_NAMES       8             /* Length of collision chain */
+
 typedef struct MprLocationStats {
     ssize           count;                  /* Total allocations for this manager */
-    cchar           *name;                  /* Manager name */
-    int             collision;              /* Name collision */
+    cchar           *names[MPR_TRACK_NAMES];/* Manager names */
 } MprLocationStats;
+#endif
 
 
 /**
@@ -1882,7 +1886,7 @@ typedef struct MprMemStats {
     uint64          splits;                 /* Count of times a block was split */
     uint64          unpins;                 /* Count of times a block was unpinned and released back to the O/S */
 
-    MprLocationStats locations[MPR_ALLOC_PER_MANAGER];  /* Per location allocation stats */
+    MprLocationStats locations[MPR_TRACK_HASH]; /* Per location allocation stats */
 #endif
 } MprMemStats;
 

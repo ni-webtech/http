@@ -179,7 +179,6 @@ static MprMem   headBlock, *head;
 static void allocException(ssize size, bool granted);
 static void checkYielded();
 static void dummyManager(void *ptr, int flags);
-static void freeLocation(cchar *name, ssize size);
 static void *getNextRoot();
 static void getSystemInfo();
 static void initGen();
@@ -206,6 +205,7 @@ static void triggerGC(int flags);
 #if FUTURE
     static void showMem(MprMem *mp);
 #endif
+    static void freeLocation(cchar *name, ssize size);
     static void printQueueStats();
     static void printGCStats();
 #endif
@@ -241,7 +241,7 @@ Mpr *mprCreateMemService(MprManager manager, int flags)
 {
     MprHeap     initHeap;
     MprMem      *mp;
-    ssize       size, mprSize;
+    ssize       size, mprSize, spareSize;
 #if BLD_FEATURE_VALLOC
     MprMem      *spare;
     MprRegion   *region;
@@ -311,18 +311,20 @@ Mpr *mprCreateMemService(MprManager manager, int flags)
     mprInitSpinLock(&heap->rootLock);
     getSystemInfo();
     initGen();
+    initFree();
 
 #if BLD_FEATURE_VALLOC
-    spare = (MprMem*) (((char*) mp) + mprSize);
-    INIT_BLK(spare, size - regionSize - mprSize, 0, 1, mp);
-    SET_GEN(spare, heap->eternal);
-    SET_FREE(spare, 1);
-    heap->regions = region;
-    initFree();
-    SCRIBBLE(spare);
-    linkBlock(spare);
+    spareSize = size - regionSize - mprSize;
+    if (spareSize > 0) {
+        spare = (MprMem*) (((char*) mp) + mprSize);
+        INIT_BLK(spare, size - regionSize - mprSize, 0, 1, mp);
+        SET_GEN(spare, heap->eternal);
+        SET_FREE(spare, 1);
+        heap->regions = region;
+        SCRIBBLE(spare);
+        linkBlock(spare);
+    }
 #endif
-
     heap->markerCond = mprCreateCond();
     heap->roots = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     mprAddRoot(MPR);
@@ -456,8 +458,7 @@ int mprMemcmp(cvoid *s1, ssize s1Len, cvoid *s2, ssize s2Len)
     mprAssert(s1Len >= 0);
     mprAssert(s2Len >= 0);
 
-    rc = memcmp(s1, s2, min(s1Len, s2Len));
-    if (rc == 0) {
+    if ((rc = memcmp(s1, s2, min(s1Len, s2Len))) == 0) {
         if (s1Len < s2Len) {
             return -1;
         } else if (s1Len > s2Len) {
@@ -647,6 +648,7 @@ static MprMem *growHeap(ssize required, int flags)
         allocException(size, 0);
         return 0;
     }
+#if KEEP
 {
     static ssize hiwat = 0;
     ssize used = mprGetMem();
@@ -655,6 +657,7 @@ static MprMem *growHeap(ssize required, int flags)
         hiwat = used;
     }
 }
+#endif
     if ((region = valloc(size, MPR_MAP_READ | MPR_MAP_WRITE)) == NULL) {
         return 0;
     }
@@ -745,7 +748,9 @@ static MprMem *freeToHeap(MprMem *mp)
         mp = prev;
         INC(joins);
         prev = GET_PRIOR(mp);
-        if (prev) CHECK(prev);
+        if (prev) {
+            CHECK(prev);
+        }
         mprAssert(prev == 0 || !IS_FREE(prev));
     }
     next = GET_NEXT(mp);
@@ -1747,14 +1752,43 @@ static void printQueueStats()
 }
 
 
-static void printManagerStats() 
+static MprLocationStats sortLocations[MPR_TRACK_HASH];
+
+static int sortLocation(cvoid *l1, cvoid *l2)
+{
+    MprLocationStats    *lp1, *lp2;
+
+    lp1 = (MprLocationStats*) l1;
+    lp2 = (MprLocationStats*) l2;
+    if (lp1->count < lp2->count) {
+        return -1;
+    } else if (lp1->count == lp2->count) {
+        return 0;
+    }
+    return 1;
+}
+
+
+static void printTracking() 
 {
     MprLocationStats     *lp;
+    cchar                **np;
 
     printf("\nManager Allocation Stats\n Size                       Location\n");
-    for (lp = heap->stats.locations; lp < &heap->stats.locations[MPR_ALLOC_PER_MANAGER]; lp++) {
-        if (lp->name) {
-            printf("%10ld %-24s\n", lp->count, lp->name);
+    memcpy(sortLocations, heap->stats.locations, sizeof(sortLocations));
+    qsort(sortLocations, MPR_TRACK_HASH, sizeof(MprLocationStats), sortLocation);
+
+    for (lp = sortLocations; lp < &sortLocations[MPR_TRACK_HASH]; lp++) {
+        if (lp->count) {
+            for (np = &lp->names[0]; *np && np < &lp->names[MPR_TRACK_NAMES]; np++) {
+                if (*np) {
+                    if (np == lp->names) {
+                        printf("%10ld %-24s\n", lp->count, *np);
+                    } else {
+                        printf("           %-24s\n", *np);
+                    }
+                }
+            }
         }
     }
 }
@@ -1836,7 +1870,7 @@ void mprPrintMem(cchar *msg, int detail)
     if (detail) {
         printQueueStats();
         if (heap->track) {
-            printManagerStats();
+            printTracking();
         }
     }
 #endif /* BLD_MEMORY_STATS */
@@ -1857,7 +1891,10 @@ static int validBlk(MprMem *mp)
 
 void mprCheckBlock(MprMem *mp)
 {
-    if (mp->magic != MPR_ALLOC_MAGIC || GET_SIZE(mp) <= 0) {
+    ssize   size;
+
+    size = GET_SIZE(mp);
+    if (mp->magic != MPR_ALLOC_MAGIC || size <= 0) {
         mprStaticError("Memory corruption in memory block %x (MprBlk %x, seqno %d)\n"
             "This most likely happend earlier in the program execution", GET_PTR(mp), mp, mp->seqno);
     }
@@ -1906,17 +1943,21 @@ void *mprSetAllocName(void *ptr, cchar *name)
 #if BLD_MEMORY_STATS
     if (heap->track) {
         MprLocationStats    *lp;
+        cchar               **np;
         int                 index;
         if (name == 0) {
             name = "";
         }
-        index = shash(name, strlen(name)) % MPR_ALLOC_PER_MANAGER;
+        index = shash(name, strlen(name)) % MPR_TRACK_HASH;
         lp = &heap->stats.locations[index];
-        if (lp->name && lp->name != name && strcmp(lp->name, name) != 0 && !lp->collision) {
-            printf("SetAllocName collision for %s and %s at index %d\n", lp->name, name, index);
-            lp->collision = 1;
-        } else {
-            lp->name = name;
+        for (np = lp->names; np <= &lp->names[MPR_TRACK_NAMES]; np++) {
+            if (*np == 0 || *np == name || strcmp(*np, name) == 0) {
+                break;
+            }
+        }
+        //  mprAssert(np < &lp->names[MPR_TRACK_NAMES]);
+        if (np < &lp->names[MPR_TRACK_NAMES]) {
+            *np = (char*) name;
         }
         lp->count += GET_SIZE(GET_MEM(ptr));
     }
@@ -1929,16 +1970,19 @@ static void freeLocation(cchar *name, ssize size)
 {
 #if BLD_MEMORY_STATS
     MprLocationStats    *lp;
-    int                 index;
+    int                 index, i;
 
     if (name == 0) {
         name = "";
     }
-    index = shash(name, strlen(name)) % MPR_ALLOC_PER_MANAGER;
+    index = shash(name, strlen(name)) % MPR_TRACK_HASH;
     lp = &heap->stats.locations[index];
-    mprAssert(lp->count >= 0);
     lp->count -= size;
-    mprAssert(lp->count >= 0);
+    if (lp->count <= 0) {
+        for (i = 0; i < MPR_TRACK_NAMES; i++) {
+            lp->names[i] = 0;
+        }
+    }
 #endif
 }
 
@@ -11323,15 +11367,16 @@ static void manageLock(MprMutex *lock, int flags);
 static void manageSpinLock(MprSpin *lock, int flags);
 
 
+static int mcount = 0;
+
 MprMutex *mprCreateLock()
 {
     MprMutex    *lock;
 #if BLD_UNIX_LIKE
     pthread_mutexattr_t attr;
 #endif
-
-    lock = mprAllocObj(MprMutex, manageLock);
-    if (lock == 0) {
+    mcount++;
+    if ((lock = mprAllocObj(MprMutex, manageLock)) == 0) {
         return 0;
     }
 #if BLD_UNIX_LIKE
@@ -11358,6 +11403,7 @@ MprMutex *mprCreateLock()
 static void manageLock(MprMutex *lock, int flags)
 {
     if (flags & MPR_MANAGE_FREE) {
+        mcount--;
         mprAssert(lock);
 #if BLD_UNIX_LIKE
         pthread_mutex_destroy(&lock->cs);
@@ -17274,6 +17320,12 @@ static void standardSignalHandler(void *ignored, MprSignal *sp)
         mprTerminate(MPR_EXIT_GRACEFUL);
 
     } else if (sp->signo == SIGINT) {
+#if BLD_UNIX_LIKE
+        /*  Ensure shells are on a new line */
+        if (isatty(1)) {
+            write(1, "\n", 1);
+        }
+#endif
         mprTerminate(MPR_EXIT_IMMEDIATE);
 
     } else if (sp->signo == SIGPIPE || sp->signo == SIGXFSZ) {
