@@ -185,7 +185,7 @@ void httpConnTimeout(HttpConn *conn)
     } else {
         if ((conn->lastActivity + limits->inactivityTimeout) < now) {
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT,
-                "Exceeded inactivity timeout of %d sec", limits->inactivityTimeout / 1000);
+                "Exceeded inactivity timeout of %Ld sec", limits->inactivityTimeout / 1000);
 
         } else if ((conn->started + limits->requestTimeout) < now) {
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT, "Exceeded timeout %d sec", limits->requestTimeout / 1000);

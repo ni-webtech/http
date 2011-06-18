@@ -533,7 +533,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     if (conn->server) {
         if (--conn->keepAliveCount > 0) {
             httpSetHeaderString(conn, "Connection", "keep-alive");
-            httpSetHeader(conn, "Keep-Alive", "timeout=%d, max=%d", conn->limits->inactivityTimeout / 1000, 
+            httpSetHeader(conn, "Keep-Alive", "timeout=%Ld, max=%d", conn->limits->inactivityTimeout / 1000,
                 conn->keepAliveCount);
         } else {
             httpSetHeaderString(conn, "Connection", "close");
@@ -621,7 +621,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
             }
         }
     }
-    if ((level = httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_FIRST, NULL)) >= mprGetLogLevel(tx)) {
+    if ((level = httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_FIRST, tx->extension)) >= mprGetLogLevel(tx)) {
         mprAddNullToBuf(buf);
         mprLog(level, "%s", mprGetBufStart(buf));
     }

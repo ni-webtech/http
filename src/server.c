@@ -311,14 +311,6 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
 }
 
 
-#if UNUSED
-void *httpGetMetaServer(HttpServer *server)
-{
-    return server->meta;
-}
-#endif
-
-
 void *httpGetServerContext(HttpServer *server)
 {
     return server->context;

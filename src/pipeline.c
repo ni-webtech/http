@@ -45,7 +45,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
     }
     if (tx->connector == 0) {
         if (tx->handler == http->fileHandler && rx->flags & HTTP_GET && !rx->ranges && !conn->secure && tx->chunkSize <= 0 &&
-                httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, NULL) < 0) {
+                httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->extension) < 0) {
             tx->connector = http->sendConnector;
         } else if (loc && loc->connector) {
             tx->connector = loc->connector;
