@@ -1783,7 +1783,7 @@ static void printTracking()
             for (np = &lp->names[0]; *np && np < &lp->names[MPR_TRACK_NAMES]; np++) {
                 if (*np) {
                     if (np == lp->names) {
-                        printf("%10ld %-24s\n", lp->count, *np);
+                        printf("%10d %-24s\n", (int) lp->count, *np);
                     } else {
                         printf("           %-24s\n", *np);
                     }
@@ -2201,7 +2201,27 @@ MprMemStats *mprGetMemStats()
 
 ssize mprGetMem()
 {
-#if LINUX || MACOSX || FREEBSD
+#if LINUX
+    int fd;
+    char path[MPR_MAX_PATH];
+    sprintf(path, "/proc/%d/status", getpid());
+    if ((fd = open(path, O_RDONLY)) >= 0) {
+        char buf[MPR_BUFSIZE], *tok;
+        int nbytes = read(fd, buf, sizeof(buf) - 1);
+        close(fd);
+        if (nbytes > 0) {
+            buf[nbytes] = '\0';
+            if ((tok = strstr(buf, "VmRSS:")) != 0) {
+                for (tok += 6; tok && isspace((int) *tok); tok++) {}
+                return stoi(tok, 10, 0) * 1024;
+            }
+        }
+        close(fd);
+    }
+    struct rusage   rusage;
+    getrusage(RUSAGE_SELF, &rusage);
+    return rusage.ru_maxrss * 1024;
+#elif MACOSX || FREEBSD
     struct rusage   rusage;
     getrusage(RUSAGE_SELF, &rusage);
     return rusage.ru_maxrss;
