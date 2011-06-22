@@ -204,7 +204,7 @@ static HttpStage *findHandler(HttpConn *conn)
             Perform custom handler matching first on all defined handlers 
          */
         for (next = 0; (h = mprGetNextItem(loc->handlers, &next)) != 0; ) {
-            if (checkHandler(conn, h)) {
+            if (h->match && checkHandler(conn, h)) {
                 handler = h;
                 break;
             }
