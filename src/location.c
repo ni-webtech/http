@@ -149,7 +149,7 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
         return MPR_ERR_CANT_FIND;
     }
     if (extensions && *extensions) {
-        mprLog(MPR_CONFIG, "Add handler \"%s\" for extensions: \"%s\"", name, extensions);
+        mprLog(MPR_CONFIG, "Add handler \"%s\" for extensions: %s", name, extensions);
     } else {
         mprLog(MPR_CONFIG, "Add handler \"%s\" for prefix: \"%s\"", name, loc->prefix);
     }
