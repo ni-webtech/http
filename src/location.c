@@ -28,6 +28,7 @@ HttpLoc *httpCreateLocation()
     loc->handlers = mprCreateList(-1, 0);
     loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
+    loc->expiresByType = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     loc->inputStages = mprCreateList(-1, 0);
     loc->outputStages = mprCreateList(-1, 0);
     loc->prefix = mprEmptyString();
@@ -48,6 +49,7 @@ static void manageLoc(HttpLoc *loc, int flags)
         mprMark(loc->handler);
         mprMark(loc->extensions);
         mprMark(loc->expires);
+        mprMark(loc->expiresByType);
         mprMark(loc->handlers);
         mprMark(loc->inputStages);
         mprMark(loc->outputStages);
@@ -84,6 +86,7 @@ HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
     loc->handlers = parent->handlers;
     loc->extensions = parent->extensions;
     loc->expires = parent->expires;
+    loc->expiresByType = parent->expiresByType;
     loc->connector = parent->connector;
     loc->errorDocuments = parent->errorDocuments;
     loc->sessionTimeout = parent->sessionTimeout;
@@ -106,6 +109,7 @@ static void graduate(HttpLoc *loc)
     if (loc->parent) {
         loc->errorDocuments = mprCloneHash(loc->parent->errorDocuments);
         loc->expires = mprCloneHash(loc->parent->expires);
+        loc->expiresByType = mprCloneHash(loc->parent->expiresByType);
         loc->extensions = mprCloneHash(loc->parent->extensions);
         loc->handlers = mprCloneList(loc->parent->handlers);
         loc->inputStages = mprCloneList(loc->parent->inputStages);
@@ -254,7 +258,23 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
 }
 
 
-void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
+void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *extensions)
+{
+    char    *types, *ext, *tok;
+
+    if (extensions && *extensions) {
+        graduate(loc);
+        types = sclone(extensions);
+        ext = stok(types, " ,\t\r\n", &tok);
+        while (ext) {
+            mprAddKey(loc->expires, ext, ITOP(when));
+            ext = stok(0, " \t\r\n", &tok);
+        }
+    }
+}
+
+
+void httpAddLocationExpiryByType(HttpLoc *loc, MprTime when, cchar *mimeTypes)
 {
     char    *types, *mime, *tok;
 
@@ -263,7 +283,7 @@ void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
         types = sclone(mimeTypes);
         mime = stok(types, " ,\t\r\n", &tok);
         while (mime) {
-            mprAddKey(loc->expires, mime, ITOP(when));
+            mprAddKey(loc->expiresByType, mime, ITOP(when));
             mime = stok(0, " \t\r\n", &tok);
         }
     }

@@ -201,7 +201,8 @@ static HttpStage *findHandler(HttpConn *conn)
      */
     if ((handler = checkHandler(conn, loc->handler)) == 0) {
         /* 
-            Perform custom handler matching first on all defined handlers 
+            Perform custom handler matching first on all defined handlers. Accept the handler if it has a match() 
+            routine and it accepts the request.
          */
         for (next = 0; (h = mprGetNextItem(loc->handlers, &next)) != 0; ) {
             if (h->match && checkHandler(conn, h)) {

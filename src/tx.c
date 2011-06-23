@@ -470,9 +470,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     HttpRange   *range;
     MprTime     expires;
     MprPath     *info;
-    cchar       *mimeType;
-    char        *hdr;
-    struct tm   tm;
+    cchar       *mimeType, *value;
 
     mprAssert(packet->flags == HTTP_PACKET_HEADER);
 
@@ -490,18 +488,34 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->flags & HTTP_TX_DONT_CACHE) {
         httpAddHeaderString(conn, "Cache-Control", "no-cache");
 
-    } else if (rx->loc && rx->loc->expires) {
-        mimeType = mprLookupKey(tx->headers, "Content-Type");
-        expires = PTOL(mprLookupKey(rx->loc->expires, mimeType ? mimeType : ""));
+    } else if (rx->loc) {
+        expires = 0;
+        if (tx->extension) {
+            expires = PTOL(mprLookupKey(rx->loc->expires, tx->extension));
+        }
+        if (expires == 0 && (mimeType = mprLookupKey(tx->headers, "Content-Type")) != 0) {
+            expires = PTOL(mprLookupKey(rx->loc->expiresByType, mimeType));
+        }
         if (expires == 0) {
             expires = PTOL(mprLookupKey(rx->loc->expires, ""));
+            if (expires == 0) {
+                expires = PTOL(mprLookupKey(rx->loc->expiresByType, ""));
+            }
         }
         if (expires) {
+            if ((value = mprLookupKey(conn->tx->headers, "Cache-Control")) != 0) {
+                if (strstr(value, "max-age") == 0) {
+                    httpAppendHeader(conn, "Cache-Control", "max-age=%d", expires);
+                }
+            } else {
+                httpAddHeader(conn, "Cache-Control", "max-age=%d", expires);
+            }
+#if UNUSED && KEEP
+            /* Old HTTP/1.0 clients don't understand Cache-Control */
+            struct tm   tm;
             mprDecodeUniversalTime(&tm, mprGetTime() + (expires * MPR_TICKS_PER_SEC));
-            httpAddHeader(conn, "Cache-Control", "max-age=%d", expires);
-            /* Expires is for old HTTP/1.0 clients */
-            hdr = mprFormatTime(MPR_HTTP_DATE, &tm);
-            httpAddHeader(conn, "Expires", "%s", hdr);
+            httpAddHeader(conn, "Expires", "%s", mprFormatTime(MPR_HTTP_DATE, &tm));
+#endif
         }
     }
     if (tx->etag) {
