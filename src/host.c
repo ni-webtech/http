@@ -123,6 +123,8 @@ HttpHost *httpCreateVirtualHost(cchar *ip, int port, HttpHost *parent)
     host->ip = parent->ip;
     host->port = parent->port;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
+    host->documentRoot = parent->documentRoot;
+    host->serverRoot = parent->serverRoot;
     if (ip) {
         host->ip = sclone(ip);
     }
@@ -317,9 +319,12 @@ HttpAlias *httpGetAlias(HttpHost *host, cchar *uri)
     if (uri) {
         for (next = 0; (alias = mprGetNextItem(host->aliases, &next)) != 0; ) {
             if (strncmp(alias->prefix, uri, alias->prefixLen) == 0) {
+#if UNUSED
                 if (uri[alias->prefixLen] == '\0' || uri[alias->prefixLen] == '/') {
                     return alias;
                 }
+#endif
+                return alias;
             }
         }
     }
