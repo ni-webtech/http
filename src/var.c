@@ -45,7 +45,7 @@ void httpCreateCGIVars(HttpConn *conn)
     mprAddKey(table, "REQUEST_METHOD", rx->method);
     mprAddKey(table, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
     mprAddKey(table, "SERVER_ADDR", sock->acceptIp);
-    mprAddKey(table, "SERVER_NAME", host->hostname);
+    mprAddKey(table, "SERVER_NAME", host->name);
     mprAddKeyFmt(table, "SERVER_PORT", "%d", sock->acceptPort);
     mprAddKey(table, "SERVER_PROTOCOL", conn->protocol);
     mprAddKey(table, "SERVER_ROOT", host->serverRoot);

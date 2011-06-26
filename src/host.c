@@ -21,8 +21,11 @@ static void manageHost(HttpHost *host, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(host->name);
+#if UNUSED
         mprMark(host->hostname);
-        mprMark(host->infoName);
+        mprMark(host->logName);
+#endif
+        mprMark(host->address);
         mprMark(host->parent);
         mprMark(host->aliases);
         mprMark(host->dirs);
@@ -31,7 +34,6 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->mimeTypes);
         mprMark(host->documentRoot);
         mprMark(host->serverRoot);
-        mprMark(host->ip);
         mprMark(host->traceInclude);
         mprMark(host->traceExclude);
         mprMark(host->protocol);
@@ -47,7 +49,7 @@ static void manageHost(HttpHost *host, int flags)
 }
 
 
-HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
+HttpHost *httpCreateHost(HttpLoc *loc)
 {
     HttpHost    *host;
     Http        *http;
@@ -56,26 +58,11 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     if ((host = mprAllocObj(HttpHost, manageHost)) == 0) {
         return 0;
     }
-    if (ip) {
-        if (port) {
-            host->name = mprAsprintf("%s:%d", ip, port);
-            host->hostname = sclone(ip);
-        } else {
-            host->hostname = host->name = sclone(ip);
-        }
-    } else {
-        if (port) {
-            host->name = mprAsprintf("*:%d", port);
-        }
-        host->hostname = sclone("127.0.0.1");
-    }
     host->mutex = mprCreateLock();
     host->aliases = mprCreateList(-1, 0);
     host->dirs = mprCreateList(-1, 0);
     host->locations = mprCreateList(-1, 0);
     host->limits = mprMemdup(http->serverLimits, sizeof(HttpLimits));
-    host->ip = sclone(ip);
-    host->port = port;
     host->flags = HTTP_HOST_NO_TRACE;
     host->protocol = sclone("HTTP/1.1");
     host->mimeTypes = MPR->mimeTypes;
@@ -89,16 +76,12 @@ HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
     httpAddLocation(host, host->loc);
     host->loc->auth = httpCreateAuth(host->loc->auth);
     httpAddDir(host, httpCreateBareDir("."));
-
     httpAddHost(http, host);
     return host;
 }
 
 
-/*  
-    Create a new virtual host and inherit settings from another host
- */
-HttpHost *httpCreateVirtualHost(cchar *ip, int port, HttpHost *parent)
+HttpHost *httpCloneHost(HttpHost *parent)
 {
     HttpHost    *host;
     Http        *http;
@@ -109,28 +92,20 @@ HttpHost *httpCreateVirtualHost(cchar *ip, int port, HttpHost *parent)
         return 0;
     }
     host->mutex = mprCreateLock();
-    host->parent = parent;
 
     /*  
         The aliases, dirs and locations are all copy-on-write
      */
+    host->parent = parent;
     host->aliases = parent->aliases;
     host->dirs = parent->dirs;
     host->locations = parent->locations;
     host->flags = parent->flags | HTTP_HOST_VHOST;
     host->protocol = parent->protocol;
     host->mimeTypes = parent->mimeTypes;
-    host->ip = parent->ip;
-    host->port = parent->port;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
     host->documentRoot = parent->documentRoot;
     host->serverRoot = parent->serverRoot;
-    if (ip) {
-        host->ip = sclone(ip);
-    }
-    if (port) {
-        host->port = port;
-    }
     host->loc = httpCreateInheritedLocation(parent->loc);
     host->traceMask = parent->traceMask;
     host->traceLevel = parent->traceLevel;
@@ -175,35 +150,39 @@ void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
 }
 
 
-void httpSetHostName(HttpHost *host, cchar *name)
+void httpSetHostAddress(HttpHost *host, cchar *name, int port)
 {
-    cchar   *cp;
-
-    host->name = sclone(name);
-    if ((cp = schr(name, ':')) != 0) {
-        host->hostname = snclone(name, cp - name);
+    if (name) {
+        if (port > 0) {
+            host->address = mprAsprintf("%s:%d", name, port);
+        } else {
+            host->address = sclone(name);
+        }
     } else {
-        host->hostname = host->name;
+        mprAssert(port > 0);
+        host->address = mprAsprintf("*:%d", port);
+    }
+    if (host->name == 0) {
+        host->name = host->address;
     }
 }
 
 
 /*
-    Informational names are used in logs
+    Name can be an IP or a textual hostname
  */
-void httpSetHostInfoName(HttpHost *host, cchar *name)
+void httpSetHostName(HttpHost *host, cchar *name)
 {
-    host->infoName = sclone(name);
+    host->name = sclone(name);
 }
 
 
-void httpSetHostAddress(HttpHost *host, cchar *ip, int port)
+#if UNUSED
+void httpSetHostLogName(HttpHost *host, cchar *name)
 {
-    host->ip = sclone(ip);
-    if (port > 0) {
-        host->port = port;
-    }
+    host->logName = sclone(name);
 }
+#endif
 
 
 void httpSetHostProtocol(HttpHost *host, cchar *protocol)

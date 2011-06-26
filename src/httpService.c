@@ -205,17 +205,18 @@ HttpServer *httpGetFirstServer(Http *http)
 }
 
 
+#if UNUSED
 int httpAddHostToServers(Http *http, struct HttpHost *host)
 {
     HttpServer  *server;
-    cchar       *ip;
-    int         next, count;
+    char        *ip;
+    int         next, count, port;
 
-    ip = host->ip ? host->ip : "";
+    mprParseIp(host->address, &ip, &port, -1);
     mprAssert(ip);
 
     for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
-        if (server->port <= 0 || host->port <= 0 || server->port == host->port) {
+        if (server->port <= 0 || port <= 0 || server->port == port) {
             mprAssert(server->ip);
             if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
                 httpAddHostToServer(server, host);
@@ -225,27 +226,7 @@ int httpAddHostToServers(Http *http, struct HttpHost *host)
     }
     return (count == 0) ? MPR_ERR_CANT_FIND : 0;
 }
-
-
-int httpSetNamedVirtualServers(Http *http, cchar *ip, int port)
-{
-    HttpServer  *server;
-    int         next, count;
-
-    if (ip == 0) {
-        ip = "";
-    }
-    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
-        if (server->port <= 0 || port <= 0 || server->port == port) {
-            mprAssert(server->ip);
-            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
-                httpSetNamedVirtualServer(server);
-                count++;
-            }
-        }
-    }
-    return (count == 0) ? MPR_ERR_CANT_FIND : 0;
-}
+#endif
 
 
 void httpAddHost(Http *http, HttpHost *host)

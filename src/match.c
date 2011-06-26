@@ -39,7 +39,7 @@ void httpMatchHost(HttpConn *conn)
 
     if (httpIsNamedVirtualServer(server)) {
         rx = conn->rx;
-        if ((host = httpLookupHostByName(server, rx->hostHeader)) == 0) {
+        if ((host = httpLookupHost(server, rx->hostHeader)) == 0) {
             httpSetConnHost(conn, host);
             httpError(conn, HTTP_CODE_NOT_FOUND, "No host to serve request. Searching for %s", rx->hostHeader);
             conn->host = mprGetFirstItem(server->hosts);

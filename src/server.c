@@ -20,6 +20,7 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
 {
     HttpServer  *server;
     Http        *http;
+    HttpHost    *host;
 
     if ((server = mprAllocObj(HttpServer, manageServer)) == 0) {
         return 0;
@@ -35,8 +36,11 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
     server->loc = httpInitLocation(http, 1);
     server->hosts = mprCreateList(-1, 0);
     httpAddServer(http, server);
+
     if (flags & HTTP_CREATE_HOST) {
-        httpAddHostToServer(server, httpCreateHost(ip, port, server->loc));
+        host = httpCreateHost(server->loc);
+        httpSetHostAddress(host, ip, port);
+        httpAddHostToServer(server, host);
     }
     return server;
 }
@@ -321,23 +325,26 @@ int httpGetServerAsync(HttpServer *server)
 
 void httpSetServerAddress(HttpServer *server, cchar *ip, int port)
 {
-    HttpHost    *host;
-    int         next;
-
     if (ip) {
         server->ip = sclone(ip);
     }
     if (port >= 0) {
         server->port = port;
     }
+#if XXX
+    HttpHost    *host;
+
+    int         next;
     for (next = 0; (host = mprGetNextItem(server->hosts, &next)) != 0; ) {
         httpSetHostAddress(host, ip, port);
     }
+#endif
     if (server->sock) {
         httpStopServer(server);
         httpStartServer(server);
     }
 }
+
 
 void httpSetServerAsync(HttpServer *server, int async)
 {
@@ -375,9 +382,12 @@ void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)
 }
 
 
-int httpSecureServer(cchar *ip, int port, struct MprSsl *ssl)
+#if UNUSED
+/*
+    This returns the first matching server. IP and port can be wild (set to 0)
+ */
+HttpServer *httpLookupServer(cchar *ip, int port)
 {
-#if BLD_FEATURE_SSL
     HttpServer  *server;
     Http        *http;
     int         next, count;
@@ -390,15 +400,48 @@ int httpSecureServer(cchar *ip, int port, struct MprSsl *ssl)
         if (server->port <= 0 || port <= 0 || server->port == port) {
             mprAssert(server->ip);
             if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
-                server->ssl = ssl;
+                return server;
+            }
+        }
+    }
+    return 0;
+}
+#endif
+
+
+int httpSecureServer(HttpServer *server, struct MprSsl *ssl)
+{
+#if BLD_FEATURE_SSL
+    server->ssl = ssl;
+    return 0;
+#else
+    return MPR_ERR_BAD_STATE;
+#endif
+}
+
+
+int httpSecureServerByName(cchar *name, struct MprSsl *ssl)
+{
+    HttpServer  *server;
+    Http        *http;
+    char        *ip;
+    int         port, next, count;
+
+    http = MPR->httpService;
+    mprParseIp(name, &ip, &port, -1);
+    if (ip == 0) {
+        ip = "";
+    }
+    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+        if (server->port <= 0 || port <= 0 || server->port == port) {
+            mprAssert(server->ip);
+            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
+                httpSecureServer(server, ssl);
                 count++;
             }
         }
     }
     return (count == 0) ? MPR_ERR_CANT_FIND : 0;
-#else
-    return MPR_ERR_BAD_STATE;
-#endif
 }
 
 
@@ -423,7 +466,7 @@ void httpSetNamedVirtualServer(HttpServer *server)
 }
 
 
-HttpHost *httpLookupHostByName(HttpServer *server, cchar *name)
+HttpHost *httpLookupHost(HttpServer *server, cchar *name)
 {
     HttpHost    *host;
     int         next;
@@ -435,6 +478,28 @@ HttpHost *httpLookupHostByName(HttpServer *server, cchar *name)
     }
     return 0;
 }
+
+
+int httpSetNamedVirtualServers(Http *http, cchar *ip, int port)
+{
+    HttpServer  *server;
+    int         next, count;
+
+    if (ip == 0) {
+        ip = "";
+    }
+    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+        if (server->port <= 0 || port <= 0 || server->port == port) {
+            mprAssert(server->ip);
+            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
+                httpSetNamedVirtualServer(server);
+                count++;
+            }
+        }
+    }
+    return (count == 0) ? MPR_ERR_CANT_FIND : 0;
+}
+
 
 /*
     @copy   default

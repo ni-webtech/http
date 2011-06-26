@@ -1964,6 +1964,7 @@ typedef struct MprHeap {
  */
 extern struct Mpr *mprCreateMemService(MprManager manager, int flags);
 extern void mprStartGCService();
+extern void mprStopGCService();
 
 /**
     Destroy the memory service. Called as the last thing before exiting
