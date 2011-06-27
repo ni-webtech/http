@@ -22,9 +22,6 @@ static void manageHost(HttpHost *host, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(host->name);
         mprMark(host->ip);
-#if UNUSED
-        mprMark(host->addresses);
-#endif
         mprMark(host->parent);
         mprMark(host->aliases);
         mprMark(host->dirs);
@@ -58,9 +55,6 @@ HttpHost *httpCreateHost(HttpLoc *loc)
         return 0;
     }
     host->mutex = mprCreateLock();
-#if UNUSED
-    host->addresses = mprCreateHash(-1, 0);
-#endif
     host->aliases = mprCreateList(-1, 0);
     host->dirs = mprCreateList(-1, 0);
     host->locations = mprCreateList(-1, 0);
@@ -100,9 +94,6 @@ HttpHost *httpCloneHost(HttpHost *parent)
      */
     host->parent = parent;
     host->aliases = parent->aliases;
-#if UNUSED
-    host->addresses = mprCloneHash(parent->addresses);
-#endif
     host->dirs = parent->dirs;
     host->locations = parent->locations;
     host->flags = parent->flags | HTTP_HOST_VHOST;

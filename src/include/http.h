@@ -346,9 +346,6 @@ extern void httpSetProxy(Http *http, cchar *host, int port);
 
 /* Internal APIs */
 extern void httpAddConn(Http *http, struct HttpConn *conn);
-#if UNUSED
-extern int httpAddHostToServers(Http *http, struct HttpHost *host);
-#endif
 extern struct HttpServer *httpGetFirstServer(Http *http);
 extern void httpRemoveConn(Http *http, struct HttpConn *conn);
 extern cchar *httpLookupStatus(Http *http, int status);
@@ -1951,9 +1948,6 @@ typedef struct HttpLoc {
     void            *context;               /**< Hosting context (Appweb == EjsPool) */
     char            *uploadDir;             /**< Upload directory */
     int             autoDelete;             /**< Auto delete uploaded files */
-#if UNUSED
-    int             sessionTimeout;         /**< Session timeout for this location */
-#endif
     int             workers;                /**< Number of workers to use for this location */
     char            *searchPath;            /**< Search path */
     char            *script;                /**< Startup script for handlers serving this location */
@@ -2884,7 +2878,7 @@ typedef struct HttpHost {
         be associated with multiple servers. In that case, the ip:port will store only one of these addresses and 
         will not be used for matching.
      */
-    char            *name;                  /**< Host name. Used for vhosting and redirects */
+    char            *name;                  /**< Host name */
     char            *ip;                    /**< Hostname/ip portion parsed from name */
     int             port;                   /**< Port address portion parsed from name */
 
