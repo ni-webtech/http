@@ -7255,8 +7255,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(cchar *path)
     dfs->writeFile = writeFile;
 
 #if !WINCE
-    dfs->stdError = mprAllocObj(MprFile, NULL);
-    if (dfs->stdError == 0) {
+    if ((dfs->stdError = mprAllocObj(MprFile, NULL)) == 0) {
         return NULL;
     }
     mprSetName(dfs->stdError, "stderr");
@@ -7264,8 +7263,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(cchar *path)
     dfs->stdError->fileSystem = fs;
     dfs->stdError->mode = O_WRONLY;
 
-    dfs->stdInput = mprAllocObj(MprFile, NULL);
-    if (dfs->stdInput == 0) {
+    if ((dfs->stdInput = mprAllocObj(MprFile, NULL)) == 0) {
         return NULL;
     }
     mprSetName(dfs->stdInput, "stdin");
@@ -7273,8 +7271,7 @@ MprDiskFileSystem *mprCreateDiskFileSystem(cchar *path)
     dfs->stdInput->fileSystem = fs;
     dfs->stdInput->mode = O_RDONLY;
 
-    dfs->stdOutput = mprAllocObj(MprFile, NULL);
-    if (dfs->stdOutput == 0) {
+    if ((dfs->stdOutput = mprAllocObj(MprFile, NULL)) == 0) {
         return NULL;
     }
     mprSetName(dfs->stdOutput, "stdout");
@@ -7545,7 +7542,7 @@ int mprServiceEvents(MprTime timeout, int flags)
 {
     MprEventService     *es;
     MprDispatcher       *dp;
-    MprTime             start, expires, delay;
+    MprTime             expires, delay;
     int                 beginEventCount, eventCount, justOne;
 
     if (MPR->eventing) {
@@ -7557,7 +7554,7 @@ int mprServiceEvents(MprTime timeout, int flags)
     es = MPR->eventService;
     beginEventCount = eventCount = es->eventCount;
 
-    start = es->now = mprGetTime();
+    es->now = mprGetTime();
     expires = timeout < 0 ? (es->now + MPR_MAX_TIMEOUT) : (es->now + timeout);
     justOne = (flags & MPR_SERVICE_ONE_THING) ? 1 : 0;
 
@@ -7606,7 +7603,7 @@ int mprServiceEvents(MprTime timeout, int flags)
 int mprWaitForEvent(MprDispatcher *dispatcher, MprTime timeout)
 {
     MprEventService     *es;
-    MprTime             start, expires, delay;
+    MprTime             expires, delay;
     MprOsThread         thread;
     int                 claimed, signalled, wasRunning, runEvents;
 
@@ -7614,7 +7611,7 @@ int mprWaitForEvent(MprDispatcher *dispatcher, MprTime timeout)
     mprAssert(!dispatcher->destroyed);
 
     es = MPR->eventService;
-    start = es->now = mprGetTime();
+    es->now = mprGetTime();
 
     if (dispatcher == NULL) {
         dispatcher = MPR->dispatcher;
@@ -8527,7 +8524,7 @@ static int growEvents(MprWaitService *ws)
 int mprNotifyOn(MprWaitService *ws, MprWaitHandler *wp, int mask)
 {
     struct epoll_event  ev;
-    int                 fd, oldlen;
+    int                 fd;
 
     mprAssert(wp);
     fd = wp->fd;
@@ -8556,7 +8553,6 @@ int mprNotifyOn(MprWaitService *ws, MprWaitHandler *wp, int mask)
             epoll_ctl(ws->epoll, EPOLL_CTL_ADD, fd, &ev);
         }
         if (mask && fd >= ws->handlerMax) {
-            oldlen = ws->handlerMax;
             ws->handlerMax = fd + 32;
             if ((ws->handlerMap = mprRealloc(ws->handlerMap, sizeof(MprWaitHandler*) * ws->handlerMax)) == 0) {
                 mprAssert(!MPR_ERR_MEMORY);
@@ -8578,11 +8574,9 @@ int mprNotifyOn(MprWaitService *ws, MprWaitHandler *wp, int mask)
  */
 int mprWaitForSingleIO(int fd, int mask, MprTime timeout)
 {
-    MprWaitService      *ws;
     struct epoll_event  ev, events[2];
-    int                 epfd, rc, err;
+    int                 epfd, rc;
 
-    ws = MPR->waitService;
     if (timeout < 0 || timeout > MAXINT) {
         timeout = MAXINT;
     }
@@ -8603,7 +8597,6 @@ int mprWaitForSingleIO(int fd, int mask, MprTime timeout)
     }
     mask = 0;
     rc = epoll_wait(epfd, events, sizeof(events) / sizeof(struct epoll_event), timeout);
-    err = errno;
     close(epfd);
     if (rc < 0) {
         mprLog(2, "Epoll returned %d, errno %d", rc, errno);
@@ -8662,7 +8655,7 @@ static void serviceIO(MprWaitService *ws, int count)
 {
     MprWaitHandler      *wp;
     struct epoll_event  *ev;
-    int                 fd, i, mask, rc;
+    int                 fd, i, mask;
 
     lock(ws);
     for (i = 0; i < count; i++) {
@@ -8672,7 +8665,7 @@ static void serviceIO(MprWaitService *ws, int count)
         if ((wp = ws->handlerMap[fd]) == 0) {
             char    buf[128];
             if ((ev->events & (EPOLLIN | EPOLLERR | EPOLLHUP)) && (fd == ws->breakPipe[MPR_READ_PIPE])) {
-                rc = read(fd, buf, sizeof(buf));
+                (void) read(fd, buf, sizeof(buf));
             }
             continue;
         }
@@ -8709,13 +8702,13 @@ static void serviceIO(MprWaitService *ws, int count)
 void mprWakeNotifier()
 {
     MprWaitService  *ws;
-    int             c, rc;
+    int             c;
 
     ws = MPR->waitService;
     if (!ws->wakeRequested) {
         ws->wakeRequested = 1;
         c = 0;
-        rc = write(ws->breakPipe[MPR_WRITE_PIPE], (char*) &c, 1);
+        (void) write(ws->breakPipe[MPR_WRITE_PIPE], (char*) &c, 1);
     }
 }
 
@@ -10089,7 +10082,7 @@ MprHash *mprAddKey(MprHashTable *table, cvoid *key, cvoid *ptr)
     /*
         Hash entries are managed by manageHashTable
      */
-    if ((sp = mprAllocObj(MprHash, NULL)) == NULL) {
+    if ((sp = mprAllocObj(MprHash, 0)) == 0) {
         unlock(table);
         return 0;
     }
@@ -10130,7 +10123,7 @@ MprHash *mprAddDuplicateKey(MprHashTable *table, cvoid *key, cvoid *ptr)
     MprHash     *sp;
     int         index;
 
-    if ((sp = mprAllocObj(MprHash, NULL)) == 0) {
+    if ((sp = mprAllocObj(MprHash, 0)) == 0) {
         return 0;
     }
     sp->data = ptr;
@@ -12002,16 +11995,15 @@ void mprStaticError(cchar *fmt, ...)
 {
     va_list     args;
     char        buf[MPR_MAX_LOG];
-    ssize       rc;
 
     va_start(args, fmt);
     mprSprintfv(buf, sizeof(buf), fmt, args);
     va_end(args);
 #if BLD_UNIX_LIKE || VXWORKS
-    rc = write(2, (char*) buf, slen(buf));
-    rc = write(2, (char*) "\n", 1);
+    (void) write(2, (char*) buf, slen(buf));
+    (void) write(2, (char*) "\n", 1);
 #elif BLD_WIN_LIKE
-    rc = fprintf(stderr, "%s\n", buf);
+    (void) fprintf(stderr, "%s\n", buf);
 #endif
     mprBreakpoint();
 }
@@ -12024,7 +12016,6 @@ void mprAssertError(cchar *loc, cchar *msg)
 {
 #if BLD_FEATURE_ASSERT
     char    buf[MPR_MAX_LOG];
-    ssize   rc;
 
     if (loc) {
 #if BLD_UNIX_LIKE
@@ -12034,11 +12025,10 @@ void mprAssertError(cchar *loc, cchar *msg)
 #endif
         msg = buf;
     }
-    
 #if BLD_UNIX_LIKE || VXWORKS
-    rc = write(2, (char*) msg, slen(msg));
+    (void) write(2, (char*) msg, slen(msg));
 #elif BLD_WIN_LIKE
-    rc = fprintf(stderr, "%s\n", msg);
+    (void) fprintf(stderr, "%s\n", msg);
 #endif
     mprBreakpoint();
 #endif
@@ -17275,9 +17265,7 @@ static void unlinkSignalHandler(MprSignal *sp)
 MprSignal *mprAddSignalHandler(int signo, void *handler, void *data, MprDispatcher *dispatcher, int flags)
 {
     MprSignal           *sp;
-    MprSignalService    *ssp;
 
-    ssp = MPR->signalService;
     if (signo <= 0 || signo >= MPR_MAX_SIGNALS) {
         mprError("Bad signal: %d", signo);
         return 0;
@@ -17301,9 +17289,6 @@ MprSignal *mprAddSignalHandler(int signo, void *handler, void *data, MprDispatch
 
 static void manageSignal(MprSignal *sp, int flags)
 {
-    MprSignalService    *ssp;
-    
-    ssp = MPR->signalService;
     if (flags & MPR_MANAGE_MARK) {
         mprMark(sp->dispatcher);
         mprMark(sp->data);
@@ -17869,7 +17854,7 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
 {
     struct sockaddr     *addr;
     socklen_t           addrlen;
-    int                 broadcast, datagram, family, protocol, rc, err;
+    int                 broadcast, datagram, family, protocol, rc;
 
     lock(sp);
 
@@ -17925,7 +17910,6 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
         do {
             rc = connect(sp->fd, addr, addrlen);
         } while (rc == -1 && errno == EINTR);
-        err = errno;
         if (rc < 0) {
             /* MAC/BSD returns EADDRINUSE */
             if (errno == EINPROGRESS || errno == EALREADY || errno == EADDRINUSE) {
@@ -18565,7 +18549,7 @@ int mprGetSocketFlags(MprSocket *sp)
  */
 int mprSetSocketBlockingMode(MprSocket *sp, bool on)
 {
-    int     flag, oldMode;
+    int     oldMode;
 
     mprAssert(sp);
 
@@ -18576,14 +18560,17 @@ int mprSetSocketBlockingMode(MprSocket *sp, bool on)
     if (on) {
         sp->flags |= MPR_SOCKET_BLOCK;
     }
-    flag = (sp->flags & MPR_SOCKET_BLOCK) ? 0 : 1;
-
 #if BLD_WIN_LIKE
+{
+    int flag = (sp->flags & MPR_SOCKET_BLOCK) ? 0 : 1;
     ioctlsocket(sp->fd, FIONBIO, (ulong*) &flag);
+}
 #elif VXWORKS
+{
+    int flag = (sp->flags & MPR_SOCKET_BLOCK) ? 0 : 1;
     ioctl(sp->fd, FIONBIO, (int) &flag);
+}
 #else
-    flag = 0;
     //  TODO - check RC
     if (on) {
         fcntl(sp->fd, F_SETFL, fcntl(sp->fd, F_GETFL) & ~O_NONBLOCK);
@@ -18757,7 +18744,7 @@ int mprGetSocketInfo(cchar *ip, int port, int *family, int *protocol, struct soc
 
     ss = MPR->socketService;
 
-    if ((sa = mprAllocObj(struct sockaddr_in, NULL)) == NULL) {
+    if ((sa = mprAllocObj(struct sockaddr_in, 0)) == 0) {
         mprAssert(!MPR_ERR_MEMORY);
         return MPR_ERR_MEMORY;
     }
@@ -23793,22 +23780,22 @@ void mprSleep(MprTime timeout)
  */
 void mprWriteToOsLog(cchar *message, int flags, int level)
 {
-    char    *msg;
+    char    *tag;
     int     sflag;
 
     if (flags & MPR_FATAL_SRC) {
-        msg = "fatal error: ";
+        tag = "fatal error: ";
         sflag = LOG_ERR;
 
     } else if (flags & MPR_ASSERT_SRC) {
-        msg = "program assertion error: ";
+        tag = "program assertion error: ";
         sflag = LOG_WARNING;
 
     } else {
-        msg = "error: ";
+        tag = "error: ";
         sflag = LOG_WARNING;
     }
-    syslog(sflag, "%s", message);
+    syslog(sflag, "%s %s", tag, message);
 }
 
 

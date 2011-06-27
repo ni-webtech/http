@@ -2225,12 +2225,10 @@ extern void mprVirtFree(void *ptr, ssize size);
 #define mprAllocZeroed(size) mprSetAllocName(mprAllocMem(size, MPR_ALLOC_ZERO), MPR_LOC)
 #define mprAllocBlock(size, flags) mprSetAllocName(mprAllocMem(size, flags), MPR_LOC)
 #define mprAllocObj(type, manage) \
-    ((manage != NULL) ? \
-        ((type*) mprSetManager( \
-            mprSetAllocName(mprAllocMem(sizeof(type), MPR_ALLOC_MANAGER | MPR_ALLOC_ZERO), \
-                #type "@" MPR_LOC), \
-            (MprManager) manage)) : \
-        (type*) mprSetAllocName(mprAllocMem(sizeof(type), MPR_ALLOC_ZERO), #type "@" MPR_LOC))
+    ((type*) mprSetManager( \
+        mprSetAllocName(mprAllocMem(sizeof(type), MPR_ALLOC_MANAGER | MPR_ALLOC_ZERO), #type "@" MPR_LOC), (MprManager) manage))
+#define mprAllocStruct(type) \
+        ((type*) mprSetAllocName(mprAllocMem(sizeof(type), MPR_ALLOC_ZERO), #type "@" MPR_LOC))
 
 #if DOXYGEN
 typedef void *Type;
