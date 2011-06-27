@@ -469,14 +469,12 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpRange   *range;
     MprTime     expires;
-    MprPath     *info;
     cchar       *mimeType, *value;
 
     mprAssert(packet->flags == HTTP_PACKET_HEADER);
 
     rx = conn->rx;
     tx = conn->tx;
-    info = &tx->fileInfo;
 
     httpAddHeaderString(conn, "Date", conn->http->currentDate);
 

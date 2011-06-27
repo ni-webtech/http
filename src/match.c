@@ -62,12 +62,10 @@ void httpMatchHandler(HttpConn *conn)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpStage   *handler;
-    HttpHost    *host;
 
     http = conn->http;
     rx = conn->rx;
     tx = conn->tx;
-    host = conn->host;
     handler = 0;
 
     mprAssert(rx->pathInfo);
@@ -254,15 +252,11 @@ static HttpStage *checkDirectory(HttpConn *conn, HttpStage *handler)
 {
     HttpRx      *rx;
     HttpTx      *tx;
-    MprPath     *info;
-    HttpHost    *host;
     HttpUri     *prior;
     char        *path, *pathInfo, *uri;
 
     rx = conn->rx;
     tx = conn->tx;
-    host = conn->host;
-    info = &tx->fileInfo;
     prior = rx->parsedUri;
 
     mprAssert(rx->dir);

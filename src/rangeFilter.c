@@ -69,15 +69,11 @@ static void startRange(HttpQueue *q)
 static void outgoingRangeService(HttpQueue *q)
 {
     HttpPacket  *packet;
-    HttpRange   *range;
     HttpConn    *conn;
-    HttpRx      *rx;
     HttpTx      *tx;
 
     conn = q->conn;
-    rx = conn->rx;
     tx = conn->tx;
-    range = tx->currentRange;
 
     for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
         if (packet->flags & HTTP_PACKET_DATA) {
@@ -105,13 +101,11 @@ static bool applyRange(HttpQueue *q, HttpPacket *packet)
 {
     HttpRange   *range;
     HttpConn    *conn;
-    HttpRx      *rx;
     HttpTx      *tx;
     MprOff      endPacket, length, gap, span;
     ssize       count;
 
     conn = q->conn;
-    rx = conn->rx;
     tx = conn->tx;
     range = tx->currentRange;
 

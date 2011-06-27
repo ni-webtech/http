@@ -218,13 +218,11 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
 bool httpNeedRetry(HttpConn *conn, char **url)
 {
     HttpRx      *rx;
-    HttpTx      *tx;
 
     mprAssert(conn->rx);
 
     *url = 0;
     rx = conn->rx;
-    tx = conn->tx;
 
     if (conn->state < HTTP_STATE_FIRST) {
         return 0;

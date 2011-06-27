@@ -234,12 +234,10 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
  */
 static void traceRequest(HttpConn *conn, HttpPacket *packet)
 {
-    HttpRx  *rx;
     MprBuf  *content;
     cchar   *endp, *ext, *cp;
     int     len, level;
 
-    rx = conn->rx;
     content = packet->content;
     ext = 0;
 
@@ -1319,13 +1317,9 @@ int httpMapToStorage(HttpConn *conn)
 int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
 {
     HttpRx      *rx;
-    HttpTx      *tx;
-    HttpHost    *host;
     HttpUri     *prior;
 
     rx = conn->rx;
-    tx = conn->tx;
-    host = conn->host;
     prior = rx->parsedUri;
 
     if ((rx->parsedUri = httpCreateUri(uri, 0)) == 0) {

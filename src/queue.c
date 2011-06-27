@@ -302,12 +302,10 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
 {
     HttpPacket  *packet;
     HttpQueue   *q;
-    HttpRx      *rx;
     MprBuf      *content;
     ssize       nbytes, len;
 
     q = conn->readq;
-    rx = conn->rx;
     
     while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);

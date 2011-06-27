@@ -781,12 +781,10 @@ void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...)
  */
 static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
 {
-    HttpRx      *rx;
     HttpTx      *tx;
     int         status;
 
     mprAssert(fmt);
-    rx = conn->rx;
     tx = conn->tx;
 
     if (flags & HTTP_ABORT) {

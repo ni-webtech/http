@@ -292,12 +292,10 @@ static void adjustPacketData(HttpQueue *q, MprOff bytes)
  */
 static void adjustSendVec(HttpQueue *q, MprOff written)
 {
-    HttpTx      *tx;
     MprIOVec    *iovec;
     ssize       len;
     int         i, j;
 
-    tx = q->conn->tx;
     iovec = q->iovec;
     for (i = 0; i < q->ioIndex; i++) {
         len = iovec[i].len;
