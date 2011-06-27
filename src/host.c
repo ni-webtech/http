@@ -21,11 +21,10 @@ static void manageHost(HttpHost *host, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(host->name);
+        mprMark(host->ip);
 #if UNUSED
-        mprMark(host->hostname);
-        mprMark(host->logName);
+        mprMark(host->addresses);
 #endif
-        mprMark(host->address);
         mprMark(host->parent);
         mprMark(host->aliases);
         mprMark(host->dirs);
@@ -59,6 +58,9 @@ HttpHost *httpCreateHost(HttpLoc *loc)
         return 0;
     }
     host->mutex = mprCreateLock();
+#if UNUSED
+    host->addresses = mprCreateHash(-1, 0);
+#endif
     host->aliases = mprCreateList(-1, 0);
     host->dirs = mprCreateList(-1, 0);
     host->locations = mprCreateList(-1, 0);
@@ -98,6 +100,9 @@ HttpHost *httpCloneHost(HttpHost *parent)
      */
     host->parent = parent;
     host->aliases = parent->aliases;
+#if UNUSED
+    host->addresses = mprCloneHash(parent->addresses);
+#endif
     host->dirs = parent->dirs;
     host->locations = parent->locations;
     host->flags = parent->flags | HTTP_HOST_VHOST;
@@ -150,39 +155,32 @@ void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
 }
 
 
-void httpSetHostAddress(HttpHost *host, cchar *name, int port)
+/*
+    Set the host name intelligently from the name specified by ip:port. Port may be set to -1 and ip may contain a port
+    specifier, ie. "address:port". This routines sets host->name and host->ip, host->port which is used for vhost matching.
+ */
+void httpSetHostName(HttpHost *host, cchar *ip, int port)
 {
-    if (name) {
+    if (port < 0 && schr(ip, ':')) {
+        char *pip;
+        mprParseIp(ip, &pip, &port, -1);
+        ip = pip;
+    }
+    if (ip) {
         if (port > 0) {
-            host->address = mprAsprintf("%s:%d", name, port);
+            host->name = mprAsprintf("%s:%d", ip, port);
         } else {
-            host->address = sclone(name);
+            host->name = sclone(ip);
         }
     } else {
         mprAssert(port > 0);
-        host->address = mprAsprintf("*:%d", port);
+        host->name = mprAsprintf("*:%d", port);
     }
-    if (host->name == 0) {
-        host->name = host->address;
+    if (scmp(ip, "default") != 0) {
+        host->ip = sclone(ip);
+        host->port = port;
     }
 }
-
-
-/*
-    Name can be an IP or a textual hostname
- */
-void httpSetHostName(HttpHost *host, cchar *name)
-{
-    host->name = sclone(name);
-}
-
-
-#if UNUSED
-void httpSetHostLogName(HttpHost *host, cchar *name)
-{
-    host->logName = sclone(name);
-}
-#endif
 
 
 void httpSetHostProtocol(HttpHost *host, cchar *protocol)

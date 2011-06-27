@@ -2721,9 +2721,9 @@ extern void httpSetWriteBlocked(HttpConn *conn);
 
 /********************************* HttpServer ***********************************/
 /*  
-    Flags
+    Server flags
  */
-#define HTTP_IPADDR_VHOST 0x1
+#define HTTP_NAMED_VHOST    0x1             /**< Using named virtual hosting */
 
 /** 
     Server listening endpoint. Servers may have multiple virtual named hosts.
@@ -2879,14 +2879,16 @@ extern HttpServer *httpCreateConfiguredServer(cchar *docRoot, cchar *ip, int por
     @see HttpHost
 */
 typedef struct HttpHost {
-    char            *name;                  /**< ServerName directive (may include port) - used for redirects */
-    char            *address;                /**< Virtual host listening address */
-#if UNUSED
-    char            *hostname;              /**< Hostname portion of name */
-    char            *logName;               /**< Host name used in logs */
-#endif
-    struct HttpHost *parent;                /**< Parent host to inherit aliases, dirs, locations */
+    /*
+        NOTE: the ip:port names are used for vhost matching when there is only one such address. Otherwise a host may
+        be associated with multiple servers. In that case, the ip:port will store only one of these addresses and 
+        will not be used for matching.
+     */
+    char            *name;                  /**< Host name. Used for vhosting and redirects */
+    char            *ip;                    /**< Hostname/ip portion parsed from name */
+    int             port;                   /**< Port address portion parsed from name */
 
+    struct HttpHost *parent;                /**< Parent host to inherit aliases, dirs, locations */
     MprList         *aliases;               /**< List of Alias definitions */
     MprList         *dirs;                  /**< List of Directory definitions */
     MprList         *locations;             /**< List of Location defintions */
@@ -2898,11 +2900,6 @@ typedef struct HttpHost {
 
     char            *documentRoot;          /**< Default directory for web documents */
     char            *serverRoot;            /**< Directory for configuration files */
-
-#if UNUSED
-    char            *ip;                    /**< IP address. May be null if listening on all interfaces */
-    int             port;                   /**< Listening port number */
-#endif
 
     int             traceLevel;             /**< Trace activation level */
     int             traceMaxLength;         /**< Maximum trace file length (if known) */
@@ -2937,13 +2934,9 @@ extern HttpLoc *httpLookupLocation(HttpHost *host, cchar *prefix);
 extern HttpDir *httpLookupBestDir(HttpHost *host, cchar *path);
 extern char *httpMakePath(HttpHost *host, cchar *file);
 extern char *httpReplaceReferences(HttpHost *host, cchar *str);
-extern void httpSetHostAddress(HttpHost *host, cchar *ip, int port);
 extern void httpSetHostDocumentRoot(HttpHost *host, cchar *dir);
-#if UNUSED
-extern void httpSetHostLogName(HttpHost *host, cchar *name);
-#endif
 extern void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize);
-extern void httpSetHostName(HttpHost *host, cchar *name);
+extern void httpSetHostName(HttpHost *host, cchar *ip, int port);
 extern void httpSetHostAddress(HttpHost *host, cchar *ip, int port);
 extern void httpSetHostProtocol(HttpHost *host, cchar *protocol);
 extern void httpSetHostTrace(HttpHost *host, int level, int mask);

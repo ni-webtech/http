@@ -973,7 +973,7 @@ static void finishThread(MprThread *tp)
         mprLock(app->mutex);
         app->activeLoadThreads--;
         if (--app->activeLoadThreads <= 0) {
-            mprTerminate(MPR_EXIT_DEFAULT);
+            mprTerminate(MPR_EXIT_DEFAULT, -1);
         }
         mprUnlock(app->mutex);
     }

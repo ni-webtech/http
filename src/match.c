@@ -23,30 +23,27 @@ void httpMatchHost(HttpConn *conn)
     MprSocket       *listenSock;
     HttpServer      *server;
     HttpHost        *host;
-    HttpRx          *rx;
     Http            *http;
 
     http = conn->http;
     listenSock = conn->sock->listenSock;
 
-    server = httpLookupServer(http, listenSock->ip, listenSock->port);
-    if (server == 0 || (host = mprGetFirstItem(server->hosts)) == 0) {
-        mprError("No host to serve request from %s:%d", listenSock->ip, listenSock->port);
+    if ((server = httpLookupServer(http, listenSock->ip, listenSock->port)) == 0) {
+        mprError("No server for request from %s:%d", listenSock->ip, listenSock->port);
         mprCloseSocket(conn->sock, 0);
         return;
     }
-    mprAssert(host);
-
     if (httpIsNamedVirtualServer(server)) {
-        rx = conn->rx;
-        if ((host = httpLookupHost(server, rx->hostHeader)) == 0) {
-            httpSetConnHost(conn, host);
-            httpError(conn, HTTP_CODE_NOT_FOUND, "No host to serve request. Searching for %s", rx->hostHeader);
-            conn->host = mprGetFirstItem(server->hosts);
-            return;
-        }
+        host = httpLookupHost(server, conn->rx->hostHeader);
+    } else {
+        host = mprGetFirstItem(server->hosts);
     }
-    mprAssert(host);
+    if (host == 0) {
+        httpSetConnHost(conn, 0);
+        httpError(conn, HTTP_CODE_NOT_FOUND, "No host to serve request. Searching for %s", conn->rx->hostHeader);
+        conn->host = mprGetFirstItem(server->hosts);
+        return;
+    }
     mprLog(4, "Select host: \"%s\"", host->name);
     conn->host = host;
 }

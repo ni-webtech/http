@@ -39,7 +39,7 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
 
     if (flags & HTTP_CREATE_HOST) {
         host = httpCreateHost(server->loc);
-        httpSetHostAddress(host, ip, port);
+        httpSetHostName(host, ip, port);
         httpAddHostToServer(server, host);
     }
     return server;
@@ -323,6 +323,7 @@ int httpGetServerAsync(HttpServer *server)
 }
 
 
+//  MOB - rename. This could be a "restart"
 void httpSetServerAddress(HttpServer *server, cchar *ip, int port)
 {
     if (ip) {
@@ -331,14 +332,6 @@ void httpSetServerAddress(HttpServer *server, cchar *ip, int port)
     if (port >= 0) {
         server->port = port;
     }
-#if XXX
-    HttpHost    *host;
-
-    int         next;
-    for (next = 0; (host = mprGetNextItem(server->hosts, &next)) != 0; ) {
-        httpSetHostAddress(host, ip, port);
-    }
-#endif
     if (server->sock) {
         httpStopServer(server);
         httpStartServer(server);
@@ -456,24 +449,32 @@ void httpAddHostToServer(HttpServer *server, HttpHost *host)
 
 bool httpIsNamedVirtualServer(HttpServer *server)
 {
-    return server->flags & HTTP_IPADDR_VHOST;
+    return server->flags & HTTP_NAMED_VHOST;
 }
 
 
 void httpSetNamedVirtualServer(HttpServer *server)
 {
-    server->flags |= HTTP_IPADDR_VHOST;
+    server->flags |= HTTP_NAMED_VHOST;
 }
 
 
 HttpHost *httpLookupHost(HttpServer *server, cchar *name)
 {
     HttpHost    *host;
-    int         next;
+    char        *ip;
+    int         next, port;
+
+    if (name == 0) {
+        return mprGetFirstItem(server->hosts);
+    }
+    mprParseIp(name, &ip, &port, -1);
 
     for (next = 0; (host = mprGetNextItem(server->hosts, &next)) != 0; ) {
-        if (name == 0 || strcmp(name, host->name) == 0) {
-            return host;
+        if (host->port <= 0 || port <= 0 || host->port == port) {
+            if (*host->ip == '\0' || *ip == '\0' || scmp(host->ip, ip) == 0) {
+                return host;
+            }
         }
     }
     return 0;

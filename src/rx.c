@@ -1555,7 +1555,7 @@ static bool parseRange(HttpConn *conn, char *value)
     stok(value, "=", &value);
 
     for (last = 0; value && *value; ) {
-        if ((range = mprAllocObj(HttpRange, NULL)) == 0) {
+        if ((range = mprAllocObj(HttpRange, manageRange)) == 0) {
             return 0;
         }
         /*  

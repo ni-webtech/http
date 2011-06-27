@@ -205,30 +205,6 @@ HttpServer *httpGetFirstServer(Http *http)
 }
 
 
-#if UNUSED
-int httpAddHostToServers(Http *http, struct HttpHost *host)
-{
-    HttpServer  *server;
-    char        *ip;
-    int         next, count, port;
-
-    mprParseIp(host->address, &ip, &port, -1);
-    mprAssert(ip);
-
-    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
-        if (server->port <= 0 || port <= 0 || server->port == port) {
-            mprAssert(server->ip);
-            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
-                httpAddHostToServer(server, host);
-                count++;
-            }
-        }
-    }
-    return (count == 0) ? MPR_ERR_CANT_FIND : 0;
-}
-#endif
-
-
 void httpAddHost(Http *http, HttpHost *host)
 {
     mprAddItem(http->hosts, host);
@@ -304,7 +280,7 @@ HttpLimits *httpCreateLimits(int serverSide)
 {
     HttpLimits  *limits;
 
-    if ((limits = mprAllocObj(HttpLimits, NULL)) != 0) {
+    if ((limits = mprAllocStruct(HttpLimits)) != 0) {
         httpInitLimits(limits, serverSide);
     }
     return limits;

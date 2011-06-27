@@ -395,7 +395,7 @@ static int setupUnixSignals()
 static void catchSignal(int signo, siginfo_t *info, void *arg)
 {
     cleanup();
-    mprTerminate(0);
+    mprTerminate(0, -1);
 }
 
 

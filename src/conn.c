@@ -727,9 +727,10 @@ HttpLimits *httpSetUniqueConnLimits(HttpConn *conn)
 {
     HttpLimits      *limits;
 
-    limits = mprAllocObj(HttpLimits, NULL);
-    *limits = *conn->limits;
-    conn->limits = limits;
+    if ((limits = mprAllocStruct(HttpLimits)) != 0) {
+        *limits = *conn->limits;
+        conn->limits = limits;
+    }
     return limits;
 }
 
