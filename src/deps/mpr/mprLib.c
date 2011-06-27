@@ -682,13 +682,16 @@ static MprMem *growHeap(ssize required, int flags)
         spare = (MprMem*) ((char*) mp + required);
         INIT_BLK(spare, spareLen, 0, 1, mp);
         CHECK(spare);
-    }
-    lockHeap();
-    INC(allocs);
-    if (spareLen > 0) {
+        lockHeap();
+        INC(allocs);
         linkBlock(spare);
+        unlockHeap();
+    } else {
+        //  OPT
+        lockHeap();
+        INC(allocs);
+        unlockHeap();
     }
-    unlockHeap();
     return mp;
 }
 
@@ -8666,7 +8669,7 @@ static void serviceIO(MprWaitService *ws, int count)
         if ((wp = ws->handlerMap[fd]) == 0) {
             char    buf[128];
             if ((ev->events & (EPOLLIN | EPOLLERR | EPOLLHUP)) && (fd == ws->breakPipe[MPR_READ_PIPE])) {
-                (void) read(fd, buf, sizeof(buf));
+                if (read(fd, buf, sizeof(buf)) < 0) {}
             }
             continue;
         }
@@ -8709,7 +8712,7 @@ void mprWakeNotifier()
     if (!ws->wakeRequested) {
         ws->wakeRequested = 1;
         c = 0;
-        (void) write(ws->breakPipe[MPR_WRITE_PIPE], (char*) &c, 1);
+        if (write(ws->breakPipe[MPR_WRITE_PIPE], (char*) &c, 1) < 0) {};
     }
 }
 
@@ -12001,10 +12004,10 @@ void mprStaticError(cchar *fmt, ...)
     mprSprintfv(buf, sizeof(buf), fmt, args);
     va_end(args);
 #if BLD_UNIX_LIKE || VXWORKS
-    (void) write(2, (char*) buf, slen(buf));
-    (void) write(2, (char*) "\n", 1);
+    if (write(2, (char*) buf, slen(buf)) < 0) {}
+    if (write(2, (char*) "\n", 1) < 0) {}
 #elif BLD_WIN_LIKE
-    (void) fprintf(stderr, "%s\n", buf);
+    if (fprintf(stderr, "%s\n", buf) < 0) {}
 #endif
     mprBreakpoint();
 }
@@ -12027,9 +12030,9 @@ void mprAssertError(cchar *loc, cchar *msg)
         msg = buf;
     }
 #if BLD_UNIX_LIKE || VXWORKS
-    (void) write(2, (char*) msg, slen(msg));
+    if (write(2, (char*) msg, slen(msg)) < 0) {}
 #elif BLD_WIN_LIKE
-    (void) fprintf(stderr, "%s\n", msg);
+    if (fprintf(stderr, "%s\n", msg) < 0) {}
 #endif
     mprBreakpoint();
 #endif
