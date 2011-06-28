@@ -41,7 +41,7 @@ static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir)
 {
     HttpTx  *tx;
 
-    if (dir & HTTP_STAGE_OUTGOING) {
+    if (dir & HTTP_STAGE_TX) {
         /*
             Don't match if chunking is explicitly turned off vi a the X_APPWEB_CHUNK_SIZE header which sets the chunk 
             size to zero. Also remove if the response length is already known.

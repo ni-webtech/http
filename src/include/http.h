@@ -989,8 +989,8 @@ extern void httpMarkQueueHead(HttpQueue *q);
 #define HTTP_STAGE_VERIFY_ENTITY  0x800000          /**< Verify the request entity exists */
 #define HTTP_STAGE_MISSING_EXT    0x1000000         /**< Support URIs with missing extensions */
 #define HTTP_STAGE_UNLOADED       0x2000000         /**< Stage module library has been unloaded */
-#define HTTP_STAGE_INCOMING       0x4000000         /**< Flag for AddFilter to specify pipeline direction */
-#define HTTP_STAGE_OUTGOING       0x8000000         /**< Flag for AddFilter to specify pipeline direction */
+#define HTTP_STAGE_RX             0x4000000         /**< Stage to be used in the Rx direction */
+#define HTTP_STAGE_TX             0x8000000         /**< Stage to be used in the Tx direction */
 
 typedef int (*HttpParse)(Http *http, cchar *key, char *value, void *state);
 
@@ -1032,7 +1032,7 @@ typedef struct HttpStage {
             handle a request, it will be removed from the pipeline for the specified direction.
         @param conn HttpConn connection object
         @param stage Stage object
-        @param dir Direction. Set to HTTP_INCOMING or HTTP_OUTGOING. 
+        @param dir Direction. Set to HTTP_RX or HTTP_TX. 
         @return True if the stage wishes to process this request.
         @ingroup HttpStage
      */

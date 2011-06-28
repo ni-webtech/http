@@ -36,7 +36,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
 
     if (loc->outputStages) {
         for (next = 0; (filter = mprGetNextItem(loc->outputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter, HTTP_STAGE_OUTGOING)) {
+            if (matchFilter(conn, filter, HTTP_STAGE_TX)) {
                 mprAddItem(tx->outputPipeline, filter);
             }
         }
@@ -62,7 +62,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         mprAddItem(rx->inputPipeline, http->netConnector);
         if (loc) {
             for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
-                if (!matchFilter(conn, filter, HTTP_STAGE_INCOMING)) {
+                if (!matchFilter(conn, filter, HTTP_STAGE_RX)) {
                     continue;
                 }
                 mprAddItem(rx->inputPipeline, filter);
@@ -168,7 +168,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandl
 
     if (loc->outputStages) {
         for (next = 0; (filter = mprGetNextItem(loc->outputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter, HTTP_STAGE_OUTGOING)) {
+            if (matchFilter(conn, filter, HTTP_STAGE_TX)) {
                 mprAddItem(tx->outputPipeline, filter);
             }
         }
@@ -240,7 +240,7 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
     mprAddItem(rx->inputPipeline, http->netConnector);
     if (loc) {
         for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
-            if (!matchFilter(conn, filter, HTTP_STAGE_INCOMING)) {
+            if (!matchFilter(conn, filter, HTTP_STAGE_RX)) {
                 continue;
             }
             mprAddItem(rx->inputPipeline, filter);

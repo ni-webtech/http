@@ -40,7 +40,7 @@ static bool matchRange(HttpConn *conn, HttpStage *handler, int dir)
 {
     mprAssert(conn->rx);
 
-    return ((dir & HTTP_STAGE_OUTGOING) && conn->tx->outputRanges) ? 1 : 0;
+    return ((dir & HTTP_STAGE_TX) && conn->tx->outputRanges) ? 1 : 0;
 }
 
 

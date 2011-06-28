@@ -69,7 +69,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
     http = conn->http;
     auth = rx->auth;
 
-    if (!(dir & HTTP_STAGE_INCOMING) || !conn->server || auth == 0 || auth->type == 0) {
+    if (!(dir & HTTP_STAGE_RX) || !conn->server || auth == 0 || auth->type == 0) {
         return 0;
     }
     if ((ad = mprAllocStruct(AuthData)) == 0) {

@@ -247,10 +247,10 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
         }
     }
     graduate(loc);
-    if (direction & HTTP_STAGE_INCOMING) {
+    if (direction & HTTP_STAGE_RX) {
         mprAddItem(loc->inputStages, filter);
     }
-    if (direction & HTTP_STAGE_OUTGOING) {
+    if (direction & HTTP_STAGE_TX) {
         mprAddItem(loc->outputStages, filter);
     }
     return 0;
@@ -291,10 +291,10 @@ void httpAddLocationExpiryByType(HttpLoc *loc, MprTime when, cchar *mimeTypes)
 
 void httpClearStages(HttpLoc *loc, int direction)
 {
-    if (direction & HTTP_STAGE_INCOMING) {
+    if (direction & HTTP_STAGE_RX) {
         loc->inputStages = mprCreateList(-1, 0);
     }
-    if (direction & HTTP_STAGE_OUTGOING) {
+    if (direction & HTTP_STAGE_TX) {
         loc->outputStages = mprCreateList(-1, 0);
     }
 }

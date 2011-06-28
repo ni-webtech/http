@@ -74,7 +74,7 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter, int dir)
     char    *pat;
     ssize   len;
     
-    if (!(dir & HTTP_STAGE_INCOMING)) {
+    if (!(dir & HTTP_STAGE_RX)) {
         return 0;
     }
     rx = conn->rx;
