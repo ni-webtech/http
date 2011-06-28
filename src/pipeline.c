@@ -1,5 +1,5 @@
 /*
-    pipeline.c -- HTTP pipeline processing.
+    pipeline.c -- HTTP pipeline processing. 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
@@ -10,148 +10,18 @@
 /********************************** Forward ***********************************/
 
 static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir);
+static void openQueues(HttpConn *conn);
+static void pairQueues(HttpConn *conn);
 static void setVars(HttpConn *conn);
 
 /*********************************** Code *************************************/
-#if UNUSED
-void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler)
-{
-    Http        *http;
-    HttpTx      *tx;
-    HttpRx      *rx;
-    HttpQueue   *q, *qhead, *rq, *rqhead;
-    HttpStage   *stage, *filter;
-    int         next;
-
-    http = conn->http;
-    rx = conn->rx;
-    tx = conn->tx;
-
-    mprAssert(!conn->server || tx->filename);
-    loc = (loc) ? loc : http->clientLocation;
-
-    tx->outputPipeline = mprCreateList(-1, 0);
-    tx->handler = proposedHandler ? proposedHandler : http->passHandler;
-    mprAddItem(tx->outputPipeline, tx->handler);
-
-    if (loc->outputStages) {
-        for (next = 0; (filter = mprGetNextItem(loc->outputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter, HTTP_STAGE_TX)) {
-                mprAddItem(tx->outputPipeline, filter);
-            }
-        }
-    }
-    if (tx->connector == 0) {
-        if (tx->handler == http->fileHandler && rx->flags & HTTP_GET && !tx->outputRanges && 
-                !conn->secure && tx->chunkSize <= 0 &&
-                httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->extension) < 0) {
-            tx->connector = http->sendConnector;
-        } else if (loc && loc->connector) {
-            tx->connector = loc->connector;
-        } else {
-            tx->connector = http->netConnector;
-        }
-    }
-    mprAddItem(tx->outputPipeline, tx->connector);
-
-    /*  
-        Create the receive pipeline for this request
-     */
-    if (rx->needInputPipeline) {
-        rx->inputPipeline = mprCreateList(-1, 0);
-        mprAddItem(rx->inputPipeline, http->netConnector);
-        if (loc) {
-            for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
-                if (!matchFilter(conn, filter, HTTP_STAGE_RX)) {
-                    continue;
-                }
-                mprAddItem(rx->inputPipeline, filter);
-            }
-        }
-        mprAddItem(rx->inputPipeline, tx->handler);
-    }
-    
-    /* Set the zero'th entry Incase a filter changed tx->handler */
-    mprSetItem(tx->outputPipeline, 0, tx->handler);
-
-    /*  Create the outgoing queue heads and open the queues */
-    q = tx->queue[HTTP_QUEUE_TX];
-    for (next = 0; (stage = mprGetNextItem(tx->outputPipeline, &next)) != 0; ) {
-        q = httpCreateQueue(conn, stage, HTTP_QUEUE_TX, q);
-    }
-
-    /*  Create the incoming queue heads and open the queues.  */
-    q = tx->queue[HTTP_QUEUE_RX];
-    for (next = 0; (stage = mprGetNextItem(rx->inputPipeline, &next)) != 0; ) {
-        q = httpCreateQueue(conn, stage, HTTP_QUEUE_RX, q);
-    }
-    if ((tx->handler->flags & HTTP_STAGE_VERIFY_ENTITY) && !tx->fileInfo.valid && !(rx->flags & HTTP_PUT)) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
-    }
-
-    /*
-        Create form and environment vars if required
-     */
-    setVars(conn);
-
-    conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
-    conn->readq = tx->queue[HTTP_QUEUE_RX]->prevQ;
-    conn->connq = tx->queue[HTTP_QUEUE_TX]->prevQ;
-    httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
-
-    /*  
-        Pair up the send and receive queues
-     */
-    qhead = tx->queue[HTTP_QUEUE_TX];
-    rqhead = tx->queue[HTTP_QUEUE_RX];
-    mprAssert(q->nextQ != qhead);
-    for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
-        for (rq = rqhead->nextQ; rq != rqhead; rq = rq->nextQ) {
-            if (q->stage == rq->stage) {
-                q->pair = rq;
-                rq->pair = q;
-            }
-        }
-    }
-
-    /*  
-        Open the queues (keep going on errors). Open in data flow order (input first). Handler is last.
-     */
-    if (rx->needInputPipeline) {
-        qhead = tx->queue[HTTP_QUEUE_RX];
-        for (q = qhead->nextQ; q->nextQ != qhead; q = q->nextQ) {
-            if (q->open && !(q->flags & (HTTP_QUEUE_OPEN))) {
-                if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
-                    q->flags |= HTTP_QUEUE_OPEN;
-                    httpOpenQueue(q, conn->tx->chunkSize);
-                }
-            }
-        }
-    }
-    qhead = tx->queue[HTTP_QUEUE_TX];
-    for (q = qhead->prevQ; q->prevQ != qhead; q = q->prevQ) {
-        if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
-            q->flags |= HTTP_QUEUE_OPEN;
-            httpOpenQueue(q, conn->tx->chunkSize);
-        }
-    }
-    /* Open the handler last */
-    q = qhead->nextQ;
-    if (q->open) {
-        mprAssert(!(q->flags & HTTP_QUEUE_OPEN));
-        q->flags |= HTTP_QUEUE_OPEN;
-        httpOpenQueue(q, conn->tx->chunkSize);
-    }
-}
-#endif
-
 
 void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler)
 {
     Http        *http;
     HttpTx      *tx;
     HttpRx      *rx;
-    HttpQueue   *q, *qhead;
+    HttpQueue   *q;
     HttpStage   *stage, *filter;
     int         next;
 
@@ -191,31 +61,15 @@ void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandl
     for (next = 0; (stage = mprGetNextItem(tx->outputPipeline, &next)) != 0; ) {
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_TX, q);
     }
+    conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
+    conn->connq = tx->queue[HTTP_QUEUE_TX]->prevQ;
 
     if ((tx->handler->flags & HTTP_STAGE_VERIFY_ENTITY) && !tx->fileInfo.valid && !(rx->flags & HTTP_PUT)) {
         httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
     }
-
     setVars(conn);
-    conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
-    conn->connq = tx->queue[HTTP_QUEUE_TX]->prevQ;
-
-    qhead = tx->queue[HTTP_QUEUE_TX];
-    for (q = qhead->prevQ; q->prevQ != qhead; q = q->prevQ) {
-        if (q->open && !(q->flags & HTTP_QUEUE_OPEN)) {
-            q->flags |= HTTP_QUEUE_OPEN;
-            httpOpenQueue(q, conn->tx->chunkSize);
-        }
-    }
-    /* 
-        Open the handler 
-     */
-    q = qhead->nextQ;
-    if (q->open) {
-        mprAssert(!(q->flags & HTTP_QUEUE_OPEN));
-        q->flags |= HTTP_QUEUE_OPEN;
-        httpOpenQueue(q, conn->tx->chunkSize);
-    }
+    pairQueues(conn);
+    openQueues(conn);
     httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
 }
 
@@ -225,7 +79,7 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
     Http        *http;
     HttpTx      *tx;
     HttpRx      *rx;
-    HttpQueue   *q, *qhead, *rqhead, *rq;
+    HttpQueue   *q;
     HttpStage   *stage, *filter;
     int         next;
 
@@ -247,9 +101,10 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
         }
     }
     mprAddItem(rx->inputPipeline, tx->handler);
-    /* Set the zero'th entry Incase a filter changed tx->handler */
-    mprSetItem(tx->outputPipeline, 0, tx->handler);
-
+    if (tx->outputPipeline) {
+        /* Set the zero'th entry Incase a filter changed tx->handler */
+        mprSetItem(tx->outputPipeline, 0, tx->handler);
+    }
     /*  Create the incoming queue heads and open the queues.  */
     q = tx->queue[HTTP_QUEUE_RX];
     for (next = 0; (stage = mprGetNextItem(rx->inputPipeline, &next)) != 0; ) {
@@ -257,30 +112,47 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
     }
     conn->readq = tx->queue[HTTP_QUEUE_RX]->prevQ;
 
-    /*  
-        Pair up the send and receive queues
-     */
+    pairQueues(conn);
+    openQueues(conn);
+}
+
+
+static void pairQueues(HttpConn *conn)
+{
+    HttpTx      *tx;
+    HttpQueue   *q, *qhead, *rq, *rqhead;
+
+    tx = conn->tx;
     qhead = tx->queue[HTTP_QUEUE_TX];
     rqhead = tx->queue[HTTP_QUEUE_RX];
-    mprAssert(q->nextQ != qhead);
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
-        for (rq = rqhead->nextQ; rq != rqhead; rq = rq->nextQ) {
-            if (q->stage == rq->stage) {
-                q->pair = rq;
-                rq->pair = q;
+        if (q->pair == 0) {
+            for (rq = rqhead->nextQ; rq != rqhead; rq = rq->nextQ) {
+                if (q->stage == rq->stage) {
+                    q->pair = rq;
+                    rq->pair = q;
+                }
             }
         }
     }
+}
 
-    /*
-        Open queues
-     */
-    qhead = tx->queue[HTTP_QUEUE_RX];
-    for (q = qhead->nextQ; q->nextQ != qhead; q = q->nextQ) {
-        if (q->open && !(q->flags & (HTTP_QUEUE_OPEN))) {
-            if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
-                q->flags |= HTTP_QUEUE_OPEN;
-                httpOpenQueue(q, conn->tx->chunkSize);
+
+static void openQueues(HttpConn *conn)
+{
+    HttpTx      *tx;
+    HttpQueue   *q, *qhead;
+    int         i;
+
+    tx = conn->tx;
+    for (i = 0; i < HTTP_MAX_QUEUE; i++) {
+        qhead = tx->queue[i];
+        for (q = qhead->nextQ; q->nextQ != qhead; q = q->nextQ) {
+            if (q->open && !(q->flags & (HTTP_QUEUE_OPEN))) {
+                if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
+                    q->flags |= HTTP_QUEUE_OPEN;
+                    httpOpenQueue(q, conn->tx->chunkSize);
+                }
             }
         }
     }

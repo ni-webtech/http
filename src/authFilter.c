@@ -69,6 +69,13 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
     http = conn->http;
     auth = rx->auth;
 
+#if BLD_DEBUG
+    if (dir & HTTP_STAGE_TX) {
+        mprError("AuthFilter configured as output filter. It should be configured as an input filter.");
+        formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
+        return 1;
+    }
+#endif
     if (!(dir & HTTP_STAGE_RX) || !conn->server || auth == 0 || auth->type == 0) {
         return 0;
     }

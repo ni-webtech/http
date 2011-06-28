@@ -220,8 +220,8 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         mprLog(4, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
         httpSetState(conn, HTTP_STATE_PARSED);        
         /* Clients have already created their Tx pipeline */
-        httpCreateTxPipeline(conn, loc, tx->handler);
         httpCreateRxPipeline(conn, loc);
+        httpCreateTxPipeline(conn, loc, tx->handler);
         rx->startAfterContent = (loc->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && loc->flags & HTTP_LOC_SMART));
 
     //  MOB - what happens if server responds to client with other status
