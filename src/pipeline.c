@@ -16,7 +16,7 @@ static void setVars(HttpConn *conn);
 
 /*********************************** Code *************************************/
 
-void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler)
+void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc)
 {
     Http        *http;
     HttpTx      *tx;
@@ -33,7 +33,9 @@ void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandl
     tx = conn->tx;
 
     tx->outputPipeline = mprCreateList(-1, 0);
-    tx->handler = proposedHandler ? proposedHandler : http->passHandler;
+    if (tx->handler == 0) {
+        tx->handler = http->passHandler;
+    }
     mprAddItem(tx->outputPipeline, tx->handler);
 
     if (loc->outputStages) {
@@ -91,7 +93,9 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
     tx = conn->tx;
 
     rx->inputPipeline = mprCreateList(-1, 0);
+#if UNUSED
     mprAddItem(rx->inputPipeline, http->netConnector);
+#endif
     if (loc) {
         for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
             if (!matchFilter(conn, filter, HTTP_STAGE_RX)) {
@@ -101,10 +105,7 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
         }
     }
     mprAddItem(rx->inputPipeline, tx->handler);
-    if (tx->outputPipeline) {
-        /* Set the zero'th entry Incase a filter changed tx->handler */
-        mprSetItem(tx->outputPipeline, 0, tx->handler);
-    }
+
     /*  Create the incoming queue heads and open the queues.  */
     q = tx->queue[HTTP_QUEUE_RX];
     for (next = 0; (stage = mprGetNextItem(rx->inputPipeline, &next)) != 0; ) {
@@ -112,8 +113,10 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
     }
     conn->readq = tx->queue[HTTP_QUEUE_RX]->prevQ;
 
-    pairQueues(conn);
-    openQueues(conn);
+    if (!conn->server) {
+        pairQueues(conn);
+        openQueues(conn);
+    }
 }
 
 
@@ -147,7 +150,7 @@ static void openQueues(HttpConn *conn)
     tx = conn->tx;
     for (i = 0; i < HTTP_MAX_QUEUE; i++) {
         qhead = tx->queue[i];
-        for (q = qhead->nextQ; q->nextQ != qhead; q = q->nextQ) {
+        for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
             if (q->open && !(q->flags & (HTTP_QUEUE_OPEN))) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_OPEN)) {
                     q->flags |= HTTP_QUEUE_OPEN;

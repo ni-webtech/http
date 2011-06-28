@@ -221,7 +221,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpSetState(conn, HTTP_STATE_PARSED);        
         /* Clients have already created their Tx pipeline */
         httpCreateRxPipeline(conn, loc);
-        httpCreateTxPipeline(conn, loc, tx->handler);
+        httpCreateTxPipeline(conn, loc);
         rx->startAfterContent = (loc->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && loc->flags & HTTP_LOC_SMART));
 
     //  MOB - what happens if server responds to client with other status
