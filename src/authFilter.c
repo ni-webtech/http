@@ -32,7 +32,7 @@ static char *createDigestNonce(cchar *secret, cchar *etag, cchar *realm);
 static void decodeBasicAuth(HttpConn *conn, AuthData *ad);
 static int  decodeDigestDetails(HttpConn *conn, AuthData *ad);
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg);
-static bool matchAuth(HttpConn *conn, HttpStage *handler);
+static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir);
 static int parseDigestNonce(char *nonce, cchar **secret, cchar **etag, cchar **realm, MprTime *when);
 
 /*********************************** Code *************************************/
@@ -51,7 +51,7 @@ int httpOpenAuthFilter(Http *http)
 }
 
 
-static bool matchAuth(HttpConn *conn, HttpStage *handler)
+static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
 {
     Http        *http;
     HttpRx      *rx;
@@ -69,7 +69,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     http = conn->http;
     auth = rx->auth;
 
-    if (!conn->server || auth == 0 || auth->type == 0) {
+    if (!(dir & HTTP_STAGE_INCOMING) || !conn->server || auth == 0 || auth->type == 0) {
         return 0;
     }
     if ((ad = mprAllocStruct(AuthData)) == 0) {
@@ -102,7 +102,6 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Wrong authentication protocol", 0);
         return 1;
     }
-
     /*  
         Some backend methods can't return the password and will simply do everything in validateCred. 
         In this case, they and will return "". That is okay.

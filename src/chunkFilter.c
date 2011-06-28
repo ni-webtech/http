@@ -11,7 +11,7 @@
 /********************************** Forwards **********************************/
 
 static void incomingChunkData(HttpQueue *q, HttpPacket *packet);
-static bool matchChunk(HttpConn *conn, HttpStage *handler);
+static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir);
 static void openChunk(HttpQueue *q);
 static void outgoingChunkService(HttpQueue *q);
 static void setChunkPrefix(HttpQueue *q, HttpPacket *packet);
@@ -37,16 +37,25 @@ int httpOpenChunkFilter(Http *http)
 }
 
 
-static bool matchChunk(HttpConn *conn, HttpStage *handler)
+static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir)
 {
     HttpTx  *tx;
 
-    /*
-        Don't match if chunking is explicitly turned off vi a the X_APPWEB_CHUNK_SIZE header which sets the chunk 
-        size to zero. Also remove if the response length is already known.
-     */
-    tx = conn->tx;
-    return (tx->length < 0 && tx->chunkSize != 0) ? 1 : 0;
+    if (dir & HTTP_STAGE_OUTGOING) {
+        /*
+            Don't match if chunking is explicitly turned off vi a the X_APPWEB_CHUNK_SIZE header which sets the chunk 
+            size to zero. Also remove if the response length is already known.
+         */
+        tx = conn->tx;
+        return (tx->length < 0 && tx->chunkSize != 0) ? 1 : 0;
+
+    } else {
+        /* 
+            Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
+            know what the response data looks like (chunked or not).
+         */
+        return 1;
+    }
 }
 
 
@@ -59,7 +68,9 @@ static void openChunk(HttpQueue *q)
     rx = conn->rx;
 
     q->packetSize = min(conn->limits->chunkSize, q->max);
+#if UNUSED
     rx->chunkState = HTTP_CHUNK_START;
+#endif
 }
 
 

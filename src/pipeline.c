@@ -9,7 +9,7 @@
 
 /********************************** Forward ***********************************/
 
-static bool matchFilter(HttpConn *conn, HttpStage *filter);
+static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir);
 static void setVars(HttpConn *conn);
 
 /*********************************** Code *************************************/
@@ -38,7 +38,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
 
     if (loc->outputStages) {
         for (next = 0; (filter = mprGetNextItem(loc->outputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter)) {
+            if (matchFilter(conn, filter, HTTP_STAGE_OUTGOING)) {
                 mprAddItem(tx->outputPipeline, filter);
             }
         }
@@ -63,7 +63,7 @@ void httpCreatePipeline(HttpConn *conn, HttpLoc *loc, HttpStage *proposedHandler
         mprAddItem(rx->inputPipeline, http->netConnector);
         if (loc) {
             for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
-                if (!matchFilter(conn, filter)) {
+                if (!matchFilter(conn, filter, HTTP_STAGE_INCOMING)) {
                     continue;
                 }
                 mprAddItem(rx->inputPipeline, filter);
@@ -344,13 +344,13 @@ static void setVars(HttpConn *conn)
 /*
     Match a filter by extension
  */
-static bool matchFilter(HttpConn *conn, HttpStage *filter)
+static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir)
 {
     HttpTx      *tx;
 
     tx = conn->tx;
     if (filter->match) {
-        return filter->match(conn, filter);
+        return filter->match(conn, filter, dir);
     }
     if (filter->extensions && tx->extension) {
         return mprLookupKey(filter->extensions, tx->extension) != 0;

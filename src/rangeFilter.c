@@ -15,7 +15,7 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range);
 static HttpPacket *createFinalRangePacket(HttpConn *conn);
 static void outgoingRangeService(HttpQueue *q);
 static bool fixRangeLength(HttpConn *conn);
-static bool matchRange(HttpConn *conn, HttpStage *handler);
+static bool matchRange(HttpConn *conn, HttpStage *handler, int dir);
 static void startRange(HttpQueue *q);
 
 /*********************************** Code *************************************/
@@ -36,11 +36,11 @@ int httpOpenRangeFilter(Http *http)
 }
 
 
-static bool matchRange(HttpConn *conn, HttpStage *handler)
+static bool matchRange(HttpConn *conn, HttpStage *handler, int dir)
 {
     mprAssert(conn->rx);
 
-    return (conn->rx->ranges) ? 1 : 0;
+    return (dir & HTTP_STAGE_INCOMING && conn->rx->ranges) ? 1 : 0;
 }
 
 

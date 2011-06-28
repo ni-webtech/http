@@ -303,7 +303,7 @@ static HttpStage *checkHandler(HttpConn *conn, HttpStage *stage)
     }
     if (stage->match && !(stage->flags & HTTP_STAGE_UNLOADED)) {
         /* Can't have match routines on unloaded modules */
-        if (!stage->match(conn, stage)) {
+        if (!stage->match(conn, stage, HTTP_STAGE_INCOMING | HTTP_STAGE_OUTGOING)) {
             return 0;
         }
     }

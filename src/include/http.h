@@ -1029,13 +1029,14 @@ typedef struct HttpStage {
     /** 
         Match a request
         @description This method is invoked to see if the stage wishes to handle the request. If a stage denies to
-            handle a request, it will be removed from the pipeline.
+            handle a request, it will be removed from the pipeline for the specified direction.
         @param conn HttpConn connection object
         @param stage Stage object
+        @param dir Direction. Set to HTTP_INCOMING or HTTP_OUTGOING. 
         @return True if the stage wishes to process this request.
         @ingroup HttpStage
      */
-    bool (*match)(struct HttpConn *conn, struct HttpStage *stage);
+    bool (*match)(struct HttpConn *conn, struct HttpStage *stage, int dir);
 
     /** 
         Open the queue

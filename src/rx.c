@@ -46,6 +46,7 @@ HttpRx *httpCreateRx(HttpConn *conn)
     rx->scriptName = mprEmptyString();
     rx->needInputPipeline = !conn->server;
     rx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
+    rx->chunkState = HTTP_CHUNK_START;
     return rx;
 }
 
@@ -1122,7 +1123,9 @@ static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
     default:
         mprAssert(0);
     }
+#if UNUSED
     rx->remainingContent = need;
+#endif
     return need;
 }
 
