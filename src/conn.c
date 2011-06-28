@@ -441,7 +441,7 @@ void httpEnableConnEvents(HttpConn *conn)
                 Allow read events even if the current request is not complete. The pipelined request will be buffered 
                 and will be ready when the current request completes.
              */
-            q = tx->queue[HTTP_QUEUE_RECEIVE]->nextQ;
+            q = tx->queue[HTTP_QUEUE_RX]->nextQ;
             if (q->count < q->max) {
                 eventMask |= MPR_READABLE;
             }

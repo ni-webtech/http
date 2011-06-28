@@ -82,7 +82,6 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->referrer);
         mprMark(rx->userAgent);
         mprMark(rx->formVars);
-        mprMark(rx->ranges);
         mprMark(rx->inputRange);
         mprMark(rx->auth);
         mprMark(rx->authAlgorithm);
@@ -220,11 +219,15 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 
         mprLog(4, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
         httpSetState(conn, HTTP_STATE_PARSED);        
-        httpCreatePipeline(conn, loc, tx->handler);
+        /* Clients have already created their Tx pipeline */
+        httpCreateTxPipeline(conn, loc, tx->handler);
+        httpCreateRxPipeline(conn, loc);
         rx->startAfterContent = (loc->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && loc->flags & HTTP_LOC_SMART));
 
+    //  MOB - what happens if server responds to client with other status
     } else if (!(100 <= rx->status && rx->status < 200)) {
         httpSetState(conn, HTTP_STATE_PARSED);        
+        httpCreateRxPipeline(conn, conn->http->clientLocation);
     }
     return 1;
 }
@@ -886,7 +889,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
 
     rx = conn->rx;
     tx = conn->tx;
-    q = tx->queue[HTTP_QUEUE_RECEIVE];
+    q = tx->queue[HTTP_QUEUE_RX];
 
     content = packet->content;
     if (rx->flags & HTTP_CHUNKED) {
@@ -947,7 +950,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     HttpQueue   *q;
 
     rx = conn->rx;
-    q = conn->tx->queue[HTTP_QUEUE_RECEIVE];
+    q = conn->tx->queue[HTTP_QUEUE_RX];
 
     if (conn->connError || rx->remainingContent <= 0) {
         httpSetState(conn, HTTP_STATE_RUNNING);
@@ -1147,8 +1150,8 @@ bool httpContentNotModified(HttpConn *conn)
          */
         modified = (MprTime) tx->fileInfo.mtime * MPR_TICKS_PER_SEC;
         same = httpMatchModified(conn, modified) && httpMatchEtag(conn, tx->etag);
-        if (rx->ranges && !same) {
-            rx->ranges = 0;
+        if (tx->outputRanges && !same) {
+            tx->outputRanges = 0;
         }
         return same;
     }
@@ -1542,10 +1545,12 @@ bool httpMatchModified(HttpConn *conn, MprTime time)
 static bool parseRange(HttpConn *conn, char *value)
 {
     HttpRx      *rx;
+    HttpTx      *tx;
     HttpRange   *range, *last, *next;
     char        *tok, *ep;
 
     rx = conn->rx;
+    tx = conn->tx;
 
     value = sclone(value);
     if (value == 0) {
@@ -1584,7 +1589,7 @@ static bool parseRange(HttpConn *conn, char *value)
             range->len = (int) (range->end - range->start);
         }
         if (last == 0) {
-            rx->ranges = range;
+            tx->outputRanges = range;
         } else {
             last->next = range;
         }
@@ -1594,7 +1599,7 @@ static bool parseRange(HttpConn *conn, char *value)
     /*  
         Validate ranges
      */
-    for (range = rx->ranges; range; range = range->next) {
+    for (range = tx->outputRanges; range; range = range->next) {
         if (range->end != -1 && range->start >= range->end) {
             return 0;
         }
@@ -1615,7 +1620,7 @@ static bool parseRange(HttpConn *conn, char *value)
             }
         }
     }
-    conn->tx->currentRange = rx->ranges;
+    conn->tx->currentRange = tx->outputRanges;
     return (last) ? 1: 0;
 }
 

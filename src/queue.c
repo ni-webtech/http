@@ -43,7 +43,7 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int dir, HttpQueue 
     q->start = stage->start;
     q->direction = dir;
 
-    if (dir == HTTP_QUEUE_TRANS) {
+    if (dir == HTTP_QUEUE_TX) {
         q->put = stage->outgoingData;
         q->service = stage->outgoingService;
         

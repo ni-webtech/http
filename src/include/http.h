@@ -93,7 +93,7 @@ struct HttpUri;
     #define HTTP_CLIENTS_HASH          (1009)
 #endif
 
-#define HTTP_MAX_TRANSMISSION_BODY (INT_MAX)             /**< Max buffer for response data */
+#define HTTP_MAX_TX_BODY           (INT_MAX)        /**< Max buffer for response data */
 #define HTTP_MAX_UPLOAD            (INT_MAX)
 
 /*  
@@ -713,8 +713,8 @@ extern void httpAdjustPacketEnd(HttpPacket *packet, MprOff size);
 /*  
     Queue directions
  */
-#define HTTP_QUEUE_TRANS          0           /**< Send (transmit to client) queue */
-#define HTTP_QUEUE_RECEIVE        1           /**< Receive (read from client) queue */
+#define HTTP_QUEUE_TX             0           /**< Send (transmit to client) queue */
+#define HTTP_QUEUE_RX             1           /**< Receive (read from client) queue */
 #define HTTP_MAX_QUEUE            2           /**< Number of queue types */
 
 /* 
@@ -1261,11 +1261,6 @@ extern void httpSendOutgoingService(HttpQueue *q);
 extern void httpHandleOptionsTrace(HttpQueue *q);
 
 /********************************** HttpConn *********************************/
-/* 
-    Connection flags
- */
-#define HTTP_CONN_PIPE_CREATED      0x1     /**< Request pipeline created */
-
 /** 
     Notification flags
  */
@@ -1347,7 +1342,7 @@ extern void httpSetIOCallback(struct HttpConn *conn, HttpIOCallback fn);
     @stability Evolving
     @defgroup HttpConn HttpConn
     @see HttpConn HttpRx HttpRx HttpTx HttpQueue HttpStage
-        httpCreateConn httpCloseConn httpCompleteRequest httpCreatePipeline httpDestroyPipeline httpDiscardTransmitData
+        httpCreateConn httpCloseConn httpCompleteRequest httpCreateRxPipeline httpDestroyPipeline httpDiscardTransmitData
         httpError httpGetAsync httpGetConnContext httpGetError httpGetKeepAliveCount httpPrepConn httpProcessPipeline
         httpServiceQueues httpSetAsync httpSetCredentials httpSetConnContext
         httpSetConnNotifier httpSetKeepAliveCount httpSetProtocol httpSetRetries httpSetState httpSetTimeout
@@ -1491,7 +1486,8 @@ extern void httpDestroyConn(HttpConn *conn);
     @param location Location object controlling how the pipeline is configured for the request
     @param handler Handler to process the request for server side requests
  */
-extern void httpCreatePipeline(HttpConn *conn, struct HttpLoc *location, HttpStage *handler);
+extern void httpCreateTxPipeline(HttpConn *conn, struct HttpLoc *location, HttpStage *handler);
+extern void httpCreateRxPipeline(HttpConn *conn, struct HttpLoc *location);
 
 /**
     Destroy the pipeline
@@ -2093,8 +2089,7 @@ typedef struct HttpRx {
     char            *userAgent;             /**< User-Agent header */
 
     MprHashTable    *formVars;              /**< Query and post data variables */
-    HttpRange       *ranges;                /**< Data ranges for body data */
-    HttpRange       *inputRange;            /**< Specified range for input (post) data */
+    HttpRange       *inputRange;            /**< Specified range for rx (post) data */
 
     /*  
         Auth details
@@ -2368,6 +2363,7 @@ typedef struct HttpTx {
     HttpUri         *parsedUri;             /**< Request uri. Only used for requests */
     MprHashTable    *headers;               /**< Transmission headers */
 
+    HttpRange       *outputRanges;          /**< Data ranges for tx data */
     HttpRange       *currentRange;          /**< Current range being fullfilled */
     char            *rangeBoundary;         /**< Inter-range boundary */
     MprOff          rangePos;               /**< Current range I/O position in response data */

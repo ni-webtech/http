@@ -40,7 +40,7 @@ static bool matchRange(HttpConn *conn, HttpStage *handler, int dir)
 {
     mprAssert(conn->rx);
 
-    return (dir & HTTP_STAGE_INCOMING && conn->rx->ranges) ? 1 : 0;
+    return ((dir & HTTP_STAGE_OUTGOING) && conn->tx->outputRanges) ? 1 : 0;
 }
 
 
@@ -53,13 +53,13 @@ static void startRange(HttpQueue *q)
     conn = q->conn;
     tx = conn->tx;
     rx = conn->rx;
-    mprAssert(rx->ranges);
+    mprAssert(tx->outputRanges);
 
     if (tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
         httpRemoveQueue(q);
     } else {
         tx->status = HTTP_CODE_PARTIAL;
-        if (rx->ranges->next) {
+        if (tx->outputRanges->next) {
             createRangeBoundary(conn);
         }
     }
@@ -239,7 +239,7 @@ static bool fixRangeLength(HttpConn *conn)
     tx = conn->tx;
     length = tx->entityLength ? tx->entityLength : tx->length;
 
-    for (range = rx->ranges; range; range = range->next) {
+    for (range = tx->outputRanges; range; range = range->next) {
         /*
                 Range: 0-49             first 50 bytes
                 Range: 50-99,200-249    Two 50 byte ranges from 50 and 200

@@ -28,8 +28,8 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
     tx->traceMethods = HTTP_STAGE_ALL;
     tx->chunkSize = -1;
 
-    tx->queue[HTTP_QUEUE_TRANS] = httpCreateQueueHead(conn, "TxHead");
-    tx->queue[HTTP_QUEUE_RECEIVE] = httpCreateQueueHead(conn, "RxHead");
+    tx->queue[HTTP_QUEUE_TX] = httpCreateQueueHead(conn, "TxHead");
+    tx->queue[HTTP_QUEUE_RX] = httpCreateQueueHead(conn, "RxHead");
 
     if (headers) {
         tx->headers = headers;
@@ -64,6 +64,7 @@ static void manageTx(HttpTx *tx, int flags)
         mprMark(tx->queue[0]);
         mprMark(tx->queue[1]);
         mprMark(tx->parsedUri);
+        mprMark(tx->outputRanges);
         mprMark(tx->currentRange);
         mprMark(tx->headers);
         mprMark(tx->rangeBoundary);
@@ -308,7 +309,7 @@ void *httpGetQueueData(HttpConn *conn)
 {
     HttpQueue     *q;
 
-    q = conn->tx->queue[HTTP_QUEUE_TRANS];
+    q = conn->tx->queue[HTTP_QUEUE_TX];
     return q->nextQ->queueData;
 }
 
@@ -529,9 +530,9 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     } else if (tx->length > 0 || conn->server) {
         httpAddHeader(conn, "Content-Length", "%Ld", tx->length);
     }
-    if (rx->ranges) {
-        if (rx->ranges->next == 0) {
-            range = rx->ranges;
+    if (tx->outputRanges) {
+        if (tx->outputRanges->next == 0) {
+            range = tx->outputRanges;
             if (tx->entityLength > 0) {
                 httpSetHeader(conn, "Content-Range", "bytes %Ld-%Ld/%Ld", range->start, range->end, tx->entityLength);
             } else {
@@ -560,7 +561,7 @@ void httpSetEntityLength(HttpConn *conn, int64 len)
 
     tx = conn->tx;
     tx->entityLength = len;
-    if (conn->rx->ranges == 0) {
+    if (tx->outputRanges == 0) {
         tx->length = len;
     }
 }
@@ -661,7 +662,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     if (tx->altBody) {
         mprPutStringToBuf(buf, tx->altBody);
-        httpDiscardData(tx->queue[HTTP_QUEUE_TRANS]->nextQ, 0);
+        httpDiscardData(tx->queue[HTTP_QUEUE_TX]->nextQ, 0);
     }
     tx->headerSize = mprGetBufLength(buf);
     tx->flags |= HTTP_TX_HEADERS_CREATED;

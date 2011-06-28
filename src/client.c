@@ -203,7 +203,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     if (openConnection(conn, url) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    httpCreatePipeline(conn, NULL, NULL);
+    httpCreateTxPipeline(conn, conn->http->clientLocation, NULL);
 
     if (setClientHeaders(conn) < 0) {
         return MPR_ERR_CANT_INITIALIZE;

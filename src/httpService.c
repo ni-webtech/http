@@ -229,8 +229,10 @@ HttpLoc *httpInitLocation(Http *http, int serverSide)
     httpAddFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_OUTGOING);
 
     httpAddFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_INCOMING);
-    httpAddFilter(loc, http->uploadFilter->name, NULL, HTTP_STAGE_INCOMING);
-    httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_INCOMING);
+    if (serverSide) {
+        httpAddFilter(loc, http->uploadFilter->name, NULL, HTTP_STAGE_INCOMING);
+        httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_INCOMING);
+    }
     loc->connector = http->netConnector;
     return loc;
 }
@@ -245,7 +247,7 @@ void httpInitLimits(HttpLimits *limits, int serverSide)
     limits->receiveBodySize = HTTP_MAX_RECEIVE_BODY;
     limits->requestCount = HTTP_MAX_REQUESTS;
     limits->stageBufferSize = HTTP_MAX_STAGE_BUFFER;
-    limits->transmissionBodySize = HTTP_MAX_TRANSMISSION_BODY;
+    limits->transmissionBodySize = HTTP_MAX_TX_BODY;
     limits->uploadSize = HTTP_MAX_UPLOAD;
     limits->uriSize = MPR_MAX_URL;
 
