@@ -18450,7 +18450,7 @@ MprOff mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOff offset, MprOff
 
         if (!done && toWriteFile > 0 && file->fd >= 0) {
             off = (off_t) offset;
-            while (toWriteFile > 0) {
+            while (!done && toWriteFile > 0) {
                 nbytes = (ssize) min(MAXSSIZE, toWriteFile);
 #if LINUX && !__UCLIBC__
                 rc = sendfile(sock->fd, file->fd, &off, nbytes);
@@ -18460,10 +18460,10 @@ MprOff mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOff offset, MprOff
                 if (rc > 0) {
                     written += rc;
                     toWriteFile -= rc;
-                    if (rc != nbytes) {
-                        done++;
-                        break;
-                    }
+                }
+                if (rc != nbytes) {
+                    done++;
+                    break;
                 }
             }
         }
