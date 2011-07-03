@@ -21980,8 +21980,11 @@ static int changeState(MprWorker *worker, int state)
 #define MIN_YEAR    1901
 #define MAX_YEAR    2037
 
+/*
+    MacOSX can't handle MIN_TIME == -0x7FFFFFFF
+ */
 #define MAX_TIME    0x7FFFFFFF
-#define MIN_TIME    -(MAX_TIME)
+#define MIN_TIME    -0xFFFFFFF
 
 /*
     Token types or'd into the TimeToken value
@@ -22268,7 +22271,7 @@ int mprGetTimeZoneOffset(MprTime when)
     if (secs < MIN_TIME || secs > MAX_TIME) {
         /* secs overflows time_t on this platform. Need to map to an alternate valid year */
         decodeTime(&t, when, 0);
-        t.tm_year = 110;
+        t.tm_year = 111;
         alternate = makeTime(&t);
     }
     t.tm_isdst = -1;
@@ -22296,7 +22299,7 @@ MprTime mprMakeTime(struct tm *tp)
         offset = getTimeZoneOffsetFromTm(&t);
     } else {
         t = *tp;
-        t.tm_year = 110;
+        t.tm_year = 111;
         alternate = makeTime(&t);
         localTime(&t, alternate);
         offset = getTimeZoneOffsetFromTm(&t);
@@ -22330,6 +22333,7 @@ static int localTime(struct tm *timep, MprTime time)
     return 0;
 }
 
+
 struct tm *universalTime(struct tm *timep, MprTime time)
 {
 #if BLD_UNIX_LIKE || WINCE
@@ -22350,7 +22354,7 @@ struct tm *universalTime(struct tm *timep, MprTime time)
 
 /*
     Return the timezone offset (including DST) in msec. local == (UTC + offset)
-    Assumes a valid "tm" with isdst correctly set.
+    Assumes a valid (local) "tm" with isdst correctly set.
  */
 static int getTimeZoneOffsetFromTm(struct tm *tp)
 {
@@ -22384,7 +22388,7 @@ static int getTimeZoneOffsetFromTm(struct tm *tp)
 #else
     struct timezone     tz;
     struct timeval      tv;
-    int offset;
+    int                 offset;
     gettimeofday(&tv, &tz);
     offset = -tz.tz_minuteswest * MS_PER_MIN;
     if (tp->tm_isdst) {
@@ -22395,7 +22399,7 @@ static int getTimeZoneOffsetFromTm(struct tm *tp)
 }
 
 /*
-    Convert "struct tm" to MprTime
+    Convert "struct tm" to MprTime. This ignores GMT offset and DST.
  */
 static MprTime makeTime(struct tm *tp)
 {
@@ -23283,7 +23287,7 @@ int mprParseTime(MprTime *time, cchar *dateString, int zoneFlags, struct tm *def
 #endif
 
     /*
-        Set to -1 to cause mktime will try to determine if DST is in effect
+        Set to -1 to try to determine if DST is in effect
      */
     tm.tm_isdst = -1;
     str = slower(dateString);
