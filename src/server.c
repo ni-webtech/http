@@ -305,7 +305,7 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
             conn->ip, conn->port, sock->acceptIp, sock->acceptPort, conn->secure ? "(secure)" : "");
     }
     e.mask = MPR_READABLE;
-    e.timestamp = mprGetTime();
+    e.timestamp = conn->http->now;
     (conn->ioCallback)(conn, &e);
     return conn;
 }

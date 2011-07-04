@@ -293,7 +293,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     methodFlags = 0;
 
 #if BLD_DEBUG
-    conn->startTime = mprGetTime();
+    conn->startTime = conn->http->now;
     conn->startTicks = mprGetTicks();
 #endif
     traceRequest(conn, packet);
@@ -1365,18 +1365,16 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 
 /*
     Wait for an Http event until the http reaches a specified state or a timeout expires
-    If timeout is == -1, then no timeout is used. If state is zero, it waits for just one event.
+    If timeout is zero, then wait forever. If set to < 0, then use default inactivity and duration timeouts. 
+    If state is zero, it waits for just one event.
  */
 int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
     Http        *http;
-    MprTime     expire, remainingTime;
+    MprTime     mark, remaining, inactivityTimeout;
     int         eventMask, addedHandler, saveAsync, justOne, workDone;
 
     http = conn->http;
-    if (timeout <= 0) {
-        timeout = MAXINT;
-    }
     if (state == 0) {
         state = HTTP_STATE_COMPLETE;
         justOne = 1;
@@ -1390,12 +1388,18 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     if (conn->input && httpGetPacketLength(conn->input) > 0) {
         httpProcess(conn, conn->input);
     }
-    http->now = mprGetTime();
-    expire = http->now + timeout;
-    remainingTime = expire - http->now;
+    mark = mprGetTime();
+    if (conn->async) {
+        timeout = 0;
+    }
+    inactivityTimeout = timeout < 0 ? conn->limits->inactivityTimeout : MPR_MAX_TIMEOUT;
+    if (timeout < 0) {
+        timeout = conn->limits->requestTimeout;
+    }
     saveAsync = conn->async;
     addedHandler = 0;
 
+    remaining = timeout;
     while (!conn->error && conn->state < state) {
         if (conn->waitHandler == 0) {
             conn->async = 1;
@@ -1407,12 +1411,11 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
             addedHandler = 1;
         }
         workDone = httpServiceQueues(conn);
-        remainingTime = expire - http->now;
-        if (remainingTime <= 0) {
+        mprWaitForEvent(conn->dispatcher, min(inactivityTimeout, remaining));
+        if (justOne || (conn->sock && mprIsSocketEof(conn->sock) && !workDone)) {
             break;
         }
-        mprWaitForEvent(conn->dispatcher, remainingTime);
-        if (justOne || (conn->sock && mprIsSocketEof(conn->sock) && !workDone)) {
+        if ((remaining = mprGetRemainingTime(mark, timeout)) <= 0) {
             break;
         }
     }
@@ -1425,7 +1428,7 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         return MPR_ERR_CANT_CONNECT;
     }
     if (!justOne && conn->state < state) {
-        return (remainingTime <= 0) ? MPR_ERR_TIMEOUT : MPR_ERR_CANT_READ;
+        return (remaining <= 0) ? MPR_ERR_TIMEOUT : MPR_ERR_CANT_READ;
     }
     return 0;
 }

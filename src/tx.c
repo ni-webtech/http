@@ -512,7 +512,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 #if UNUSED && KEEP
             /* Old HTTP/1.0 clients don't understand Cache-Control */
             struct tm   tm;
-            mprDecodeUniversalTime(&tm, mprGetTime() + (expires * MPR_TICKS_PER_SEC));
+            mprDecodeUniversalTime(&tm, conn->http->now + (expires * MPR_TICKS_PER_SEC));
             httpAddHeader(conn, "Expires", "%s", mprFormatTime(MPR_HTTP_DATE, &tm));
 #endif
         }

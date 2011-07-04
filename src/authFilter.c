@@ -28,7 +28,7 @@ typedef struct AuthData
 
 static int calcDigest(char **digest, cchar *userName, cchar *password, cchar *realm, cchar *uri, 
     cchar *nonce, cchar *qop, cchar *nc, cchar *cnonce, cchar *method);
-static char *createDigestNonce(cchar *secret, cchar *etag, cchar *realm);
+static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *etag, cchar *realm);
 static void decodeBasicAuth(HttpConn *conn, AuthData *ad);
 static int  decodeDigestDetails(HttpConn *conn, AuthData *ad);
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg);
@@ -339,7 +339,7 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
     } else if (auth->type == HTTP_AUTH_DIGEST) {
         qopClass = auth->qop;
         etag = tx->etag ? tx->etag : "";
-        nonce = createDigestNonce(conn->http->secret, etag, auth->requiredRealm);
+        nonce = createDigestNonce(conn, conn->http->secret, etag, auth->requiredRealm);
         mprAssert(conn->host);
 
         if (scmp(qopClass, "auth") == 0) {
@@ -364,14 +364,14 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
 /*
     Create a nonce value for digest authentication (RFC 2617)
  */ 
-static char *createDigestNonce(cchar *secret, cchar *etag, cchar *realm)
+static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *etag, cchar *realm)
 {
     MprTime     now;
     char        nonce[256];
 
     mprAssert(realm && *realm);
 
-    now = mprGetTime();
+    now = conn->http->now;
     mprSprintf(nonce, sizeof(nonce), "%s:%s:%s:%Lx", secret, etag, realm, now);
     return mprEncode64(nonce);
 }

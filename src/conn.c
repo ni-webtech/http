@@ -268,7 +268,7 @@ void httpConsumeLastRequest(HttpConn *conn)
     if (!conn->sock || conn->state < HTTP_STATE_FIRST) {
         return;
     }
-    mark = mprGetTime();
+    mark = conn->http->now;
     while (!httpIsEof(conn) && mprGetRemainingTime(mark, conn->limits->requestTimeout) > 0) {
         if (httpRead(conn, junk, sizeof(junk)) <= 0) {
             break;
@@ -285,7 +285,7 @@ void httpCallEvent(HttpConn *conn, int mask)
     MprEvent    e;
 
     e.mask = mask;
-    e.timestamp = mprGetTime();
+    e.timestamp = conn->http->now;
     httpEvent(conn, &e);
 }
 

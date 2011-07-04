@@ -110,7 +110,7 @@ static int setClientHeaders(HttpConn *conn)
             mprLog(MPR_ERROR, "Http: Can't create secret for digest authentication");
             return MPR_ERR_CANT_CREATE;
         }
-        conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime()); 
+        conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (int) http->now);
 
         mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
         len = strlen(a1Buf);
@@ -197,7 +197,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     conn->tx->parsedUri = httpCreateUri(url, 0);
 
 #if BLD_DEBUG
-    conn->startTime = mprGetTime();
+    conn->startTime = conn->http->now;
     conn->startTicks = mprGetTicks();
 #endif
     if (openConnection(conn, url) == 0) {
