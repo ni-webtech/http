@@ -430,7 +430,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     MprBuf      *content;
     char        *key, *value, *tok;
     cchar       *oldValue;
-    int         len, count, keepAlive;
+    int         count, keepAlive;
 
     rx = conn->rx;
     tx = conn->tx;
@@ -618,17 +618,18 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
 
         case 'k':
+            /* Keep-Alive: timeout=N, max=1 */
             if (strcmp(key, "keep-alive") == 0) {
-                len = (int) strlen(value);
-                if (len > 2 && value[len - 1] == '1' && value[len - 2] == '=' && tolower((int)(value[len - 3])) == 'x') {
+                keepAlive = 1;
+                if ((tok = scontains(value, "max=", -1)) != 0) {
+                    conn->keepAliveCount = atoi(&tok[4]);
                     /*  
-                        On second-last request (Keep-Alive: timeout=N, max=1)
                         IMPORTANT: Deliberately close the connection one request early. This ensures a client-led 
                         termination and helps relieve server-side TIME_WAIT conditions.
                      */
-                    conn->keepAliveCount = 0;
-                } else {
-                    keepAlive = 1;
+                    if (conn->keepAliveCount == 1) {
+                        conn->keepAliveCount = 0;
+                    }
                 }
             }
             break;                
@@ -1389,14 +1390,13 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         httpProcess(conn, conn->input);
     }
     mark = mprGetTime();
-#if UNUSED
-    if (conn->async) {
-        timeout = 0;
-    }
-#endif
-    inactivityTimeout = timeout < 0 ? conn->limits->inactivityTimeout : MPR_MAX_TIMEOUT;
-    if (timeout < 0) {
-        timeout = conn->limits->requestTimeout;
+    if (mprGetDebugMode()) {
+        inactivityTimeout = timeout = MPR_MAX_TIMEOUT;
+    } else {
+        inactivityTimeout = timeout < 0 ? conn->limits->inactivityTimeout : MPR_MAX_TIMEOUT;
+        if (timeout < 0) {
+            timeout = conn->limits->requestTimeout;
+        }
     }
     saveAsync = conn->async;
     addedHandler = 0;
