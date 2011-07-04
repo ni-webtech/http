@@ -1389,9 +1389,11 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         httpProcess(conn, conn->input);
     }
     mark = mprGetTime();
+#if UNUSED
     if (conn->async) {
         timeout = 0;
     }
+#endif
     inactivityTimeout = timeout < 0 ? conn->limits->inactivityTimeout : MPR_MAX_TIMEOUT;
     if (timeout < 0) {
         timeout = conn->limits->requestTimeout;
