@@ -124,6 +124,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->headersCallbackArg);
         mprMark(conn->timeoutEvent);
         mprMark(conn->workerEvent);
+        mprMark(conn->data);
         mprMark(conn->mark);
         mprMark(conn->pool);
         mprMark(conn->ejs);
