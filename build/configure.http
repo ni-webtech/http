@@ -48,8 +48,9 @@ createFeatureConfig()
 
     cat >>$NAME <<!EOF_FEATURE_CONFIG1
 #
-#   Extended Feature Selection
+#   Http Feature Selection
 #
+BLD_HTTP_PRODUCT=1
 BLD_FEATURE_AUTH_FILE=$BLD_FEATURE_AUTH_FILE
 BLD_FEATURE_AUTH_PAM=$BLD_FEATURE_AUTH_PAM
 

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 42;
+	objectVersion = 44;
 	objects = {
 
 /* Begin PBXAggregateTarget section */
@@ -25,7 +25,6 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		C905BF7E1321653500B0F74E /* libmatrixsslstatic.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C905BF7D1321653500B0F74E /* libmatrixsslstatic.a */; };
 		C90A1AFB0FD6E319006A9E86 /* testHttp.c in Sources */ = {isa = PBXBuildFile; fileRef = C90A1AEA0FD6E319006A9E86 /* testHttp.c */; };
 		C90A1B060FD6E32E006A9E86 /* libhttp.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C90A19EE0FD6DCAD006A9E86 /* libhttp.dylib */; };
 		C90A1B090FD6E335006A9E86 /* libhttp.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C90A19EE0FD6DCAD006A9E86 /* libhttp.dylib */; };
@@ -36,7 +35,6 @@
 		C93A68C010FD8311006B6C41 /* chunkFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BB10FD8311006B6C41 /* chunkFilter.c */; };
 		C93A68C110FD8311006B6C41 /* rangeFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BC10FD8311006B6C41 /* rangeFilter.c */; };
 		C93A68C210FD8311006B6C41 /* uploadFilter.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68BD10FD8311006B6C41 /* uploadFilter.c */; };
-		C93A68C610FD833D006B6C41 /* env.c in Sources */ = {isa = PBXBuildFile; fileRef = C93A68C510FD833D006B6C41 /* env.c */; };
 		C949ABC2120B68FB00398DC6 /* rx.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC0120B68FB00398DC6 /* rx.c */; };
 		C949ABC3120B68FB00398DC6 /* tx.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC1120B68FB00398DC6 /* tx.c */; };
 		C949ABC7120B691100398DC6 /* trace.c in Sources */ = {isa = PBXBuildFile; fileRef = C949ABC6120B691100398DC6 /* trace.c */; };
@@ -64,6 +62,7 @@
 		C95E4F5A10EBFCEF00982610 /* libmprssl.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C9513E4F10E98E7200F9E006 /* libmprssl.dylib */; };
 		C9723C2211138578002B2B3B /* authFile.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2011138578002B2B3B /* authFile.c */; };
 		C9723C2311138578002B2B3B /* authPam.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2111138578002B2B3B /* authPam.c */; };
+		C9802FF7136B2114008395A8 /* var.c in Sources */ = {isa = PBXBuildFile; fileRef = C9802FF6136B2114008395A8 /* var.c */; };
 		C9AA68EC130F158300918B92 /* alias.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68E9130F158300918B92 /* alias.c */; };
 		C9AA68ED130F158300918B92 /* dir.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68EA130F158300918B92 /* dir.c */; };
 		C9AA68EE130F158300918B92 /* match.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68EB130F158300918B92 /* match.c */; };
@@ -152,7 +151,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		C905BF7D1321653500B0F74E /* libmatrixsslstatic.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmatrixsslstatic.a; path = ../../../../mpr/out/lib/libmatrixsslstatic.a; sourceTree = "<group>"; };
 		C90A19EE0FD6DCAD006A9E86 /* libhttp.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libhttp.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		C90A1A0F0FD6DD2D006A9E86 /* mpr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mpr.h; path = ../../../src/include/mpr.h; sourceTree = SOURCE_ROOT; };
 		C90A1A110FD6DD2D006A9E86 /* mprSsl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mprSsl.h; path = ../../../src/include/mprSsl.h; sourceTree = SOURCE_ROOT; };
@@ -166,7 +164,6 @@
 		C93A68BB10FD8311006B6C41 /* chunkFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = chunkFilter.c; path = ../../../src/chunkFilter.c; sourceTree = SOURCE_ROOT; };
 		C93A68BC10FD8311006B6C41 /* rangeFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = rangeFilter.c; path = ../../../src/rangeFilter.c; sourceTree = SOURCE_ROOT; };
 		C93A68BD10FD8311006B6C41 /* uploadFilter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = uploadFilter.c; path = ../../../src/uploadFilter.c; sourceTree = SOURCE_ROOT; };
-		C93A68C510FD833D006B6C41 /* env.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = env.c; path = ../../../src/env.c; sourceTree = SOURCE_ROOT; };
 		C949ABC0120B68FB00398DC6 /* rx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = rx.c; path = ../../../src/rx.c; sourceTree = SOURCE_ROOT; };
 		C949ABC1120B68FB00398DC6 /* tx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = tx.c; path = ../../../src/tx.c; sourceTree = SOURCE_ROOT; };
 		C949ABC6120B691100398DC6 /* trace.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = trace.c; path = ../../../src/trace.c; sourceTree = SOURCE_ROOT; };
@@ -187,8 +184,13 @@
 		C9513E4F10E98E7200F9E006 /* libmprssl.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libmprssl.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		C95E4F5210EBFCA400982610 /* mprLib.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mprLib.c; path = ../../../src/deps/mpr/mprLib.c; sourceTree = SOURCE_ROOT; };
 		C95E4F5510EBFCD600982610 /* mprSsl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mprSsl.c; path = ../../../src/deps/mpr/mprSsl.c; sourceTree = SOURCE_ROOT; };
+		C96B2F47134CDA8100F5C4AF /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		C96B2F4A134CDA8100F5C4AF /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		C96B2F4B134CDA8100F5C4AF /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
+		C96B2F4C134CDA8100F5C4AF /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		C9723C2011138578002B2B3B /* authFile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authFile.c; path = ../../../src/authFile.c; sourceTree = SOURCE_ROOT; };
 		C9723C2111138578002B2B3B /* authPam.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authPam.c; path = ../../../src/authPam.c; sourceTree = SOURCE_ROOT; };
+		C9802FF6136B2114008395A8 /* var.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = var.c; path = ../../../src/var.c; sourceTree = "<group>"; };
 		C9AA68E9130F158300918B92 /* alias.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = alias.c; path = ../../../src/alias.c; sourceTree = SOURCE_ROOT; };
 		C9AA68EA130F158300918B92 /* dir.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = dir.c; path = ../../../src/dir.c; sourceTree = SOURCE_ROOT; };
 		C9AA68EB130F158300918B92 /* match.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = match.c; path = ../../../src/match.c; sourceTree = SOURCE_ROOT; };
@@ -238,7 +240,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				C9513E5310E98EA500F9E006 /* libmpr.dylib in Frameworks */,
-				C905BF7E1321653500B0F74E /* libmatrixsslstatic.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -252,6 +253,7 @@
 				C90A19E50FD6DC67006A9E86 /* Headers */,
 				C923DFBA111255DC00A2422E /* Dependencies */,
 				C90A19E60FD6DC6C006A9E86 /* Source */,
+				C96B2F46134CDA8100F5C4AF /* Frameworks */,
 				C90A19EF0FD6DCAD006A9E86 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -269,6 +271,7 @@
 		C90A19E60FD6DC6C006A9E86 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				C9802FF6136B2114008395A8 /* var.c */,
 				C9AA6907130F160D00918B92 /* host.c */,
 				C9AA68E9130F158300918B92 /* alias.c */,
 				C9723C2011138578002B2B3B /* authFile.c */,
@@ -279,7 +282,6 @@
 				C9513DB810E98C2E00F9E006 /* client.c */,
 				C9513DB910E98C2E00F9E006 /* conn.c */,
 				C9AA68EA130F158300918B92 /* dir.c */,
-				C93A68C510FD833D006B6C41 /* env.c */,
 				C923DFBB1112560600A2422E /* location.c */,
 				C9513DBA10E98C2E00F9E006 /* httpService.c */,
 				C9AA68EB130F158300918B92 /* match.c */,
@@ -349,10 +351,28 @@
 			name = mpr;
 			sourceTree = "<group>";
 		};
+		C96B2F46134CDA8100F5C4AF /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C96B2F47134CDA8100F5C4AF /* Cocoa.framework */,
+				C96B2F49134CDA8100F5C4AF /* Other Frameworks */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		C96B2F49134CDA8100F5C4AF /* Other Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C96B2F4A134CDA8100F5C4AF /* AppKit.framework */,
+				C96B2F4B134CDA8100F5C4AF /* CoreData.framework */,
+				C96B2F4C134CDA8100F5C4AF /* Foundation.framework */,
+			);
+			name = "Other Frameworks";
+			sourceTree = "<group>";
+		};
 		C9F8E4B1102B647A00492AB2 /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
-				C905BF7D1321653500B0F74E /* libmatrixsslstatic.a */,
 			);
 			name = Libraries;
 			sourceTree = "<group>";
@@ -488,6 +508,7 @@
 				Japanese,
 				French,
 				German,
+				en,
 			);
 			mainGroup = C90A19DA0FD6DC5E006A9E86;
 			productRefGroup = C90A19EF0FD6DCAD006A9E86 /* Products */;
@@ -525,7 +546,6 @@
 				C93A68C010FD8311006B6C41 /* chunkFilter.c in Sources */,
 				C93A68C110FD8311006B6C41 /* rangeFilter.c in Sources */,
 				C93A68C210FD8311006B6C41 /* uploadFilter.c in Sources */,
-				C93A68C610FD833D006B6C41 /* env.c in Sources */,
 				C923DFBD1112560600A2422E /* location.c in Sources */,
 				C923DFBE1112560600A2422E /* passHandler.c in Sources */,
 				C9723C2211138578002B2B3B /* authFile.c in Sources */,
@@ -537,6 +557,7 @@
 				C9AA68ED130F158300918B92 /* dir.c in Sources */,
 				C9AA68EE130F158300918B92 /* match.c in Sources */,
 				C9AA6908130F160D00918B92 /* host.c in Sources */,
+				C9802FF7136B2114008395A8 /* var.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -637,25 +658,28 @@
 		C90A19DD0FD6DC5E006A9E86 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = i386;
+				ARCHS = "$(ONLY_ACTIVE_ARCH_PRE_XCODE_3_1)";
 				COPY_PHASE_STRIP = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG_IDE=1",
 					"STATIC_OVERRIDE=0",
 				);
+				GCC_VERSION = "";
+				"GCC_VERSION[arch=*]" = "";
 				HEADER_SEARCH_PATHS = (
 					../../../out/include,
 					../../../src/include,
 					../../../src/deps/mpr,
 				);
 				LIBRARY_SEARCH_PATHS = ../../../out/lib;
-				ONLY_ACTIVE_ARCH = NO;
+				ONLY_ACTIVE_ARCH_PRE_XCODE_3_1 = "$(NATIVE_ARCH_64)";
 				OTHER_LDFLAGS = (
 					"-lcrypto",
 					"-lssl",
 				);
 				SRC = ../../../src;
+				TEST_AFTER_BUILD = YES;
 				TOP = ../../..;
 			};
 			name = Debug;
@@ -663,19 +687,27 @@
 		C90A19DE0FD6DC5E006A9E86 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
-				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
+				ARCHS = "$(ONLY_ACTIVE_ARCH_PRE_XCODE_3_1)";
 				COPY_PHASE_STRIP = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG_IDE=1",
 					"STATIC_OVERRIDE=0",
 				);
+				GCC_VERSION = "";
+				HEADER_SEARCH_PATHS = (
+					../../../out/include,
+					../../../src/include,
+					../../../src/deps/mpr,
+				);
+				LIBRARY_SEARCH_PATHS = ../../../out/lib;
+				ONLY_ACTIVE_ARCH_PRE_XCODE_3_1 = "$(NATIVE_ARCH_64)";
 				OTHER_LDFLAGS = (
 					"-lcrypto",
 					"-lssl",
 				);
 				SRC = ../../../src;
+				TEST_AFTER_BUILD = YES;
 				TOP = ../../..;
 			};
 			name = Release;
@@ -712,7 +744,7 @@
 				GCC_MODEL_TUNING = G5;
 				INSTALL_PATH = /usr/local/lib;
 				PREBINDING = NO;
-				PRODUCT_NAME = libmpr;
+				PRODUCT_NAME = libhttp;
 				ZERO_LINK = NO;
 			};
 			name = Release;
@@ -720,8 +752,7 @@
 		C90A1A020FD6DCEE006A9E86 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
-				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
+				ARCHS = "";
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -732,6 +763,7 @@
 		C90A1A030FD6DCEE006A9E86 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "";
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
@@ -744,8 +776,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
-				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
+				ARCHS = "$(inherited)";
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
@@ -756,6 +787,7 @@
 				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../../lib\"";
 				PREBINDING = NO;
 				PRODUCT_NAME = http;
+				TEST_AFTER_BUILD = YES;
 			};
 			name = Debug;
 		};
@@ -763,20 +795,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
-				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
+				ARCHS = "$(inherited)";
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../../lib\"";
 				PREBINDING = NO;
 				PRODUCT_NAME = http;
+				TEST_AFTER_BUILD = YES;
 				ZERO_LINK = NO;
 			};
 			name = Release;
@@ -802,13 +831,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1)";
+				ARCHS_STANDARD_64_BIT_PRE_XCODE_3_1 = x86_64;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
-				PRODUCT_NAME = testMpr;
+				PRODUCT_NAME = testHttp;
 				ZERO_LINK = NO;
 			};
 			name = Release;
@@ -892,16 +923,22 @@
 				EXECUTABLE_PREFIX = "";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
+				HEADER_SEARCH_PATHS = (
+					../../../extensions/matrixssl/latest,
+					../../../extensions/openssl/latest,
+					../../../out/include,
+					../../../src/include,
+					../../../src/deps/mpr,
+				);
 				INSTALL_PATH = /usr/local/lib;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
 					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_2)",
 				);
 				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../../lib\"";
 				LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_2 = "\"$(SRCROOT)/../../../../mpr/out/lib\"";
 				PREBINDING = NO;
-				PRODUCT_NAME = libmpr;
+				PRODUCT_NAME = libmprssl;
 				ZERO_LINK = NO;
 			};
 			name = Release;

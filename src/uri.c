@@ -94,19 +94,9 @@ HttpUri *httpCreateUri(cchar *uri, int complete)
         if ((cp = srchr(up->path, '/')) != NULL) {
             if (cp <= tok) {
                 up->ext = sclone(++tok);
-#if BLD_WIN_LIKE
-                for (cp = up->ext; *cp; cp++) {
-                    *cp = (char) tolower((int) *cp);
-                }
-#endif
             }
         } else {
             up->ext = sclone(++tok);
-#if BLD_WIN_LIKE
-            for (cp = up->ext; *cp; cp++) {
-                *cp = (char) tolower((int) *cp);
-            }
-#endif
         }
     }
     if (up->path == 0) {
@@ -177,19 +167,9 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
         if ((cp = srchr(up->path, '/')) != NULL) {
             if (cp <= tok) {
                 up->ext = sclone(&tok[1]);
-#if BLD_WIN_LIKE
-                for (cp = up->ext; *cp; cp++) {
-                    *cp = (char) tolower((int) *cp);
-                }
-#endif
             }
         } else {
             up->ext = sclone(&tok[1]);
-#if BLD_WIN_LIKE
-            for (cp = up->ext; *cp; cp++) {
-                *cp = (char) tolower((int) *cp);
-            }
-#endif
         }
     }
     return up;
@@ -243,19 +223,9 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
         if ((cp = srchr(up->path, '/')) != NULL) {
             if (cp <= tok) {
                 up->ext = sclone(&tok[1]);
-#if BLD_WIN_LIKE
-                for (cp = up->ext; *cp; cp++) {
-                    *cp = (char) tolower((int) *cp);
-                }
-#endif
             }
         } else {
             up->ext = sclone(&tok[1]);
-#if BLD_WIN_LIKE
-            for (cp = up->ext; *cp; cp++) {
-                *cp = (char) tolower((int) *cp);
-            }
-#endif
         }
     }
     return up;
@@ -436,7 +406,6 @@ HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int dup)
     } else if (cp > uri->path) {
         /*
             Cleanup trailing separators ("../" is the end of the new path)
-            MOB -- do we want to do this?
          */
         cp[-1] = '\0';
     } else {
@@ -453,7 +422,6 @@ HttpUri *httpJoinUriPath(HttpUri *result, HttpUri *base, HttpUri *other)
 {
     char    *sep;
 
-    //  MOB -- should allow result to be null
     if (other->path[0] == '/') {
         result->path = sclone(other->path);
     } else {

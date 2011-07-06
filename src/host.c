@@ -21,6 +21,7 @@ static void manageHost(HttpHost *host, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(host->name);
+        mprMark(host->ip);
         mprMark(host->parent);
         mprMark(host->aliases);
         mprMark(host->dirs);
@@ -29,7 +30,6 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->mimeTypes);
         mprMark(host->documentRoot);
         mprMark(host->serverRoot);
-        mprMark(host->ip);
         mprMark(host->traceInclude);
         mprMark(host->traceExclude);
         mprMark(host->protocol);
@@ -45,52 +45,39 @@ static void manageHost(HttpHost *host, int flags)
 }
 
 
-HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc)
+HttpHost *httpCreateHost(HttpLoc *loc)
 {
     HttpHost    *host;
     Http        *http;
 
     http = MPR->httpService;
-
     if ((host = mprAllocObj(HttpHost, manageHost)) == 0) {
         return 0;
-    }
-    if (ip) {
-        if (port) {
-            host->name = mprAsprintf("%s:%d", ip, port);
-        } else {
-            host->name = sclone(ip);
-        }
     }
     host->mutex = mprCreateLock();
     host->aliases = mprCreateList(-1, 0);
     host->dirs = mprCreateList(-1, 0);
     host->locations = mprCreateList(-1, 0);
     host->limits = mprMemdup(http->serverLimits, sizeof(HttpLimits));
-    host->ip = sclone(ip);
-    host->port = port;
     host->flags = HTTP_HOST_NO_TRACE;
     host->protocol = sclone("HTTP/1.1");
     host->mimeTypes = MPR->mimeTypes;
     host->documentRoot = host->serverRoot = sclone(".");
 
-    //  MOB -- not right
     host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     host->traceLevel = 3;
-    host->traceMaxLength = INT_MAX;
+    host->traceMaxLength = MAXINT;
 
     host->loc = (loc) ? loc : httpCreateLocation();
     httpAddLocation(host, host->loc);
     host->loc->auth = httpCreateAuth(host->loc->auth);
+    httpAddDir(host, httpCreateBareDir("."));
     httpAddHost(http, host);
     return host;
 }
 
 
-/*  
-    Create a new virtual host and inherit settings from another host
- */
-HttpHost *httpCreateVirtualHost(cchar *ip, int port, HttpHost *parent)
+HttpHost *httpCloneHost(HttpHost *parent)
 {
     HttpHost    *host;
     Http        *http;
@@ -101,26 +88,20 @@ HttpHost *httpCreateVirtualHost(cchar *ip, int port, HttpHost *parent)
         return 0;
     }
     host->mutex = mprCreateLock();
-    host->parent = parent;
 
     /*  
         The aliases, dirs and locations are all copy-on-write
      */
+    host->parent = parent;
     host->aliases = parent->aliases;
     host->dirs = parent->dirs;
     host->locations = parent->locations;
     host->flags = parent->flags | HTTP_HOST_VHOST;
     host->protocol = parent->protocol;
     host->mimeTypes = parent->mimeTypes;
-    host->ip = parent->ip;
-    host->port = parent->port;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
-    if (ip) {
-        host->ip = sclone(ip);
-    }
-    if (port) {
-        host->port = port;
-    }
+    host->documentRoot = parent->documentRoot;
+    host->serverRoot = parent->serverRoot;
     host->loc = httpCreateInheritedLocation(parent->loc);
     host->traceMask = parent->traceMask;
     host->traceLevel = parent->traceLevel;
@@ -165,22 +146,29 @@ void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
 }
 
 
-void httpSetHostName(HttpHost *host, cchar *name)
+/*
+    Set the host name intelligently from the name specified by ip:port. Port may be set to -1 and ip may contain a port
+    specifier, ie. "address:port". This routines sets host->name and host->ip, host->port which is used for vhost matching.
+ */
+void httpSetHostName(HttpHost *host, cchar *ip, int port)
 {
-    host->name = sclone(name);
-}
-
-
-void httpSetHostInfoName(HttpHost *host, cchar *name)
-{
-    host->infoName = sclone(name);
-}
-
-
-void httpSetHostAddress(HttpHost *host, cchar *ip, int port)
-{
-    host->ip = sclone(ip);
-    if (port > 0) {
+    if (port < 0 && schr(ip, ':')) {
+        char *pip;
+        mprParseIp(ip, &pip, &port, -1);
+        ip = pip;
+    }
+    if (ip) {
+        if (port > 0) {
+            host->name = mprAsprintf("%s:%d", ip, port);
+        } else {
+            host->name = sclone(ip);
+        }
+    } else {
+        mprAssert(port > 0);
+        host->name = mprAsprintf("*:%d", port);
+    }
+    if (scmp(ip, "default") != 0) {
+        host->ip = sclone(ip);
         host->port = port;
     }
 }
@@ -194,8 +182,8 @@ void httpSetHostProtocol(HttpHost *host, cchar *protocol)
 
 int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
 {
-    HttpAlias     *alias;
-    int         rc, next;
+    HttpAlias   *alias;
+    int         next, rc;
 
     if (host->parent && host->aliases == host->parent->aliases) {
         host->aliases = mprCloneList(host->parent->aliases);
@@ -229,7 +217,7 @@ int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
 int httpAddDir(HttpHost *host, HttpDir *dir)
 {
     HttpDir     *dp;
-    int         rc, next;
+    int         next, rc;
 
     mprAssert(dir);
     mprAssert(dir->path);
@@ -294,14 +282,17 @@ int httpAddLocation(HttpHost *host, HttpLoc *newLocation)
 HttpAlias *httpGetAlias(HttpHost *host, cchar *uri)
 {
     HttpAlias     *alias;
-    int         next;
+    int           next;
 
     if (uri) {
         for (next = 0; (alias = mprGetNextItem(host->aliases, &next)) != 0; ) {
             if (strncmp(alias->prefix, uri, alias->prefixLen) == 0) {
+#if UNUSED
                 if (uri[alias->prefixLen] == '\0' || uri[alias->prefixLen] == '/') {
                     return alias;
                 }
+#endif
+                return alias;
             }
         }
     }
@@ -328,9 +319,9 @@ HttpAlias *httpLookupAlias(HttpHost *host, cchar *prefix)
 
 HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
 {
-    HttpDir       *dir;
+    HttpDir     *dir;
     char        *path, *tmpPath;
-    int         next, len;
+    int         next;
 
     if (!mprIsAbsPath(pathArg)) {
         path = tmpPath = mprGetAbsPath(pathArg);
@@ -338,8 +329,6 @@ HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
         path = (char*) pathArg;
         tmpPath = 0;
     }
-    len = (int) strlen(path);
-
     for (next = 0; (dir = mprGetNextItem(host->dirs, &next)) != 0; ) {
         mprAssert(strlen(dir->path) == 0 || dir->path[strlen(dir->path) - 1] != '/');
         if (dir->path != 0) {
@@ -360,11 +349,9 @@ HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
  */
 HttpDir *httpLookupBestDir(HttpHost *host, cchar *path)
 {
-    HttpDir *dir;
-    ssize   dlen;
-    int     next, len;
-
-    len = (int) strlen(path);
+    HttpDir     *dir;
+    ssize       dlen;
+    int         next;
 
     for (next = 0; (dir = mprGetNextItem(host->dirs, &next)) != 0; ) {
         dlen = dir->pathLen;
@@ -384,6 +371,8 @@ HttpLoc *httpLookupLocation(HttpHost *host, cchar *prefix)
     HttpLoc     *loc;
     int         next;
 
+    mprAssert(host);
+
     for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
         if (strcmp(prefix, loc->prefix) == 0) {
             return loc;
@@ -399,6 +388,7 @@ HttpLoc *httpLookupBestLocation(HttpHost *host, cchar *uri)
     int         next, rc;
 
     if (uri) {
+        mprAssert(host);
         for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
             rc = sncmp(loc->prefix, uri, loc->prefixLen);
             if (rc == 0) {
@@ -409,8 +399,6 @@ HttpLoc *httpLookupBestLocation(HttpHost *host, cchar *uri)
     return mprGetLastItem(host->locations);
 }
 
-
-//  MOB -- order this file
 
 void httpSetHostTrace(HttpHost *host, int level, int mask)
 {
@@ -455,10 +443,10 @@ void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *ex
 int httpSetupTrace(HttpHost *host, cchar *ext)
 {
     if (ext) {
-        if (host->traceInclude && !mprLookupHash(host->traceInclude, ext)) {
+        if (host->traceInclude && !mprLookupKey(host->traceInclude, ext)) {
             return 0;
         }
-        if (host->traceExclude && mprLookupHash(host->traceExclude, ext)) {
+        if (host->traceExclude && mprLookupKey(host->traceExclude, ext)) {
             return 0;
         }
     }
@@ -519,7 +507,6 @@ static int matchRef(cchar *key, char **src)
     Replace a limited set of $VAR references. Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT
     TODO - Expand and formalize this. Should support many more variables.
  */
-//  MOB - rename
 char *httpReplaceReferences(HttpHost *host, cchar *str)
 {
     MprBuf  *buf;

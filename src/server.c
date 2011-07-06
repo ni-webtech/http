@@ -20,6 +20,7 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
 {
     HttpServer  *server;
     Http        *http;
+    HttpHost    *host;
 
     if ((server = mprAllocObj(HttpServer, manageServer)) == 0) {
         return 0;
@@ -32,14 +33,14 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
     server->port = port;
     server->ip = sclone(ip);
     server->dispatcher = dispatcher;
-    if (server->ip && *server->ip) {
-        server->name = server->ip;
-    }
     server->loc = httpInitLocation(http, 1);
     server->hosts = mprCreateList(-1, 0);
     httpAddServer(http, server);
+
     if (flags & HTTP_CREATE_HOST) {
-        httpAddHostToServer(server, httpCreateHost(ip, port, server->loc));
+        host = httpCreateHost(server->loc);
+        httpSetHostName(host, ip, port);
+        httpAddHostToServer(server, host);
     }
     return server;
 }
@@ -47,7 +48,7 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
 
 void httpDestroyServer(HttpServer *server)
 {
-    mprLog(4, "Destroy server %s", server->name ? server->name : server->ip);
+    mprLog(4, "Destroy server %s", server->ip);
     if (server->waitHandler) {
         mprRemoveWaitHandler(server->waitHandler);
         server->waitHandler = 0;
@@ -70,10 +71,7 @@ static int manageServer(HttpServer *server, int flags)
         mprMark(server->waitHandler);
         mprMark(server->clientLoad);
         mprMark(server->hosts);
-        mprMark(server->name);
         mprMark(server->ip);
-        mprMark(server->context);
-        mprMark(server->meta);
         mprMark(server->sock);
         mprMark(server->dispatcher);
         mprMark(server->ssl);
@@ -155,14 +153,6 @@ static bool validateServer(HttpServer *server)
     if (mprGetListLength(host->aliases) == 0) {
         httpAddAlias(host, httpCreateAlias("", host->documentRoot, 0));
     }
-#if UNUSED
-    if (!host->documentRoot) {
-        host->documentRoot = server->documentRoot;
-    }
-    if (!host->serverRoot) {
-        host->serverRoot = server->serverRoot;
-    }
-#endif
     return 1;
 }
 
@@ -185,7 +175,7 @@ int httpStartServer(HttpServer *server)
         return MPR_ERR_CANT_OPEN;
     }
     if (server->async && server->waitHandler ==  0) {
-        //  MOB -- this really should be in server->listen->handler
+        //  TODO -- this really should be in server->listen->handler
         server->waitHandler = mprCreateWaitHandler(server->sock->fd, MPR_SOCKET_READABLE, server->dispatcher,
             httpAcceptConn, server, (server->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
     } else {
@@ -222,26 +212,25 @@ int httpValidateLimits(HttpServer *server, int event, HttpConn *conn)
                 "Too many concurrent clients %d/%d", server->clientCount, limits->clientCount);
             return 0;
         }
-        count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
+        count = (int) PTOL(mprLookupKey(server->clientLoad, conn->ip));
         mprAddKey(server->clientLoad, conn->ip, ITOP(count + 1));
-        server->clientCount = mprGetHashLength(server->clientLoad);
+        server->clientCount = (int) mprGetHashLength(server->clientLoad);
         break;
 
     case HTTP_VALIDATE_CLOSE_CONN:
-        count = (int) PTOL(mprLookupHash(server->clientLoad, conn->ip));
+        count = (int) PTOL(mprLookupKey(server->clientLoad, conn->ip));
         if (count > 1) {
             mprAddKey(server->clientLoad, conn->ip, ITOP(count - 1));
         } else {
-            mprRemoveHash(server->clientLoad, conn->ip);
+            mprRemoveKey(server->clientLoad, conn->ip);
         }
-        server->clientCount = mprGetHashLength(server->clientLoad);
+        server->clientCount = (int) mprGetHashLength(server->clientLoad);
         mprLog(4, "Close connection %d. Active requests %d, active clients %d.", conn->seqno, server->requestCount, 
             server->clientCount);
         break;
     
     case HTTP_VALIDATE_OPEN_REQUEST:
         if (server->requestCount >= limits->requestCount) {
-            //  MOB -- will CLOSE_REQUEST get called and thus set the limit to negative?
             unlock(server->http);
             httpError(conn, HTTP_ABORT | HTTP_CODE_SERVICE_UNAVAILABLE, 
                 "Too many concurrent requests %d/%d", server->requestCount, limits->requestCount);
@@ -281,21 +270,16 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
     /*
         This will block in sync mode until a connection arrives
      */
-    sock = mprAcceptSocket(server->sock);
-    if (server->waitHandler) {
-        mprEnableWaitEvents(server->waitHandler, MPR_READABLE);
-    }
-    if (sock == 0) {
+    if ((sock = mprAcceptSocket(server->sock)) == 0) {
         return 0;
     }
-
-    //  MOB - is this logic sufficient.
-    //  MOB - better to just do dispatcher =
-    // dispatcher = (event && server->dispatcher == 0) ? event->dispatcher: server->dispatcher;
+    if (server->waitHandler) {
+        /* Re-enable events on the listen socket */
+        mprWaitOn(server->waitHandler, MPR_READABLE);
+    }
     dispatcher = event->dispatcher;
 
     if ((conn = httpCreateConn(server->http, server, dispatcher)) == 0) {
-        mprError("Can't create connect object. Insufficient memory.");
         mprCloseSocket(sock, 0);
         return 0;
     }
@@ -321,16 +305,9 @@ HttpConn *httpAcceptConn(HttpServer *server, MprEvent *event)
             conn->ip, conn->port, sock->acceptIp, sock->acceptPort, conn->secure ? "(secure)" : "");
     }
     e.mask = MPR_READABLE;
-    e.timestamp = mprGetTime();
+    e.timestamp = conn->http->now;
     (conn->ioCallback)(conn, &e);
     return conn;
-}
-
-
-//  MOB Is this used / needed
-void *httpGetMetaServer(HttpServer *server)
-{
-    return server->meta;
 }
 
 
@@ -346,29 +323,19 @@ int httpGetServerAsync(HttpServer *server)
 }
 
 
+//  MOB - rename. This could be a "restart"
 void httpSetServerAddress(HttpServer *server, cchar *ip, int port)
 {
-    HttpHost    *host;
-    int         next;
-
     if (ip) {
         server->ip = sclone(ip);
     }
     if (port >= 0) {
         server->port = port;
     }
-    for (next = 0; (host = mprGetNextItem(server->hosts, &next)) != 0; ) {
-        httpSetHostAddress(host, ip, port);
-    }
     if (server->sock) {
         httpStopServer(server);
         httpStartServer(server);
     }
-}
-
-void httpSetMetaServer(HttpServer *server, void *meta)
-{
-    server->meta = meta;
 }
 
 
@@ -401,13 +368,6 @@ void httpSetServerLocation(HttpServer *server, HttpLoc *loc)
 }
 
 
-void httpSetServerName(HttpServer *server, cchar *name)
-{
-    mprAssert(server);
-    server->name = sclone(name);
-}
-
-
 void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)
 {
     mprAssert(server);
@@ -415,9 +375,12 @@ void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)
 }
 
 
-int httpSecureServer(cchar *ip, int port, struct MprSsl *ssl)
+#if UNUSED
+/*
+    This returns the first matching server. IP and port can be wild (set to 0)
+ */
+HttpServer *httpLookupServer(cchar *ip, int port)
 {
-#if BLD_FEATURE_SSL
     HttpServer  *server;
     Http        *http;
     int         next, count;
@@ -426,19 +389,52 @@ int httpSecureServer(cchar *ip, int port, struct MprSsl *ssl)
     if (ip == 0) {
         ip = "";
     }
-    for (count = next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
         if (server->port <= 0 || port <= 0 || server->port == port) {
             mprAssert(server->ip);
             if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
-                server->ssl = ssl;
+                return server;
+            }
+        }
+    }
+    return 0;
+}
+#endif
+
+
+int httpSecureServer(HttpServer *server, struct MprSsl *ssl)
+{
+#if BLD_FEATURE_SSL
+    server->ssl = ssl;
+    return 0;
+#else
+    return MPR_ERR_BAD_STATE;
+#endif
+}
+
+
+int httpSecureServerByName(cchar *name, struct MprSsl *ssl)
+{
+    HttpServer  *server;
+    Http        *http;
+    char        *ip;
+    int         port, next, count;
+
+    http = MPR->httpService;
+    mprParseIp(name, &ip, &port, -1);
+    if (ip == 0) {
+        ip = "";
+    }
+    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+        if (server->port <= 0 || port <= 0 || server->port == port) {
+            mprAssert(server->ip);
+            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
+                httpSecureServer(server, ssl);
                 count++;
             }
         }
     }
     return (count == 0) ? MPR_ERR_CANT_FIND : 0;
-#else
-    return MPR_ERR_BAD_STATE;
-#endif
 }
 
 
@@ -451,48 +447,60 @@ void httpAddHostToServer(HttpServer *server, HttpHost *host)
 }
 
 
-#if UNUSED
-HttpServer *httpRemoveHostFromServer(Http *http, cchar *ip, int port, HttpHost *host)
-{
-    HttpServer  *server;
-    int         next;
-
-    for (next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
-        if (server->port < 0 || port < 0 || server->port == port) {
-            if (ip == 0 || server->ip == 0 || strcmp(server->ip, ip) == 0) {
-                mprRemoveItem(server->hosts, host);
-            }
-        }
-    }
-    return 0;
-}
-#endif
-
-
 bool httpIsNamedVirtualServer(HttpServer *server)
 {
-    return server->flags & HTTP_IPADDR_VHOST;
+    return server->flags & HTTP_NAMED_VHOST;
 }
 
 
 void httpSetNamedVirtualServer(HttpServer *server)
 {
-    server->flags |= HTTP_IPADDR_VHOST;
+    server->flags |= HTTP_NAMED_VHOST;
 }
 
 
-HttpHost *httpLookupHostByName(HttpServer *server, cchar *name)
+HttpHost *httpLookupHost(HttpServer *server, cchar *name)
 {
     HttpHost    *host;
-    int         next;
+    char        *ip;
+    int         next, port;
+
+    if (name == 0) {
+        return mprGetFirstItem(server->hosts);
+    }
+    mprParseIp(name, &ip, &port, -1);
 
     for (next = 0; (host = mprGetNextItem(server->hosts, &next)) != 0; ) {
-        if (name == 0 || strcmp(name, host->name) == 0) {
-            return host;
+        if (host->port <= 0 || port <= 0 || host->port == port) {
+            if (*host->ip == '\0' || *ip == '\0' || scmp(host->ip, ip) == 0) {
+                return host;
+            }
         }
     }
     return 0;
 }
+
+
+int httpSetNamedVirtualServers(Http *http, cchar *ip, int port)
+{
+    HttpServer  *server;
+    int         next, count;
+
+    if (ip == 0) {
+        ip = "";
+    }
+    for (count = 0, next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
+        if (server->port <= 0 || port <= 0 || server->port == port) {
+            mprAssert(server->ip);
+            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
+                httpSetNamedVirtualServer(server);
+                count++;
+            }
+        }
+    }
+    return (count == 0) ? MPR_ERR_CANT_FIND : 0;
+}
+
 
 /*
     @copy   default

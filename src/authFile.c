@@ -25,7 +25,7 @@ cchar *httpGetNativePassword(HttpAuth *auth, cchar *realm, cchar *user)
     up = 0;
     key = sjoin(realm, ":", user, NULL);
     if (auth->users) {
-        up = (HttpUser*) mprLookupHash(auth->users, key);
+        up = (HttpUser*) mprLookupKey(auth->users, key);
     }
     if (up == 0) {
         return 0;
@@ -75,7 +75,7 @@ static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user)
         if (auth->users == 0) {
             return 0;
         }
-        return mprLookupHash(auth->users, key) != 0;
+        return mprLookupKey(auth->users, key) != 0;
     }
 
     if (auth->requiredUsers) {
@@ -101,7 +101,7 @@ static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user)
             if (auth->groups == 0) {
                 gp = 0;
             } else {
-                gp = (HttpGroup*) mprLookupHash(auth->groups, group);
+                gp = (HttpGroup*) mprLookupKey(auth->groups, group);
             }
             if (gp == 0) {
                 mprError("Can't find group %s", group);
@@ -118,7 +118,7 @@ static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user)
     }
     if (auth->requiredAcl != 0) {
         key = sjoin(realm, ":", user, NULL);
-        up = (HttpUser*) mprLookupHash(auth->users, key);
+        up = (HttpUser*) mprLookupKey(auth->users, key);
         if (up) {
             mprLog(6, "UserRealm \"%s\" has ACL %lx, Required ACL %lx", key, up->acl, auth->requiredAcl);
             if (up->acl & auth->requiredAcl) {
@@ -171,7 +171,7 @@ int httpAddGroup(HttpAuth *auth, cchar *group, HttpAcl acl, bool enabled)
     if (auth->groups == 0) {
         auth->groups = mprCreateHash(-1, 0);
     }
-    if (mprLookupHash(auth->groups, group)) {
+    if (mprLookupKey(auth->groups, group)) {
         return MPR_ERR_ALREADY_EXISTS;
     }
     if (mprAddKey(auth->groups, group, gp) == 0) {
@@ -220,7 +220,7 @@ int httpAddUser(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, bool
         auth->users = mprCreateHash(-1, 0);
     }
     key = sjoin(realm, ":", user, NULL);
-    if (mprLookupHash(auth->users, key)) {
+    if (mprLookupKey(auth->users, key)) {
         return MPR_ERR_ALREADY_EXISTS;
     }
     if (mprAddKey(auth->users, key, up) == 0) {
@@ -252,7 +252,7 @@ int httpAddUsersToGroup(HttpAuth *auth, cchar *group, cchar *userList)
 
     gp = 0;
 
-    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupHash(auth->groups, group)) == 0) {
+    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupKey(auth->groups, group)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
     tok = NULL;
@@ -273,7 +273,7 @@ int httpDisableGroup(HttpAuth *auth, cchar *group)
 
     gp = 0;
 
-    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupHash(auth->groups, group)) == 0) {
+    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupKey(auth->groups, group)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
     gp->enabled = 0;
@@ -288,7 +288,7 @@ int httpDisableUser(HttpAuth *auth, cchar *realm, cchar *user)
 
     up = 0;
     key = sjoin(realm, ":", user, NULL);
-    if (auth->users == 0 || (up = (HttpUser*) mprLookupHash(auth->users, key)) == 0) {
+    if (auth->users == 0 || (up = (HttpUser*) mprLookupKey(auth->users, key)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
     up->enabled = 0;
@@ -301,7 +301,7 @@ int httpEnableGroup(HttpAuth *auth, cchar *group)
     HttpGroup     *gp;
 
     gp = 0;
-    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupHash(auth->groups, group)) == 0) {
+    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupKey(auth->groups, group)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
     gp->enabled = 1;
@@ -316,7 +316,7 @@ int httpEnableUser(HttpAuth *auth, cchar *realm, cchar *user)
 
     up = 0;
     key = sjoin(realm, ":", user, NULL);    
-    if (auth->users == 0 || (up = (HttpUser*) mprLookupHash(auth->users, key)) == 0) {
+    if (auth->users == 0 || (up = (HttpUser*) mprLookupKey(auth->users, key)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
     up->enabled = 1;
@@ -329,7 +329,7 @@ HttpAcl httpGetGroupAcl(HttpAuth *auth, char *group)
     HttpGroup     *gp;
 
     gp = 0;
-    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupHash(auth->groups, group)) == 0) {
+    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupKey(auth->groups, group)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
     return gp->acl;
@@ -341,7 +341,7 @@ bool httpIsGroupEnabled(HttpAuth *auth, cchar *group)
     HttpGroup     *gp;
 
     gp = 0;
-    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupHash(auth->groups, group)) == 0) {
+    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupKey(auth->groups, group)) == 0) {
         return 0;
     }
     return gp->enabled;
@@ -355,7 +355,7 @@ bool httpIsUserEnabled(HttpAuth *auth, cchar *realm, cchar *user)
 
     up = 0;
     key = sjoin(realm, ":", user, NULL);
-    if (auth->users == 0 || (up = (HttpUser*) mprLookupHash(auth->users, key)) == 0) {
+    if (auth->users == 0 || (up = (HttpUser*) mprLookupKey(auth->users, key)) == 0) {
         return 0;
     }
     return up->enabled;
@@ -402,7 +402,7 @@ void httpUpdateUserAcls(HttpAuth *auth)
         Reset the ACL for each user
      */
     if (auth->users != 0) {
-        for (userHash = 0; (userHash = mprGetNextHash(auth->users, userHash)) != 0; ) {
+        for (userHash = 0; (userHash = mprGetNextKey(auth->users, userHash)) != 0; ) {
             ((HttpUser*) userHash->data)->acl = 0;
         }
     }
@@ -411,9 +411,9 @@ void httpUpdateUserAcls(HttpAuth *auth)
         Get the union of all ACLs defined for a user over all groups that the user is a member of.
      */
     if (auth->groups != 0 && auth->users != 0) {
-        for (groupHash = 0; (groupHash = mprGetNextHash(auth->groups, groupHash)) != 0; ) {
+        for (groupHash = 0; (groupHash = mprGetNextKey(auth->groups, groupHash)) != 0; ) {
             gp = ((HttpGroup*) groupHash->data);
-            for (userHash = 0; (userHash = mprGetNextHash(auth->users, userHash)) != 0; ) {
+            for (userHash = 0; (userHash = mprGetNextKey(auth->users, userHash)) != 0; ) {
                 user = ((HttpUser*) userHash->data);
                 if (strcmp(user->name, user->name) == 0) {
                     user->acl = user->acl | gp->acl;
@@ -427,10 +427,10 @@ void httpUpdateUserAcls(HttpAuth *auth)
 
 int httpRemoveGroup(HttpAuth *auth, cchar *group)
 {
-    if (auth->groups == 0 || !mprLookupHash(auth->groups, group)) {
+    if (auth->groups == 0 || !mprLookupKey(auth->groups, group)) {
         return MPR_ERR_CANT_ACCESS;
     }
-    mprRemoveHash(auth->groups, group);
+    mprRemoveKey(auth->groups, group);
     return 0;
 }
 
@@ -440,10 +440,10 @@ int httpRemoveUser(HttpAuth *auth, cchar *realm, cchar *user)
     char    *key;
 
     key = sjoin(realm, ":", user, NULL);
-    if (auth->users == 0 || !mprLookupHash(auth->users, key)) {
+    if (auth->users == 0 || !mprLookupKey(auth->users, key)) {
         return MPR_ERR_CANT_ACCESS;
     }
-    mprRemoveHash(auth->users, key);
+    mprRemoveKey(auth->users, key);
     return 0;
 }
 
@@ -454,7 +454,7 @@ int httpRemoveUsersFromGroup(HttpAuth *auth, cchar *group, cchar *userList)
     char        *user, *users, *tok;
 
     gp = 0;
-    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupHash(auth->groups, group)) == 0) {
+    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupKey(auth->groups, group)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
     tok = NULL;
@@ -473,7 +473,7 @@ int httpSetGroupAcl(HttpAuth *auth, cchar *group, HttpAcl acl)
     HttpGroup     *gp;
 
     gp = 0;
-    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupHash(auth->groups, group)) == 0) {
+    if (auth->groups == 0 || (gp = (HttpGroup*) mprLookupKey(auth->groups, group)) == 0) {
         return MPR_ERR_CANT_ACCESS;
     }
     gp->acl = acl;
@@ -584,12 +584,12 @@ int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
         mprError("Can't open %s", tempFile);
         return MPR_ERR_CANT_OPEN;
     }
-    hp = mprGetNextHash(auth->users, 0);
+    hp = mprGetNextKey(auth->users, 0);
     while (hp) {
         up = (HttpUser*) hp->data;
         mprSprintf(buf, sizeof(buf), "%d: %s: %s: %s\n", up->enabled, up->name, up->realm, up->password);
         mprWriteFile(file, buf, (int) strlen(buf));
-        hp = mprGetNextHash(auth->users, hp);
+        hp = mprGetNextKey(auth->users, hp);
     }
     mprCloseFile(file);
     unlink(path);
@@ -615,7 +615,7 @@ int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
         return MPR_ERR_CANT_OPEN;
     }
 
-    hp = mprGetNextHash(auth->groups, 0);
+    hp = mprGetNextKey(auth->groups, 0);
     while (hp) {
         gp = (HttpGroup*) hp->data;
         mprSprintf(buf, sizeof(buf), "%d: %x: %s: ", gp->enabled, gp->acl, gp->name);
@@ -624,7 +624,7 @@ int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
             mprWriteFile(file, name, strlen(name));
         }
         mprWriteFile(file, "\n", 1);
-        hp = mprGetNextHash(auth->groups, hp);
+        hp = mprGetNextKey(auth->groups, hp);
     }
     mprCloseFile(file);
     unlink(path);

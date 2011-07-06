@@ -19,7 +19,6 @@ EXPORTS
   mprAddKey
   mprAddKeyFmt
   mprAddMime
-  mprAddNotifier
   mprAddNullToBuf
   mprAddRoot
   mprAddSocketHandler
@@ -27,7 +26,7 @@ EXPORTS
   mprAddTestGroup
   mprAdjustBufEnd
   mprAdjustBufStart
-  mprAllocBlock
+  mprAllocMem
   mprAppendList
   mprAsprintf
   mprAsprintfv
@@ -41,6 +40,7 @@ EXPORTS
   mprAttachFileFd
   mprBreakpoint
   mprCheckBlock
+  mprClaimDispatcher
   mprClearList
   mprCloneBuf
   mprCloneHash
@@ -52,6 +52,7 @@ EXPORTS
   mprCompareTime
   mprConnectSocket
   mprCopyList
+  mprCopyName
   mprCopyPath
   mprCopyright
   mprCreate
@@ -100,7 +101,6 @@ EXPORTS
   mprDestroyMemService
   mprDisableCmdEvents
   mprDisableFileBuffering
-  mprDisableWaitEvents
   mprDisconnectCmd
   mprDisconnectSocket
   mprDispatchersAreIdle
@@ -113,7 +113,6 @@ EXPORTS
   mprEnableFileBuffering
   mprEnableGC
   mprEnableSocketEvents
-  mprEnableWaitEvents
   mprEncode64
   mprError
   mprEscapeCmd
@@ -147,6 +146,7 @@ EXPORTS
   mprGetCmdBuf
   mprGetCmdExitStatus
   mprGetCmdFd
+  mprGetCmdlineLogging
   mprGetCurrentOsThread
   mprGetCurrentPath
   mprGetCurrentThread
@@ -164,8 +164,8 @@ EXPORTS
   mprGetFilePosition
   mprGetFileSize
   mprGetFileString
-  mprGetFirstHash
   mprGetFirstItem
+  mprGetFirstKey
   mprGetFirstPathSeparator
   mprGetHashLength
   mprGetHeapFlags
@@ -178,7 +178,7 @@ EXPORTS
   mprGetLastPathSeparator
   mprGetListCapacity
   mprGetListLength
-  mprGetLogFd
+  mprGetLogFile
   mprGetLogHandler
   mprGetLogLevel
   mprGetMD5Hash
@@ -190,8 +190,8 @@ EXPORTS
   mprGetMpr
   mprGetNativePath
   mprGetNextEvent
-  mprGetNextHash
   mprGetNextItem
+  mprGetNextKey
   mprGetNonBlockDispatcher
   mprGetNormalizedPath
   mprGetOsError
@@ -265,9 +265,9 @@ EXPORTS
   mprLookAtLastCharInBuf
   mprLookAtNextCharInBuf
   mprLookupFileSystem
-  mprLookupHash
-  mprLookupHashEntry
   mprLookupItem
+  mprLookupKey
+  mprLookupKeyEntry
   mprLookupMime
   mprLookupModule
   mprLookupModuleData
@@ -282,9 +282,10 @@ EXPORTS
   mprMarkBlock
   mprMemcmp
   mprMemcpy
-  mprMemdup
+  mprMemdupMem
   mprMemoryError
   mprNop
+  mprNotifyOn
   mprOpenFile
   mprParseIp
   mprParseTestArgs
@@ -313,19 +314,19 @@ EXPORTS
   mprReadFile
   mprReadRegistry
   mprReadSocket
-  mprRealloc
+  mprReallocMem
   mprRecallWaitHandler
+  mprRecallWaitHandlerByFd
   mprRefillBuf
   mprRelayEvent
   mprRelease
   mprReleaseWorker
   mprReleaseWorkerFromDispatcher
   mprRemoveEvent
-  mprRemoveHash
   mprRemoveItem
   mprRemoveItemAtPos
+  mprRemoveKey
   mprRemoveLastItem
-  mprRemoveNotifier
   mprRemoveRangeOfItems
   mprRemoveRoot
   mprRemoveSignalHandler
@@ -357,7 +358,7 @@ EXPORTS
   mprServiceSignals
   mprServiceWinIO
   mprServicesAreIdle
-  mprSetAltLogData
+  mprSetAllocName
   mprSetAppName
   mprSetBufMax
   mprSetBufRefillProc
@@ -365,6 +366,7 @@ EXPORTS
   mprSetCmdCallback
   mprSetCmdDir
   mprSetCmdTimeout
+  mprSetCmdlineLogging
   mprSetCurrentThreadPriority
   mprSetDebugMode
   mprSetDomainName
@@ -376,7 +378,7 @@ EXPORTS
   mprSetIpAddr
   mprSetItem
   mprSetListLimits
-  mprSetLogFd
+  mprSetLogFile
   mprSetLogHandler
   mprSetLogLevel
   mprSetManager
@@ -433,6 +435,7 @@ EXPORTS
   mprStopCmdService
   mprStopContinuousEvent
   mprStopEventService
+  mprStopGCService
   mprStopModule
   mprStopModuleService
   mprStopOsService
@@ -449,6 +452,7 @@ EXPORTS
   mprUriDecode
   mprUriEncode
   mprUserError
+  mprUsingDefaultLogHandler
   mprVerifyMem
   mprVirtAlloc
   mprVirtFree
@@ -459,12 +463,13 @@ EXPORTS
   mprWaitForMultiCond
   mprWaitForSingleIO
   mprWaitForTestToComplete
+  mprWaitOn
   mprWaitTillIdle
   mprWakeDispatchers
   mprWakeGCService
   mprWakeNotifier
-  mprWakeWaitService
   mprWakeWorkers
+  mprWarn
   mprWriteCmd
   mprWriteFile
   mprWriteFileFormat

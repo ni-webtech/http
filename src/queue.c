@@ -43,7 +43,7 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int dir, HttpQueue 
     q->start = stage->start;
     q->direction = dir;
 
-    if (dir == HTTP_QUEUE_TRANS) {
+    if (dir == HTTP_QUEUE_TX) {
         q->put = stage->outgoingData;
         q->service = stage->outgoingService;
         
@@ -83,16 +83,6 @@ static void manageQueue(HttpQueue *q, int flags)
         }
     }
 }
-
-
-#if UNUSED
-void httpMarkQueueHead(HttpQueue *q)
-{
-    if (q->nextQ && q->nextQ->stage) {
-        mprMark(q->nextQ);
-    }
-}
-#endif
 
 
 void httpInitQueue(HttpConn *conn, HttpQueue *q, cchar *name)
@@ -173,17 +163,12 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
 {
     HttpConn    *conn;
     HttpQueue   *next;
-    int         oldMode;
 
     conn = q->conn;
     LOG(6, "httpFlushQueue blocking %d", blocking);
     mprAssert(conn->sock);
 
-    if (q->flags & HTTP_QUEUE_DISABLED || conn->sock == 0) {
-        return 0;
-    }
     do {
-        oldMode = mprSetSocketBlockingMode(conn->sock, blocking);
         httpScheduleQueue(q);
         next = q->nextQ;
         if (next->count >= next->max) {
@@ -193,7 +178,6 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
         if (conn->sock == 0) {
             break;
         }
-        mprSetSocketBlockingMode(conn->sock, oldMode);
     } while (blocking && q->count >= q->max);
     return (q->count < q->max) ? 1 : 0;
 }
@@ -258,7 +242,7 @@ void httpInitSchedulerQueue(HttpQueue *q)
 
 /*  
     Insert a queue after the previous element
-    MOB - rename append
+    TODO - rename append
  */
 void httpInsertQueue(HttpQueue *prev, HttpQueue *q)
 {
@@ -318,12 +302,10 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
 {
     HttpPacket  *packet;
     HttpQueue   *q;
-    HttpRx      *rx;
     MprBuf      *content;
     ssize       nbytes, len;
 
     q = conn->readq;
-    rx = conn->rx;
     
     while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
@@ -331,7 +313,7 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
             httpWait(conn, 0, MPR_TIMEOUT_SOCKETS);
         }
     }
-    //  MOB - better place for this?
+    //  TODO - better place for this?
     conn->lastActivity = conn->http->now;
 
     for (nbytes = 0; size > 0 && q->count > 0; ) {
@@ -344,7 +326,6 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
         if (len > 0) {
             len = mprGetBlockFromBuf(content, buf, len);
         }
-        rx->readContent += len;
         buf += len;
         size -= len;
         q->count -= len;
@@ -363,17 +344,20 @@ int httpIsEof(HttpConn *conn)
 }
 
 
+/*
+    Read all the content buffered so far
+ */
 char *httpReadString(HttpConn *conn)
 {
     HttpRx      *rx;
+    ssize       sofar, nbytes, remaining;
     char        *content;
-    ssize       remaining, sofar, nbytes;
 
     rx = conn->rx;
+    remaining = (ssize) min(MAXSSIZE, rx->length);
 
-    if (rx->length > 0) {
-        content = mprAlloc(rx->length + 1);
-        remaining = rx->length;
+    if (remaining > 0) {
+        content = mprAlloc(remaining + 1);
         sofar = 0;
         while (remaining > 0) {
             nbytes = httpRead(conn, &content[sofar], remaining);
@@ -459,31 +443,49 @@ void httpServiceQueue(HttpQueue *q)
  */
 bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
 {
-    HttpQueue   *next;
+    HttpQueue   *nextQ;
     ssize       size;
 
-    next = q->nextQ;
-
-    size = packet->content ? mprGetBufLength(packet->content) : 0;
-    if (size == 0 || (size <= next->packetSize && (size + next->count) <= next->max)) {
+    nextQ = q->nextQ;
+    size = httpGetPacketLength(packet);
+    if (size <= nextQ->packetSize && (size + nextQ->count) <= nextQ->max) {
         return 1;
     }
     if (httpResizePacket(q, packet, 0) < 0) {
         return 0;
     }
     size = httpGetPacketLength(packet);
-    if (size <= next->packetSize && (size + next->count) <= next->max) {
+    mprAssert(size <= nextQ->packetSize);
+    if ((size + nextQ->count) <= nextQ->max) {
         return 1;
     }
     /*  
         The downstream queue is full, so disable the queue and mark the downstream queue as full and service 
-        if immediately if not disabled.  
      */
-    mprLog(7, "Disable queue %s", q->owner);
     httpDisableQueue(q);
-    next->flags |= HTTP_QUEUE_FULL;
-    if (!(next->flags & HTTP_QUEUE_DISABLED)) {
-        httpScheduleQueue(next);
+    nextQ->flags |= HTTP_QUEUE_FULL;
+    if (!(nextQ->flags & HTTP_QUEUE_DISABLED)) {
+        httpScheduleQueue(nextQ);
+    }
+    return 0;
+}
+
+
+/*  
+    Return true if the next queue will accept a certain amount of data.
+ */
+bool httpWillNextQueueAcceptSize(HttpQueue *q, ssize size)
+{
+    HttpQueue   *nextQ;
+
+    nextQ = q->nextQ;
+    if (size <= nextQ->packetSize && (size + nextQ->count) <= nextQ->max) {
+        return 1;
+    }
+    httpDisableQueue(q);
+    nextQ->flags |= HTTP_QUEUE_FULL;
+    if (!(nextQ->flags & HTTP_QUEUE_DISABLED)) {
+        httpScheduleQueue(nextQ);
     }
     return 0;
 }
@@ -491,7 +493,7 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
 
 /*  
     Write a block of data. This is the lowest level write routine for data. This will buffer the data and flush if
-    the queue buffer is full.
+    the queue buffer is full. This will always accept the data but may return with a "short" write.
  */
 ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
 {

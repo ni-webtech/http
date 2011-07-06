@@ -16,10 +16,9 @@
 #if !BLD_FEATURE_ROMFS
 
 static void addPacketForSend(HttpQueue *q, HttpPacket *packet);
-static void adjustSendVec(HttpQueue *q, ssize written);
-static int  buildSendVec(HttpQueue *q);
-static void freeSentPackets(HttpQueue *q, ssize written);
-static void sendIncomingService(HttpQueue *q);
+static void adjustSendVec(HttpQueue *q, MprOff written);
+static MprOff buildSendVec(HttpQueue *q);
+static void adjustPacketData(HttpQueue *q, MprOff written);
 
 /*********************************** Code *************************************/
 
@@ -33,7 +32,6 @@ int httpOpenSendConnector(Http *http)
     }
     stage->open = httpSendOpen;
     stage->outgoingService = httpSendOutgoingService; 
-    stage->incomingService = sendIncomingService; 
     http->sendConnector = stage;
     return 0;
 }
@@ -50,15 +48,12 @@ void httpSendOpen(HttpQueue *q)
     conn = q->conn;
     tx = conn->tx;
 
-    /*  
-        To write an entire file, reset the maximum and packet size to the maximum response body size (LimitResponseBody)
-     */
-    //  MOB -- are these enforced somewhere as the packet will be empty
-    //  MOB -- should these not be set elsewhere?
-    q->max = conn->limits->transmissionBodySize;
-    q->packetSize = conn->limits->transmissionBodySize;
-
     if (!(tx->flags & HTTP_TX_NO_BODY)) {
+        if (tx->fileInfo.size > conn->limits->transmissionBodySize) {
+            httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
+                "Http transmission aborted. File size exceeds max body of %d bytes", conn->limits->transmissionBodySize);
+            return;
+        }
         tx->file = mprOpenFile(tx->filename, O_RDONLY | O_BINARY, 0);
         if (tx->file == 0) {
             httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
@@ -67,18 +62,13 @@ void httpSendOpen(HttpQueue *q)
 }
 
 
-static void sendIncomingService(HttpQueue *q)
-{
-    httpEnableConnEvents(q->conn);
-}
-
-
 void httpSendOutgoingService(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpTx      *tx;
-    ssize       written;
-    int         errCode, count;
+    MprFile     *file;
+    MprOff      written;
+    int         errCode;
 
     conn = q->conn;
     tx = conn->tx;
@@ -109,13 +99,11 @@ void httpSendOutgoingService(HttpQueue *q)
         if (q->ioIndex == 0 && buildSendVec(q) <= 0) {
             break;
         }
-        /*
-            Write the vector and file data. Exclude the file entry in the io vector.
-         */
-        count = q->ioIndex - q->ioFileEntry;
-        mprAssert(count >= 0);
-        written = mprSendFileToSocket(conn->sock, tx->file, (MprOffset) tx->pos, q->ioCount, q->iovec, count, NULL, 0);
-        mprLog(5, "Send connector wrote %d, written so far %d", written, tx->bytesWritten);
+        file = q->ioFile ? tx->file : 0;
+        written = mprSendFileToSocket(conn->sock, file, q->ioPos, q->ioCount, q->iovec, q->ioIndex, NULL, 0);
+
+        mprLog(8, "Send connector ioCount %d, wrote %Ld, written so far %Ld, sending file %d, q->count %d/%d", 
+                q->ioCount, written, tx->bytesWritten, q->ioFile, q->count, q->max);
         if (written < 0) {
             errCode = mprGetError(q);
             if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
@@ -137,7 +125,7 @@ void httpSendOutgoingService(HttpQueue *q)
 
         } else if (written > 0) {
             tx->bytesWritten += written;
-            freeSentPackets(q, written);
+            adjustPacketData(q, written);
             adjustSendVec(q, written);
         }
     }
@@ -156,7 +144,7 @@ void httpSendOutgoingService(HttpQueue *q)
     file data. This is used to write transfer the headers and chunk encoding boundaries. Return the count of bytes to 
     be written. Return -1 for EOF.
  */
-static int buildSendVec(HttpQueue *q)
+static MprOff buildSendVec(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpPacket  *packet;
@@ -165,7 +153,7 @@ static int buildSendVec(HttpQueue *q)
 
     conn = q->conn;
     q->ioCount = 0;
-    q->ioFileEntry = 0;
+    q->ioFile = 0;
 
     /*  
         Examine each packet and accumulate as many packets into the I/O vector as possible. Can only have one data packet at
@@ -177,19 +165,19 @@ static int buildSendVec(HttpQueue *q)
         if (packet->flags & HTTP_PACKET_HEADER) {
             httpWriteHeaders(conn, packet);
             q->count += httpGetPacketLength(packet);
-
-        } else if (httpGetPacketLength(packet) == 0) {
+            
+        } else if (httpGetPacketLength(packet) == 0 && packet->esize == 0) {
             q->flags |= HTTP_QUEUE_EOF;
             if (packet->prefix == NULL) {
                 break;
             }
         }
-        if (q->ioFileEntry || q->ioIndex >= (HTTP_MAX_IOVEC - 2)) {
+        if (q->ioFile || q->ioIndex >= (HTTP_MAX_IOVEC - 2)) {
             break;
         }
         addPacketForSend(q, packet);
     }
-    return (int) q->ioCount;
+    return q->ioCount;
 }
 
 
@@ -198,6 +186,7 @@ static int buildSendVec(HttpQueue *q)
  */
 static void addToSendVector(HttpQueue *q, char *ptr, ssize bytes)
 {
+    mprAssert(ptr > 0);
     mprAssert(bytes > 0);
 
     q->iovec[q->ioIndex].start = ptr;
@@ -225,23 +214,20 @@ static void addPacketForSend(HttpQueue *q, HttpPacket *packet)
     if (packet->prefix) {
         addToSendVector(q, mprGetBufStart(packet->prefix), mprGetBufLength(packet->prefix));
     }
-    if (httpGetPacketLength(packet) > 0) {
+    if (packet->esize > 0) {
+        mprAssert(q->ioFile == 0);
+        q->ioFile = 1;
+        q->ioCount += packet->esize;
+
+    } else if (httpGetPacketLength(packet) > 0) {
         /*
             Header packets have actual content. File data packets are virtual and only have a count.
          */
-        if (packet->content) {
-            addToSendVector(q, mprGetBufStart(packet->content), mprGetBufLength(packet->content));
-
-        } else {
-            addToSendVector(q, 0, httpGetPacketLength(packet));
-            mprAssert(q->ioFileEntry == 0);
-            q->ioFileEntry = 1;
-            q->ioFileOffset += (MprOffset) httpGetPacketLength(packet);
+        addToSendVector(q, mprGetBufStart(packet->content), httpGetPacketLength(packet));
+        item = (packet->flags & HTTP_PACKET_HEADER) ? HTTP_TRACE_HEADER : HTTP_TRACE_BODY;
+        if (httpShouldTrace(conn, HTTP_TRACE_TX, item, tx->extension) >= 0) {
+            httpTraceContent(conn, HTTP_TRACE_TX, item, packet, 0, tx->bytesWritten);
         }
-    }
-    item = (packet->flags & HTTP_PACKET_HEADER) ? HTTP_TRACE_HEADER : HTTP_TRACE_BODY;
-    if (httpShouldTrace(conn, HTTP_TRACE_TX, item, NULL) >= 0) {
-        httpTraceContent(conn, HTTP_TRACE_TX, item, packet, 0, tx->bytesWritten);
     }
 }
 
@@ -251,7 +237,7 @@ static void addPacketForSend(HttpQueue *q, HttpPacket *packet)
     being full. Don't come here if we've seen all the packets and all the data has been completely written. ie. small files
     don't come here.
  */
-static void freeSentPackets(HttpQueue *q, ssize bytes)
+static void adjustPacketData(HttpQueue *q, MprOff bytes)
 {
     HttpPacket  *packet;
     ssize       len;
@@ -263,21 +249,27 @@ static void freeSentPackets(HttpQueue *q, ssize bytes)
     while ((packet = q->first) != 0) {
         if (packet->prefix) {
             len = mprGetBufLength(packet->prefix);
-            len = min(len, bytes);
+            len = (ssize) min(len, bytes);
             mprAdjustBufStart(packet->prefix, len);
             bytes -= len;
-            /* Prefixes dont' count in the q->count. No need to adjust */
+            /* Prefixes don't count in the q->count. No need to adjust */
             if (mprGetBufLength(packet->prefix) == 0) {
                 packet->prefix = 0;
             }
         }
-        if ((len = httpGetPacketLength(packet)) > 0) {
-            len = min(len, bytes);
-            if (packet->content) {
-                mprAdjustBufStart(packet->content, len);
-            } else {
-                packet->entityLength -= len;
+        if (packet->esize) {
+            len = (ssize) min(packet->esize, bytes);
+            packet->esize -= len;
+            packet->epos += len;
+            bytes -= len;
+            mprAssert(packet->esize >= 0);
+            mprAssert(bytes == 0);
+            if (packet->esize > 0) {
+                break;
             }
+        } else if ((len = httpGetPacketLength(packet)) > 0) {
+            len = (ssize) min(len, bytes);
+            mprAdjustBufStart(packet->content, len);
             bytes -= len;
             q->count -= len;
             mprAssert(q->count >= 0);
@@ -298,61 +290,37 @@ static void freeSentPackets(HttpQueue *q, ssize bytes)
     being full. Don't come here if we've seen all the packets and all the data has been completely written. ie. small files
     don't come here.
  */
-static void adjustSendVec(HttpQueue *q, ssize written)
+static void adjustSendVec(HttpQueue *q, MprOff written)
 {
-    HttpTx      *tx;
     MprIOVec    *iovec;
     ssize       len;
     int         i, j;
 
-    tx = q->conn->tx;
-
-    /*  
-        Cleanup the IO vector
-     */
-    if (written == q->ioCount) {
-        /*  
-            Entire vector written. Just reset.
-         */
-        q->ioIndex = 0;
-        q->ioCount = 0;
-        tx->pos = q->ioFileOffset;
-
-    } else {
-        /*  
-            Partial write of an vector entry. Need to copy down the unwritten vector entries.
-         */
-        q->ioCount -= written;
-        mprAssert(q->ioCount >= 0);
-        iovec = q->iovec;
-        for (i = 0; i < q->ioIndex; i++) {
-            len = iovec[i].len;
-            if (iovec[i].start) {
-                if (written < len) {
-                    iovec[i].start += written;
-                    iovec[i].len -= written;
-                    break;
-                } else {
-                    written -= len;
-                }
-            } else {
-                /*
-                    File data has a null start ptr
-                 */
-                tx->pos += written;
-                q->ioIndex = 0;
-                q->ioCount = 0;
-                return;
-            }
+    iovec = q->iovec;
+    for (i = 0; i < q->ioIndex; i++) {
+        len = iovec[i].len;
+        if (written < len) {
+            iovec[i].start += (ssize) written;
+            iovec[i].len -= (ssize) written;
+            return;
         }
-
-        /*  Compact */
-        for (j = 0; i < q->ioIndex; ) {
+        written -= len;
+        q->ioCount -= len;
+        for (j = i + 1; i < q->ioIndex; ) {
             iovec[j++] = iovec[i++];
         }
-        q->ioIndex = j;
+        q->ioIndex--;
+        i--;
     }
+    if (written > 0 && q->ioFile) {
+        /* All remaining data came from the file */
+        q->ioPos += written;
+    }
+    q->ioIndex = 0;
+    q->ioCount = 0;
+    q->ioFile = 0;
 }
+
 
 #else
 int httpOpenSendConnector(Http *http) { return 0; }

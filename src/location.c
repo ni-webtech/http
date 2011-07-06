@@ -26,14 +26,16 @@ HttpLoc *httpCreateLocation()
     loc->http = MPR->httpService;
     loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
     loc->handlers = mprCreateList(-1, 0);
-    loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
+    loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
+    loc->expiresByType = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     loc->inputStages = mprCreateList(-1, 0);
     loc->outputStages = mprCreateList(-1, 0);
     loc->prefix = mprEmptyString();
     loc->prefixLen = (int) strlen(loc->prefix);
     loc->auth = httpCreateAuth(0);
     loc->flags = HTTP_LOC_SMART;
+    loc->workers = -1;
     return loc;
 }
 
@@ -48,6 +50,7 @@ static void manageLoc(HttpLoc *loc, int flags)
         mprMark(loc->handler);
         mprMark(loc->extensions);
         mprMark(loc->expires);
+        mprMark(loc->expiresByType);
         mprMark(loc->handlers);
         mprMark(loc->inputStages);
         mprMark(loc->outputStages);
@@ -57,6 +60,7 @@ static void manageLoc(HttpLoc *loc, int flags)
         mprMark(loc->uploadDir);
         mprMark(loc->searchPath);
         mprMark(loc->script);
+        mprMark(loc->scriptPath);
         mprMark(loc->ssl);
     }
 }
@@ -84,15 +88,20 @@ HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
     loc->handlers = parent->handlers;
     loc->extensions = parent->extensions;
     loc->expires = parent->expires;
+    loc->expiresByType = parent->expiresByType;
     loc->connector = parent->connector;
     loc->errorDocuments = parent->errorDocuments;
+#if UNUSED
     loc->sessionTimeout = parent->sessionTimeout;
+#endif
     loc->auth = httpCreateAuth(parent->auth);
     loc->uploadDir = parent->uploadDir;
     loc->autoDelete = parent->autoDelete;
     loc->script = parent->script;
+    loc->scriptPath = parent->scriptPath;
     loc->searchPath = parent->searchPath;
     loc->ssl = parent->ssl;
+    loc->workers = parent->workers;
     return loc;
 }
 
@@ -105,6 +114,7 @@ static void graduate(HttpLoc *loc)
     if (loc->parent) {
         loc->errorDocuments = mprCloneHash(loc->parent->errorDocuments);
         loc->expires = mprCloneHash(loc->parent->expires);
+        loc->expiresByType = mprCloneHash(loc->parent->expiresByType);
         loc->extensions = mprCloneHash(loc->parent->extensions);
         loc->handlers = mprCloneList(loc->parent->handlers);
         loc->inputStages = mprCloneList(loc->parent->inputStages);
@@ -123,12 +133,6 @@ void httpFinalizeLocation(HttpLoc *loc)
 }
 
 
-void httpSetLocationAuth(HttpLoc *loc, HttpAuth *auth)
-{
-    loc->auth = auth;
-}
-
-
 /*  
     Add a handler. This adds a handler to the set of possible handlers for a set of file extensions.
  */
@@ -142,15 +146,15 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
 
     http = loc->http;
     graduate(loc);
-    handler = httpLookupStage(http, name);
-    if (handler == 0) {
+
+    if ((handler = httpLookupStage(http, name)) == 0) {
         mprError("Can't find stage %s", name); 
         return MPR_ERR_CANT_FIND;
     }
     if (extensions && *extensions) {
-        mprLog(MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, extensions);
+        mprLog(MPR_CONFIG, "Add handler \"%s\" for extensions: %s", name, extensions);
     } else {
-        mprLog(MPR_CONFIG, "Add handler \"%s\" for \"%s\"", name, loc->prefix);
+        mprLog(MPR_CONFIG, "Add handler \"%s\" for prefix: \"%s\"", name, loc->prefix);
     }
     if (extensions && *extensions) {
         /*
@@ -173,18 +177,20 @@ int httpAddHandler(HttpLoc *loc, cchar *name, cchar *extensions)
     } else {
         if (handler->match == 0) {
             /*
-                If a handler provides a custom match() routine, then don't match by extension.
+                Only match by extensions if no-match routine provided.
              */
             mprAddKey(loc->extensions, "", handler);
         }
-        mprAddItem(loc->handlers, handler);
+        if (mprLookupItem(loc->handlers, handler) < 0) {
+            mprAddItem(loc->handlers, handler);
+        }
     }
     return 0;
 }
 
 
 /*  
-    Set a handler to universally apply to requests in this location block.
+    Set a handler to apply to requests in this location block.
  */
 int httpSetHandler(HttpLoc *loc, cchar *name)
 {
@@ -225,7 +231,7 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
     filter = httpCloneStage(loc->http, stage);
 
     if (extensions && *extensions) {
-        filter->extensions = mprCreateHash(0, 0);
+        filter->extensions = mprCreateHash(0, MPR_HASH_CASELESS);
         extlist = sclone(extensions);
         word = stok(extlist, " \t\r\n", &tok);
         while (word) {
@@ -241,17 +247,33 @@ int httpAddFilter(HttpLoc *loc, cchar *name, cchar *extensions, int direction)
         }
     }
     graduate(loc);
-    if (direction & HTTP_STAGE_INCOMING) {
+    if (direction & HTTP_STAGE_RX) {
         mprAddItem(loc->inputStages, filter);
     }
-    if (direction & HTTP_STAGE_OUTGOING) {
+    if (direction & HTTP_STAGE_TX) {
         mprAddItem(loc->outputStages, filter);
     }
     return 0;
 }
 
 
-void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
+void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *extensions)
+{
+    char    *types, *ext, *tok;
+
+    if (extensions && *extensions) {
+        graduate(loc);
+        types = sclone(extensions);
+        ext = stok(types, " ,\t\r\n", &tok);
+        while (ext) {
+            mprAddKey(loc->expires, ext, ITOP(when));
+            ext = stok(0, " \t\r\n", &tok);
+        }
+    }
+}
+
+
+void httpAddLocationExpiryByType(HttpLoc *loc, MprTime when, cchar *mimeTypes)
 {
     char    *types, *mime, *tok;
 
@@ -260,7 +282,7 @@ void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
         types = sclone(mimeTypes);
         mime = stok(types, " ,\t\r\n", &tok);
         while (mime) {
-            mprAddKey(loc->expires, mime, ITOP(when));
+            mprAddKey(loc->expiresByType, mime, ITOP(when));
             mime = stok(0, " \t\r\n", &tok);
         }
     }
@@ -269,10 +291,10 @@ void httpAddLocationExpiry(HttpLoc *loc, MprTime when, cchar *mimeTypes)
 
 void httpClearStages(HttpLoc *loc, int direction)
 {
-    if (direction & HTTP_STAGE_INCOMING) {
+    if (direction & HTTP_STAGE_RX) {
         loc->inputStages = mprCreateList(-1, 0);
     }
-    if (direction & HTTP_STAGE_OUTGOING) {
+    if (direction & HTTP_STAGE_TX) {
         loc->outputStages = mprCreateList(-1, 0);
     }
 }
@@ -303,7 +325,7 @@ void httpResetPipeline(HttpLoc *loc)
     if (loc->parent == 0) {
         loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
         loc->expires = mprCreateHash(0, MPR_HASH_STATIC_VALUES);
-        loc->extensions = mprCreateHash(0, 0);
+        loc->extensions = mprCreateHash(0, MPR_HASH_CASELESS);
         loc->handlers = mprCreateList(-1, 0);
         loc->inputStages = mprCreateList(-1, 0);
         loc->inputStages = mprCreateList(-1, 0);
@@ -321,7 +343,22 @@ void httpResetHandlers(HttpLoc *loc)
 
 HttpStage *httpGetHandlerByExtension(HttpLoc *loc, cchar *ext)
 {
-    return (HttpStage*) mprLookupHash(loc->extensions, ext);
+    return (HttpStage*) mprLookupKey(loc->extensions, ext);
+}
+
+
+void httpSetLocationAlias(HttpLoc *loc, HttpAlias *alias)
+{
+    mprAssert(loc);
+    mprAssert(alias);
+
+    loc->alias = alias;
+}
+
+
+void httpSetLocationAuth(HttpLoc *loc, HttpAuth *auth)
+{
+    loc->auth = auth;
 }
 
 
@@ -331,14 +368,6 @@ void httpSetLocationPrefix(HttpLoc *loc, cchar *uri)
 
     loc->prefix = sclone(uri);
     loc->prefixLen = (int) strlen(loc->prefix);
-#if UNUSED
-    /*
-        Always strip trailing "/". Note this is a Uri and not a path.
-     */
-    if (loc->prefixLen > 0 && loc->prefix[loc->prefixLen - 1] == '/') {
-        loc->prefix[--loc->prefixLen] = '\0';
-    }
-#endif
 }
 
 
@@ -354,9 +383,20 @@ void httpSetLocationAutoDelete(HttpLoc *loc, int enable)
 }
 
 
-void httpSetLocationScript(HttpLoc *loc, cchar *script)
+void httpSetLocationScript(HttpLoc *loc, cchar *script, cchar *scriptPath)
 {
-    loc->script = sclone(script);
+    if (script) {
+        loc->script = sclone(script);
+    }
+    if (scriptPath) {
+        loc->scriptPath = sclone(scriptPath);
+    }
+}
+
+
+void httpSetLocationWorkers(HttpLoc *loc, int workers)
+{
+    loc->workers = workers;
 }
 
 
@@ -375,7 +415,7 @@ cchar *httpLookupErrorDocument(HttpLoc *loc, int code)
         return 0;
     }
     itos(numBuf, sizeof(numBuf), code, 10);
-    return (cchar*) mprLookupHash(loc->errorDocuments, numBuf);
+    return (cchar*) mprLookupKey(loc->errorDocuments, numBuf);
 }
 
 

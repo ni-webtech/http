@@ -71,7 +71,7 @@ static void testBasicHttpGet(MprTestGroup *gp)
     TestHttp    *th;
     Http        *http;
     HttpConn    *conn;
-    ssize       length;
+    MprOff      length;
     int         rc, status;
 
     th = gp->data;
@@ -112,7 +112,7 @@ static void testSecureHttpGet(MprTestGroup *gp)
     th->conn = conn = httpCreateConn(http, NULL, gp->dispatcher);
     assert(conn != 0);
 
-    rc = httpConnect(conn, "GET", "https://www.amazon.com/index.html");
+    rc = httpConnect(conn, "GET", "https://www.ibm.com/");
     assert(rc >= 0);
     if (rc >= 0) {
         httpFinalize(conn);

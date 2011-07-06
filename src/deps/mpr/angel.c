@@ -12,24 +12,25 @@
 #if BLD_UNIX_LIKE
 /*********************************** Locals ***********************************/
 
-#define RESTART_DELAY (0 * 1000)            /* Default heart beat period (30 sec) */
-#define RESTART_MAX   (100)                 /* Max restarts per hour */
+#define RESTART_DELAY (0 * 1000)        /* Default heart beat period (30 sec) */
+#define RESTART_MAX   (100)             /* Max restarts per hour */
 
 typedef struct App {
-    cchar        *appName;               /* Angel name */
-    int          exiting;                /* Program should exit */
-    char         *homeDir;               /* Home directory for service */
-    char         *logSpec;               /* Log directive for service */
-    char         *pidDir;                /* Location for pid file */
-    char         *pidPath;               /* Path to the angel pid for this service */
-    int          restartCount;           /* Service restart count */
-    int          restartWarned;          /* Has user been notified */
-    int          runAsDaemon;            /* Run as a daemon */
-    int          servicePid;             /* Process ID for the service */
-    char         *serviceArgs;           /* Args to pass to service */
-    char         *serviceName;           /* Basename of service program */
-    char         *serviceProgram;        /* Program to start */
-    int          verbose;                /* Run in verbose mode */
+    cchar   *appName;                   /* Angel name */
+    int     exiting;                    /* Program should exit */
+    int     retries;                    /* Number of times to retry staring app */
+    char    *homeDir;                   /* Home directory for service */
+    char    *logSpec;                   /* Log directive for service */
+    char    *pidDir;                    /* Location for pid file */
+    char    *pidPath;                   /* Path to the angel pid for this service */
+    int     restartCount;               /* Service restart count */
+    int     restartWarned;              /* Has user been notified */
+    int     runAsDaemon;                /* Run as a daemon */
+    int     servicePid;                 /* Process ID for the service */
+    char    *serviceArgs;               /* Args to pass to service */
+    char    *serviceName;               /* Basename of service program */
+    char    *serviceProgram;            /* Program to start */
+    int     verbose;                    /* Run in verbose mode */
 } App;
 
 static App *app;
@@ -53,7 +54,8 @@ int main(int argc, char *argv[])
 {
     Mpr     *mpr;
     char    *argp;
-    int     err, nextArg, i, len;
+    ssize   len;
+    int     err, nextArg, i;
 
     err = 0;
     mpr = mprCreate(argc, argv, MPR_USER_EVENTS_THREAD);
@@ -61,7 +63,7 @@ int main(int argc, char *argv[])
     mprAddRoot(app);
     setAppDefaults(mpr);
 
-    for (nextArg = 1; nextArg < argc; nextArg++) {
+    for (nextArg = 1; nextArg < argc && !err; nextArg++) {
         argp = argv[nextArg];
         if (*argp != '-') {
             break;
@@ -83,7 +85,7 @@ int main(int argc, char *argv[])
         } else if (strcmp(argp, "--daemon") == 0) {
             app->runAsDaemon++;
 
-#if UNUSED
+#if FUTURE
         } else if (strcmp(argp, "--heartBeat") == 0) {
             /*
                 Set the frequency to check on the program.
@@ -115,7 +117,7 @@ int main(int argc, char *argv[])
                 app->logSpec = sclone(argv[++nextArg]);
             }
 
-#if UNUSED
+#if FUTURE
         } else if (strcmp(argp, "--program") == 0) {
             if (nextArg >= argc) {
                 err++;
@@ -124,6 +126,13 @@ int main(int argc, char *argv[])
                 app->serviceName = mprGetPathBase(app->serviceProgram);
             }
 #endif
+
+        } else if (strcmp(argp, "--retries") == 0) {
+            if (nextArg >= argc) {
+                err++;
+            } else {
+                app->retries = atoi(argv[++nextArg]);
+            }
 
         } else if (strcmp(argp, "--stop") == 0) {
             /*
@@ -137,36 +146,42 @@ int main(int argc, char *argv[])
 
         } else {
             err++;
-        }
-        if (err) {
-            mprUserError("Bad command line: \n"
-                "  Usage: %s [options] [program args ...]\n"
-                "  Switches:\n"
-                "    --args               # Args to pass to service\n"
-                "    --daemon             # Run as a daemon\n"
-#if UNUSED
-                "    --heartBeat interval # Heart beat interval period (secs) \n"
-                "    --program path       # Service program to start\n"
-#endif
-                "    --home path          # Home directory for service\n"
-                "    --log logFile:level  # Log directive for service\n"
-                "    --stop               # Stop the service",
-                app->appName);
-            return -1;
+            break;
         }
     }
-
+    if (nextArg >= argc) {
+        err++;
+    }
+    if (err) {
+        mprUserError("Bad command line: \n"
+            "  Usage: %s [options] [program args ...]\n"
+            "  Switches:\n"
+            "    --args               # Args to pass to service\n"
+            "    --daemon             # Run as a daemon\n"
+#if FUTURE
+            "    --heartBeat interval # Heart beat interval period (secs) \n"
+            "    --program path       # Service program to start\n"
+#endif
+            "    --home path          # Home directory for service\n"
+            "    --log logFile:level  # Log directive for service\n"
+            "    --retries count      # Max count of app restarts\n"
+            "    --stop               # Stop the service",
+            app->appName);
+        return -1;
+    }
     if (nextArg < argc) {
         /* TODO - replace with mprJoin() */
         app->serviceProgram = argv[nextArg++];
         for (len = 0, i = nextArg; i < argc; i++) {
-            len += strlen(argv[i]) + 1;
+            len += slen(argv[i]) + 1;
         }
         app->serviceArgs = mprAlloc(len + 1);
         for (len = 0, i = nextArg; i < argc; i++) {
             strcpy(&app->serviceArgs[len], argv[i]);
-            len += strlen(argv[i]);
-            app->serviceArgs[len++] = ' ';
+            len += slen(argv[i]);
+            if ((i + 1) < argc) {
+                app->serviceArgs[len++] = ' ';
+            }
         }
         app->serviceArgs[len] = '\0';
     }
@@ -198,11 +213,14 @@ static void manageApp(void *ptr, int flags)
 static void setAppDefaults(Mpr *mpr)
 {
     app->appName = mprGetAppName();
-    app->homeDir = mprGetAppDir();
+    app->homeDir = sclone(".");
+#if UNUSED
     app->serviceProgram = mprJoinPath(app->homeDir, BLD_PRODUCT);
     app->serviceName = mprGetPathBase(app->serviceProgram);
+#endif
+    app->retries = RESTART_MAX;
 
-    if (mprPathExists("/var/run", X_OK)) {
+    if (mprPathExists("/var/run", X_OK) && getuid() == 0) {
         app->pidDir = "/var/run";
     } else if (mprPathExists("/tmp", X_OK)) {
         app->pidDir = "/tmp";
@@ -219,7 +237,7 @@ static void angel()
 {
     MprTime     mark;
     char        **av, *env[3], **argv;
-    int         err, i, status, ac, next, rc;
+    int         err, i, status, ac, next;
 
     app->servicePid = 0;
 
@@ -237,14 +255,14 @@ static void angel()
     }
     mark = mprGetTime();
 
-    while (! app->exiting) {
+    while (!mprIsStopping()) {
         if (mprGetElapsedTime(mark) > (3600 * 1000)) {
             mark = mprGetTime();
             app->restartCount = 0;
             app->restartWarned = 0;
         }
         if (app->servicePid == 0) {
-            if (app->restartCount >= RESTART_MAX) {
+            if (app->restartCount >= app->retries) {
                 if (! app->restartWarned) {
                     mprError("Too many restarts for %s, %d in ths last hour", app->serviceProgram, app->restartCount);
                     mprError("Suspending restarts for one hour");
@@ -271,13 +289,13 @@ static void angel()
                 if (app->verbose) {
                     mprPrintf("%s: Change dir to %s\n", app->appName, app->homeDir);
                 }
-                rc = chdir(app->homeDir);
+                if (chdir(app->homeDir) < 0) {}
 
                 for (i = 3; i < 128; i++) {
                     close(i);
                 }
                 if (app->serviceArgs && *app->serviceArgs) {
-                    mprMakeArgv(app->serviceArgs, &ac, &av, MPR_ARGV_ARGS_ONLY);
+                    mprMakeArgv(app->serviceArgs, &ac, &av, 0);
                 } else {
                     ac = 0;
                 }
@@ -287,12 +305,12 @@ static void angel()
                 env[2] = 0;
 
                 next = 0;
-                argv[next++] = (char*) mprGetPathBase(app->serviceProgram);
+                argv[next++] = app->serviceProgram;
                 if (app->logSpec) {
                     argv[next++] = "--log";
                     argv[next++] = (char*) app->logSpec;
                 }
-                for (i = 1; i < ac; i++) {
+                for (i = 0; i < ac; i++) {
                     argv[next++] = av[i];
                 }
                 argv[next++] = 0;
@@ -321,8 +339,8 @@ static void angel()
 
             waitpid(app->servicePid, &status, 0);
             if (app->verbose) {
-                mprPrintf("%s: %s has exited with status %d, restarting ...\n", app->appName, app->serviceProgram, 
-                    WEXITSTATUS(status));
+                mprPrintf("%s: %s has exited with status %d, restarting (%d/%d)...\n", 
+                    app->appName, app->serviceProgram, WEXITSTATUS(status), app->restartCount, app->retries);
             }
             app->servicePid = 0;
         }
@@ -377,7 +395,7 @@ static int setupUnixSignals()
 static void catchSignal(int signo, siginfo_t *info, void *arg)
 {
     cleanup();
-    mprTerminate(0);
+    mprTerminate(0, -1);
 }
 
 

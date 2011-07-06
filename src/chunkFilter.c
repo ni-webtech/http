@@ -11,7 +11,7 @@
 /********************************** Forwards **********************************/
 
 static void incomingChunkData(HttpQueue *q, HttpPacket *packet);
-static bool matchChunk(HttpConn *conn, HttpStage *handler);
+static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir);
 static void openChunk(HttpQueue *q);
 static void outgoingChunkService(HttpQueue *q);
 static void setChunkPrefix(HttpQueue *q, HttpPacket *packet);
@@ -37,9 +37,25 @@ int httpOpenChunkFilter(Http *http)
 }
 
 
-static bool matchChunk(HttpConn *conn, HttpStage *handler)
+static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir)
 {
-    return (conn->tx->length <= 0) ? 1 : 0;
+    HttpTx  *tx;
+
+    if (dir & HTTP_STAGE_TX) {
+        /*
+            Don't match if chunking is explicitly turned off vi a the X_APPWEB_CHUNK_SIZE header which sets the chunk 
+            size to zero. Also remove if the response length is already known.
+         */
+        tx = conn->tx;
+        return (tx->length < 0 && tx->chunkSize != 0) ? 1 : 0;
+
+    } else {
+        /* 
+            Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
+            know what the response data looks like (chunked or not).
+         */
+        return 1;
+    }
 }
 
 
@@ -52,7 +68,9 @@ static void openChunk(HttpQueue *q)
     rx = conn->rx;
 
     q->packetSize = min(conn->limits->chunkSize, q->max);
+#if UNUSED
     rx->chunkState = HTTP_CHUNK_START;
+#endif
 }
 
 
@@ -83,7 +101,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
     }
     buf = packet->content;
 
-    if (packet->content == 0) {
+    if (buf == 0) {
         if (rx->chunkState == HTTP_CHUNK_DATA) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk state");
             return;
@@ -178,7 +196,6 @@ static void outgoingChunkService(HttpQueue *q)
             and can bypass the chunk handler.
          */
         if (q->last->flags & HTTP_PACKET_END) {
-            //  MOB -- but what if a content-length header has been defined but not set tx->length
             if (tx->chunkSize < 0 && tx->length <= 0) {
                 /*  
                     Set the response content length and thus disable chunking -- not needed as we know the entity length.
@@ -196,7 +213,9 @@ static void outgoingChunkService(HttpQueue *q)
     } else {
         for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
             if (!(packet->flags & HTTP_PACKET_HEADER)) {
+                httpPutBackPacket(q, packet);
                 httpJoinPackets(q, tx->chunkSize);
+                packet = httpGetPacket(q);
                 if (httpGetPacketLength(packet) > tx->chunkSize) {
                     httpResizePacket(q, packet, tx->chunkSize);
                 }

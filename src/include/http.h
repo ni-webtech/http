@@ -48,7 +48,7 @@ struct HttpUri;
     /*  
         Tune for size
      */
-    #define HTTP_BUFSIZE               (4 * 1024)            /**< Default I/O buffer size */
+    #define HTTP_BUFSIZE               (8 * 1024)            /**< Default I/O buffer size */
     #define HTTP_MAX_CHUNK             (8 * 1024)            /**< Max chunk size for transfer chunk encoding */
     #define HTTP_MAX_HEADERS           2048                  /**< Max size of the headers */
     #define HTTP_MAX_IOVEC             16                    /**< Number of fragments in a single socket write */
@@ -57,14 +57,14 @@ struct HttpUri;
     #define HTTP_MAX_REQUESTS          20                    /**< Max concurrent requests */
     #define HTTP_MAX_CLIENTS           10                    /**< Max concurrent client endpoints */
     #define HTTP_MAX_SESSIONS          100                   /**< Max concurrent sessions */
-    #define HTTP_MAX_STAGE_BUFFER      (16 * 1024)           /**< Max buffer for any stage */
+    #define HTTP_MAX_STAGE_BUFFER      (32 * 1024)           /**< Max buffer for any stage */
     #define HTTP_CLIENTS_HASH          (131)                 /**< Hash table for client IP addresses */
 
 #elif BLD_TUNE == MPR_TUNE_BALANCED
     /*  
         Tune balancing speed and size
      */
-    #define HTTP_BUFSIZE               (8 * 1024)
+    #define HTTP_BUFSIZE               (16 * 1024)
     #define HTTP_MAX_CHUNK             (8 * 1024)
     #define HTTP_MAX_HEADERS           (8 * 1024)
     #define HTTP_MAX_IOVEC             24
@@ -73,14 +73,14 @@ struct HttpUri;
     #define HTTP_MAX_REQUESTS          50
     #define HTTP_MAX_CLIENTS           25
     #define HTTP_MAX_SESSIONS          500
-    #define HTTP_MAX_STAGE_BUFFER      (32 * 1024)
+    #define HTTP_MAX_STAGE_BUFFER      (64 * 1024)
     #define HTTP_CLIENTS_HASH          (257)
 
 #else
     /*  
         Tune for speed
      */
-    #define HTTP_BUFSIZE               (16 * 1024)
+    #define HTTP_BUFSIZE               (32 * 1024)
     #define HTTP_MAX_CHUNK             (16 * 1024) 
     #define HTTP_MAX_HEADERS           (8 * 1024)
     #define HTTP_MAX_IOVEC             32
@@ -89,13 +89,12 @@ struct HttpUri;
     #define HTTP_MAX_REQUESTS          1000
     #define HTTP_MAX_CLIENTS           500
     #define HTTP_MAX_SESSIONS          5000
-    #define HTTP_MAX_STAGE_BUFFER      (64 * 1024)
+    #define HTTP_MAX_STAGE_BUFFER      (128 * 1024)
     #define HTTP_CLIENTS_HASH          (1009)
 #endif
 
-#define HTTP_MAX_TRANSMISSION_BODY (INT_MAX)             /**< Max buffer for response data */
+#define HTTP_MAX_TX_BODY           (INT_MAX)        /**< Max buffer for response data */
 #define HTTP_MAX_UPLOAD            (INT_MAX)
-
 
 /*  
     Other constants
@@ -175,7 +174,6 @@ struct HttpUri;
 #define HTTP_ABORT                          0x10000         /* Abort the request, immediately close the conn */
 #define HTTP_CLOSE                          0x20000         /* Close the conn at the completion of the request */
 
-typedef int (*HttpRangeProc)(struct HttpQueue *q, struct HttpPacket *packet);
 typedef cchar *(*HttpGetPassword)(struct HttpAuth *auth, cchar *realm, cchar *user);
 typedef bool (*HttpValidateCred)(struct HttpAuth *auth, cchar *realm, char *user, cchar *pass, cchar *required, char **msg);
 typedef void (*HttpNotifier)(struct HttpConn *conn, int state, int flags);
@@ -258,8 +256,6 @@ typedef struct Http {
     int             proxyPort;              /**< Proxy port */
     int             sslLoaded;              /**< True when the SSL provider has been loaded */
 
-    void            (*rangeService)(struct HttpQueue *q, HttpRangeProc fill);
-
     /*
         Callbacks
      */
@@ -280,17 +276,7 @@ typedef struct Http {
 extern Http *httpCreate();
 extern void httpDestroy(Http *http);
 
-#if UNUSED
-/**
-    Create a Http client
-    @param http HttpConn object created via $httpCreateConn
-    @param dispatcher Dispatcher to use. Can be null.
-    @return Returns a HttpConn connection object
- */
 //  MOB - consistency - should not have to provide http
-extern struct HttpConn *httpCreateClient(Http *http, MprDispatcher *dispatcher);
-#endif
-
 /**  
     Create the Http secret data for crypto
     @description Create http secret data that is used to seed SSL based communications.
@@ -298,7 +284,6 @@ extern struct HttpConn *httpCreateClient(Http *http, MprDispatcher *dispatcher);
     @return Zero if successful, otherwise a negative MPR error code
     @ingroup Http
  */
-//  MOB - consistency - should not have to provide http
 extern int httpCreateSecret(Http *http);
 
 /**
@@ -361,7 +346,7 @@ extern void httpSetProxy(Http *http, cchar *host, int port);
 
 /* Internal APIs */
 extern void httpAddConn(Http *http, struct HttpConn *conn);
-extern int httpAddHostToServers(Http *http, struct HttpHost *host);
+extern struct HttpServer *httpGetFirstServer(Http *http);
 extern void httpRemoveConn(Http *http, struct HttpConn *conn);
 extern cchar *httpLookupStatus(Http *http, int status);
 extern void httpAddServer(Http *http, struct HttpServer *server);
@@ -382,28 +367,29 @@ extern void httpRemoveHost(Http *http, struct HttpHost *host);
 typedef struct HttpLimits {
     ssize   chunkSize;              /**< Max chunk size for transfer encoding */
     ssize   headerSize;             /**< Max size of the total header */
-    ssize   receiveBodySize;        /**< Max size of receive body data */
     ssize   stageBufferSize;        /**< Max buffering by any pipeline stage */
-    ssize   transmissionBodySize;   /**< Max size of transmission body content */
-    ssize   uploadSize;             /**< Max size of an uploaded file */
     ssize   uriSize;                /**< Max size of a uri */
+
+    MprOff  receiveBodySize;        /**< Max size of receive body data */
+    MprOff  transmissionBodySize;   /**< Max size of transmission body content */
+    MprOff  uploadSize;             /**< Max size of an uploaded file */
 
     int     clientCount;            /**< Max number of simultaneous clients endpoints */
     int     headerCount;            /**< Max number of header lines */
     int     keepAliveCount;         /**< Max number of keep alive requests to perform per socket */
     int     requestCount;           /**< Max number of simultaneous concurrent requests */
-    int     sessionCount;           /**< Max number of opened session state stores */
 
-    //  MOB - should these be int64?
-    int     inactivityTimeout;      /**< Default timeout for keep-alive and idle requests (msec) */
-    int     requestTimeout;         /**< Default time a request can take (msec) */
-    int     sessionTimeout;         /**< Default time a session can persist (msec) */
+    MprTime inactivityTimeout;      /**< Default timeout for keep-alive and idle requests (msec) */
+    MprTime requestTimeout;         /**< Default time a request can take (msec) */
+    MprTime sessionTimeout;         /**< Default time a session can persist (msec) */
 
     int     enableTraceMethod;      /**< Trace method enabled */
 } HttpLimits;
 
 extern void httpInitLimits(HttpLimits *limits, int serverSide);
 extern HttpLimits *httpCreateLimits(int serverSide);
+extern void httpEaseLimits(HttpLimits *limits);
+
 
 /************************************* URI Services ***************************/
 /** 
@@ -512,9 +498,9 @@ extern HttpUri *httpMakeUriLocal(HttpUri *uri);
     @see HttpRange
  */
 typedef struct HttpRange {
-    ssize               start;                  /**< Start of range */
-    ssize               end;                    /**< End byte of range + 1 */
-    ssize               len;                    /**< Redundant range length */
+    MprOff              start;                  /**< Start of range */
+    MprOff              end;                    /**< End byte of range + 1 */
+    MprOff              len;                    /**< Redundant range length */
     struct HttpRange    *next;                  /**< Next range */
 } HttpRange;
 
@@ -526,6 +512,8 @@ typedef struct HttpRange {
 #define HTTP_PACKET_RANGE     0x2               /**< Packet is a range boundary packet */
 #define HTTP_PACKET_DATA      0x4               /**< Packet contains actual content data */
 #define HTTP_PACKET_END       0x8               /**< End of stream packet */
+
+typedef ssize (*HttpFillProc)(struct HttpQueue *q, struct HttpPacket *packet, MprOff pos, ssize size);
 
 /** 
     Packet object. 
@@ -546,8 +534,9 @@ typedef struct HttpRange {
 typedef struct HttpPacket {
     MprBuf          *prefix;                /**< Prefix message to be emitted before the content */
     MprBuf          *content;               /**< Chunk content */
-    MprBuf          *suffix;                /**< Prefix message to be emitted after the content */
-    ssize           entityLength;           /**< Entity length. Content is null. */
+    MprOff          esize;                  /**< Data size in entity (file) */
+    MprOff          epos;                   /**< Data position in entity (file) */
+    HttpFillProc    fill;                   /**< Callback to fill packet with data */
     int             flags;                  /**< Packet flags */
     struct HttpPacket *next;                /**< Next packet in chain */
 } HttpPacket;
@@ -561,7 +550,7 @@ typedef struct HttpPacket {
     @ingroup HttpPacket
  */
 extern HttpPacket *httpCreatePacket(ssize size);
-extern HttpPacket *httpDup(HttpPacket *orig);
+extern HttpPacket *httpClonePacket(HttpPacket *orig);
 
 /** 
     Create a data packet
@@ -572,6 +561,7 @@ extern HttpPacket *httpDup(HttpPacket *orig);
     @ingroup HttpPacket
  */
 extern HttpPacket *httpCreateDataPacket(ssize size);
+extern HttpPacket *httpCreateEntityPacket(MprOff pos, MprOff size, HttpFillProc fill);
 
 /** 
     Create an eof packet
@@ -618,17 +608,18 @@ extern HttpPacket *httpSplitPacket(HttpPacket *packet, ssize offset);
 
 #if DOXYGEN
 /** 
-    Get the length of the packet data contents
-    @description Get the content length of a packet. This does not include the prefix or suffix data length -- just
-        the pure data contents.
+    Get the length of the packet data contents.
+    @description Get the content length of a packet. This does not include the prefix or virtual data length -- just
+    the pure buffered data contents. 
     @param packet Packet to examine.
     @return Count of bytes contained by the packet.
     @ingroup HttpPacket
  */
-extern int httpGetPacketLength(HttpPacket *packet);
+extern ssize httpGetPacketLength(HttpPacket *packet);
 #else
-#define httpGetPacketLength(p) (p->content ? mprGetBufLength(p->content) : p->entityLength)
+#define httpGetPacketLength(p) (p->content ? mprGetBufLength(p->content) : 0)
 #endif
+#define httpGetPacketEntityLength(p) (p->content ? mprGetBufLength(p->content) : packet->esize)
 
 /** 
     Get the next packet from a queue
@@ -715,12 +706,15 @@ extern void httpSendPacketToNext(struct HttpQueue *q, HttpPacket *packet);
  */
 extern int httpResizePacket(struct HttpQueue *q, HttpPacket *packet, ssize size);
 
+extern void httpAdjustPacketStart(HttpPacket *packet, MprOff size);
+extern void httpAdjustPacketEnd(HttpPacket *packet, MprOff size);
+
 /************************************* Queue *********************************/
 /*  
     Queue directions
  */
-#define HTTP_QUEUE_TRANS          0           /**< Send (transmit to client) queue */
-#define HTTP_QUEUE_RECEIVE        1           /**< Receive (read from client) queue */
+#define HTTP_QUEUE_TX             0           /**< Send (transmit to client) queue */
+#define HTTP_QUEUE_RX             1           /**< Receive (read from client) queue */
 #define HTTP_MAX_QUEUE            2           /**< Number of queue types */
 
 /* 
@@ -767,6 +761,15 @@ typedef void (*HttpQueueService)(struct HttpQueue *q);
  */
 typedef struct HttpQueue {
     cchar               *owner;                 /**< Name of owning stage */
+    ssize               count;                  /**< Bytes in queue (Does not include virt packet data) */
+    ssize               max;                    /**< Maxiumum queue size */
+    ssize               low;                    /**< Low water mark for flow control */
+    ssize               packetSize;             /**< Maximum acceptable packet size */
+    int                 flags;                  /**< Queue flags */
+    HttpPacket          *first;                 /**< First packet in queue (singly linked) */
+    HttpPacket          *last;                  /**< Last packet in queue (tail pointer) */
+    struct HttpQueue    *nextQ;                 /**< Downstream queue for next stage */
+    struct HttpQueue    *prevQ;                 /**< Upstream queue for prior stage */
     struct HttpStage    *stage;                 /**< Stage owning this queue */
     struct HttpConn     *conn;                  /**< Connection ownning this queue */
     HttpQueueOpen       open;                   /**< Open the queue */
@@ -774,19 +777,10 @@ typedef struct HttpQueue {
     HttpQueueStart      start;                  /**< Start the queue */
     HttpQueueData       put;                    /**< Put a message on the queue */
     HttpQueueService    service;                /**< Service the queue */
-    struct HttpQueue    *nextQ;                 /**< Downstream queue for next stage */
-    struct HttpQueue    *prevQ;                 /**< Upstream queue for prior stage */
     struct HttpQueue    *scheduleNext;          /**< Next linkage when queue is on the service queue */
     struct HttpQueue    *schedulePrev;          /**< Previous linkage when queue is on the service queue */
     struct HttpQueue    *pair;                  /**< Queue for the same stage in the opposite direction */
-    HttpPacket          *first;                 /**< First packet in queue (singly linked) */
-    HttpPacket          *last;                  /**< Last packet in queue (tail pointer) */
-    ssize               count;                  /**< Bytes in queue */
-    ssize               max;                    /**< Maxiumum queue size */
-    ssize               low;                    /**< Low water mark for flow control */
-    int                 flags;                  /**< Queue flags */
     int                 servicing;              /**< Currently being serviced */
-    ssize               packetSize;             /**< Maximum acceptable packet size */
     int                 direction;              /**< Flow direction */
     void                *queueData;             /**< Stage instance data */
 
@@ -795,9 +789,9 @@ typedef struct HttpQueue {
      */
     MprIOVec            iovec[HTTP_MAX_IOVEC];
     int                 ioIndex;                /**< Next index into iovec */
-    ssize               ioCount;                /**< Count of bytes in iovec */
-    int                 ioFileEntry;            /**< Has file entry in iovec */
-    MprOffset           ioFileOffset;           /**< The next file position to use */
+    int                 ioFile;                 /**< Sending a file */
+    MprOff              ioCount;                /**< Count of bytes in iovec including file I/O */
+    MprOff              ioPos;                  /**< Position in file for sendfile */
 } HttpQueue;
 
 
@@ -909,6 +903,16 @@ extern void httpServiceQueue(HttpQueue *q);
 extern bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet);
 
 /** 
+    Determine if the downstream queue will accept a certain amount of data.
+    @description Test if the downstream queue will data of a given size.
+    @param q Queue reference
+    @param size Size of data to test for
+    @return True if the downstream queue will accept the given sized data.
+    @ingroup HttpQueue
+ */
+extern bool httpWillNextQueueAcceptSize(HttpQueue *q, ssize size);
+
+/** 
     Write a formatted string
     @description Write a formatted string of data into packets onto the end of the queue. Data packets will be created
         as required to store the write data. This call may block waiting for the downstream queue to drain if it is 
@@ -978,17 +982,15 @@ extern void httpMarkQueueHead(HttpQueue *q);
 #define HTTP_STAGE_FILTER         0x4000            /**< Stage is a filter  */
 #define HTTP_STAGE_MODULE         0x8000            /**< Stage is a filter  */
 #define HTTP_STAGE_CGI_VARS       0x10000           /**< Create CGI variables */
-#define HTTP_STAGE_FORM_VARS      0x20000           /**< Create variables from form body data */
-#define HTTP_STAGE_HEADER_VARS    0x40000           /**< Create variables from HTTP headers */
 #define HTTP_STAGE_QUERY_VARS     0x80000           /**< Create variables from URI query */
 #define HTTP_STAGE_VIRTUAL        0x100000          /**< Handler serves virtual resources not the physical file system */
-#define HTTP_STAGE_PATH_INFO      0x200000          /**< Always do path info processing */
+#define HTTP_STAGE_EXTRA_PATH     0x200000          /**< Do extra path info (for CGI|PHP) */
 #define HTTP_STAGE_AUTO_DIR       0x400000          /**< Want auto directory redirection */
 #define HTTP_STAGE_VERIFY_ENTITY  0x800000          /**< Verify the request entity exists */
 #define HTTP_STAGE_MISSING_EXT    0x1000000         /**< Support URIs with missing extensions */
 #define HTTP_STAGE_UNLOADED       0x2000000         /**< Stage module library has been unloaded */
-#define HTTP_STAGE_INCOMING       0x4000000
-#define HTTP_STAGE_OUTGOING       0x8000000
+#define HTTP_STAGE_RX             0x4000000         /**< Stage to be used in the Rx direction */
+#define HTTP_STAGE_TX             0x8000000         /**< Stage to be used in the Tx direction */
 
 typedef int (*HttpParse)(Http *http, cchar *key, char *value, void *state);
 
@@ -1027,13 +1029,14 @@ typedef struct HttpStage {
     /** 
         Match a request
         @description This method is invoked to see if the stage wishes to handle the request. If a stage denies to
-            handle a request, it will be removed from the pipeline.
+            handle a request, it will be removed from the pipeline for the specified direction.
         @param conn HttpConn connection object
         @param stage Stage object
+        @param dir Direction. Set to HTTP_RX or HTTP_TX. 
         @return True if the stage wishes to process this request.
         @ingroup HttpStage
      */
-    bool (*match)(struct HttpConn *conn, struct HttpStage *stage);
+    bool (*match)(struct HttpConn *conn, struct HttpStage *stage, int dir);
 
     /** 
         Open the queue
@@ -1258,11 +1261,6 @@ extern void httpSendOutgoingService(HttpQueue *q);
 extern void httpHandleOptionsTrace(HttpQueue *q);
 
 /********************************** HttpConn *********************************/
-/* 
-    Connection flags
- */
-#define HTTP_CONN_PIPE_CREATED      0x1     /**< Request pipeline created */
-
 /** 
     Notification flags
  */
@@ -1282,6 +1280,11 @@ extern void httpHandleOptionsTrace(HttpQueue *q);
 #define HTTP_STATE_RUNNING          6       /**< Handler running */
 #define HTTP_STATE_COMPLETE         7       /**< Request complete */
 
+/*
+    I/O Events
+*/
+#define HTTP_EVENT_CLOSE           -1       /**< Connection being closed */
+#define HTTP_EVENT_IO               0       /**< I/O event on connection */
 
 /*
     Limit validation events
@@ -1311,7 +1314,7 @@ extern void httpHandleOptionsTrace(HttpQueue *q);
 typedef struct HttpTrace {
     int             disable;                     /**< If tracing is disabled for this request */
     int             levels[HTTP_TRACE_MAX_ITEM]; /**< Level at which to trace this item */
-    ssize           size;                        /**< Maximum size at which to trace body content */
+    MprOff          size;                        /**< Maximum size of content to trace */
     MprHashTable    *include;                    /**< Extensions to include in trace */
     MprHashTable    *exclude;                    /**< Extensions to exclude from trace */
 } HttpTrace;
@@ -1321,7 +1324,7 @@ extern void httpManageTrace(HttpTrace *trace, int flags);
 #if BLD_DEBUG
 #define HTTP_TIME(conn, tag1, tag2, op) \
     if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, NULL) >= 0) { \
-        MEASURE(5, tag1, tag2, op); \
+        MPR_MEASURE(5, tag1, tag2, op); \
     } else op
 #else
 #define HTTP_TIME(conn, tag1, tag2, op) op
@@ -1339,7 +1342,7 @@ extern void httpSetIOCallback(struct HttpConn *conn, HttpIOCallback fn);
     @stability Evolving
     @defgroup HttpConn HttpConn
     @see HttpConn HttpRx HttpRx HttpTx HttpQueue HttpStage
-        httpCreateConn httpCloseConn httpCompleteRequest httpCreatePipeline httpDestroyPipeline httpDiscardTransmitData
+        httpCreateConn httpCloseConn httpCompleteRequest httpCreateRxPipeline httpDestroyPipeline httpDiscardTransmitData
         httpError httpGetAsync httpGetConnContext httpGetError httpGetKeepAliveCount httpPrepConn httpProcessPipeline
         httpServiceQueues httpSetAsync httpSetCredentials httpSetConnContext
         httpSetConnNotifier httpSetKeepAliveCount httpSetProtocol httpSetRetries httpSetState httpSetTimeout
@@ -1367,7 +1370,6 @@ typedef struct HttpConn {
     MprDispatcher   *newDispatcher;         /**< New dispatcher if using a worker thread */
     MprDispatcher   *oldDispatcher;         /**< Original dispatcher if using a worker thread */
     HttpNotifier    notifier;               /**< Connection Http state change notification callback */
-    HttpNotifier    requestNotifier;        /**< Request Http state change notification callback */
     MprWaitHandler  *waitHandler;           /**< I/O wait handler */
     MprSocket       *sock;                  /**< Underlying socket handle */
 
@@ -1377,11 +1379,14 @@ typedef struct HttpConn {
     HttpPacket      *input;                 /**< Header packet */
     HttpQueue       *readq;                 /**< End of the read pipeline */
     HttpQueue       *writeq;                /**< Start of the write pipeline */
+    HttpQueue       *connq;                 /**< Connector write queue */
     MprTime         started;                /**< When the connection started */
     MprTime         lastActivity;           /**< Last activity on the connection */
     MprEvent        *timeoutEvent;          /**< Connection or request timeout event */
     MprEvent        *workerEvent;           /**< Event for running connection via a worker thread */
-    void            *context;               /**< Embedding context */
+    void            *context;               /**< Embedding context (EjsRequest) */
+    void            *ejs;                   /**< Embedding VM */
+    void            *pool;                  /**< Pool of VMs */
     void            *mark;                  /**< Reference for GC marking */
     char            *boundary;              /**< File upload boundary */
     char            *errorMsg;              /**< Error message for the last request (if any) */
@@ -1398,6 +1403,7 @@ typedef struct HttpConn {
     int             secure;                 /**< Using https */
     int             seqno;                  /**< Unique connection sequence number */
     int             writeBlocked;           /**< Transmission writing is blocked */
+    int             worker;                 /**< Use worker */
 
     HttpTrace       trace[2];               /**< Tracing for [rx|tx] */
 
@@ -1478,9 +1484,9 @@ extern void httpDestroyConn(HttpConn *conn);
     Create a request pipeline
     @param conn HttpConn object created via $httpCreateConn
     @param location Location object controlling how the pipeline is configured for the request
-    @param handler Handler to process the request for server side requests
  */
-extern void httpCreatePipeline(HttpConn *conn, struct HttpLoc *location, HttpStage *handler);
+extern void httpCreateTxPipeline(HttpConn *conn, struct HttpLoc *location);
+extern void httpCreateRxPipeline(HttpConn *conn, struct HttpLoc *location);
 
 /**
     Destroy the pipeline
@@ -1559,12 +1565,6 @@ extern int httpGetKeepAliveCount(HttpConn *conn);
  */
 extern void httpPrepServerConn(HttpConn *conn);
 
-#if UNUSED
-//  MOB
-#define HTTP_NEW_REQUEST 0
-#define HTTP_RETRY_REQUEST 1
-#endif
-    
 extern void httpPrepClientConn(HttpConn *conn, int keepHeaders);
 extern void httpConsumeLastRequest(HttpConn *conn);
 
@@ -1641,9 +1641,6 @@ extern void httpSetConnHost(HttpConn *conn, void *host);
  */
 extern void httpSetConnNotifier(HttpConn *conn, HttpNotifier fn);
 
-//  MOB
-extern void httpSetRequestNotifier(HttpConn *conn, HttpNotifier fn);
-
 /** 
     Control Http Keep-Alive for the connection.
     @description Http keep alive means that the TCP/IP connection is preserved accross multiple requests. This
@@ -1708,13 +1705,15 @@ extern void httpWritable(HttpConn *conn);
 /** Internal APIs */
 extern struct HttpConn *httpAccept(struct HttpServer *server);
 extern void httpEnableConnEvents(HttpConn *conn);
+extern void httpUsePrimary(HttpConn *conn);
+extern void httpUseWorker(HttpConn *conn, MprDispatcher *dispatcher, MprEvent *event);
 extern HttpPacket *httpGetConnPacket(HttpConn *conn);
-extern void httpSetPipeHandler(HttpConn *conn, HttpStage *handler);
+extern void httpSetPipelineHandler(HttpConn *conn, HttpStage *handler);
 extern void httpSetSendConnector(HttpConn *conn, cchar *path);
 
 extern void httpInitTrace(HttpTrace *trace);
 extern int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext);
-extern void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, ssize total);
+extern void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, MprOff total);
 extern HttpLimits *httpSetUniqueConnLimits(HttpConn *conn);
 extern void httpMatchHost(HttpConn *conn);
 extern void httpMatchHandler(HttpConn *conn);
@@ -1732,7 +1731,7 @@ extern void httpDisconnect(HttpConn *conn);
  */
 typedef struct HttpAlias {
     char            *prefix;                /**< Original URI prefix */
-    int             prefixLen;              /**< Prefix length */
+    ssize           prefixLen;              /**< Prefix length */
     char            *filename;              /**< Alias to a physical path name */
     char            *uri;                   /**< Redirect to a uri */
     int             redirectCode;
@@ -1930,22 +1929,25 @@ typedef struct HttpLoc {
     int             flags;                  /**< Location flags */
     char            *prefix;                /**< Location prefix name */
     int             prefixLen;              /**< Length of the prefix name */
-    int             sessionTimeout;         /**< Session timeout for this location */
+    HttpAlias       *alias;                 /**< Associated alias for this location */
     HttpStage       *connector;             /**< Network connector to use */
     HttpStage       *handler;               /**< Fixed handler */
     void            *handlerData;           /**< Data reserved for the handler */
     MprHashTable    *extensions;            /**< Hash of handlers by extensions */
-    MprHashTable    *expires;               /**< Expiry of content by mime type */
+    MprHashTable    *expires;               /**< Expiry of content by extension */
+    MprHashTable    *expiresByType;         /**< Expiry of content by mime type */
     MprList         *handlers;              /**< List of handlers for this location */
     MprList         *inputStages;           /**< Input stages */
     MprList         *outputStages;          /**< Output stages */
     MprHashTable    *errorDocuments;        /**< Set of error documents to use on errors */
     struct HttpLoc  *parent;                /**< Parent location */
-    void            *context;               /**< Hosting context */
+    void            *context;               /**< Hosting context (Appweb == EjsPool) */
     char            *uploadDir;             /**< Upload directory */
     int             autoDelete;             /**< Auto delete uploaded files */
+    int             workers;                /**< Number of workers to use for this location */
     char            *searchPath;            /**< Search path */
-    char            *script;                /**< Startup script */
+    char            *script;                /**< Startup script for handlers serving this location */
+    char            *scriptPath;            /**< Startup script path for handlers serving this location */
     struct MprSsl   *ssl;                   /**< SSL configuration */
 } HttpLoc;
 
@@ -1957,11 +1959,13 @@ extern struct HttpStage *httpGetHandlerByExtension(HttpLoc *location, cchar *ext
 extern cchar *httpLookupErrorDocument(HttpLoc *location, int code);
 extern void httpResetPipeline(HttpLoc *location);
 extern void httpSetLocationAuth(HttpLoc *location, HttpAuth *auth);
+extern void httpSetLocationAlias(HttpLoc *location, HttpAlias *alias);
 extern void httpSetLocationAutoDelete(HttpLoc *location, int enable);
 extern void httpSetLocationFlags(HttpLoc *location, int flags);
 extern void httpSetLocationHandler(HttpLoc *location, cchar *name);
 extern void httpSetLocationPrefix(HttpLoc *location, cchar *uri);
-extern void httpSetLocationScript(HttpLoc *location, cchar *script);
+extern void httpSetLocationScript(HttpLoc *location, cchar *script, cchar *scriptPath);
+extern void httpSetLocationWorkers(HttpLoc *location, int workers);
 extern int httpSetConnector(HttpLoc *location, cchar *name);
 extern int httpAddHandler(HttpLoc *location, cchar *name, cchar *extensions);
 
@@ -1970,7 +1974,8 @@ extern HttpLoc *httpCreateInheritedLocation(HttpLoc *location);
 extern int httpSetHandler(HttpLoc *location, cchar *name);
 extern int httpAddFilter(HttpLoc *location, cchar *name, cchar *extensions, int direction);
 extern void httpClearStages(HttpLoc *location, int direction);
-extern void httpAddLocationExpiry(HttpLoc *location, MprTime when, cchar *mimeTypes);
+extern void httpAddLocationExpiry(HttpLoc *location, MprTime when, cchar *extensions);
+extern void httpAddLocationExpiryByType(HttpLoc *location, MprTime when, cchar *mimeTypes);
 
 /********************************** HttpUploadFile *********************************/
 /**
@@ -2008,10 +2013,6 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
 #define HTTP_IF_MODIFIED        0x200       /**< If-[un]modified-since supplied */
 #define HTTP_CHUNKED            0x400       /**< Content is chunk encoded */
 
-#if UNUSED
-#define HTTP_UPLOAD             0x800       /**< Content has uploaded file content */
-#endif
-
 /*  
     Incoming chunk encoding states
  */
@@ -2029,9 +2030,10 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
  */
 typedef struct HttpRx {
     char            *method;                /**< Request method */
-    char            *uri;                   /**< Original URI (alias for parsedUri->uri) (not decoded) */
+    char            *uri;                   /**< URI (alias for parsedUri->uri) (not decoded) */
     char            *scriptName;            /**< ScriptName portion of the url (Decoded). May be empty or start with "/" */
     char            *pathInfo;              /**< Path information after the scriptName (Decoded and normalized) */
+    char            *extraPath;             /**< Extra path information (CGI|PHP) */
 
     HttpConn        *conn;                  /**< Connection object */
 
@@ -2046,7 +2048,6 @@ typedef struct HttpRx {
 
     int             eof;                    /**< All read data has been received (eof) */
     int             chunkState;             /**< Chunk encoding state */
-    int             chunkRemainingData;     /**< Remaining chunk data to read */
     int             flags;                  /**< Rx modifiers */
     int             form;                   /**< Using mime-type application/x-www-form-urlencoded */
     int             needInputPipeline;      /**< Input pipeline required to process received data */
@@ -2054,11 +2055,10 @@ typedef struct HttpRx {
     int             rewrites;               /**< Count of request rewrites */
     int             upload;                 /**< Request is using file upload */
 
-    ssize           length;                 /**< Declared content length (ENV: CONTENT_LENGTH) */
     ssize           chunkSize;              /**< Size of the next chunk */
-    ssize           remainingContent;       /**< Remaining content data to read (in next chunk if chunked) */
-    ssize           receivedContent;        /**< Length of content actually received */
-    ssize           readContent;            /**< Length of content read by user */
+    MprOff          length;                 /**< Content length header value (ENV: CONTENT_LENGTH) */
+    MprOff          remainingContent;       /**< Remaining content data to read (in next chunk if chunked) */
+    MprOff          bytesRead;              /**< Length of content read by user */
 
     bool            ifModified;             /**< If-Modified processing requested */
     bool            ifMatch;                /**< If-Match processing requested */
@@ -2078,23 +2078,22 @@ typedef struct HttpRx {
     char            *cookie;                /**< Cookie header */
     char            *connection;            /**< Connection header */
     char            *contentLength;         /**< Content length string value */
-    char            *hostName;              /**< Client supplied host name */
+    char            *hostHeader;            /**< Client supplied host name header */
 
-    //  MOB -- is this needed if Tx.filename is pathInfo => storage */ 
-    char            *pathTranslated;        /**< Mapped pathInfo to storage. Set by handlers if required. (Decoded) */
     char            *pragma;                /**< Pragma header */
     char            *mimeType;              /**< Mime type of the request payload (ENV: CONTENT_TYPE) */
+    char            *originalUri;           /**< Original URI passed by the client */
     char            *redirect;              /**< Redirect location header */
     char            *referrer;              /**< Refering URL */
     char            *userAgent;             /**< User-Agent header */
 
     MprHashTable    *formVars;              /**< Query and post data variables */
-    HttpRange       *ranges;                /**< Data ranges for body data */
-    HttpRange       *inputRange;            /**< Specified range for input (post) data */
+    HttpRange       *inputRange;            /**< Specified range for rx (post) data */
 
     /*  
         Auth details
      */
+    int             authenticated;          /**< Request has been authenticated */
     HttpAuth        *auth;                  /**< Auth object */
     char            *authAlgorithm;
     char            *authDetails;
@@ -2124,7 +2123,7 @@ typedef struct HttpRx {
     @return A count of the response content data in bytes.
     @ingroup HttpRx
  */
-extern ssize httpGetContentLength(HttpConn *conn);
+extern MprOff httpGetContentLength(HttpConn *conn);
 
 /** 
     Get the request cookies
@@ -2220,7 +2219,7 @@ extern HttpRx *httpCreateRx(HttpConn *conn);
 extern void httpDestroyRx(HttpRx *rx);
 extern void httpCloseRx(struct HttpConn *conn);
 extern bool httpContentNotModified(HttpConn *conn);
-extern HttpRange *httpCreateRange(HttpConn *conn, int start, int end);
+extern HttpRange *httpCreateRange(HttpConn *conn, MprOff start, MprOff end);
 extern int  httpMapToStorage(HttpConn *conn);
 extern void httpProcess(HttpConn *conn, HttpPacket *packet);
 extern void httpProcessWriteEvent(HttpConn *conn);
@@ -2361,9 +2360,12 @@ typedef struct HttpTx {
     HttpQueue       *queue[2];              /**< Dummy head for the queues */
 
     HttpUri         *parsedUri;             /**< Request uri. Only used for requests */
-    HttpRange       *currentRange;          /**< Current range being fullfilled */
     MprHashTable    *headers;               /**< Transmission headers */
+
+    HttpRange       *outputRanges;          /**< Data ranges for tx data */
+    HttpRange       *currentRange;          /**< Current range being fullfilled */
     char            *rangeBoundary;         /**< Inter-range boundary */
+    MprOff          rangePos;               /**< Current range I/O position in response data */
 
     char            *etag;                  /**< Unique identifier tag */
     char            *method;                /**< Request method GET, HEAD, POST, DELETE, OPTIONS, PUT, TRACE */
@@ -2371,8 +2373,7 @@ typedef struct HttpTx {
     ssize           chunkSize;              /**< Chunk size to use when using transfer encoding. Zero for unchunked. */
     int             flags;                  /**< Response flags */
     int             finalized;              /**< Finalization done */
-    ssize           length;                 /**< Transmission content length */
-    ssize           pos;                    /**< Current I/O position */
+    MprOff          length;                 /**< Transmission content length */
     int             status;                 /**< HTTP request status */
     int             traceMethods;           /**< Handler methods supported */
 
@@ -2381,8 +2382,8 @@ typedef struct HttpTx {
     MprPath         fileInfo;               /**< File information if there is a real file to serve */
     char            *filename;              /**< Name of a real file being served (typically pathInfo mapped) */
     cchar           *extension;             /**< Filename extension */
-    ssize           entityLength;           /**< Original content length before range subsetting */
-    ssize           bytesWritten;           /**< Bytes written including headers */
+    MprOff          entityLength;           /**< Original content length before range subsetting */
+    MprOff          bytesWritten;           /**< Bytes written including headers */
     ssize           headerSize;             /**< Size of the header written */
 } HttpTx;
 
@@ -2404,12 +2405,12 @@ extern void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...);
     @description Add a header if it does not already exits.
     @param conn HttpConn connection object created via $httpCreateConn
     @param key Http response header key
-    @param value Key value to use
+    @param value Value to set for the header
     @return Zero if successful, otherwise a negative MPR error code. Returns MPR_ERR_ALREADY_EXISTS if the header already
         exists.
     @ingroup HttpTx
  */
-extern void httpAddSimpleHeader(HttpConn *conn, cchar *key, cchar *value);
+extern void httpAddHeaderString(HttpConn *conn, cchar *key, cchar *value);
 
 /** 
     Append a transmission header
@@ -2421,6 +2422,16 @@ extern void httpAddSimpleHeader(HttpConn *conn, cchar *key, cchar *value);
     @ingroup HttpTx
  */
 extern void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...);
+
+/** 
+    Append a transmission header string
+    @description Set the header if it does not already exists. Append with a ", " separator if the header already exists.
+    @param conn HttpConn connection object created via $httpCreateConn
+    @param key Http response header key
+    @param value Value to set for the header
+    @ingroup HttpTx
+ */
+extern void httpAppendHeaderString(HttpConn *conn, cchar *key, cchar *value);
 
 /** 
     Connect to a server and issue Http client request.
@@ -2592,7 +2603,7 @@ extern int httpRemoveHeader(HttpConn *conn, cchar *key);
     @param length Numeric value for the content length header.
     @ingroup HttpConn
  */
-extern void httpSetContentLength(HttpConn *conn, ssize length);
+extern void httpSetContentLength(HttpConn *conn, MprOff length);
 
 /** 
     Set a transmission cookie
@@ -2609,12 +2620,12 @@ extern void httpSetContentLength(HttpConn *conn, ssize length);
 extern void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar *domain, int lifetime, bool secure);
 
 /**
-    Define the length of the transmission content. When a static content is used for the transmission body, defining
+    Define the length of the transmission content. When static content is used for the transmission body, defining
     the entity length permits the request pipeline to know when all the data has been sent.
     @param conn HttpConn connection object created via $httpCreateConn
     @param len Transmission body length in bytes
  */
-extern void httpSetEntityLength(HttpConn *conn, ssize len);
+extern void httpSetEntityLength(HttpConn *conn, MprOff len);
 
 /** 
     Set a transmission header
@@ -2656,7 +2667,7 @@ extern void httpSetMimeType(HttpConn *conn, cchar *mimeType);
     @param value String value for the key
     @ingroup HttpTx
  */
-extern void httpSetSimpleHeader(HttpConn *conn, cchar *key, cchar *value);
+extern void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value);
 
 /** 
     Wait for the connection to achieve the requested state Used for blocking client requests.
@@ -2698,35 +2709,14 @@ extern ssize httpWriteUploadData(HttpConn *conn, MprList *formData, MprList *fil
  */
 extern void httpSetWriteBlocked(HttpConn *conn);
 
-#if UNUSED
-/******************************* HttpEndpoint *******************************/
-
-/** Host Address Mapping
-    @stability Evolving
-    @defgroup HttpEndpoint HttpEndpoint
-    @see HttpEndpoint
- */
-typedef struct HttpEndpoint {
-    //  MOB - should be a hash based on host name
-    MprList         *hosts;                 /**< Hosts using this address */
-    char            *ip;                    /**< IP Address for this endpoint */
-    int             port;                   /**< Port for this endpoint */
-    int             flags;                  /**< Mapping flags */
-} HttpEndpoint;
-
-extern void httpAddEndpoint(Http *http, HttpEndpoint *endpoint);
-extern HttpEndpoint *httpLookupEndpoint(Http *http, cchar *ip, int port);
-extern HttpEndpoint *httpRemoveHostFromEndpoint(Http *http, cchar *ip, int port, struct HttpHost *host);
-#endif
-
 /********************************* HttpServer ***********************************/
 /*  
-    Flags
+    Server flags
  */
-#define HTTP_IPADDR_VHOST 0x1
+#define HTTP_NAMED_VHOST    0x1             /**< Using named virtual hosting */
 
 /** 
-    Server endpoint
+    Server listening endpoint. Servers may have multiple virtual named hosts.
     @stability Evolving
     @defgroup HttpServer HttpServer
     @see HttpServer httpCreateServer httpStartServer httpStopServer
@@ -2738,19 +2728,16 @@ typedef struct HttpServer {
     HttpLimits      *limits;                /**< Alias for first host resource limits */
     MprWaitHandler  *waitHandler;           /**< I/O wait handler */
     MprHashTable    *clientLoad;            /**< Table of active client IPs and connection counts */
-    char            *name;                  /**< Published name of the server (ServerName directive) */
-    char            *ip;                    /**< Listen IP address */
+    char            *ip;                    /**< Listen IP address. May be null if listening on all interfaces. */
     int             port;                   /**< Listen port */
     int             async;                  /**< Listening is in async mode (non-blocking) */
     int             clientCount;            /**< Count of current active clients */
     int             requestCount;           /**< Count of current active requests */
     int             flags;                  /**< Server control flags */
     void            *context;               /**< Embedding context */
-    //  MOB is this needed?
-    void            *meta;                  /**< Meta server object */
     MprSocket       *sock;                  /**< Listening socket */
     MprDispatcher   *dispatcher;            /**< Event dispatcher */
-    HttpNotifier    notifier;               /**< Http state change notification callback */
+    HttpNotifier    notifier;               /**< Default connection notifier callback */
     struct MprSsl   *ssl;                   /**< Server SSL configuration */
 } HttpServer;
 
@@ -2758,9 +2745,6 @@ typedef struct HttpServer {
     if (1) { \
         if (conn->notifier) { \
             (conn->notifier)(conn, state, flags); \
-        } \
-        if (conn->requestNotifier) { \
-            (conn->requestNotifier)(conn, state, flags); \
         } \
     } else \
 
@@ -2806,7 +2790,6 @@ extern int httpGetServerAsync(HttpServer *server);
  */
 extern void *httpGetServerContext(HttpServer *server);
 
-extern void httpSetServerName(HttpServer *server, cchar *name);
 //  MOB - consistency - should not have to provide http
 extern int httpLoadSsl(Http *http);
 
@@ -2858,9 +2841,10 @@ extern int httpStartServer(HttpServer *server);
 extern void httpStopServer(HttpServer *server);
 
 //  MOB DOC
-extern int httpSecureServer(cchar *ip, int port, struct MprSsl *ssl);
+extern int httpSecureServer(HttpServer *server, struct MprSsl *ssl);
+extern int httpSecureServerByName(cchar *name, struct MprSsl *ssl);
 extern void httpSetServerAddress(HttpServer *server, cchar *ip, int port);
-extern struct HttpHost *httpLookupHostByName(HttpServer *server, cchar *name);
+extern struct HttpHost *httpLookupHost(HttpServer *server, cchar *name);
 
 extern HttpServer *httpCreateConfiguredServer(cchar *docRoot, cchar *ip, int port);
 
@@ -2879,31 +2863,34 @@ extern HttpServer *httpCreateConfiguredServer(cchar *docRoot, cchar *ip, int por
 
 /**
     Host Object
-    A Host object represents a logical host. Several logical hosts may share a single HttpServer. Hosts may represent 
-    a single listening HTTP connection endpoint or they may be a named virtual host sharing an endpoint.
+    A Host object represents a logical host. Several logical hosts may share a single HttpServer.
     @stability Evolving
     @defgroup HttpHost HttpHost
     @see HttpHost
 */
 typedef struct HttpHost {
-    char            *name;                  /**< ServerName directive - used for redirects */
-    char            *infoName;              /**< Informational host name - used in logs */
-    struct HttpHost *parent;                /**< Parent host to inherit aliases, dirs, locations */
+    /*
+        NOTE: the ip:port names are used for vhost matching when there is only one such address. Otherwise a host may
+        be associated with multiple servers. In that case, the ip:port will store only one of these addresses and 
+        will not be used for matching.
+     */
+    char            *name;                  /**< Host name */
+    char            *ip;                    /**< Hostname/ip portion parsed from name */
+    int             port;                   /**< Port address portion parsed from name */
 
+    struct HttpHost *parent;                /**< Parent host to inherit aliases, dirs, locations */
     MprList         *aliases;               /**< List of Alias definitions */
     MprList         *dirs;                  /**< List of Directory definitions */
     MprList         *locations;             /**< List of Location defintions */
     HttpLimits      *limits;                /**< Host resource limits */
 
-    //  MOB - reorder and cleanup
-    //  MOB - rename
+    //  MOB - reorder and cleanup and rename
     HttpLoc         *loc;                   /**< Default location */
     MprHashTable    *mimeTypes;             /**< Hash table of mime types (key is extension) */
 
+    //  MOB - rename documents and home
     char            *documentRoot;          /**< Default directory for web documents */
     char            *serverRoot;            /**< Directory for configuration files */
-    char            *ip;                    /**< IP address */
-    int             port;                   /**< Listening port number */
 
     int             traceLevel;             /**< Trace activation level */
     int             traceMaxLength;         /**< Maximum trace file length (if known) */
@@ -2922,20 +2909,14 @@ typedef struct HttpHost {
     int             logSize;                /**< Max log size */
 
     MprMutex        *mutex;                 /**< Multithread sync */
-#if UNUSED
-    //  MOB - must mark if enabled
-    MaServer        *meta;                  /**< Meta-server owning this host */
-    struct MaHost   *logHost;               /**< If set, use this hosts logs */
-    char            *mimeFile;              /**< Name of the mime types file */
-#endif
 } HttpHost;
 
 //  MOB DOC
 extern int  httpAddAlias(HttpHost *host, HttpAlias *newAlias);
 extern int httpAddDir(HttpHost *host, HttpDir *dir);
 extern int  httpAddLocation(HttpHost *host, HttpLoc *newLocation);
-extern HttpHost *httpCreateHost(cchar *ip, int port, HttpLoc *loc);
-extern HttpHost *httpCreateVirtualHost(cchar *ip, int port, HttpHost *parent);
+extern HttpHost *httpCreateHost(HttpLoc *loc);
+extern HttpHost *httpCloneHost(HttpHost *parent);
 extern HttpAlias *httpGetAlias(HttpHost *host, cchar *uri);
 extern HttpAlias *httpLookupAlias(HttpHost *host, cchar *prefix);
 extern HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg);
@@ -2944,11 +2925,10 @@ extern HttpLoc *httpLookupLocation(HttpHost *host, cchar *prefix);
 extern HttpDir *httpLookupBestDir(HttpHost *host, cchar *path);
 extern char *httpMakePath(HttpHost *host, cchar *file);
 extern char *httpReplaceReferences(HttpHost *host, cchar *str);
-extern void httpSetHostAddress(HttpHost *host, cchar *ip, int port);
 extern void httpSetHostDocumentRoot(HttpHost *host, cchar *dir);
-extern void httpSetHostInfoName(HttpHost *host, cchar *name);
 extern void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize);
-extern void httpSetHostName(HttpHost *host, cchar *name);
+extern void httpSetHostName(HttpHost *host, cchar *ip, int port);
+extern void httpSetHostAddress(HttpHost *host, cchar *ip, int port);
 extern void httpSetHostProtocol(HttpHost *host, cchar *protocol);
 extern void httpSetHostTrace(HttpHost *host, int level, int mask);
 extern void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *exclude);
@@ -2956,7 +2936,6 @@ extern void httpSetHostServerRoot(HttpHost *host, cchar *dir);
 extern int  httpSetupTrace(HttpHost *host, cchar *ext);
 extern void httpAddHostToServer(HttpServer *server, HttpHost *host);
 extern bool httpIsNamedVirtualServer(HttpServer *server);
-extern HttpHost *httpLookupVirtualHost(HttpServer *server, cchar *hostStr);
 extern void httpSetNamedVirtualServer(HttpServer *server);
 
 #ifdef __cplusplus

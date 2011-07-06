@@ -50,11 +50,11 @@ int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext)
         return -1;
     }
     if (ext) {
-        if (trace->include && !mprLookupHash(trace->include, ext)) {
+        if (trace->include && !mprLookupKey(trace->include, ext)) {
             trace->disable = 1;
             return -1;
         }
-        if (trace->exclude && mprLookupHash(trace->exclude, ext)) {
+        if (trace->exclude && mprLookupKey(trace->exclude, ext)) {
             trace->disable = 1;
             return -1;
         }
@@ -114,7 +114,7 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
 }
 
 
-void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, ssize total)
+void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, MprOff total)
 {
     HttpTrace   *trace;
     ssize       size;
@@ -129,7 +129,7 @@ void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssi
         return;
     }
     if (len <= 0) {
-        len = INT_MAX;
+        len = MAXINT;
     }
     if (packet->prefix) {
         size = mprGetBufLength(packet->prefix);
@@ -137,7 +137,7 @@ void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssi
         traceBuf(conn, dir, level, "prefix", mprGetBufStart(packet->prefix), size);
     }
     if (packet->content) {
-        size = mprGetBufLength(packet->content);
+        size = httpGetPacketLength(packet);
         size = min(size, len);
         traceBuf(conn, dir, level, "content", mprGetBufStart(packet->content), size);
     }

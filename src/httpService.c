@@ -38,7 +38,7 @@ HttpStatusCode HttpStatusCodes[] = {
     { 404, "404", "Not Found" },
     { 405, "405", "Method Not Allowed" },
     { 406, "406", "Not Acceptable" },
-    { 408, "408", "Request Time-out" },
+    { 408, "408", "Request Timeout" },
     { 409, "409", "Conflict" },
     { 410, "410", "Length Required" },
     { 411, "411", "Length Required" },
@@ -52,7 +52,7 @@ HttpStatusCode HttpStatusCodes[] = {
     { 501, "501", "Not Implemented" },
     { 502, "502", "Bad Gateway" },
     { 503, "503", "Service Unavailable" },
-    { 504, "504", "Gateway Time-out" },
+    { 504, "504", "Gateway Timeout" },
     { 505, "505", "Http Version Not Supported" },
     { 507, "507", "Insufficient Storage" },
 
@@ -178,7 +178,6 @@ void httpRemoveServer(Http *http, HttpServer *server)
 
 /*  
     Lookup a host address. If ipAddr is null or port is -1, then those elements are wild.
-    MOB - wild cards are not being used - see asserts
  */
 HttpServer *httpLookupServer(Http *http, cchar *ip, int port)
 {
@@ -200,46 +199,9 @@ HttpServer *httpLookupServer(Http *http, cchar *ip, int port)
 }
 
 
-int httpAddHostToServers(Http *http, struct HttpHost *host)
+HttpServer *httpGetFirstServer(Http *http)
 {
-    HttpServer  *server;
-    cchar       *ip;
-    int         count, next;
-
-    ip = host->ip ? host->ip : "";
-    mprAssert(ip);
-
-    for (count = next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
-        if (server->port <= 0 || host->port <= 0 || server->port == host->port) {
-            mprAssert(server->ip);
-            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
-                httpAddHostToServer(server, host);
-                count++;
-            }
-        }
-    }
-    return (count == 0) ? MPR_ERR_CANT_FIND : 0;
-}
-
-
-int httpSetNamedVirtualServers(Http *http, cchar *ip, int port)
-{
-    HttpServer  *server;
-    int         count, next;
-
-    if (ip == 0) {
-        ip = "";
-    }
-    for (count = next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
-        if (server->port <= 0 || port <= 0 || server->port == port) {
-            mprAssert(server->ip);
-            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
-                httpSetNamedVirtualServer(server);
-                count++;
-            }
-        }
-    }
-    return (count == 0) ? MPR_ERR_CANT_FIND : 0;
+    return mprGetFirstItem(http->servers);
 }
 
 
@@ -255,7 +217,6 @@ void httpRemoveHost(Http *http, HttpHost *host)
 }
 
 
-//  MOB - rename
 HttpLoc *httpInitLocation(Http *http, int serverSide)
 {
     HttpLoc     *loc;
@@ -264,12 +225,14 @@ HttpLoc *httpInitLocation(Http *http, int serverSide)
         Create default incoming and outgoing pipelines. Order matters.
      */
     loc = httpCreateLocation();
-    httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_OUTGOING);
-    httpAddFilter(loc, http->rangeFilter->name, NULL, HTTP_STAGE_OUTGOING);
-    httpAddFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_OUTGOING);
-
-    httpAddFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_INCOMING);
-    httpAddFilter(loc, http->uploadFilter->name, NULL, HTTP_STAGE_INCOMING);
+    if (serverSide) {
+        httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_RX);
+    }
+    httpAddFilter(loc, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
+    httpAddFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_RX | HTTP_STAGE_TX);
+    if (serverSide) {
+        httpAddFilter(loc, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
+    }
     loc->connector = http->netConnector;
     return loc;
 }
@@ -284,18 +247,17 @@ void httpInitLimits(HttpLimits *limits, int serverSide)
     limits->receiveBodySize = HTTP_MAX_RECEIVE_BODY;
     limits->requestCount = HTTP_MAX_REQUESTS;
     limits->stageBufferSize = HTTP_MAX_STAGE_BUFFER;
-    limits->transmissionBodySize = HTTP_MAX_TRANSMISSION_BODY;
+    limits->transmissionBodySize = HTTP_MAX_TX_BODY;
     limits->uploadSize = HTTP_MAX_UPLOAD;
     limits->uriSize = MPR_MAX_URL;
 
     limits->inactivityTimeout = HTTP_INACTIVITY_TIMEOUT;
-    limits->requestTimeout = INT_MAX;
+    limits->requestTimeout = MAXINT;
     limits->sessionTimeout = HTTP_SESSION_TIMEOUT;
 
     limits->clientCount = HTTP_MAX_CLIENTS;
     limits->keepAliveCount = HTTP_MAX_KEEP_ALIVE;
     limits->requestCount = HTTP_MAX_REQUESTS;
-    limits->sessionCount = HTTP_MAX_SESSIONS;
 
 #if FUTURE
     mprSetMaxSocketClients(server, atoi(value));
@@ -320,10 +282,18 @@ HttpLimits *httpCreateLimits(int serverSide)
 {
     HttpLimits  *limits;
 
-    if ((limits = mprAllocObj(HttpLimits, NULL)) != 0) {
+    if ((limits = mprAllocStruct(HttpLimits)) != 0) {
         httpInitLimits(limits, serverSide);
     }
     return limits;
+}
+
+
+void httpEaseLimits(HttpLimits *limits)
+{
+    limits->receiveBodySize = MAXOFF;
+    limits->transmissionBodySize = MAXOFF;
+    limits->uploadSize = MAXOFF;
 }
 
 
@@ -335,7 +305,7 @@ void httpAddStage(Http *http, HttpStage *stage)
 
 HttpStage *httpLookupStage(Http *http, cchar *name)
 {
-    return (HttpStage*) mprLookupHash(http->stages, name);
+    return (HttpStage*) mprLookupKey(http->stages, name);
 }
 
 
@@ -345,7 +315,7 @@ cchar *httpLookupStatus(Http *http, int status)
     char            key[8];
     
     itos(key, sizeof(key), status, 10);
-    ep = (HttpStatusCode*) mprLookupHash(http->statusCodes, key);
+    ep = (HttpStatusCode*) mprLookupKey(http->statusCodes, key);
     if (ep == 0) {
         return "Custom error";
     }
@@ -411,8 +381,9 @@ static void httpTimer(Http *http, MprEvent *event)
     for (count = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; count++) {
         rx = conn->rx;
         limits = conn->limits;
-        if ((conn->lastActivity + limits->inactivityTimeout) < http->now || 
-            (conn->started + limits->requestTimeout) < http->now) {
+        if (!conn->timeoutEvent && (
+            (conn->lastActivity + limits->inactivityTimeout) < http->now || 
+            (conn->started + limits->requestTimeout) < http->now)) {
             if (rx) {
                 /*
                     Don't call APIs on the conn directly (thread-race). Schedule a timer on the connection's dispatcher
@@ -469,7 +440,7 @@ static bool isIdle()
     static MprTime  lastTrace = 0;
 
     http = (Http*) mprGetMpr()->httpService;
-    now = mprGetTime();
+    now = http->now;
 
     lock(http);
     for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
@@ -497,10 +468,8 @@ static bool isIdle()
 void httpAddConn(Http *http, HttpConn *conn)
 {
     lock(http);
-    //  MOB
-    mprAssert(http->connections->length < 25);
     mprAddItem(http->connections, conn);
-    conn->started = mprGetTime();
+    conn->started = http->now;
     conn->seqno = http->connCount++;
     if ((http->now + MPR_TICKS_PER_SEC) < conn->started) {
         updateCurrentDate(http);
@@ -533,7 +502,7 @@ int httpCreateSecret(Http *http)
 
     if (mprGetRandomBytes(bytes, sizeof(bytes), 0) < 0) {
         mprError("Can't get sufficient random data for secure SSL operation. If SSL is used, it may not be secure.");
-        now = mprGetTime(); 
+        now = http->now;
         pid = (int) getpid();
         cp = (char*) &now;
         bp = bytes;
@@ -571,7 +540,7 @@ char *httpGetDateString(MprPath *sbuf)
     struct tm   tm;
 
     if (sbuf == 0) {
-        when = mprGetTime();
+        when = ((Http*) MPR->httpService)->now;
     } else {
         when = (MprTime) sbuf->mtime * MPR_TICKS_PER_SEC;
     }

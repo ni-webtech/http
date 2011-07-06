@@ -26,11 +26,10 @@ HttpPacket *httpCreatePacket(ssize size)
         return 0;
     }
     if (size != 0) {
-        if ((packet->content = mprCreateBuf(size < 0 ? HTTP_BUFSIZE: size, -1)) == 0) {
+        if ((packet->content = mprCreateBuf(size < 0 ? HTTP_BUFSIZE: (ssize) size, -1)) == 0) {
             return 0;
         }
     }
-    mprLog(8, "DEBUG: httpCreate new packet %d", packet->entityLength);
     return packet;
 }
 
@@ -40,45 +39,8 @@ static void managePacket(HttpPacket *packet, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(packet->prefix);
         mprMark(packet->content);
-        mprMark(packet->suffix);
-        /*  
-            Move to manageQueue to reduce stack depth
-            mprMark(packet->next);
-         */
     }
 }
-
-
-#if FUTURE
-void httpFreePacket(HttpQueue *q, HttpPacket *packet)
-{
-    HttpConn    *conn;
-    HttpRx      *rx;
-
-    conn = q->conn;
-    rx = conn->rx;
-
-    if (rx == 0 || packet->content == 0 || packet->content->buflen < HTTP_BUFSIZE || mprIsParent(conn, packet)) {
-        /* 
-            Don't bother recycling non-content, small packets or packets owned by the connection
-            We only store packets owned by the request and not by the connection on the free list.
-         */
-        return;
-    }
-    /*  
-        Add to the packet free list for recycling
-        MOB -- need some thresholds to manage this incase it gets too big
-     */
-    mprAssert(packet->content);
-    mprFlushBuf(packet->content);
-    packet->prefix = 0;
-    packet->suffix = 0;
-    packet->entityLength = 0;
-    packet->flags = 0;
-    packet->next = rx->freePackets;
-    rx->freePackets = packet;
-} 
-#endif
 
 
 HttpPacket *httpCreateDataPacket(ssize size)
@@ -89,6 +51,21 @@ HttpPacket *httpCreateDataPacket(ssize size)
         return 0;
     }
     packet->flags = HTTP_PACKET_DATA;
+    return packet;
+}
+
+
+HttpPacket *httpCreateEntityPacket(MprOff pos, MprOff size, HttpFillProc fill)
+{
+    HttpPacket    *packet;
+
+    if ((packet = httpCreatePacket(0)) == 0) {
+        return 0;
+    }
+    packet->flags = HTTP_PACKET_DATA;
+    packet->epos = pos;
+    packet->esize = size;
+    packet->fill = fill;
     return packet;
 }
 
@@ -165,24 +142,22 @@ bool httpIsPacketTooBig(HttpQueue *q, HttpPacket *packet)
 
 
 /*  
-    Join a packet onto the service queue
+    Join a packet onto the service queue. This joins packet content data.
  */
 void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 {
     if (q->first == 0) {
-        /*  
-            Just use the service queue as a holding queue while we aggregate the post data.
-         */
+        /*  Just use the service queue as a holding queue while we aggregate the post data.  */
         httpPutForService(q, packet, 0);
+
     } else {
         q->count += httpGetPacketLength(packet);
-        if (q->first && httpGetPacketLength(q->first) == 0) {
+        /* Skip over the header packet */
+        if (q->first && q->first->flags & HTTP_PACKET_HEADER) {
             packet = q->first->next;
             q->first = packet;
         } else {
-            /*
-                Aggregate all data into one packet and free the packet.
-             */
+            /* Aggregate all data into one packet and free the packet.  */
             httpJoinPacket(q->first, packet);
         }
     }
@@ -199,8 +174,11 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 {
     ssize   len;
 
+    mprAssert(packet->esize == 0);
+    mprAssert(p->esize == 0);
+
     len = httpGetPacketLength(p);
-    if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), len) != len) {
+    if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), (ssize) len) != len) {
         return MPR_ERR_MEMORY;
     }
     return 0;
@@ -212,24 +190,28 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
  */
 void httpJoinPackets(HttpQueue *q, ssize size)
 {
-    HttpPacket  *packet, *first, *next;
-    ssize       maxPacketSize;
+    HttpPacket  *packet, *first;
+    ssize       maxPacketSize, len;
 
     if (size < 0) {
         size = MAXINT;
     }
     if ((first = q->first) != 0 && first->next) {
         if (first->flags & HTTP_PACKET_HEADER) {
+            /* Step over a header packet */
             first = first->next;
         }
         maxPacketSize = min(q->nextQ->packetSize, size);
-        for (packet = first->next; packet; packet = next) {
-            next = packet->next;
-            if (packet->content && (httpGetPacketLength(first) + httpGetPacketLength(packet)) < maxPacketSize) {
-                httpJoinPacket(first, packet);
-            } else {
+        for (packet = first->next; packet; packet = packet->next) {
+            if (packet->content == 0 || (len = httpGetPacketLength(packet)) == 0) {
                 break;
             }
+            if ((httpGetPacketLength(first) + len) > maxPacketSize) {
+                break;
+            }
+            httpJoinPacket(first, packet);
+            /* Unlink the packet */
+            first->next = packet->next;
         }
     }
 }
@@ -242,16 +224,16 @@ void httpPutBackPacket(HttpQueue *q, HttpPacket *packet)
 {
     mprAssert(packet);
     mprAssert(packet->next == 0);
-    
-    packet->next = q->first;
-
-    if (q->first == 0) {
-        q->last = packet;
-    }
-    q->first = packet;
-    mprAssert(httpGetPacketLength(packet) >= 0);
-    q->count += httpGetPacketLength(packet);
     mprAssert(q->count >= 0);
+    
+    if (packet) {
+        packet->next = q->first;
+        if (q->first == 0) {
+            q->last = packet;
+        }
+        q->first = packet;
+        q->count += httpGetPacketLength(packet);
+    }
 }
 
 
@@ -279,8 +261,9 @@ void httpPutForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 
 
 /*  
-    Split a packet if required so it fits in the downstream queue. Put back the 2nd portion of the split packet on the queue.
-    Ensure that the packet is not larger than "size" if it is greater than zero.
+    Resize and possibly split a packet so it fits in the downstream queue. Put back the 2nd portion of the split packet 
+    on the queue. Ensure that the packet is not larger than "size" if it is greater than zero. If size < 0, then
+    use the default packet size. 
  */
 int httpResizePacket(HttpQueue *q, HttpPacket *packet, ssize size)
 {
@@ -290,25 +273,24 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, ssize size)
     if (size <= 0) {
         size = MAXINT;
     }
-
-    /*  
-        Calculate the size that will fit
-     */
-    len = packet->content ? httpGetPacketLength(packet) : packet->entityLength;
-    size = min(size, len);
-    size = min(size, q->nextQ->max);
-    size = min(size, q->nextQ->packetSize);
-
-    if (size == 0) {
-        /* Can't fit anything downstream, no point splitting yet */
-        return 0;
-    }
-    if (size == len) {
-        return 0;
-    }
-    tail = httpSplitPacket(packet, size);
-    if (tail == 0) {
-        return MPR_ERR_MEMORY;
+    if (packet->esize > size) {
+        if ((tail = httpSplitPacket(packet, size)) == 0) {
+            return MPR_ERR_MEMORY;
+        }
+    } else {
+        /*  
+            Calculate the size that will fit downstream
+         */
+        len = packet->content ? httpGetPacketLength(packet) : 0;
+        size = min(size, len);
+        size = min(size, q->nextQ->max);
+        size = min(size, q->nextQ->packetSize);
+        if (size == 0 || size == len) {
+            return 0;
+        }
+        if ((tail = httpSplitPacket(packet, size)) == 0) {
+            return MPR_ERR_MEMORY;
+        }
     }
     httpPutBackPacket(q, tail);
     return 0;
@@ -328,11 +310,10 @@ HttpPacket *httpClonePacket(HttpPacket *orig)
     if (orig->prefix) {
         packet->prefix = mprCloneBuf(orig->prefix);
     }
-    if (orig->suffix) {
-        packet->suffix = mprCloneBuf(orig->suffix);
-    }
     packet->flags = orig->flags;
-    packet->entityLength = orig->entityLength;
+    packet->esize = orig->esize;
+    packet->epos = orig->epos;
+    packet->fill = orig->fill;
     return packet;
 }
 
@@ -343,8 +324,8 @@ HttpPacket *httpClonePacket(HttpPacket *orig)
 void httpSendPacket(HttpQueue *q, HttpPacket *packet)
 {
     mprAssert(packet);
-    
     mprAssert(q->put);
+
     q->put(q, packet);
 }
 
@@ -355,8 +336,8 @@ void httpSendPacket(HttpQueue *q, HttpPacket *packet)
 void httpSendPacketToNext(HttpQueue *q, HttpPacket *packet)
 {
     mprAssert(packet);
-    
     mprAssert(q->nextQ->put);
+
     q->nextQ->put(q->nextQ, packet);
 }
 
@@ -373,51 +354,61 @@ void httpSendPackets(HttpQueue *q)
 
 /*  
     Split a packet at a given offset and return a new packet containing the data after the offset.
-    The suffix data migrates to the new packet. 
+    The prefix data remains with the original packet. 
  */
 HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
 {
     HttpPacket  *packet;
     ssize       count, size;
 
-    if (offset >= httpGetPacketLength(orig)) {
-        mprAssert(0);
-        return 0;
-    }
-    count = httpGetPacketLength(orig) - offset;
-    size = max(count, HTTP_BUFSIZE);
-    size = HTTP_PACKET_ALIGN(size);
+    if (orig->esize) {
+        if ((packet = httpCreateEntityPacket(orig->epos + offset, orig->esize - offset, orig->fill)) == 0) {
+            return 0;
+        }
+        orig->esize = offset;
 
-    if ((packet = httpCreatePacket((orig->content == 0) ? 0 : size)) == 0) {
-        return 0;
-    }
-    packet->flags = orig->flags;
-
-    if (orig->entityLength) {
-        orig->entityLength = offset;
-        packet->entityLength = count;
-    }
-
-#if FUTURE
-    /*
-        Suffix migrates to the new packet (Not currently used)
-     */
-    if (packet->suffix) {
-        packet->suffix = orig->suffix;
-        orig->suffix = 0;
-    }
-#endif
-
-    if (orig->content && httpGetPacketLength(orig) > 0) {
-        mprAdjustBufEnd(orig->content, -count);
-        if (mprPutBlockToBuf(packet->content, mprGetBufEnd(orig->content), count) != count) {
+    } else {
+        if (offset >= httpGetPacketLength(orig)) {
+            mprAssert(offset < httpGetPacketLength(orig));
+            return 0;
+        }
+        count = httpGetPacketLength(orig) - offset;
+        size = max(count, HTTP_BUFSIZE);
+        size = HTTP_PACKET_ALIGN(size);
+        if ((packet = httpCreateDataPacket(size)) == 0) {
+            return 0;
+        }
+        httpAdjustPacketEnd(orig, (ssize) -count);
+        if (mprPutBlockToBuf(packet->content, mprGetBufEnd(orig->content), (ssize) count) != count) {
             return 0;
         }
 #if BLD_DEBUG
         mprAddNullToBuf(orig->content);
 #endif
     }
+    packet->flags = orig->flags;
     return packet;
+}
+
+
+void httpAdjustPacketStart(HttpPacket *packet, MprOff size)
+{
+    if (packet->esize) {
+        packet->epos += size;
+        packet->esize -= size;
+    } else if (packet->content) {
+        mprAdjustBufStart(packet->content, (ssize) size);
+    }
+}
+
+
+void httpAdjustPacketEnd(HttpPacket *packet, MprOff size)
+{
+    if (packet->esize) {
+        packet->esize += size;
+    } else if (packet->content) {
+        mprAdjustBufEnd(packet->content, (ssize) size);
+    }
 }
 
 

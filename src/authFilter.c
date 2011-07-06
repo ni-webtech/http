@@ -28,11 +28,11 @@ typedef struct AuthData
 
 static int calcDigest(char **digest, cchar *userName, cchar *password, cchar *realm, cchar *uri, 
     cchar *nonce, cchar *qop, cchar *nc, cchar *cnonce, cchar *method);
-static char *createDigestNonce(cchar *secret, cchar *etag, cchar *realm);
+static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *etag, cchar *realm);
 static void decodeBasicAuth(HttpConn *conn, AuthData *ad);
 static int  decodeDigestDetails(HttpConn *conn, AuthData *ad);
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg);
-static bool matchAuth(HttpConn *conn, HttpStage *handler);
+static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir);
 static int parseDigestNonce(char *nonce, cchar **secret, cchar **etag, cchar **realm, MprTime *when);
 
 /*********************************** Code *************************************/
@@ -51,7 +51,7 @@ int httpOpenAuthFilter(Http *http)
 }
 
 
-static bool matchAuth(HttpConn *conn, HttpStage *handler)
+static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
 {
     Http        *http;
     HttpRx      *rx;
@@ -69,23 +69,19 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
     http = conn->http;
     auth = rx->auth;
 
-    if (!conn->server || auth == 0 || auth->type == 0) {
-        return 0;
-    }
-    if ((ad = mprAllocObj(AuthData, NULL)) == 0) {
-        return 1;
-    }
-    //  MOB -- fix
-#if UNUSED
-    if (auth == 0) {
-        httpError(conn, HTTP_CODE_UNAUTHORIZED, "Access Denied, Authorization not enabled");
-        return 1;
-    }
-    if (auth->type == 0) {
-        formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Authorization required.", 0);
+#if BLD_DEBUG
+    if (dir & HTTP_STAGE_TX) {
+        mprError("AuthFilter configured as output filter. It should be configured as an input filter.");
+        formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
         return 1;
     }
 #endif
+    if (!(dir & HTTP_STAGE_RX) || !conn->server || auth == 0 || auth->type == 0) {
+        return 0;
+    }
+    if ((ad = mprAllocStruct(AuthData)) == 0) {
+        return 1;
+    }
     if (rx->authDetails == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
         return 1;
@@ -113,7 +109,6 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Wrong authentication protocol", 0);
         return 1;
     }
-
     /*  
         Some backend methods can't return the password and will simply do everything in validateCred. 
         In this case, they and will return "". That is okay.
@@ -143,8 +138,9 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler)
         }
     }
     if (!(http->validateCred)(auth, auth->requiredRealm, ad->userName, ad->password, requiredPassword, &msg)) {
-        formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, authentication error", msg);
+        formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, incorrect username/password", msg);
     }
+    rx->authenticated = 1;
     return 1;
 }
 
@@ -343,38 +339,39 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
     } else if (auth->type == HTTP_AUTH_DIGEST) {
         qopClass = auth->qop;
         etag = tx->etag ? tx->etag : "";
-        nonce = createDigestNonce(conn->http->secret, etag, auth->requiredRealm);
+        nonce = createDigestNonce(conn, conn->http->secret, etag, auth->requiredRealm);
+        mprAssert(conn->host);
 
         if (scmp(qopClass, "auth") == 0) {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", domain=\"%s\", "
                 "qop=\"auth\", nonce=\"%s\", opaque=\"%s\", algorithm=\"MD5\", stale=\"FALSE\"", 
-                auth->requiredRealm, conn->server->name, nonce, etag);
+                auth->requiredRealm, conn->host->name, nonce, etag);
 
         } else if (scmp(qopClass, "auth-int") == 0) {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", domain=\"%s\", "
                 "qop=\"auth\", nonce=\"%s\", opaque=\"%s\", algorithm=\"MD5\", stale=\"FALSE\"", 
-                auth->requiredRealm, conn->server->name, nonce, etag);
+                auth->requiredRealm, conn->host->name, nonce, etag);
 
         } else {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", nonce=\"%s\"", auth->requiredRealm, nonce);
         }
     }
     httpError(conn, code, "Authentication Error: %s", msg);
-    httpSetPipeHandler(conn, conn->http->passHandler);
+    httpSetPipelineHandler(conn, conn->http->passHandler);
 }
 
 
 /*
     Create a nonce value for digest authentication (RFC 2617)
  */ 
-static char *createDigestNonce(cchar *secret, cchar *etag, cchar *realm)
+static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *etag, cchar *realm)
 {
     MprTime     now;
     char        nonce[256];
 
     mprAssert(realm && *realm);
 
-    now = mprGetTime();
+    now = conn->http->now;
     mprSprintf(nonce, sizeof(nonce), "%s:%s:%s:%Lx", secret, etag, realm, now);
     return mprEncode64(nonce);
 }

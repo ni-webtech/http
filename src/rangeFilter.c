@@ -9,14 +9,14 @@
 
 /********************************** Forwards **********************************/
 
+static bool applyRange(HttpQueue *q, HttpPacket *packet);
 static void createRangeBoundary(HttpConn *conn);
 static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range);
 static HttpPacket *createFinalRangePacket(HttpConn *conn);
-static void incomingRangeData(HttpQueue *q, HttpPacket *packet);
 static void outgoingRangeService(HttpQueue *q);
 static bool fixRangeLength(HttpConn *conn);
-static bool matchRange(HttpConn *conn, HttpStage *handler);
-static void rangeService(HttpQueue *q, HttpRangeProc fill);
+static bool matchRange(HttpConn *conn, HttpStage *handler, int dir);
+static void startRange(HttpQueue *q);
 
 /*********************************** Code *************************************/
 
@@ -29,66 +29,61 @@ int httpOpenRangeFilter(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     http->rangeFilter = filter;
-    http->rangeService = rangeService;
     filter->match = matchRange; 
+    filter->start = startRange; 
     filter->outgoingService = outgoingRangeService; 
-    filter->incomingData = incomingRangeData; 
     return 0;
 }
 
 
-static bool matchRange(HttpConn *conn, HttpStage *handler)
+static bool matchRange(HttpConn *conn, HttpStage *handler, int dir)
 {
-    return (conn->rx->ranges) ? 1 : 0;;
+    mprAssert(conn->rx);
+
+    return ((dir & HTTP_STAGE_TX) && conn->tx->outputRanges) ? 1 : 0;
 }
 
 
-/*
-    The RangeFilter does nothing for incoming data. The rx understands range headers
- */
-static void incomingRangeData(HttpQueue *q, HttpPacket *packet)
+static void startRange(HttpQueue *q)
 {
-    httpSendPacketToNext(q, packet);
-}
-
-
-/*  
-    Apply ranges to outgoing data. 
- */
-static void rangeService(HttpQueue *q, HttpRangeProc fill)
-{
-    HttpPacket  *packet;
-    HttpRange   *range;
     HttpConn    *conn;
-    HttpRx      *rx;
     HttpTx      *tx;
-    ssize       bytes, count, endpos;
+    HttpRx      *rx;
 
     conn = q->conn;
-    rx = conn->rx;
     tx = conn->tx;
-    range = tx->currentRange;
+    rx = conn->rx;
+    mprAssert(tx->outputRanges);
 
-    if (!(q->flags & HTTP_QUEUE_SERVICED)) {
-        if (tx->entityLength < 0 && q->last->flags & HTTP_PACKET_END) {
-
-           /*   Compute an entity length. This allows negative ranges computed from the end of the data.
-            */
-           tx->entityLength = q->count;
-        }
-        if (tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
-            httpSendPackets(q);
-            httpRemoveQueue(q);
-            return;
-        }
-        if (rx->ranges->next) {
+    if (tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
+        httpRemoveQueue(q);
+    } else {
+        tx->status = HTTP_CODE_PARTIAL;
+        if (tx->outputRanges->next) {
             createRangeBoundary(conn);
         }
-        tx->status = HTTP_CODE_PARTIAL;
     }
+}
+
+
+static void outgoingRangeService(HttpQueue *q)
+{
+    HttpPacket  *packet;
+    HttpConn    *conn;
+    HttpTx      *tx;
+
+    conn = q->conn;
+    tx = conn->tx;
 
     for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
-        if (!(packet->flags & HTTP_PACKET_DATA)) {
+        if (packet->flags & HTTP_PACKET_DATA) {
+            if (!applyRange(q, packet)) {
+                return;
+            }
+        } else {
+            /*
+                Send headers and end packet downstream
+             */
             if (packet->flags & HTTP_PACKET_END && tx->rangeBoundary) {
                 httpSendPacketToNext(q, createFinalRangePacket(conn));
             }
@@ -97,79 +92,82 @@ static void rangeService(HttpQueue *q, HttpRangeProc fill)
                 return;
             }
             httpSendPacketToNext(q, packet);
-            continue;
-        }
-
-        /*  Process the current packet over multiple ranges ranges until all the data is processed or discarded.
-         */
-        bytes = packet->content ? mprGetBufLength(packet->content) : packet->entityLength;
-        while (range && bytes > 0) {
-
-            endpos = tx->pos + bytes;
-            if (endpos < range->start) {
-                /* Packet is before the next range, so discard the entire packet */
-                tx->pos += bytes;
-                break;
-
-            } else if (tx->pos > range->end) {
-                /* Missing some output - should not happen */
-                mprAssert(0);
-
-            } else if (tx->pos < range->start) {
-                /*  Packets starts before range with some data in range so skip some data */
-                count = (range->start - tx->pos);
-                bytes -= count;
-                tx->pos += count;
-                if (packet->content == 0) {
-                    packet->entityLength -= count;
-                }
-                if (packet->content) {
-                    mprAdjustBufStart(packet->content, count);
-                }
-                continue;
-
-            } else {
-                /* In range */
-                mprAssert(range->start <= tx->pos && tx->pos < range->end);
-                count = min(bytes, (int) (range->end - tx->pos));
-                count = min(count, q->nextQ->packetSize);
-                mprAssert(count > 0);
-                if (count < bytes) {
-                    //  TODO OPT. Only need to resize if this completes all the range data.
-                    httpResizePacket(q, packet, count);
-                }
-                if (!httpWillNextQueueAcceptPacket(q, packet)) {
-                    httpPutBackPacket(q, packet);
-                    return;
-                }
-                if (fill) {
-                    if ((*fill)(q, packet) < 0) {
-                        return;
-                    }
-                }
-                tx->pos += count;
-                if (tx->rangeBoundary) {
-                    httpSendPacketToNext(q, createRangePacket(conn, range));
-                }
-                httpSendPacketToNext(q, packet);
-                if (tx->pos >= range->end) {
-                    range = range->next;
-                }
-                break;
-            }
         }
     }
-    tx->currentRange = range;
 }
 
 
-static void outgoingRangeService(HttpQueue *q)
+static bool applyRange(HttpQueue *q, HttpPacket *packet)
 {
-    rangeService(q, NULL);
+    HttpRange   *range;
+    HttpConn    *conn;
+    HttpTx      *tx;
+    MprOff      endPacket, length, gap, span;
+    ssize       count;
+
+    conn = q->conn;
+    tx = conn->tx;
+    range = tx->currentRange;
+
+    /*  
+        Process the data packet over multiple ranges ranges until all the data is processed or discarded.
+        A packet may contain data or it may be empty with an associated entityLength. If empty, range packets
+        are filled with entity data as required.
+     */
+    while (range && packet) {
+        length = httpGetPacketEntityLength(packet);
+        if (length <= 0) {
+            break;
+        }
+        endPacket = tx->rangePos + length;
+        if (endPacket < range->start) {
+            /* Packet is before the next range, so discard the entire packet and seek forwards */
+            tx->rangePos += length;
+            break;
+
+        } else if (tx->rangePos < range->start) {
+            /*  Packet starts before range so skip some data, but some packet data is in range */
+            gap = (range->start - tx->rangePos);
+            tx->rangePos += gap;
+            if (gap < length) {
+                httpAdjustPacketStart(packet, (ssize) gap);
+            }
+            /* Keep going and examine next range */
+
+        } else {
+            /* In range */
+            mprAssert(range->start <= tx->rangePos && tx->rangePos < range->end);
+            span = min(length, (range->end - tx->rangePos));
+            count = (ssize) min(span, q->nextQ->packetSize);
+            mprAssert(count > 0);
+            if (!httpWillNextQueueAcceptSize(q, count)) {
+                httpPutBackPacket(q, packet);
+                return 0;
+            }
+            if (length > count) {
+                /* Split packet if packet extends past range */
+                httpPutBackPacket(q, httpSplitPacket(packet, count));
+            }
+            if (packet->fill && (*packet->fill)(q, packet, tx->rangePos, count) < 0) {
+                return 0;
+            }
+            if (tx->rangeBoundary) {
+                httpSendPacketToNext(q, createRangePacket(conn, range));
+            }
+            httpSendPacketToNext(q, packet);
+            packet = 0;
+            tx->rangePos += count;
+        }
+        if (tx->rangePos >= range->end) {
+            tx->currentRange = range = range->next;
+        }
+    }
+    return 1;
 }
 
 
-/*  Create a range boundary packet
+/*  
+    Create a range boundary packet
  */
 static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
 {
@@ -189,13 +187,14 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
     packet->flags |= HTTP_PACKET_RANGE;
     mprPutFmtToBuf(packet->content, 
         "\r\n--%s\r\n"
-        "Content-Range: bytes %d-%d/%s\r\n\r\n",
+        "Content-Range: bytes %Ld-%Ld/%s\r\n\r\n",
         tx->rangeBoundary, range->start, range->end - 1, lenBuf);
     return packet;
 }
 
 
-/*  Create a final range packet that follows all the data
+/*  
+    Create a final range packet that follows all the data
  */
 static HttpPacket *createFinalRangePacket(HttpConn *conn)
 {
@@ -211,7 +210,8 @@ static HttpPacket *createFinalRangePacket(HttpConn *conn)
 }
 
 
-/*  Create a range boundary. This is required if more than one range is requested.
+/*  
+    Create a range boundary. This is required if more than one range is requested.
  */
 static void createRangeBoundary(HttpConn *conn)
 {
@@ -233,13 +233,13 @@ static bool fixRangeLength(HttpConn *conn)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpRange   *range;
-    ssize       length;
+    MprOff      length;
 
     rx = conn->rx;
     tx = conn->tx;
-    length = tx->entityLength;
+    length = tx->entityLength ? tx->entityLength : tx->length;
 
-    for (range = rx->ranges; range; range = range->next) {
+    for (range = tx->outputRanges; range; range = range->next) {
         /*
                 Range: 0-49             first 50 bytes
                 Range: 50-99,200-249    Two 50 byte ranges from 50 and 200
@@ -257,8 +257,10 @@ static bool fixRangeLength(HttpConn *conn)
         if (range->start < 0) {
             if (length <= 0) {
                 /*
-                    Can't compute an offset from the end as we don't know the entity length
+                    Can't compute an offset from the end as we don't know the entity length and it is not always possible
+                    or wise to buffer all the output.
                  */
+                httpError(conn, HTTP_CODE_RANGE_NOT_SATISFIABLE, "Can't compute end range with unknown content length"); 
                 return 0;
             }
             /* select last -range-end bytes */

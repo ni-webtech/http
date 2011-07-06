@@ -41,7 +41,7 @@ static char *getBoundary(void *buf, ssize bufLen, void *boundary, ssize boundary
 static void incomingUploadData(HttpQueue *q, HttpPacket *packet);
 static void manageHttpUploadFile(HttpUploadFile *file, int flags);
 static void manageUpload(Upload *up, int flags);
-static bool matchUpload(HttpConn *conn, HttpStage *filter);
+static bool matchUpload(HttpConn *conn, HttpStage *filter, int dir);
 static void openUpload(HttpQueue *q);
 static int  processContentBoundary(HttpQueue *q, char *line);
 static int  processContentHeader(HttpQueue *q, char *line);
@@ -68,12 +68,15 @@ int httpOpenUploadFilter(Http *http)
 /*  
     Match if this request needs the upload filter. Return true if needed.
  */
-static bool matchUpload(HttpConn *conn, HttpStage *filter)
+static bool matchUpload(HttpConn *conn, HttpStage *filter, int dir)
 {
     HttpRx  *rx;
     char    *pat;
     ssize   len;
     
+    if (!(dir & HTTP_STAGE_RX)) {
+        return 0;
+    }
     rx = conn->rx;
     if (!(rx->flags & HTTP_POST) || rx->remainingContent <= 0) {
         return 0;
@@ -206,7 +209,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
     packet = q->first;
     content = packet->content;
     mprAddNullToBuf(content);
-    count = mprGetBufLength(content);
+    count = httpGetPacketLength(packet);
 
     for (done = 0, line = 0; !done; ) {
         if  (up->contentState == HTTP_UPLOAD_BOUNDARY || up->contentState == HTTP_UPLOAD_CONTENT_HEADER) {
@@ -223,7 +226,6 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
             mprAdjustBufStart(content, (int) (nextTok - line));
             line = strim(line, "\r", MPR_TRIM_END);
         }
-
         switch (up->contentState) {
         case HTTP_UPLOAD_BOUNDARY:
             if (processContentBoundary(q, line) < 0) {
@@ -242,7 +244,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
             if (rc < 0) {
                 done++;
             }
-            if (mprGetBufLength(content) < up->boundaryLen) {
+            if (httpGetPacketLength(packet) < up->boundaryLen) {
                 /*  Incomplete boundary - return to get more data */
                 done++;
             }
@@ -259,10 +261,10 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
     if (packet != rx->headerPacket) {
         mprCompactBuf(content);
     }
-    q->count -= (count - mprGetBufLength(content));
+    q->count -= (count - httpGetPacketLength(packet));
     mprAssert(q->count >= 0);
 
-    if (mprGetBufLength(content) == 0) {
+    if (httpGetPacketLength(packet) == 0) {
         /* 
            Quicker to remove the buffer so the packets don't have to be joined the next time 
          */
@@ -453,7 +455,7 @@ static int writeToFile(HttpQueue *q, char *data, ssize len)
     file = up->currentFile;
 
     if ((file->size + len) > limits->uploadSize) {
-        httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Uploaded file exceeds maximum %d", limits->uploadSize);
+        httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE, "Uploaded file exceeds maximum %Ld", limits->uploadSize);
         return MPR_ERR_CANT_WRITE;
     }
     if (len > 0) {
@@ -547,11 +549,10 @@ static int processContentData(HttpQueue *q)
             data = mprUriDecode(data);
             httpSetFormVar(conn, key, data);
 
-            //  MOB - I think PHP needs to actually get the data if using --upload and --form
             if (packet == 0) {
                 packet = httpCreatePacket(HTTP_BUFSIZE);
             }
-            if (mprGetBufLength(packet->content) > 0) {
+            if (httpGetPacketLength(packet) > 0) {
                 /*
                     Need to add www-form-urlencoding separators
                  */

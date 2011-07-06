@@ -110,7 +110,7 @@ static int setClientHeaders(HttpConn *conn)
             mprLog(MPR_ERROR, "Http: Can't create secret for digest authentication");
             return MPR_ERR_CANT_CREATE;
         }
-        conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (uint) mprGetTime()); 
+        conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (int) http->now);
 
         mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
         len = strlen(a1Buf);
@@ -150,20 +150,24 @@ static int setClientHeaders(HttpConn *conn)
         }
         conn->sentCredentials = 1;
     }
-    httpSetSimpleHeader(conn, "Host", conn->ip);
+    if (conn->port != 80) {
+        httpSetHeader(conn, "Host", "%s:%d", conn->ip, conn->port);
+    } else {
+        httpSetHeaderString(conn, "Host", conn->ip);
+    }
 
     if (strcmp(conn->protocol, "HTTP/1.1") == 0) {
         /* If zero, we ask the client to close one request early. This helps with client led closes */
         if (conn->keepAliveCount > 0) {
-            httpSetSimpleHeader(conn, "Connection", "Keep-Alive");
+            httpSetHeaderString(conn, "Connection", "Keep-Alive");
         } else {
-            httpSetSimpleHeader(conn, "Connection", "close");
+            httpSetHeaderString(conn, "Connection", "close");
         }
 
     } else {
         /* Set to zero to let the client initiate the close */
         conn->keepAliveCount = 0;
-        httpSetSimpleHeader(conn, "Connection", "close");
+        httpSetHeaderString(conn, "Connection", "close");
     }
     return 0;
 }
@@ -193,13 +197,14 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     conn->tx->parsedUri = httpCreateUri(url, 0);
 
 #if BLD_DEBUG
-    conn->startTime = mprGetTime();
+    conn->startTime = conn->http->now;
     conn->startTicks = mprGetTicks();
 #endif
-
     if (openConnection(conn, url) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
+    httpCreateTxPipeline(conn, conn->http->clientLocation);
+
     if (setClientHeaders(conn) < 0) {
         return MPR_ERR_CANT_INITIALIZE;
     }
@@ -213,13 +218,11 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
 bool httpNeedRetry(HttpConn *conn, char **url)
 {
     HttpRx      *rx;
-    HttpTx      *tx;
 
     mprAssert(conn->rx);
 
     *url = 0;
     rx = conn->rx;
-    tx = conn->tx;
 
     if (conn->state < HTTP_STATE_FIRST) {
         return 0;
@@ -259,20 +262,34 @@ static int blockingFileCopy(HttpConn *conn, cchar *path)
 {
     MprFile     *file;
     char        buf[MPR_BUFSIZE];
-    ssize       bytes;
+    ssize       bytes, nbytes, offset;
+    int         oldMode;
 
     file = mprOpenFile(path, O_RDONLY | O_BINARY, 0);
     if (file == 0) {
         mprError("Can't open %s", path);
         return MPR_ERR_CANT_OPEN;
     }
+    mprAddRoot(file);
+    oldMode = mprSetSocketBlockingMode(conn->sock, 1);
     while ((bytes = mprReadFile(file, buf, sizeof(buf))) > 0) {
-        if (httpWriteBlock(conn->writeq, buf, bytes) != bytes) {
-            mprCloseFile(file);
-            return MPR_ERR_CANT_WRITE;
+        offset = 0;
+        while (bytes > 0) {
+            if ((nbytes = httpWriteBlock(conn->writeq, &buf[offset], bytes)) < 0) {
+                mprCloseFile(file);
+                mprRemoveRoot(file);
+                return MPR_ERR_CANT_WRITE;
+            }
+            bytes -= nbytes;
+            offset += nbytes;
+            mprAssert(bytes >= 0);
         }
+        mprYield(0);
     }
+    httpFlushQueue(conn->writeq, 1);
+    mprSetSocketBlockingMode(conn->sock, oldMode);
     mprCloseFile(file);
+    mprRemoveRoot(file);
     return 0;
 }
 

@@ -32,14 +32,16 @@ HttpAlias *httpCreateAlias(cchar *prefix, cchar *target, int code)
         return 0;
     }
     ap->prefix = sclone(prefix);
-    ap->prefixLen = (int) strlen(prefix);
+    ap->prefixLen = slen(prefix);
 
+#if UNUSED
     /*  
         Always strip trailing "/" from the prefix
      */
     if (ap->prefixLen > 0 && ap->prefix[ap->prefixLen - 1] == '/') {
         ap->prefix[--ap->prefixLen] = '\0';
     }
+#endif
     if (code) {
         ap->redirectCode = code;
         ap->uri = sclone(target);
@@ -50,7 +52,7 @@ HttpAlias *httpCreateAlias(cchar *prefix, cchar *target, int code)
          */
         seps = mprGetPathSeparators(target);
         ap->filename = sclone(target);
-        len = strlen(ap->filename) - 1;
+        len = slen(ap->filename) - 1;
         if (len >= 0 && ap->filename[len] == seps[0]) {
             ap->filename[len] = '\0';
         }
