@@ -481,7 +481,11 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 
     if (tx->extension) {
         if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->extension)) != 0) {
-            httpAddHeaderString(conn, "Content-Type", mimeType);
+            if (conn->error) {
+                httpAddHeaderString(conn, "Content-Type", "text/html");
+            } else {
+                httpAddHeaderString(conn, "Content-Type", mimeType);
+            }
         }
     }
     if (tx->flags & HTTP_TX_DONT_CACHE) {
