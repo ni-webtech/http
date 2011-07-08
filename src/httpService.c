@@ -305,7 +305,17 @@ void httpAddStage(Http *http, HttpStage *stage)
 
 HttpStage *httpLookupStage(Http *http, cchar *name)
 {
-    return (HttpStage*) mprLookupKey(http->stages, name);
+    return mprLookupKey(http->stages, name);
+}
+
+
+void *httpLookupStageData(Http *http, cchar *name)
+{
+    HttpStage   *stage;
+    if ((stage = mprLookupKey(http->stages, name)) != 0) {
+        return stage->stageData;
+    }
+    return 0;
 }
 
 

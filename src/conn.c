@@ -830,6 +830,12 @@ void httpError(HttpConn *conn, int flags, cchar *fmt, ...)
 }
 
 
+void httpMemoryError(HttpConn *conn)
+{
+    httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Memory allocation error");
+}
+
+
 void httpDisconnect(HttpConn *conn)
 {
     if (conn->sock) {

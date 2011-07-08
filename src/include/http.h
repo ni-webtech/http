@@ -1512,6 +1512,9 @@ extern void httpDiscardTransmitData(HttpConn *conn);
  */
 extern void httpError(HttpConn *conn, int status, cchar *fmt, ...);
 
+//  DOC
+extern void httpMemoryError(HttpConn *conn);
+
 /**
     Get the async mode value for the connection
     @param conn HttpConn object created via $httpCreateConn
