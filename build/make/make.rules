@@ -140,14 +140,10 @@ all: headers compile
 
 $(BUILD_CHECK):
 
-files: $(HEADERS) $(OBJECTS)
-
-headerFiles: $(HEADERS)
-
 #
 #   Export headers to out/include
 # 
-headers: check $(BUILD_CHECK) headersDirs headerFiles headersExtra
+headers: check $(BUILD_CHECK) headersDirs $(HEADERS) headersExtra
 
 headersDirs:
 	@T=headers ; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
@@ -165,7 +161,7 @@ check:
 #
 #	Compile target phases
 #
-compile: check $(BUILD_CHECK) compileFirst compileDirs files compileTargets compileExtra compileAdirs compileFinal
+compile: check $(BUILD_CHECK) compileFirst compileDirs $(HEADERS) $(OBJECTS) compileTargets compileExtra compileAdirs compileFinal
 
 compileFirst:
 

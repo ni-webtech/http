@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
     fprintf(fp, "\n#\n#   Read the build configuration.\n#\n");
     fprintf(fp, "include $(BLD_INC_DIR)/buildConfig.h\n\n");
 
-    fprintf(fp, "SRC =");
+    fprintf(fp, "SRC ?=");
     for (i = nextArg; i < argc; i++) {
         if (sends(argv[i], ".h") || access(argv[i], R_OK) != 0) {
             continue;
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, "HDRS =");
+    fprintf(fp, "SRCH ?=");
     for (i = nextArg; i < argc; i++) {
         if (!sends(argv[i], ".h") || access(argv[i], R_OK) != 0) {
             continue;
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
     fprintf(fp, "\n\n");
 
     fprintf(fp, "ifneq ($(NATIVE_ONLY),1)\n");
-    fprintf(fp, "OBJECTS =");
+    fprintf(fp, "OBJECTS ?=");
     for (i = nextArg; i < argc; i++) {
         if (sends(argv[i], ".h") || access(argv[i], R_OK) != 0) {
             continue;
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
         fprintf(fp, " \\\n\t$(BLD_OBJ_DIR)/%s", mprGetBaseName(path));
     }
     fprintf(fp, "\n\n");
-    fprintf(fp, "HEADERS =");
+    fprintf(fp, "HEADERS ?=");
     for (i = nextArg; i < argc; i++) {
         if (!sends(argv[i], ".h") || access(argv[i], R_OK) != 0) {
             continue;
