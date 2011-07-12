@@ -58,6 +58,14 @@ BLD_FEATURE_AUTH_PAM=$BLD_FEATURE_AUTH_PAM
 }
 
 
+emitExtraComponents()
+{
+    local kind
+
+    kind=$1
+}
+
+
 help()
 {
     cat <<!EOF_HELP

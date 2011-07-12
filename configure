@@ -982,6 +982,9 @@ configureComponent() {
         done
         iflags="$new"
     fi
+    if [ "$imports" != "" ] ; then
+        BLD_IMPORTS="$imports $BLD_IMPORTS"
+    fi
 
     #
     #   Don't make libraries unique on Linux. ld does not rescan.
@@ -1625,6 +1628,11 @@ BLD_FEATURE_FLOAT=$BLD_FEATURE_FLOAT
 BLD_FEATURE_LEGACY_API=$BLD_FEATURE_LEGACY_API
 BLD_FEATURE_VALLOC=$BLD_FEATURE_VALLOC
 
+#
+#   All import libraries
+#
+BLD_IMPORTS="${BLD_IMPORTS}"
+
 !EOF_STANDARD_FEATURES
 
     createFeatureConfig $FILE
@@ -1981,8 +1989,24 @@ postGen() {
     BLD_TOP=. build/bin/makedep
     touch "${CONFIG_H}"
     touch ${BLD_OUT_DIR}/.needDepend
-#   echo -e "  # Clean old objects ..."
-#   make clean 2>&1 >/dev/null
+
+}
+
+
+doImports() {
+    local f
+
+    # MOB - temp until components does this
+    # find src -name '*.h' | while read x; do cp $x ${BLD_OUT_DIR}/include ; done
+
+    for f in $BLD_IMPORTS
+    do
+        if [ "${f##*.}" = "h" ] ; then
+            cp $f $BLD_OUT_DIR/include
+        else
+            cp $f $BLD_OUT_DIR/lib
+        fi
+    done
 }
 
 
@@ -2474,6 +2498,7 @@ manageFeatures
 createBuildConfig
 postGen
 showBuildConfig
+doImports
 
 exit 0
 

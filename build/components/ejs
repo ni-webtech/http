@@ -2,18 +2,19 @@
 #   Ejs
 #
 defineComponent() {
-    local deps iflags libs optional path libpaths builtin imports shobj modules
+    local deps iflags libs optional path libdir builtin imports shobj moddir incdir
 
     path="${1:-.}"
     iflags=-I`probe --name ejs --dir --search "$path:$path/src/deps/ejs:$path/src/include" "ejs.h"`
     if [ "$path" != "." ] ; then
-        libpaths=`probe --name ejs --dir --search "$path:$path/out/lib" "libejs" `
-        modules=`probe --name ejs --dir --search "$path:$path/out/modules" "ejs.web" `
-        if [ "$libpaths" = "" -a "$path" != "." ] ; then
+        libdir=`probe --name libejs --dir --search "$path/out/lib:$path" "libejs" `
+        moddir=`probe --name ejs.web --dir --search "$path/out/modules:$path" "ejs.web" `
+        incdir=`probe --name ejs.h --dir --search "$path:$path/out/include" "ejs.h" `
+        if [ "$libdir" = "" -a "$path" != "." ] ; then
             warnComponent ejs "Can't locate libejs"
             return
         fi
-        imports="$libpaths/libejs*$SHOBJ $modules/*$SHOBJ"
+        imports="`echo $libdir/libejs*$SHOBJ $moddir/*$SHOBJ` $incdir/ejs*.h"
     fi
 
     optional=""
@@ -27,6 +28,6 @@ defineComponent() {
     withlibs="$withlibs pcre"
     libs="$libs pcre"
     builtin=`[ "$path" = "." ] && echo --builtin`
-    configureComponent --libs "ejs $libs" --libpaths "$libpaths" --iflags "$iflags" --withlibs "$withlibs" $builtin \
+    configureComponent --libs "ejs $libs" --libpaths "$libdir" --iflags "$iflags" --withlibs "$withlibs" $builtin \
         --dependencies "$deps" --optional-dependencies "$optional" --imports "$imports" ejs
 }

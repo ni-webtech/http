@@ -2,7 +2,7 @@
 #   Http
 #
 defineComponent() {
-    local path iflags libpaths builtin imports
+    local path iflags libpaths builtin imports incidr
 
     path="${1:-.}"
     iflags=-I`probe --name http.h --dir --search "$path:$path/src/deps/http:$path/src/include" "http.h"`
@@ -12,6 +12,8 @@ defineComponent() {
             warnComponent http "Can't locate libhttp"
             return
         fi
+        incdir=`probe --name http.h --search "$path:$path/out/include" "http.h" `
+        imports="$imports $incdir"
     fi
     builtin=`[ $path = . ] && echo --builtin`
     libpaths="${imports%/*}"

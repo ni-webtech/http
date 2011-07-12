@@ -504,7 +504,7 @@ static int matchRef(cchar *key, char **src)
 
 
 /*
-    Replace a limited set of $VAR references. Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT
+    Replace a limited set of $VAR references. Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT, OS
     TODO - Expand and formalize this. Should support many more variables.
  */
 char *httpReplaceReferences(HttpHost *host, cchar *str)
@@ -528,6 +528,10 @@ char *httpReplaceReferences(HttpHost *host, cchar *str)
 
                 } else if (matchRef("PRODUCT", &src)) {
                     mprPutStringToBuf(buf, BLD_PRODUCT);
+                    continue;
+
+                } else if (matchRef("OS", &src)) {
+                    mprPutStringToBuf(buf, BLD_OS);
                     continue;
                 }
             }
