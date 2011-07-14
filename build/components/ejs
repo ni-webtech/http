@@ -2,28 +2,38 @@
 #   Ejs
 #
 defineComponent() {
-    local deps libs optional path libdir builtin imports incdir iflags present SHOBJ
+    local deps libs optional path libdir builtin imports incdir iflags present SHOBJ type
 
     path="${1:-.}"
     eval SHOBJ=\$BLD_${kind}_SHOBJ
 
-    if [ "$path" != "." ] ; then
-        libdir=`probe --name libejs --dir --search "$path/out/lib:$path" "libejs" `
-        if [ "$libdir" = "" -a "$path" != "." ] ; then
-            warnComponent ejs "Can't locate libejs"
-            return
+    search="$path/out/lib:$path/out/inc:$path"
+    if [ "${path}" = "." ] ; then
+        search="${search}:../ejs/out/lib:../ejs/out/inc:../ejs/out/bin"
+        if [ "$BLD_DEBUG" = 1 ] ; then
+            type=standard
+        else
+            type=release
         fi
-        libraries="`echo $libdir/libejs* $libdir/libmpr* $libdir/libhttp* $libdir/libpcre* $libdir/ejs*${SHOBJ}`"
-        if [ "$BLD_FEATURE_EJS_ALL_IN_ONE" = 1 ] ; then
-            if isdefined SQLITE ; then
-                libraries="$libraries `echo $libdir/libsqlite3*`"
-            fi
-        fi
-        if [ "$libdir" != "" ] ; then
-            imports="$libraries"
+        search="${search}:../ejs-master-${type}/out/lib:../ejs-master-${type}/out/bin"
+        search="${search}:../ejs-master-${type}/out/inc"
+    fi
+
+    libdir=`probe --name libejs --dir --search "$search" "libejs" `
+    if [ "$libdir" = "" -a "$path" != "." ] ; then
+        warnComponent ejs "Can't locate libejs"
+        return
+    fi
+    libraries="`echo $libdir/libejs* $libdir/libmpr* $libdir/libhttp* $libdir/libpcre* $libdir/ejs*${SHOBJ}`"
+    if [ "$BLD_FEATURE_EJS_ALL_IN_ONE" = 1 ] ; then
+        if isdefined SQLITE ; then
+            libraries="$libraries `echo $libdir/libsqlite3*`"
         fi
     fi
-    incdir=`probe --name ejs.h --dir --search "$path:$path/out/inc" "ejs.h" `
+    if [ "$libdir" != "" ] ; then
+        imports="$libraries"
+    fi
+    incdir=`probe --name ejs.h --dir --search "$search" "ejs.h" `
     if [ "$incdir" != "" ] ; then
         headers="`echo $incdir/ejs*.h`"
         # Currently using iflags below
