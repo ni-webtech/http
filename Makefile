@@ -13,12 +13,10 @@
 #		make test 					# Runs unit tests
 #
 
+DEPS		= tools mpr
+
 include		build/make/Makefile.top
 include		build/make/Makefile.http
-
-diff import sync:
-	$(BLD_TOOLS_DIR)/import.sh --$@ ../tools/out/releases/tools-dist.tgz
-	$(BLD_TOOLS_DIR)/import.sh --$@ ../mpr/out/releases/mpr-dist.tgz
 
 #
 #   Local variables:
