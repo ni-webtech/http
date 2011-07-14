@@ -19,11 +19,10 @@ DOC="${DIR}/doc"
 HEADERS=${BLD_INC_DIR}/http.h
 HTTP_SOURCES=${S}/*.c
 
-mkdir -p ${SRC} ${DOC}/man ${DOC}/api
-
 #
 #	Build files
 #
+mkdir -p ${SRC} ${DOC}/man ${DOC}/api
 cp ${BLD_TOP}/package/Makefile.combo "${SRC}/Makefile"
 # cp ${BLD_INC_DIR}/buildConfig.h "${DIR}/buildConfig.h"
 
