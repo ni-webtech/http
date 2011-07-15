@@ -200,22 +200,36 @@ dependAfter:
 #
 #	Run unit tests
 #
-test: $(BUILD_CHECK) testDirs testExtra testStandard testFinal testCleanup
+test: $(BUILD_CHECK) testDirs testPrep testExtra testFinal testCleanup
 
 testDirs:
 	@T=test ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
-testExtra testFinal testCleanup:
+testPrep testFinal testCleanup:
 
-testStandard:
-	[ "$(SKIP_UTEST)" != "1" ] && utest -v -d $(BUILD_DEPTH) ; true
-
+#
+#   TestExtra is overridable
+#
+testExtra::
+	# Execute default test rule only at the outermost make level
+	if [ "$(DIR)" = "." ] ; then \
+        if [ ! -x "$(BLD_EJS)" ] ; then \
+            $(call log) "[Test]" "Skip unit tests. Missing \"ejs\" to run utest." ; \
+        elif [ "$(BLD_CROSS)" != 1 ] ; then \
+            $(BLD_EJS) $(BLD_TOOLS_DIR)/utest -v -d $(BUILD_DEPTH) ; \
+        fi ; \
+    fi
 
 #
 #	Clean the source tree
 #
 clean: $(BUILD_CHECK) cleanDirs cleanExtra 
 	rm -f $(CLEANIT) $(TARGETS) $(OBJECTS)
+ifeq ($(BLD_OS),WIN)
+	echo $(TARGETS)
+	t="$(TARGETS)" ; rm -f $${t//.exe/.pdb} ; rm -f $${t//.dll/.pdb} ; rm -f $${t//.dll/.exp} ; \
+        rm -f $${t//.dll/.lib} ; rm -f $${t//.dll/.lib} ; rm -f $${t//.dll/.def}
+endif
 
 cleanDirs:
 	@T=clean ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)

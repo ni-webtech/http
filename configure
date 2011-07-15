@@ -113,8 +113,8 @@ checkSetup() {
     #   Convert paths to be absolute with a drive spec on windows
     #
     export BLD_TOP=`canonPath .`
-    BLD_TOOLS_DIR=${BLD_TOP}/build/bin
-    BLD_OUT_DIR=out
+    export BLD_TOOLS_DIR=${BLD_TOP}/build/bin
+    export BLD_OUT_DIR=out
     rm -rf $BLD_OUT_DIR
 
     #
@@ -2012,7 +2012,7 @@ postGen() {
 
 
 doImports() {
-    local f SHOBJ
+    local f SHOBJ ext
 
     SHOBJ=$BLD_HOST_SHOBJ
 
@@ -2024,12 +2024,15 @@ doImports() {
     do
         # Windows puts relative paths in BLD_IMPORTS using ${BLD_TOP}
         eval f="${f}"
-        if [ "${f##*.}" = "h" ] ; then
+        ext=".${f##*.}"
+        if [ "${ext}" = ".h" ] ; then
             cp $f $BLD_OUT_DIR/inc
-        elif [ ".${f##*.}" = "${SHOBJ}" ] ; then
-            getlib $f
-        else
+        elif [ "${ext}" = "${SHOBJ}" ] ; then
+            ${BLD_TOOLS_DIR}/getlib $f
+        elif [ "${ext}" = ".mod" -o "${ext}" = ".a" ] ; then
             cp $f $BLD_OUT_DIR/lib
+        else
+            cp $f $BLD_OUT_DIR/bin
         fi
     done
 }
