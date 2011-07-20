@@ -6,7 +6,7 @@
 
 include			.makedep
 
-PRE_DIRS		+= include deps stages
+PRE_DIRS		+= deps stages
 POST_DIRS		+= utils test
 
 TARGET			+= $(BLD_LIB_DIR)/libhttp$(BLD_LIB)
