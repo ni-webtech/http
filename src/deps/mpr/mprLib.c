@@ -4504,6 +4504,7 @@ static void manageCmd(MprCmd *cmd, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(cmd->program);
         mprMark(cmd->makeArgv);
+        mprMark(cmd->defaultEnv);
         mprMark(cmd->env);
 #if BLD_UNIX_LIKE
         if (cmd->env) {
@@ -4696,6 +4697,15 @@ int mprRunCmd(MprCmd *cmd, cchar *command, char **out, char **err, int flags)
 
 
 /*
+    Env is an array of "KEY=VALUE" strings. Null terminated
+ */
+void mprSetDefaultCmdEnv(MprCmd *cmd, cchar **env)
+{
+    cmd->defaultEnv = env;
+}
+
+
+/*
     This routine runs a command and waits for its completion. Stdoutput and Stderr are returned in *out and *err 
     respectively. The command returns the exit status of the command.
     Valid flags are:
@@ -4727,7 +4737,7 @@ int mprRunCmdV(MprCmd *cmd, int argc, char **argv, char **out, char **err, int f
         cmd->stderrBuf = mprCreateBuf(MPR_BUFSIZE, -1);
     }
     mprSetCmdCallback(cmd, cmdCallback, NULL);
-    rc = mprStartCmd(cmd, argc, argv, NULL, flags);
+    rc = mprStartCmd(cmd, argc, argv, 0, flags);
 
     /*
         Close the pipe connected to the client's stdin
@@ -5257,6 +5267,9 @@ void mprSetCmdDir(MprCmd *cmd, cchar *dir)
  */
 static int sanitizeArgs(MprCmd *cmd, int argc, char **argv, char **env)
 {
+    if (env == 0) {
+        env = (char**) cmd->defaultEnv;
+    }
 #if VXWORKS
     cmd->argv = argv;
     cmd->argc = argc;
@@ -18735,7 +18748,7 @@ int mprGetSocketInfo(cchar *ip, int port, int *family, int *protocol, struct soc
                 break;
             }
         } else {
-            if (r->ai_family == AF_INET || ip == 0) {
+            if (r->ai_family == AF_INET) {
                 break;
             }
         }
