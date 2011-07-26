@@ -741,6 +741,7 @@ void httpWritable(HttpConn *conn)
     HTTP_NOTIFY(conn, HTTP_EVENT_IO, HTTP_NOTIFY_WRITABLE);
 }
 
+//  MOB - move these into httpError.c
 
 void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {

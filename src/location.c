@@ -62,6 +62,7 @@ static void manageLoc(HttpLoc *loc, int flags)
         mprMark(loc->script);
         mprMark(loc->scriptPath);
         mprMark(loc->ssl);
+        mprMark(loc->data);
     }
 }
 
@@ -91,9 +92,6 @@ HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
     loc->expiresByType = parent->expiresByType;
     loc->connector = parent->connector;
     loc->errorDocuments = parent->errorDocuments;
-#if UNUSED
-    loc->sessionTimeout = parent->sessionTimeout;
-#endif
     loc->auth = httpCreateAuth(parent->auth);
     loc->uploadDir = parent->uploadDir;
     loc->autoDelete = parent->autoDelete;
@@ -418,6 +416,23 @@ cchar *httpLookupErrorDocument(HttpLoc *loc, int code)
     return (cchar*) mprLookupKey(loc->errorDocuments, numBuf);
 }
 
+
+void httpSetLocationData(HttpLoc *loc, cchar *key, void *data)
+{
+    if (loc->data == 0) {
+        loc->data = mprCreateHash(-1, 0);
+    }
+    mprAddKey(loc->data, key, data);
+}
+
+
+void *httpGetLocationData(HttpLoc *loc, cchar *key)
+{
+    if (!loc->data) {
+        return 0;
+    }
+    return mprLookupKey(loc->data, key);
+}
 
 /*
     @copy   default

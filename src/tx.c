@@ -262,17 +262,21 @@ int httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
     char        *body;
 
     tx = conn->tx;
-    mprAssert(tx->altBody == 0);
-
     va_start(args, fmt);
-    body = mprAsprintfv(fmt, args);
-    tx->altBody = mprAsprintf(
-        "<!DOCTYPE html>\r\n"
-        "<html><head><title>%s</title></head>\r\n"
-        "<body>\r\n%s\r\n</body>\r\n</html>\r\n",
-        title, body);
+
     httpOmitBody(conn);
-    va_end(args);
+    body = mprAsprintfv(fmt, args);
+
+    if (scmp(conn->rx->accept, "text/plain") == 0) {
+        tx->altBody = body;
+    } else {
+        tx->altBody = mprAsprintf(
+            "<!DOCTYPE html>\r\n"
+            "<html><head><title>%s</title></head>\r\n"
+            "<body>\r\n%s\r\n</body>\r\n</html>\r\n",
+            title, body);
+        va_end(args);
+    }
     return (int) strlen(tx->altBody);
 }
 
@@ -284,7 +288,6 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
 {
     HttpTx      *tx;
     cchar       *statusMsg;
-    char        *emsg;
 
     mprAssert(msg && msg);
     tx = conn->tx;
@@ -298,8 +301,12 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
     tx->status = status;
     if (tx->altBody == 0) {
         statusMsg = httpLookupStatus(conn->http, status);
-        emsg = mprEscapeHtml(msg);
-        httpFormatBody(conn, statusMsg, "<h2>Access Error: %d -- %s</h2>\r\n<p>%s</p>\r\n", status, statusMsg, emsg);
+        if (scmp(conn->rx->accept, "text/plain") == 0) {
+            httpFormatBody(conn, statusMsg, "Access Error: %d -- %s\r\n%s\r\n", status, statusMsg, msg);
+        } else {
+            httpFormatBody(conn, statusMsg, "<h2>Access Error: %d -- %s</h2>\r\n<p>%s</p>\r\n", status, statusMsg, 
+                mprEscapeHtml(msg));
+        }
     }
     httpDontCache(conn);
 }
