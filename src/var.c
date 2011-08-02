@@ -149,6 +149,17 @@ MprHashTable *httpAddVarsFromQueue(MprHashTable *table, HttpQueue *q)
 }
 
 
+void httpAddFormVars(HttpConn *conn)
+{
+    HttpRx      *rx;
+
+    rx = conn->rx;
+    if (rx->form && rx->formVars == 0) {
+        rx->formVars = httpAddVarsFromQueue(rx->formVars, conn->readq);
+    }
+}
+
+
 int httpTestFormVar(HttpConn *conn, cchar *var)
 {
     MprHashTable    *vars;

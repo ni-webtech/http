@@ -12,6 +12,7 @@
 
 /********************************** Forwards **********************************/
 
+static void defineKeywords(HttpLoc *loc);
 static void manageLoc(HttpLoc *loc, int flags);
 
 /************************************ Code ************************************/
@@ -29,6 +30,7 @@ HttpLoc *httpCreateLocation()
     loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     loc->expiresByType = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
+    loc->keywords = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     loc->inputStages = mprCreateList(-1, 0);
     loc->outputStages = mprCreateList(-1, 0);
     loc->prefix = mprEmptyString();
@@ -36,6 +38,7 @@ HttpLoc *httpCreateLocation()
     loc->auth = httpCreateAuth(0);
     loc->flags = HTTP_LOC_SMART;
     loc->workers = -1;
+    defineKeywords(loc);
     return loc;
 }
 
@@ -51,6 +54,7 @@ static void manageLoc(HttpLoc *loc, int flags)
         mprMark(loc->extensions);
         mprMark(loc->expires);
         mprMark(loc->expiresByType);
+        mprMark(loc->keywords);
         mprMark(loc->handlers);
         mprMark(loc->inputStages);
         mprMark(loc->outputStages);
@@ -114,6 +118,7 @@ static void graduate(HttpLoc *loc)
         loc->expires = mprCloneHash(loc->parent->expires);
         loc->expiresByType = mprCloneHash(loc->parent->expiresByType);
         loc->extensions = mprCloneHash(loc->parent->extensions);
+        loc->keywords = mprCloneHash(loc->parent->keywords);
         loc->handlers = mprCloneList(loc->parent->handlers);
         loc->inputStages = mprCloneList(loc->parent->inputStages);
         loc->outputStages = mprCloneList(loc->parent->outputStages);
@@ -433,6 +438,96 @@ void *httpGetLocationData(HttpLoc *loc, cchar *key)
     }
     return mprLookupKey(loc->data, key);
 }
+
+
+static void defineKeywords(HttpLoc *loc)
+{
+    mprAddKey(loc->keywords, "PRODUCT", BLD_PRODUCT);
+    mprAddKey(loc->keywords, "OS", BLD_OS);
+    mprAddKey(loc->keywords, "VERSION", BLD_VERSION);
+    mprAddKey(loc->keywords, "DOCUMENT_ROOT", 0);
+    mprAddKey(loc->keywords, "SERVER_ROOT", 0);
+    mprAddKey(loc->keywords, "DOCUMENT_ROOT", 0);
+}
+
+
+void httpAddLocationKey(HttpLoc *loc, cchar *key, cchar *value)
+{
+    mprAssert(key);
+    mprAssert(value);
+    mprAssert(MPR->httpService);
+
+    mprAddKey(loc->keywords, key, value);
+}
+
+
+/*
+    Make a path name. This replaces $references, converts to an absolute path name, cleans the path and maps delimiters.
+ */
+char *httpMakePath(HttpLoc *loc, cchar *file)
+{
+    HttpHost    *host;
+    char        *result, *path;
+
+    mprAssert(file);
+    host = loc->host;
+
+    if ((path = httpReplaceReferences(loc, file)) == 0) {
+        /*  Overflow */
+        return 0;
+    }
+    if (mprIsRelPath(path)) {
+        result = mprJoinPath(host->serverRoot, path);
+    } else {
+        result = mprGetAbsPath(path);
+    }
+    return result;
+}
+
+
+/*
+    Replace a limited set of $VAR references. Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT, OS and VERSION.
+ */
+char *httpReplaceReferences(HttpLoc *loc, cchar *str)
+{
+    Http    *http;
+    MprBuf  *buf;
+    char    *src, *result, *value, *cp, *tok;
+
+    http = MPR->httpService;
+    buf = mprCreateBuf(0, 0);
+    if (str) {
+        for (src = (char*) str; *src; ) {
+            if (*src == '$') {
+                ++src;
+                for (cp = src; *cp && !isspace((int) *cp); cp++) ;
+                tok = snclone(src, cp - src);
+                if ((value = mprLookupKey(loc->keywords, src)) != 0) {
+                    if (value == 0) {
+                        if (scmp(tok, "DOCUMENT_ROOT")) {
+                            mprPutStringToBuf(buf, loc->host->documentRoot);
+                            src = cp;
+                            continue;
+                        } else if (scmp(tok, "SERVER_ROOT")) {
+                            mprPutStringToBuf(buf, loc->host->serverRoot);
+                            src = cp;
+                            continue;
+                        }
+                    } else {
+                        mprPutStringToBuf(buf, value);
+                        src = cp;
+                        continue;
+                    }
+                }
+            }
+            mprPutCharToBuf(buf, *src++);
+        }
+    }
+    mprAddNullToBuf(buf);
+    result = sclone(mprGetBufStart(buf));
+    return result;
+}
+
 
 /*
     @copy   default

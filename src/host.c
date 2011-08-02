@@ -121,10 +121,10 @@ HttpHost *httpCloneHost(HttpHost *parent)
 void httpSetHostDocumentRoot(HttpHost *host, cchar *dir)
 {
     char    *doc;
-    int     len;
+    ssize   len;
 
-    doc = host->documentRoot = httpMakePath(host, dir);
-    len = (int) strlen(doc);
+    doc = host->documentRoot = httpMakePath(host->loc, dir);
+    len = slen(doc);
     if (doc[len - 1] == '/') {
         doc[len - 1] = '\0';
     }
@@ -247,13 +247,13 @@ int httpAddDir(HttpHost *host, HttpDir *dir)
 }
 
 
-int httpAddLocation(HttpHost *host, HttpLoc *newLocation)
+int httpAddLocation(HttpHost *host, HttpLoc *loc)
 {
-    HttpLoc     *loc;
+    HttpLoc     *lp;
     int         next, rc;
 
-    mprAssert(newLocation);
-    mprAssert(newLocation->prefix);
+    mprAssert(loc);
+    mprAssert(loc->prefix);
     
     if (host->parent && host->locations == host->parent->locations) {
         host->locations = mprCloneList(host->parent->locations);
@@ -262,19 +262,20 @@ int httpAddLocation(HttpHost *host, HttpLoc *newLocation)
     /*
         Sort in reverse collating sequence. Must make sure that /abc/def sorts before /abc
      */
-    for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
-        rc = strcmp(newLocation->prefix, loc->prefix);
+    for (next = 0; (lp = mprGetNextItem(host->locations, &next)) != 0; ) {
+        rc = strcmp(loc->prefix, lp->prefix);
         if (rc == 0) {
-            mprRemoveItem(host->locations, loc);
-            mprInsertItemAtPos(host->locations, next - 1, newLocation);
+            mprRemoveItem(host->locations, lp);
+            mprInsertItemAtPos(host->locations, next - 1, loc);
             return 0;
         }
-        if (strcmp(newLocation->prefix, loc->prefix) > 0) {
-            mprInsertItemAtPos(host->locations, next - 1, newLocation);
+        if (strcmp(loc->prefix, lp->prefix) > 0) {
+            mprInsertItemAtPos(host->locations, next - 1, loc);
             return 0;
         }
     }
-    mprAddItem(host->locations, newLocation);
+    mprAddItem(host->locations, loc);
+    loc->host = host;
     return 0;
 }
 
@@ -451,96 +452,6 @@ int httpSetupTrace(HttpHost *host, cchar *ext)
         }
     }
     return host->traceMask;
-}
-
-
-/*
-    Make a path name. This replaces $references, converts to an absolute path name, cleans the path and maps delimiters.
- */
-char *httpMakePath(HttpHost *host, cchar *file)
-{
-    char    *result, *path;
-
-    mprAssert(file);
-
-    if ((path = httpReplaceReferences(host, file)) == 0) {
-        /*  Overflow */
-        return 0;
-    }
-    if (*path == '\0' || strcmp(path, ".") == 0) {
-        result = sclone(host->serverRoot);
-
-#if BLD_WIN_LIKE
-    } else if (*path != '/' && path[1] != ':' && path[2] != '/') {
-        result = mprJoinPath(host->serverRoot, path);
-#elif VXWORKS
-    } else if (strchr((path), ':') == 0 && *path != '/') {
-        result = mprJoinPath(host->serverRoot, path);
-#else
-    } else if (*path != '/') {
-        result = mprJoinPath(host->serverRoot, path);
-#endif
-    } else {
-        result = mprGetAbsPath(path);
-    }
-    return result;
-}
-
-
-static int matchRef(cchar *key, char **src)
-{
-    ssize   len;
-
-    mprAssert(src);
-    mprAssert(key && *key);
-
-    len = strlen(key);
-    if (strncmp(*src, key, len) == 0) {
-        *src += len;
-        return 1;
-    }
-    return 0;
-}
-
-
-/*
-    Replace a limited set of $VAR references. Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT, OS
-    TODO - Expand and formalize this. Should support many more variables.
- */
-char *httpReplaceReferences(HttpHost *host, cchar *str)
-{
-    MprBuf  *buf;
-    char    *src;
-    char    *result;
-
-    buf = mprCreateBuf(0, 0);
-    if (str) {
-        for (src = (char*) str; *src; ) {
-            if (*src == '$') {
-                ++src;
-                if (matchRef("DOCUMENT_ROOT", &src)) {
-                    mprPutStringToBuf(buf, host->documentRoot);
-                    continue;
-
-                } else if (matchRef("SERVER_ROOT", &src)) {
-                    mprPutStringToBuf(buf, host->serverRoot);
-                    continue;
-
-                } else if (matchRef("PRODUCT", &src)) {
-                    mprPutStringToBuf(buf, BLD_PRODUCT);
-                    continue;
-
-                } else if (matchRef("OS", &src)) {
-                    mprPutStringToBuf(buf, BLD_OS);
-                    continue;
-                }
-            }
-            mprPutCharToBuf(buf, *src++);
-        }
-    }
-    mprAddNullToBuf(buf);
-    result = sclone(mprGetBufStart(buf));
-    return result;
 }
 
 

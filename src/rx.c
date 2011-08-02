@@ -1252,6 +1252,16 @@ MprHashTable *httpGetHeaderHash(HttpConn *conn)
 }
 
 
+MprHashTable *httpGetFormVars(HttpConn *conn)
+{
+    if (conn->rx == 0) {
+        mprAssert(conn->rx);
+        return 0;
+    }
+    return conn->rx->formVars;
+}
+
+
 cchar *httpGetQueryString(HttpConn *conn)
 {
     return (conn->rx && conn->rx->parsedUri) ? conn->rx->parsedUri->query : 0;
