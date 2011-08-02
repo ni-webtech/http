@@ -442,9 +442,9 @@ void *httpGetLocationData(HttpLoc *loc, cchar *key)
 
 static void defineKeywords(HttpLoc *loc)
 {
-    mprAddKey(loc->keywords, "PRODUCT", BLD_PRODUCT);
-    mprAddKey(loc->keywords, "OS", BLD_OS);
-    mprAddKey(loc->keywords, "VERSION", BLD_VERSION);
+    mprAddKey(loc->keywords, "PRODUCT", sclone(BLD_PRODUCT));
+    mprAddKey(loc->keywords, "OS", sclone(BLD_OS));
+    mprAddKey(loc->keywords, "VERSION", sclone(BLD_VERSION));
     mprAddKey(loc->keywords, "DOCUMENT_ROOT", 0);
     mprAddKey(loc->keywords, "SERVER_ROOT", 0);
     mprAddKey(loc->keywords, "DOCUMENT_ROOT", 0);
