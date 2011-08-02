@@ -17,7 +17,7 @@ static void manageLoc(HttpLoc *loc, int flags);
 
 /************************************ Code ************************************/
 
-HttpLoc *httpCreateLocation()
+HttpLoc *httpCreateLocation(HttpHost *host)
 {
     HttpLoc  *loc;
 
@@ -25,6 +25,7 @@ HttpLoc *httpCreateLocation()
         return 0;
     }
     loc->http = MPR->httpService;
+    loc->host = host;
     loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
     loc->handlers = mprCreateList(-1, 0);
     loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
@@ -73,17 +74,18 @@ static void manageLoc(HttpLoc *loc, int flags)
 /*  
     Create a new location block. Inherit from the parent. We use a copy-on-write scheme if these are modified later.
  */
-HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
+HttpLoc *httpCreateInheritedLocation(HttpLoc *parent, HttpHost *host)
 {
     HttpLoc  *loc;
 
     if (parent == 0) {
-        return httpCreateLocation();
+        return httpCreateLocation(host);
     }
     if ((loc = mprAllocObj(HttpLoc, manageLoc)) == 0) {
         return 0;
     }
     loc->http = MPR->httpService;
+    loc->host = host;
     loc->prefix = sclone(parent->prefix);
     loc->parent = parent;
     loc->prefixLen = parent->prefixLen;
@@ -94,6 +96,7 @@ HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
     loc->extensions = parent->extensions;
     loc->expires = parent->expires;
     loc->expiresByType = parent->expiresByType;
+    loc->keywords = parent->keywords;
     loc->connector = parent->connector;
     loc->errorDocuments = parent->errorDocuments;
     loc->auth = httpCreateAuth(parent->auth);
@@ -457,7 +460,7 @@ void httpAddLocationKey(HttpLoc *loc, cchar *key, cchar *value)
     mprAssert(value);
     mprAssert(MPR->httpService);
 
-    mprAddKey(loc->keywords, key, value);
+    mprAddKey(loc->keywords, key, sclone(value));
 }
 
 
@@ -490,31 +493,35 @@ char *httpMakePath(HttpLoc *loc, cchar *file)
  */
 char *httpReplaceReferences(HttpLoc *loc, cchar *str)
 {
-    Http    *http;
-    MprBuf  *buf;
-    char    *src, *result, *value, *cp, *tok;
+    Http        *http;
+    MprBuf      *buf;
+    MprHash     *hp;
+    cchar       *seps;
+    char        *src, *result, *cp, *tok;
 
     http = MPR->httpService;
     buf = mprCreateBuf(0, 0);
+
     if (str) {
+        seps = mprGetPathSeparators(str);
         for (src = (char*) str; *src; ) {
             if (*src == '$') {
                 ++src;
-                for (cp = src; *cp && !isspace((int) *cp); cp++) ;
+                for (cp = src; *cp && !isspace((int) *cp) && (*cp != seps[0]); cp++) ;
                 tok = snclone(src, cp - src);
-                if ((value = mprLookupKey(loc->keywords, src)) != 0) {
-                    if (value == 0) {
-                        if (scmp(tok, "DOCUMENT_ROOT")) {
+                if ((hp = mprLookupKeyEntry(loc->keywords, tok)) != 0) {
+                    if (hp->data == 0) {
+                        if (scmp(tok, "DOCUMENT_ROOT") == 0) {
                             mprPutStringToBuf(buf, loc->host->documentRoot);
                             src = cp;
                             continue;
-                        } else if (scmp(tok, "SERVER_ROOT")) {
+                        } else if (scmp(tok, "SERVER_ROOT") == 0) {
                             mprPutStringToBuf(buf, loc->host->serverRoot);
                             src = cp;
                             continue;
                         }
                     } else {
-                        mprPutStringToBuf(buf, value);
+                        mprPutStringToBuf(buf, (cchar*) hp->data);
                         src = cp;
                         continue;
                     }

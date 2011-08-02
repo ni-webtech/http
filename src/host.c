@@ -68,7 +68,7 @@ HttpHost *httpCreateHost(HttpLoc *loc)
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
 
-    host->loc = (loc) ? loc : httpCreateLocation();
+    host->loc = (loc) ? loc : httpCreateLocation(host);
     httpAddLocation(host, host->loc);
     host->loc->auth = httpCreateAuth(host->loc->auth);
     httpAddDir(host, httpCreateBareDir("."));
@@ -102,7 +102,7 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
     host->documentRoot = parent->documentRoot;
     host->serverRoot = parent->serverRoot;
-    host->loc = httpCreateInheritedLocation(parent->loc);
+    host->loc = httpCreateInheritedLocation(parent->loc, host);
     host->traceMask = parent->traceMask;
     host->traceLevel = parent->traceLevel;
     host->traceMaxLength = parent->traceMaxLength;
@@ -275,7 +275,7 @@ int httpAddLocation(HttpHost *host, HttpLoc *loc)
         }
     }
     mprAddItem(host->locations, loc);
-    loc->host = host;
+    mprAssert(loc->host == host);
     return 0;
 }
 

@@ -33,7 +33,7 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
     server->port = port;
     server->ip = sclone(ip);
     server->dispatcher = dispatcher;
-    server->loc = httpInitLocation(http, 1);
+    server->loc = httpCreateConfiguredLocation(1);
     server->hosts = mprCreateList(-1, 0);
     httpAddServer(http, server);
 

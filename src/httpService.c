@@ -109,7 +109,7 @@ Http *httpCreate()
 
     http->clientLimits = httpCreateLimits(0);
     http->serverLimits = httpCreateLimits(1);
-    http->clientLocation = httpInitLocation(http, 0);
+    http->clientLocation = httpCreateConfiguredLocation(0);
 
     mprSetIdleCallback(isIdle);
     return http;
@@ -217,14 +217,16 @@ void httpRemoveHost(Http *http, HttpHost *host)
 }
 
 
-HttpLoc *httpInitLocation(Http *http, int serverSide)
+HttpLoc *httpCreateConfiguredLocation(int serverSide)
 {
     HttpLoc     *loc;
+    Http        *http;
 
     /*
         Create default incoming and outgoing pipelines. Order matters.
      */
-    loc = httpCreateLocation();
+    http = MPR->httpService;
+    loc = httpCreateLocation(0);
     if (serverSide) {
         httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_RX);
     }
