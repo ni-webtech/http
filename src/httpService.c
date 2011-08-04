@@ -226,7 +226,7 @@ HttpLoc *httpCreateConfiguredLocation(int serverSide)
         Create default incoming and outgoing pipelines. Order matters.
      */
     http = MPR->httpService;
-    loc = httpCreateLocation(0);
+    loc = httpCreateLocation();
     if (serverSide) {
         httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_RX);
     }

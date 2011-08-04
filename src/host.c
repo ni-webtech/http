@@ -68,7 +68,7 @@ HttpHost *httpCreateHost(HttpLoc *loc)
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
 
-    host->loc = (loc) ? loc : httpCreateLocation(host);
+    host->loc = (loc) ? loc : httpCreateLocation();
     httpAddLocation(host, host->loc);
     host->loc->auth = httpCreateAuth(host->loc->auth);
     httpAddDir(host, httpCreateBareDir("."));
