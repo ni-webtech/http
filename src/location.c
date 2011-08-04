@@ -12,12 +12,13 @@
 
 /********************************** Forwards **********************************/
 
-static void defineKeywords(HttpLoc *loc);
+static void defineTokens(HttpLoc *loc);
+static void defineHostTokens(HttpLoc *loc);
 static void manageLoc(HttpLoc *loc, int flags);
 
 /************************************ Code ************************************/
 
-HttpLoc *httpCreateLocation(HttpHost *host)
+HttpLoc *httpCreateLocation()
 {
     HttpLoc  *loc;
 
@@ -25,13 +26,12 @@ HttpLoc *httpCreateLocation(HttpHost *host)
         return 0;
     }
     loc->http = MPR->httpService;
-    loc->host = host;
     loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
     loc->handlers = mprCreateList(-1, 0);
     loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     loc->expiresByType = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
-    loc->keywords = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
+    loc->tokens = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     loc->inputStages = mprCreateList(-1, 0);
     loc->outputStages = mprCreateList(-1, 0);
     loc->prefix = mprEmptyString();
@@ -39,7 +39,7 @@ HttpLoc *httpCreateLocation(HttpHost *host)
     loc->auth = httpCreateAuth(0);
     loc->flags = HTTP_LOC_SMART;
     loc->workers = -1;
-    defineKeywords(loc);
+    defineTokens(loc);
     return loc;
 }
 
@@ -55,7 +55,7 @@ static void manageLoc(HttpLoc *loc, int flags)
         mprMark(loc->extensions);
         mprMark(loc->expires);
         mprMark(loc->expiresByType);
-        mprMark(loc->keywords);
+        mprMark(loc->tokens);
         mprMark(loc->handlers);
         mprMark(loc->inputStages);
         mprMark(loc->outputStages);
@@ -71,21 +71,21 @@ static void manageLoc(HttpLoc *loc, int flags)
     }
 }
 
+
 /*  
     Create a new location block. Inherit from the parent. We use a copy-on-write scheme if these are modified later.
  */
-HttpLoc *httpCreateInheritedLocation(HttpLoc *parent, HttpHost *host)
+HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
 {
     HttpLoc  *loc;
 
     if (parent == 0) {
-        return httpCreateLocation(host);
+        return httpCreateLocation();
     }
     if ((loc = mprAllocObj(HttpLoc, manageLoc)) == 0) {
         return 0;
     }
     loc->http = MPR->httpService;
-    loc->host = host;
     loc->prefix = sclone(parent->prefix);
     loc->parent = parent;
     loc->prefixLen = parent->prefixLen;
@@ -96,7 +96,7 @@ HttpLoc *httpCreateInheritedLocation(HttpLoc *parent, HttpHost *host)
     loc->extensions = parent->extensions;
     loc->expires = parent->expires;
     loc->expiresByType = parent->expiresByType;
-    loc->keywords = parent->keywords;
+    loc->tokens = parent->tokens;
     loc->connector = parent->connector;
     loc->errorDocuments = parent->errorDocuments;
     loc->auth = httpCreateAuth(parent->auth);
@@ -121,13 +121,21 @@ static void graduate(HttpLoc *loc)
         loc->expires = mprCloneHash(loc->parent->expires);
         loc->expiresByType = mprCloneHash(loc->parent->expiresByType);
         loc->extensions = mprCloneHash(loc->parent->extensions);
-        loc->keywords = mprCloneHash(loc->parent->keywords);
+        loc->tokens = mprCloneHash(loc->parent->tokens);
         loc->handlers = mprCloneList(loc->parent->handlers);
         loc->inputStages = mprCloneList(loc->parent->inputStages);
         loc->outputStages = mprCloneList(loc->parent->outputStages);
         loc->parent = 0;
     }
 }
+
+
+void httpSetLocationHost(HttpLoc *loc, HttpHost *host)
+{
+    loc->host = host;
+    defineHostTokens(loc);
+}
+
 
 void httpFinalizeLocation(HttpLoc *loc)
 {
@@ -443,25 +451,45 @@ void *httpGetLocationData(HttpLoc *loc, cchar *key)
 }
 
 
-static void defineKeywords(HttpLoc *loc)
+static void defineTokens(HttpLoc *loc)
 {
-    mprAddKey(loc->keywords, "PRODUCT", sclone(BLD_PRODUCT));
-    mprAddKey(loc->keywords, "OS", sclone(BLD_OS));
-    mprAddKey(loc->keywords, "VERSION", sclone(BLD_VERSION));
-    mprAddKey(loc->keywords, "DOCUMENT_ROOT", 0);
-    mprAddKey(loc->keywords, "SERVER_ROOT", 0);
-    mprAddKey(loc->keywords, "DOCUMENT_ROOT", 0);
+    mprAddKey(loc->tokens, "PRODUCT", sclone(BLD_PRODUCT));
+    mprAddKey(loc->tokens, "OS", sclone(BLD_OS));
+    mprAddKey(loc->tokens, "VERSION", sclone(BLD_VERSION));
+    if (loc->host) {
+        defineHostTokens(loc);
+    }
 }
 
 
-void httpAddLocationKey(HttpLoc *loc, cchar *key, cchar *value)
+static void defineHostTokens(HttpLoc *loc) 
+{
+    mprAddKey(loc->tokens, "DOCUMENT_ROOT", loc->host->documentRoot);
+    mprAddKey(loc->tokens, "SERVER_ROOT", loc->host->serverRoot);
+}
+
+
+void httpAddLocationToken(HttpLoc *loc, cchar *key, cchar *value)
 {
     mprAssert(key);
     mprAssert(value);
-    mprAssert(MPR->httpService);
 
-    mprAddKey(loc->keywords, key, sclone(value));
+    if (schr(value, '$')) {
+        value = stemplate(value, loc->tokens);
+    }
+    mprAddKey(loc->tokens, key, sclone(value));
 }
+
+
+#if UNUSED
+void httpAddLocationTokenPath(HttpLoc *loc, cchar *key, cchar *path)
+{
+    mprAssert(key);
+    mprAssert(path);
+
+    mprAddKey(loc->tokens, key, path);
+}
+#endif
 
 
 /*
@@ -469,18 +497,15 @@ void httpAddLocationKey(HttpLoc *loc, cchar *key, cchar *value)
  */
 char *httpMakePath(HttpLoc *loc, cchar *file)
 {
-    HttpHost    *host;
-    char        *result, *path;
+    char    *result, *path;
 
     mprAssert(file);
-    host = loc->host;
 
-    if ((path = httpReplaceReferences(loc, file)) == 0) {
-        /*  Overflow */
+    if ((path = stemplate(file, loc->tokens)) == 0) {
         return 0;
     }
     if (mprIsRelPath(path)) {
-        result = mprJoinPath(host->serverRoot, path);
+        result = mprJoinPath(loc->host->serverRoot, path);
     } else {
         result = mprGetAbsPath(path);
     }
@@ -488,28 +513,27 @@ char *httpMakePath(HttpLoc *loc, cchar *file)
 }
 
 
+#if UNUSED
 /*
-    Replace a limited set of $VAR references. Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT, OS and VERSION.
+    Expand ${token} references in a path or string.
+    Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT, OS and VERSION.
  */
-char *httpReplaceReferences(HttpLoc *loc, cchar *str)
+char *httpExpandPath(MprHashTable *keys, cchar *str)
 {
-    Http        *http;
     MprBuf      *buf;
-    MprHash     *hp;
     cchar       *seps;
     char        *src, *result, *cp, *tok;
 
-    http = MPR->httpService;
-    buf = mprCreateBuf(0, 0);
-
     if (str) {
+        buf = mprCreateBuf(0, 0);
         seps = mprGetPathSeparators(str);
         for (src = (char*) str; *src; ) {
             if (*src == '$') {
                 ++src;
                 for (cp = src; *cp && !isspace((int) *cp) && (*cp != seps[0]); cp++) ;
                 tok = snclone(src, cp - src);
-                if ((hp = mprLookupKeyEntry(loc->keywords, tok)) != 0) {
+                if ((value = mprLookupKey(keys, tok) != 0) {
+#if UNUSED
                     if (hp->data == 0) {
                         if (scmp(tok, "DOCUMENT_ROOT") == 0) {
                             mprPutStringToBuf(buf, loc->host->documentRoot);
@@ -521,7 +545,8 @@ char *httpReplaceReferences(HttpLoc *loc, cchar *str)
                             continue;
                         }
                     } else {
-                        mprPutStringToBuf(buf, (cchar*) hp->data);
+#endif
+                        mprPutStringToBuf(buf, value);
                         src = cp;
                         continue;
                     }
@@ -529,11 +554,14 @@ char *httpReplaceReferences(HttpLoc *loc, cchar *str)
             }
             mprPutCharToBuf(buf, *src++);
         }
+        mprAddNullToBuf(buf);
+        result = sclone(mprGetBufStart(buf));
+    } else {
+        result = MPR->emptyString;
     }
-    mprAddNullToBuf(buf);
-    result = sclone(mprGetBufStart(buf));
     return result;
 }
+#endif
 
 
 /*

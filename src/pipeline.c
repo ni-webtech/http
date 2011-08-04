@@ -315,10 +315,10 @@ static void trimExtraPath(HttpConn *conn)
 
     /*
         Find the script name in the uri. This is assumed to be either:
-        - The original uri up to and including first path component containing a ".", or
-        - The entire original uri
-        Once found, set the scriptName and trim the extraPath from pathInfo
-        The filename is used to search for a component with "." because we want to skip the alias prefix.
+            - the original uri up to and including first path component containing a ".", or
+            - the entire original uri
+        Once found, set the scriptName and trim the extraPath from pathInfo. The filename is used to search for a 
+        component with "." because we want to skip the alias prefix.
      */
     start = &tx->filename[strlen(alias->filename)];
     seps = mprGetPathSeparators(start);
@@ -348,8 +348,11 @@ static void setVars(HttpConn *conn)
     if (tx->handler->flags & HTTP_STAGE_EXTRA_PATH) {
         trimExtraPath(conn);
     }
+    if (tx->handler->flags & (HTTP_STAGE_CGI_VARS | HTTP_STAGE_FORM_VARS | HTTP_STAGE_QUERY_VARS)) {
+        rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
+    }
     if (tx->handler->flags & HTTP_STAGE_QUERY_VARS && rx->parsedUri->query) {
-        rx->formVars = httpAddVars(rx->formVars, rx->parsedUri->query, slen(rx->parsedUri->query));
+        httpAddVars(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
     }
     if (tx->handler->flags & HTTP_STAGE_CGI_VARS) {
         httpCreateCGIVars(conn);

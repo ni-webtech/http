@@ -102,7 +102,8 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
     host->documentRoot = parent->documentRoot;
     host->serverRoot = parent->serverRoot;
-    host->loc = httpCreateInheritedLocation(parent->loc, host);
+    host->loc = httpCreateInheritedLocation(parent->loc);
+    httpSetLocationHost(host->loc, host);
     host->traceMask = parent->traceMask;
     host->traceLevel = parent->traceLevel;
     host->traceMaxLength = parent->traceMaxLength;
@@ -275,7 +276,7 @@ int httpAddLocation(HttpHost *host, HttpLoc *loc)
         }
     }
     mprAddItem(host->locations, loc);
-    mprAssert(loc->host == host);
+    httpSetLocationHost(loc, host);
     return 0;
 }
 
@@ -288,11 +289,6 @@ HttpAlias *httpGetAlias(HttpHost *host, cchar *uri)
     if (uri) {
         for (next = 0; (alias = mprGetNextItem(host->aliases, &next)) != 0; ) {
             if (strncmp(alias->prefix, uri, alias->prefixLen) == 0) {
-#if UNUSED
-                if (uri[alias->prefixLen] == '\0' || uri[alias->prefixLen] == '/') {
-                    return alias;
-                }
-#endif
                 return alias;
             }
         }

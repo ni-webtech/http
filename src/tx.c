@@ -228,6 +228,7 @@ void httpFinalize(HttpConn *conn)
         return;
     }
     tx->finalized = 1;
+    tx->responded = 1;
     httpPutForService(conn->writeq, httpCreateEndPacket(), 1);
     httpServiceQueues(conn);
     if (conn->state == HTTP_STATE_RUNNING && conn->writeComplete && !conn->advancing) {
@@ -276,6 +277,7 @@ int httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
             title, body);
         va_end(args);
     }
+    tx->responded = 1;
     return (int) strlen(tx->altBody);
 }
 
@@ -384,6 +386,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p>\r\n"
         "<address>%s at %s</address></body>\r\n</html>\r\n",
         msg, msg, targetUri, HTTP_NAME, conn->host->name);
+    tx->responded = 1;
     httpOmitBody(conn);
 }
 
@@ -580,6 +583,7 @@ void httpSetEntityLength(HttpConn *conn, int64 len)
 void httpSetStatus(HttpConn *conn, int status)
 {
     conn->tx->status = status;
+    conn->tx->responded = 1;
 }
 
 
@@ -607,6 +611,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->flags & HTTP_TX_HEADERS_CREATED) {
         return;
     }    
+    tx->responded = 1;
     if (conn->headersCallback) {
         /* Must be before headers below */
         (conn->headersCallback)(conn->headersCallbackArg);

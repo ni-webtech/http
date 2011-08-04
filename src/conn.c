@@ -569,18 +569,6 @@ void *httpGetConnHost(HttpConn *conn)
 }
 
 
-cchar *httpGetError(HttpConn *conn)
-{
-    if (conn->errorMsg) {
-        return conn->errorMsg;
-    } else if (conn->state >= HTTP_STATE_FIRST) {
-        return httpLookupStatus(conn->http, conn->rx->status);
-    } else {
-        return "";
-    }
-}
-
-
 void httpResetCredentials(HttpConn *conn)
 {
     conn->authType = 0;
@@ -739,111 +727,6 @@ HttpLimits *httpSetUniqueConnLimits(HttpConn *conn)
 void httpWritable(HttpConn *conn)
 {
     HTTP_NOTIFY(conn, HTTP_EVENT_IO, HTTP_NOTIFY_WRITABLE);
-}
-
-//  MOB - move these into httpError.c
-
-void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
-{
-    if (conn->errorMsg == 0) {
-        conn->errorMsg = mprAsprintfv(fmt, args);
-        if (status) {
-            if (conn->server && conn->tx) {
-                conn->tx->status = status;
-            } else if (conn->rx) {
-                conn->rx->status = status;
-            }
-        }
-        if (conn->rx == 0 || conn->rx->uri == 0) {
-            mprLog(2, "\"%s\", status %d: %s.", httpLookupStatus(conn->http, status), status, conn->errorMsg);
-        } else {
-            mprLog(2, "Error: \"%s\", status %d for URI \"%s\": %s.",
-                httpLookupStatus(conn->http, status), status, conn->rx->uri ? conn->rx->uri : "", conn->errorMsg);
-        }
-    }
-}
-
-
-/*
-    Just format conn->errorMsg and set status - nothing more
- */
-void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...)
-{
-    va_list     args;
-
-    va_start(args, fmt); 
-    httpFormatErrorV(conn, status, fmt, args);
-    va_end(args); 
-}
-
-
-/*
-    The current request has an error and cannot complete as normal. This call sets the Http response status and 
-    overrides the normal output with an alternate error message. If the output has alread started (headers sent), then
-    the connection MUST be closed so the client can get some indication the request failed.
- */
-static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
-{
-    HttpTx      *tx;
-    int         status;
-
-    mprAssert(fmt);
-    tx = conn->tx;
-
-    if (flags & HTTP_ABORT) {
-        conn->connError = 1;
-    }
-    conn->error = 1;
-    status = flags & HTTP_CODE_MASK;
-    httpFormatErrorV(conn, status, fmt, args);
-
-    if (flags & (HTTP_ABORT | HTTP_CLOSE)) {
-        conn->keepAliveCount = -1;
-    }
-    if (conn->server) {
-        /*
-            Server side must not call httpCloseConn() as it will remove wait handlers.
-         */
-        if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
-            /* 
-                If headers have been sent, must let the client know the request has failed - abort is the only way.
-                Disconnect will cause a readable (EOF) event
-             */
-            httpDisconnect(conn);
-        } else {
-            httpSetResponseBody(conn, status, conn->errorMsg);
-        }
-    } else {
-        if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
-            httpCloseConn(conn);
-        }
-    }
-}
-
-
-void httpError(HttpConn *conn, int flags, cchar *fmt, ...)
-{
-    va_list     args;
-
-    va_start(args, fmt);
-    httpErrorV(conn, flags, fmt, args);
-    va_end(args);
-}
-
-
-void httpMemoryError(HttpConn *conn)
-{
-    httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Memory allocation error");
-}
-
-
-void httpDisconnect(HttpConn *conn)
-{
-    if (conn->sock) {
-        mprDisconnectSocket(conn->sock);
-    }
-    conn->connError = 1;
-    conn->keepAliveCount = -1;
 }
 
 /*

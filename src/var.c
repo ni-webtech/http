@@ -27,9 +27,13 @@ void httpCreateCGIVars(HttpConn *conn)
     host = conn->host;
     sock = conn->sock;
 
+    mprAssert(rx->formVars);
+    table = rx->formVars;
+#if UNUSED
     if ((table = rx->formVars) == 0) {
         table = rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     }
+#endif
     mprAddKey(table, "AUTH_TYPE", rx->authType);
     mprAddKey(table, "AUTH_USER", conn->authUser);
     mprAddKey(table, "AUTH_GROUP", conn->authGroup);
@@ -85,14 +89,16 @@ void httpCreateCGIVars(HttpConn *conn)
     Make variables for each keyword in a query string. The buffer must be url encoded (ie. key=value&key2=value2..., 
     spaces converted to '+' and all else should be %HEX encoded).
  */
-MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
+void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
 {
-    cchar   *oldValue;
-    char    *newValue, *decoded, *keyword, *value, *tok;
+    MprHashTable    *table;
+    cchar           *oldValue;
+    char            *newValue, *decoded, *keyword, *value, *tok;
 
-    if (table == 0) {
-        table = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-    }
+    mprAssert(conn);
+    table = conn->rx->formVars;
+    mprAssert(table);
+
     decoded = mprAlloc(len + 1);
     decoded[len] = '\0';
     memcpy(decoded, buf, len);
@@ -123,11 +129,10 @@ MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
         }
         keyword = stok(0, "&", &tok);
     }
-    return table;
 }
 
 
-MprHashTable *httpAddVarsFromQueue(MprHashTable *table, HttpQueue *q)
+void httpAddVarsFromQueue(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpRx      *rx;
@@ -143,9 +148,8 @@ MprHashTable *httpAddVarsFromQueue(MprHashTable *table, HttpQueue *q)
         content = q->first->content;
         mprAddNullToBuf(content);
         mprLog(6, "Form body data: length %d, \"%s\"", mprGetBufLength(content), mprGetBufStart(content));
-        table = httpAddVars(table, mprGetBufStart(content), mprGetBufLength(content));
+        httpAddVars(conn, mprGetBufStart(content), mprGetBufLength(content));
     }
-    return table;
 }
 
 
@@ -154,8 +158,8 @@ void httpAddFormVars(HttpConn *conn)
     HttpRx      *rx;
 
     rx = conn->rx;
-    if (rx->form && rx->formVars == 0) {
-        rx->formVars = httpAddVarsFromQueue(rx->formVars, conn->readq);
+    if (rx->form) {
+        httpAddVarsFromQueue(conn->readq);
     }
 }
 
@@ -176,7 +180,7 @@ cchar *httpGetFormVar(HttpConn *conn, cchar *var, cchar *defaultValue)
     MprHashTable    *vars;
     cchar           *value;
     
-    if ((vars = conn->rx->formVars) == 0) {
+    if ((vars = conn->rx->formVars) != 0) {
         value = mprLookupKey(vars, var);
         return (value) ? value : defaultValue;
     }
@@ -189,7 +193,7 @@ int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
     MprHashTable    *vars;
     cchar           *value;
     
-    if ((vars = conn->rx->formVars) == 0) {
+    if ((vars = conn->rx->formVars) != 0) {
         value = mprLookupKey(vars, var);
         return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
     }
@@ -214,7 +218,6 @@ void httpSetIntFormVar(HttpConn *conn, cchar *var, int value)
     MprHashTable    *vars;
     
     if ((vars = conn->rx->formVars) == 0) {
-        /* This is allowed. Upload filter uses this when uploading to the file handler */
         return;
     }
     mprAddKey(vars, var, mprAsprintf("%d", value));
