@@ -580,6 +580,12 @@ void httpSetEntityLength(HttpConn *conn, int64 len)
 }
 
 
+void httpSetResponded(HttpConn *conn)
+{
+    conn->tx->responded = 1;
+}
+
+
 void httpSetStatus(HttpConn *conn, int status)
 {
     conn->tx->status = status;
