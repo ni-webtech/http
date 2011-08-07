@@ -92,6 +92,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->uploadDir);
         mprMark(rx->alias);
         mprMark(rx->dir);
+        mprMark(rx->formData);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (rx->conn) {
@@ -1692,6 +1693,55 @@ char *httpMakeFilename(HttpConn *conn, HttpAlias *alias, cchar *url, bool skipAl
     return mprGetNativePath(path);
 }
 
+
+static int sortForm(MprHash **h1, MprHash **h2)
+{
+    return scmp((*h1)->key, (*h2)->key);
+}
+
+
+/*
+    Return form data as a string. This will return the exact same string regardless of the order of form parameters.
+ */
+char *httpGetFormData(HttpConn *conn)
+{
+    HttpRx          *rx;
+    MprHashTable    *formVars;
+    MprHash         *hp;
+    MprList         *list;
+    char            *buf, *cp;
+    ssize           len;
+    int             next;
+
+    mprAssert(conn);
+
+    rx = conn->rx;
+
+    if (rx->formData == 0) {
+        if ((formVars = conn->rx->formVars) != 0) {
+            if ((list = mprCreateList(mprGetHashLength(formVars), 0)) != 0) {
+                len = 0;
+                for (hp = 0; (hp = mprGetNextKey(formVars, hp)) != NULL; ) {
+                    mprAddItem(list, hp);
+                    len += slen(hp->key) + slen(hp->data) + 2;
+                }
+                if ((buf = mprAlloc(len + 1)) != 0) {
+                    mprSortList(list, sortForm);
+                    cp = buf;
+                    for (next = 0; (hp = mprGetNextItem(list, &next)) != 0; ) {
+                        strcpy(cp, hp->key); cp += slen(hp->key);
+                        *cp++ = '=';
+                        strcpy(cp, hp->data); cp += slen(hp->data);
+                        *cp++ = '&';
+                    }
+                    cp[-1] = '\0';
+                    rx->formData = buf;
+                }
+            }
+        }
+    }
+    return rx->formData;
+}
 
 /*
     @copy   default

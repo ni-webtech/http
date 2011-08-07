@@ -4388,7 +4388,7 @@ int mprPutStringToWideBuf(MprBuf *bp, cchar *str)
 /************************************************************************/
 
 /**
-    mprCache.c - 
+    mprCache.c - In-process caching
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
@@ -4418,7 +4418,7 @@ static void manageCacheItem(CacheItem *item, int flags);
 static void removeItem(MprCache *cache, CacheItem *item);
 
 
-MprCache *mprCreateCache(int argc, int options)
+MprCache *mprCreateCache(int options)
 {
     MprCache    *cache;
     int         wantShared;
@@ -4446,6 +4446,8 @@ MprCache *mprCreateCache(int argc, int options)
 
 void *mprDestroyCache(MprCache *cache)
 {
+    mprAssert(cache);
+
     if (cache->timer && cache != shared) {
         mprRemoveEvent(cache->timer);
         cache->timer = 0;
@@ -4462,19 +4464,18 @@ int mprExpireCache(MprCache *cache, cchar *key, MprTime expires)
 {
     CacheItem   *item;
 
+    mprAssert(cache);
+    mprAssert(key && *key);
+
     if (cache->shared) {
         cache = cache->shared;
         mprAssert(cache == shared);
     }
     lock(cache);
-    //  UNICODE
     if ((item = mprLookupKey(cache->store, key)) == 0) {
         unlock(cache);
         return MPR_ERR_CANT_FIND;
     }
-#if UNUSED
-    item->lifespan = 0;
-#endif
     if (expires == 0) {
         removeItem(cache, item);
     } else {
@@ -4490,13 +4491,15 @@ int64 mprIncCacheItem(MprCache *cache, cchar *key, int64 amount)
     CacheItem   *item;
     char        nbuf[32];
 
+    mprAssert(cache);
+    mprAssert(key && *key);
+
     if (cache->shared) {
         cache = cache->shared;
         mprAssert(cache == shared);
     }
 
     lock(cache);
-    //  UNICODE
     if ((item = mprLookupKey(cache->store, key)) == 0) {
         if ((item = mprAllocObj(CacheItem, manageCacheItem)) == 0) {
             return 0;
@@ -4509,9 +4512,6 @@ int64 mprIncCacheItem(MprCache *cache, cchar *key, int64 amount)
     }
     item->data = itos(nbuf, sizeof(nbuf), amount, 10);
     cache->usedMem += slen(item->data);
-#if UNUSED
-    item->expires = mprGetTime() + item->lifespan;
-#endif
     item->version++;
     unlock(cache);
     return stoi(item->data, 10, 0);
@@ -4523,12 +4523,14 @@ char *mprReadCache(MprCache *cache, cchar *key, int64 *version)
     CacheItem   *item;
     char        *result;
 
+    mprAssert(cache);
+    mprAssert(key && *key);
+
     if (cache->shared) {
         cache = cache->shared;
         mprAssert(cache == shared);
     }
     lock(cache);
-    //  UNICODE
     if ((item = mprLookupKey(cache->store, key)) == 0) {
         unlock(cache);
         return 0;
@@ -4537,13 +4539,6 @@ char *mprReadCache(MprCache *cache, cchar *key, int64 *version)
         unlock(cache);
         return 0;
     }
-#if UNUSED && FUTURE
-    //  MOB - reading should not refresh cache
-    //  Perhaps option "read-refresh"
-    if (item->lifespan) {
-        item->expires = mprGetTime() + item->lifespan;
-    }
-#endif
     if (version) {
         *version = item->version;
     } else {
@@ -4559,13 +4554,15 @@ bool mprRemoveCacheItem(MprCache *cache, cchar *key)
     CacheItem   *item;
     bool        result;
 
+    mprAssert(cache);
+    mprAssert(key && *key);
+
     if (cache->shared) {
         cache = cache->shared;
         mprAssert(cache == shared);
     }
     lock(cache);
     if (key) {
-        //  UNICODE
         if ((item = mprLookupKey(cache->store, key)) != 0) {
             cache->usedMem -= (slen(key) + slen(item->data));
             mprRemoveKey(cache->store, key);
@@ -4587,6 +4584,8 @@ bool mprRemoveCacheItem(MprCache *cache, cchar *key)
 
 void mprSetCacheLimits(MprCache *cache, int64 keys, MprTime lifespan, int64 memory, int resolution)
 {
+    mprAssert(cache);
+
     if (cache->shared) {
         cache = cache->shared;
         mprAssert(cache == shared);
@@ -4622,6 +4621,10 @@ ssize mprWriteCacheItem(MprCache *cache, cchar *key, cchar *value, MprTime lifes
     ssize       len, oldLen;
     int         exists, add, set, prepend, append, throw;
 
+    mprAssert(cache);
+    mprAssert(key && *key);
+    mprAssert(value && *value);
+
     if (cache->shared) {
         cache = cache->shared;
         mprAssert(cache == shared);
@@ -4647,7 +4650,6 @@ ssize mprWriteCacheItem(MprCache *cache, cchar *key, cchar *value, MprTime lifes
             unlock(cache);
             return 0;
         }
-        //  UNICODE
         mprAddKey(cache->store, key, item);
         item->key = sclone(key);
         set = 1;
@@ -4686,6 +4688,9 @@ ssize mprWriteCacheItem(MprCache *cache, cchar *key, cchar *value, MprTime lifes
 
 static void removeItem(MprCache *cache, CacheItem *item)
 {
+    mprAssert(cache);
+    mprAssert(item);
+
     lock(cache);
     mprRemoveKey(cache->store, item->key);
     cache->usedMem -= (slen(item->key) + slen(item->data));
@@ -4702,6 +4707,9 @@ static void localPruner(MprCache *cache, MprEvent *event)
     MprHash         *hp;
     CacheItem       *item;
     ssize           excessKeys;
+
+    mprAssert(cache);
+    mprAssert(event);
 
     if (mprTryLock(cache->mutex)) {
         when = mprGetTime();
@@ -4770,33 +4778,6 @@ static void manageCacheItem(CacheItem *item, int flags)
     }
 }
 
-
-#if UNUSED
-static MprCache *cloneCache(Mpr *ejs, MprCache *src, bool deep)
-{
-    MprCache   *dest;
-
-    if ((dest = ejsCreateObj(ejs, TYPE(src), 0)) == 0) {
-        return 0;
-    }
-    if (src->shared) {
-        dest->shared = src->shared;
-    } else if (src == shared) {
-        dest->shared = src;
-    } else {
-        dest->store = mprCreateHash(CACHE_HASH_SIZE, 0);
-        dest->mutex = mprCreateLock();
-        dest->timer = 0;
-        dest->lifespan = src->lifespan;
-        dest->resolution = src->resolution;
-        dest->usedMem = src->usedMem;
-        dest->maxMem = src->maxMem;
-        dest->maxKeys = src->maxKeys;
-        dest->shared = src->shared;
-    }
-    return dest;
-}
-#endif
 
 /*
     @copy   default

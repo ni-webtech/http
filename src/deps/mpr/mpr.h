@@ -7129,7 +7129,7 @@ typedef struct MprCache
     struct MprCache *shared;            /* Shared common cache */
 } MprCache;
 
-extern MprCache *mprCreateCache(int argc, int options);
+extern MprCache *mprCreateCache(int options);
 extern void *mprDestroyCache(MprCache *cache);
 extern int mprExpireCache(MprCache *cache, cchar *key, MprTime expires);
 extern int64 mprIncCacheItem(MprCache *cache, cchar *key, int64 amount);

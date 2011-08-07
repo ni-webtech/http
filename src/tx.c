@@ -305,7 +305,7 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
         if (scmp(conn->rx->accept, "text/plain") == 0) {
             httpFormatBody(conn, statusMsg, "Access Error: %d -- %s\r\n%s\r\n", status, statusMsg, msg);
         } else {
-            httpFormatBody(conn, statusMsg, "<h2>Access Error: %d -- %s</h2>\r\n<p>%s</p>\r\n", status, statusMsg, 
+            httpFormatBody(conn, statusMsg, "<h2>Access Error: %d -- %s</h2>\r\n<pre>%s</pre>\r\n", status, statusMsg, 
                 mprEscapeHtml(msg));
         }
     }
@@ -351,6 +351,9 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
     uri = 0;
     tx->status = status;
     prev = rx->parsedUri;
+    if (targetUri == 0) {
+        targetUri = "/";
+    }
     target = httpCreateUri(targetUri, 0);
 
     if (conn->http->redirectCallback) {
@@ -404,7 +407,8 @@ void httpSetContentLength(HttpConn *conn, MprOff length)
 }
 
 
-void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar *cookieDomain, int lifetime, bool isSecure)
+void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar *cookieDomain, 
+        MprTime lifespan, bool isSecure)
 {
     HttpRx      *rx;
     struct tm   tm;
@@ -448,8 +452,8 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
     } else {
         domainAtt = "";
     }
-    if (lifetime > 0) {
-        mprDecodeUniversalTime(&tm, conn->http->now + (lifetime * MPR_TICKS_PER_SEC));
+    if (lifespan > 0) {
+        mprDecodeUniversalTime(&tm, conn->http->now + lifespan);
         expiresAtt = "; expires=";
         expires = mprFormatTime(MPR_HTTP_DATE, &tm);
 

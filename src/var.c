@@ -224,7 +224,7 @@ void httpSetIntFormVar(HttpConn *conn, cchar *var, int value)
 }
 
 
-int httpCompareFormVar(HttpConn *conn, cchar *var, cchar *value)
+bool httpMatchFormVar(HttpConn *conn, cchar *var, cchar *value)
 {
     MprHashTable    *vars;
     
