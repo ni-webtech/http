@@ -5071,6 +5071,8 @@ extern char *mprSearchPath(cchar *path, int flags, cchar *search, ...);
  */
 extern char *mprTrimPathExtension(cchar *path);
 
+extern int mprWritePath(cchar *path, cchar *buf, ssize len, int mode);
+
 
 /**
     Create and initialze the O/S dependent subsystem
@@ -6852,6 +6854,7 @@ typedef struct MprCmd {
     char            **env;              /* List of environment variables. Null terminated */
     char            *dir;               /* Current working dir for the process */
     cchar           **defaultEnv;       /* Environment to use if no env passed to mprStartCmd */
+    char            *searchPath;        /* Search path to use to locate the command */
     int             argc;               /* Count of args in argv */
     MprTime         timestamp;          /* Timeout timestamp for last I/O  */
     MprTime         timeoutPeriod;      /* Timeout value */
@@ -7107,7 +7110,8 @@ extern ssize mprWriteCmd(MprCmd *cmd, int channel, char *buf, ssize bufsize);
  */
 extern int mprIsCmdComplete(MprCmd *cmd);
 
-extern void mprSetDefaultCmdEnv(MprCmd *cmd, cchar **env);
+extern void mprSetCmdDefaultEnv(MprCmd *cmd, cchar **env);
+extern void mprSetCmdSearchPath(MprCmd *cmd, cchar *search);
 
 
 #define MPR_CACHE_SHARED        0x1     /* Use shared cache */

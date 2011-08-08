@@ -4971,6 +4971,7 @@ static void manageCmd(MprCmd *cmd, int flags)
         mprMark(cmd->stderrBuf);
         mprMark(cmd->userData);
         mprMark(cmd->mutex);
+        mprMark(cmd->searchPath);
 #if BLD_WIN_LIKE
         mprMark(cmd->command);
         mprMark(cmd->arg0);
@@ -5142,9 +5143,16 @@ int mprRunCmd(MprCmd *cmd, cchar *command, char **out, char **err, int flags)
 /*
     Env is an array of "KEY=VALUE" strings. Null terminated
  */
-void mprSetDefaultCmdEnv(MprCmd *cmd, cchar **env)
+void mprSetCmdDefaultEnv(MprCmd *cmd, cchar **env)
 {
+    /* WARNING: defaultEnv is not cloned */
     cmd->defaultEnv = env;
+}
+
+
+void mprSetCmdSearchPath(MprCmd *cmd, cchar *search)
+{
+    cmd->searchPath = sclone(search);
 }
 
 
@@ -5247,7 +5255,7 @@ static void addCmdHandlers(MprCmd *cmd)
 int mprStartCmd(MprCmd *cmd, int argc, char **argv, char **envp, int flags)
 {
     MprPath     info;
-    char        *program;
+    char        *program, *search;
     int         rc;
 
     mprAssert(cmd);
@@ -5269,7 +5277,8 @@ int mprStartCmd(MprCmd *cmd, int argc, char **argv, char **envp, int flags)
         mprAssert(!MPR_ERR_MEMORY);
         return MPR_ERR_MEMORY;
     }
-    if ((program = mprSearchPath(program, MPR_SEARCH_EXE, MPR->pathEnv, NULL)) == 0) {
+    search = cmd->searchPath ? cmd->searchPath : MPR->pathEnv;
+    if ((program = mprSearchPath(program, MPR_SEARCH_EXE, search, NULL)) == 0) {
         mprLog(1, "cmd: can't access %s, errno %d", cmd->program, mprGetOsError());
         return MPR_ERR_CANT_ACCESS;
     }
@@ -14153,6 +14162,89 @@ char *mprGetAbsPath(cchar *pathArg)
 
 
 /*
+    Get the directory containing the application executable. Tries to return an absolute path.
+ */
+char *mprGetAppDir()
+{ 
+    if (MPR->appDir == 0) {
+        MPR->appDir = mprGetPathDir(mprGetAppPath());
+    }
+    return sclone(MPR->appDir); 
+} 
+
+
+/*
+    Get the path for the application executable. Tries to return an absolute path.
+ */
+char *mprGetAppPath()
+{ 
+    if (MPR->appPath) {
+        return sclone(MPR->appPath);
+    }
+
+#if MACOSX
+{
+    char    path[MPR_MAX_PATH], pbuf[MPR_MAX_PATH];
+    uint    size;
+    ssize   len;
+
+    size = sizeof(path) - 1;
+    if (_NSGetExecutablePath(path, &size) < 0) {
+        return mprGetAbsPath(".");
+    }
+    path[size] = '\0';
+    len = readlink(path, pbuf, sizeof(pbuf) - 1);
+    if (len < 0) {
+        return mprGetAbsPath(path);
+    }
+    pbuf[len] = '\0';
+    MPR->appPath = mprGetAbsPath(pbuf);
+}
+#elif FREEBSD 
+{
+    char    pbuf[MPR_MAX_STRING];
+    int     len;
+
+    len = readlink("/proc/curproc/file", pbuf, sizeof(pbuf) - 1);
+    if (len < 0) {
+        return mprGetAbsPath(".");
+     }
+     pbuf[len] = '\0';
+     MPR->appPath = mprGetAbsPath(pbuf);
+}
+#elif BLD_UNIX_LIKE 
+{
+    char    pbuf[MPR_MAX_STRING], *path;
+    int     len;
+#if SOLARIS
+    path = mprAsprintf("/proc/%i/path/a.out", getpid()); 
+#else
+    path = mprAsprintf("/proc/%i/exe", getpid()); 
+#endif
+    len = readlink(path, pbuf, sizeof(pbuf) - 1);
+    if (len < 0) {
+        return mprGetAbsPath(".");
+    }
+    pbuf[len] = '\0';
+    MPR->appPath = mprGetAbsPath(pbuf);
+}
+#elif BLD_WIN_LIKE
+{
+    char    pbuf[MPR_MAX_PATH];
+
+    if (GetModuleFileName(0, pbuf, sizeof(pbuf) - 1) <= 0) {
+        return 0;
+    }
+    MPR->appPath = mprGetAbsPath(pbuf);
+}
+#else
+    MPR->appPath = mprGetCurrentPath();
+#endif
+    return sclone(MPR->appPath);
+}
+
+ 
+/*
     This will return a fully qualified absolute path for the current working directory.
  */
 char *mprGetCurrentPath()
@@ -14575,6 +14667,45 @@ char *mprGetRelPath(cchar *pathArg)
         strcpy(result, ".");
     }
     mprMapSeparators(result, sep);
+    return result;
+}
+
+
+// TODO - handle cygwin paths and converting to and from.
+/*
+    This normalizes a path. Returns a normalized path according to flags. Default is absolute. 
+    if MPR_PATH_NATIVE_SEP is specified in the flags, map separators to the native format.
+ */
+char *mprGetTransformedPath(cchar *path, int flags)
+{
+    char    *result;
+
+#if BLD_WIN_LIKE && FUTURE
+    if (flags & MPR_PATH_CYGWIN) {
+        result = toCygPath(path, flags);
+    } else {
+        /*
+            Issues here. "/" is ambiguous. Is this "c:/" or is it "c:/cygdrive/c" which may map to c:/cygwin/...
+         */
+        result = fromCygPath(path);
+    }
+#endif
+
+    if (flags & MPR_PATH_ABS) {
+        result = mprGetAbsPath(path);
+
+    } else if (flags & MPR_PATH_REL) {
+        result = mprGetRelPath(path);
+
+    } else {
+        result = mprGetNormalizedPath(path);
+    }
+
+#if BLD_WIN_LIKE
+    if (flags & MPR_PATH_NATIVE_SEP) {
+        mprMapSeparators(result, '\\');
+    }
+#endif
     return result;
 }
 
@@ -15055,6 +15186,7 @@ char *mprReadPath(cchar *path)
 {
     MprFile     *file;
     MprPath     info;
+    ssize       len;
     char        *buf;
 
     if ((file = mprOpenFile(path, O_RDONLY | O_BINARY, 0)) == 0) {
@@ -15064,13 +15196,14 @@ char *mprReadPath(cchar *path)
     if (mprGetPathInfo(path, &info) < 0) {
         return 0;
     }
-    if ((buf = mprAlloc(info.size + 1)) == 0) {
+    len = (ssize) info.size;
+    if ((buf = mprAlloc(len + 1)) == 0) {
         return 0;
     }
-    if (mprReadFile(file, buf, info.size) != info.size) {
+    if (mprReadFile(file, buf, len) != len) {
         return 0;
     }
-    buf[info.size] = '\0';
+    buf[len] = '\0';
     return buf;
 }
 
@@ -15246,43 +15379,25 @@ char *mprSearchPath(cchar *file, int flags, cchar *search, ...)
 }
 
 
-// TODO - handle cygwin paths and converting to and from.
-/*
-    This normalizes a path. Returns a normalized path according to flags. Default is absolute. 
-    if MPR_PATH_NATIVE_SEP is specified in the flags, map separators to the native format.
- */
-char *mprGetTransformedPath(cchar *path, int flags)
+int mprWritePath(cchar *path, cchar *buf, ssize len, int mode)
 {
-    char    *result;
+    MprFile     *file;
 
-#if BLD_WIN_LIKE && FUTURE
-    if (flags & MPR_PATH_CYGWIN) {
-        result = toCygPath(path, flags);
-    } else {
-        /*
-            Issues here. "/" is ambiguous. Is this "c:/" or is it "c:/cygdrive/c" which may map to c:/cygwin/...
-         */
-        result = fromCygPath(path);
+    if (mode == 0) {
+        mode = 0644;
     }
-#endif
-
-    if (flags & MPR_PATH_ABS) {
-        result = mprGetAbsPath(path);
-
-    } else if (flags & MPR_PATH_REL) {
-        result = mprGetRelPath(path);
-
-    } else {
-        result = mprGetNormalizedPath(path);
+    if ((file = mprOpenFile(path, O_WRONLY | O_TRUNC | O_CREAT | O_BINARY, mode)) == 0) {
+        mprError("Can't open %s", path);
+        return MPR_ERR_CANT_OPEN;
     }
-
-#if BLD_WIN_LIKE
-    if (flags & MPR_PATH_NATIVE_SEP) {
-        mprMapSeparators(result, '\\');
+    if (mprWriteFile(file, buf, len) != len) {
+        mprError("Can't write %s", path);
+        return MPR_ERR_CANT_WRITE;
     }
-#endif
-    return result;
+    mprCloseFile(file);
+    return 0;
 }
+
 
 
 //  MOB - should be TrimPathExt
@@ -15303,89 +15418,6 @@ char *mprTrimPathExtension(cchar *path)
     } 
     return ext;
 }
-
-
-/*
-    Get the path for the application executable. Tries to return an absolute path.
- */
-char *mprGetAppPath()
-{ 
-    if (MPR->appPath) {
-        return sclone(MPR->appPath);
-    }
-
-#if MACOSX
-{
-    char    path[MPR_MAX_PATH], pbuf[MPR_MAX_PATH];
-    uint    size;
-    ssize   len;
-
-    size = sizeof(path) - 1;
-    if (_NSGetExecutablePath(path, &size) < 0) {
-        return mprGetAbsPath(".");
-    }
-    path[size] = '\0';
-    len = readlink(path, pbuf, sizeof(pbuf) - 1);
-    if (len < 0) {
-        return mprGetAbsPath(path);
-    }
-    pbuf[len] = '\0';
-    MPR->appPath = mprGetAbsPath(pbuf);
-}
-#elif FREEBSD 
-{
-    char    pbuf[MPR_MAX_STRING];
-    int     len;
-
-    len = readlink("/proc/curproc/file", pbuf, sizeof(pbuf) - 1);
-    if (len < 0) {
-        return mprGetAbsPath(".");
-     }
-     pbuf[len] = '\0';
-     MPR->appPath = mprGetAbsPath(pbuf);
-}
-#elif BLD_UNIX_LIKE 
-{
-    char    pbuf[MPR_MAX_STRING], *path;
-    int     len;
-#if SOLARIS
-    path = mprAsprintf("/proc/%i/path/a.out", getpid()); 
-#else
-    path = mprAsprintf("/proc/%i/exe", getpid()); 
-#endif
-    len = readlink(path, pbuf, sizeof(pbuf) - 1);
-    if (len < 0) {
-        return mprGetAbsPath(".");
-    }
-    pbuf[len] = '\0';
-    MPR->appPath = mprGetAbsPath(pbuf);
-}
-#elif BLD_WIN_LIKE
-{
-    char    pbuf[MPR_MAX_PATH];
-
-    if (GetModuleFileName(0, pbuf, sizeof(pbuf) - 1) <= 0) {
-        return 0;
-    }
-    MPR->appPath = mprGetAbsPath(pbuf);
-}
-#else
-    MPR->appPath = mprGetCurrentPath();
-#endif
-    return sclone(MPR->appPath);
-}
-
- 
-/*
-    Get the directory containing the application executable. Tries to return an absolute path.
- */
-char *mprGetAppDir()
-{ 
-    if (MPR->appDir == 0) {
-        MPR->appDir = mprGetPathDir(mprGetAppPath());
-    }
-    return sclone(MPR->appDir); 
-} 
 
 
 /*
