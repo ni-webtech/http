@@ -4486,7 +4486,7 @@ int mprExpireCache(MprCache *cache, cchar *key, MprTime expires)
 }
 
 
-int64 mprIncCacheItem(MprCache *cache, cchar *key, int64 amount)
+int64 mprIncCache(MprCache *cache, cchar *key, int64 amount)
 {
     CacheItem   *item;
     char        nbuf[32];
@@ -4549,7 +4549,7 @@ char *mprReadCache(MprCache *cache, cchar *key, int64 *version)
 }
 
 
-bool mprRemoveCacheItem(MprCache *cache, cchar *key)
+bool mprRemoveCache(MprCache *cache, cchar *key)
 {
     CacheItem   *item;
     bool        result;
@@ -4614,7 +4614,7 @@ void mprSetCacheLimits(MprCache *cache, int64 keys, MprTime lifespan, int64 memo
 }
 
 
-ssize mprWriteCacheItem(MprCache *cache, cchar *key, cchar *value, MprTime lifespan, int64 version, int options)
+ssize mprWriteCache(MprCache *cache, cchar *key, cchar *value, MprTime lifespan, int64 version, int options)
 {
     CacheItem   *item;
     MprHash     *hp;
@@ -4634,7 +4634,9 @@ ssize mprWriteCacheItem(MprCache *cache, cchar *key, cchar *value, MprTime lifes
     append = options & MPR_CACHE_APPEND;
     prepend = options & MPR_CACHE_PREPEND;
     set = options & MPR_CACHE_SET;
-
+    if ((add + append + prepend) == 0) {
+        set = 1;
+    }
     lock(cache);
     if ((hp = mprLookupKeyEntry(cache->store, key)) != 0) {
         exists++;
