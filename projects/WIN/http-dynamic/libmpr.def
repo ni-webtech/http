@@ -19,6 +19,7 @@ EXPORTS
   mprAddKey
   mprAddKeyFmt
   mprAddMime
+  mprAddNullItem
   mprAddNullToBuf
   mprAddRoot
   mprAddSocketHandler
@@ -57,6 +58,7 @@ EXPORTS
   mprCopyright
   mprCreate
   mprCreateBuf
+  mprCreateCache
   mprCreateCmd
   mprCreateCmdService
   mprCreateCond
@@ -96,6 +98,7 @@ EXPORTS
   mprDedicateWorkerToDispatcher
   mprDeletePath
   mprDestroy
+  mprDestroyCache
   mprDestroyCmd
   mprDestroyDispatcher
   mprDestroyMemService
@@ -117,6 +120,7 @@ EXPORTS
   mprError
   mprEscapeCmd
   mprEscapeHtml
+  mprExpireCache
   mprFatalError
   mprFinalizeCmd
   mprFlushBuf
@@ -152,6 +156,7 @@ EXPORTS
   mprGetCurrentThread
   mprGetCurrentThreadName
   mprGetCurrentWorker
+  mprGetDate
   mprGetDebugMode
   mprGetDispatcher
   mprGetDomainName
@@ -233,6 +238,7 @@ EXPORTS
   mprHasMemError
   mprHasSecureSockets
   mprHold
+  mprIncCache
   mprInitList
   mprInitLock
   mprInitSpinLock
@@ -310,8 +316,10 @@ EXPORTS
   mprQueueIOEvent
   mprRandom
   mprRawLog
+  mprReadCache
   mprReadCmd
   mprReadFile
+  mprReadPath
   mprReadRegistry
   mprReadSocket
   mprReallocMem
@@ -322,6 +330,7 @@ EXPORTS
   mprRelease
   mprReleaseWorker
   mprReleaseWorkerFromDispatcher
+  mprRemoveCache
   mprRemoveEvent
   mprRemoveItem
   mprRemoveItemAtPos
@@ -363,12 +372,14 @@ EXPORTS
   mprSetBufMax
   mprSetBufRefillProc
   mprSetBufSize
+  mprSetCacheLimits
   mprSetCmdCallback
   mprSetCmdDir
   mprSetCmdTimeout
   mprSetCmdlineLogging
   mprSetCurrentThreadPriority
   mprSetDebugMode
+  mprSetDefaultCmdEnv
   mprSetDomainName
   mprSetExitStrategy
   mprSetHostName
@@ -408,6 +419,7 @@ EXPORTS
   mprSetThreadStackSize
   mprSetWinMsgCallback
   mprSetWorkerStackSize
+  mprSetWorkerStartCallback
   mprShouldAbortRequests
   mprShouldDenyNewRequests
   mprSignalCond
@@ -470,6 +482,7 @@ EXPORTS
   mprWakeNotifier
   mprWakeWorkers
   mprWarn
+  mprWriteCache
   mprWriteCmd
   mprWriteFile
   mprWriteFileFormat
@@ -512,9 +525,11 @@ EXPORTS
   srchr
   srejoin
   srejoinv
+  sreplace
   sspn
   sstarts
   ssub
+  stemplate
   stoi
   stok
   stopAlloc

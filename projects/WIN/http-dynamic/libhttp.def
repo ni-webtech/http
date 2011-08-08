@@ -8,6 +8,7 @@ EXPORTS
   httpAddDir
   httpAddErrorDocument
   httpAddFilter
+  httpAddFormVars
   httpAddGroup
   httpAddHandler
   httpAddHeader
@@ -17,6 +18,7 @@ EXPORTS
   httpAddLocation
   httpAddLocationExpiry
   httpAddLocationExpiryByType
+  httpAddLocationToken
   httpAddServer
   httpAddStage
   httpAddUploadFile
@@ -38,7 +40,6 @@ EXPORTS
   httpCloneUri
   httpCloseConn
   httpCloseRx
-  httpCompareFormVar
   httpCompleteUri
   httpCompleteWriting
   httpConnTimeout
@@ -50,6 +51,7 @@ EXPORTS
   httpCreateAuth
   httpCreateBareDir
   httpCreateCGIVars
+  httpCreateConfiguredLocation
   httpCreateConfiguredServer
   httpCreateConn
   httpCreateConnector
@@ -126,13 +128,16 @@ EXPORTS
   httpGetError
   httpGetExtension
   httpGetFirstServer
+  httpGetFormData
   httpGetFormVar
+  httpGetFormVars
   httpGetGroupAcl
   httpGetHandlerByExtension
   httpGetHeader
   httpGetHeaderHash
   httpGetHeaders
   httpGetIntFormVar
+  httpGetLocationData
   httpGetNativePassword
   httpGetNextQueueForService
   httpGetPacket
@@ -148,7 +153,6 @@ EXPORTS
   httpHandleOptionsTrace
   httpInitAuth
   httpInitLimits
-  httpInitLocation
   httpInitQueue
   httpInitSchedulerQueue
   httpInitTrace
@@ -175,6 +179,7 @@ EXPORTS
   httpLookupLocation
   httpLookupServer
   httpLookupStage
+  httpLookupStageData
   httpLookupStatus
   httpMakeFilename
   httpMakePath
@@ -182,9 +187,11 @@ EXPORTS
   httpManageTrace
   httpMapToStorage
   httpMatchEtag
+  httpMatchFormVar
   httpMatchHandler
   httpMatchHost
   httpMatchModified
+  httpMemoryError
   httpNeedRetry
   httpNormalizeUri
   httpNormalizeUriPath
@@ -220,7 +227,6 @@ EXPORTS
   httpRemoveUser
   httpRemoveUserFromGroup
   httpRemoveUsersFromGroup
-  httpReplaceReferences
   httpResetCredentials
   httpResetHandlers
   httpResetPipeline
@@ -253,6 +259,7 @@ EXPORTS
   httpSetConnNotifier
   httpSetConnector
   httpSetContentLength
+  httpSetContentType
   httpSetContext
   httpSetCookie
   httpSetCredentials
@@ -282,18 +289,20 @@ EXPORTS
   httpSetLocationAlias
   httpSetLocationAuth
   httpSetLocationAutoDelete
+  httpSetLocationData
   httpSetLocationFlags
+  httpSetLocationHost
   httpSetLocationPrefix
   httpSetLocationScript
   httpSetLocationWorkers
   httpSetMatchCallback
-  httpSetMimeType
   httpSetNamedVirtualServer
   httpSetNamedVirtualServers
   httpSetPipelineHandler
   httpSetProtocol
   httpSetProxy
   httpSetRequiredAcl
+  httpSetResponded
   httpSetResponseBody
   httpSetRetries
   httpSetSendConnector
