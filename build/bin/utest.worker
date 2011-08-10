@@ -62,7 +62,7 @@ function assert(cond: Boolean, message: String = null): Void {
 
 /* 
     Redefine the Global.assert function 
-*/
+ */
 Object.defineProperty(global, "assert", { writable: true, value: assert})
 
 
@@ -70,49 +70,6 @@ public function cleanDir(path) {
     rmdir(path, true)
     mkdir(path)
 }
-
-
-public function sh(args): String {
-    return Cmd.sh(args)
-}
-
-
-/*
-    Test a command
-    MOB - what does this function really do?
-public function testCmdNoCapture(args): Boolean {
-    App.log.activity("Test", "Run test: " + args)
-    try {
-        args = args.toString().toJSON().trim('"')
-        System.runx(("/bin/sh -c \"" + args + "\"").trim('\n'))
-        assert(true)
-        return true
-    } catch (e) {
-        print("testCmdNoCapture: CATCH " + e)
-        assert(false)
-        return false
-    }
-}
-
-public function locate(program): String {
-    return test.bin.join(program).portable.toString()
-}
-
-
-public function run(args): Boolean {
-    App.log.debug(4, "Run test: " + args)
-    try {
-        args = args.toString().toJSON().trim('"')
-        Cmd.sh(args).trim('\n')
-        assert(true)
-        return true
-    } catch (e) {
-        print("testCmd: CATCH " + e)
-        assert(false)
-        return false
-    }
-}
-*/
 
 
 public function share(key: String, value: String) {
@@ -161,9 +118,9 @@ public function startService(cmdline: String, options = {}): Void {
 }
 
 
-public function httpService(cmd: String, port: Number = 80): Void {
+public function httpService(cmd: String, options = {}): Void {
     if (test.phase == "init") {
-        startService(cmd)
+        startService("ejs " + cmd, options)
     } else {
         stopService()
     }
