@@ -2739,7 +2739,7 @@ extern char *supper(cchar *str);
 extern char *strim(cchar *str, cchar *set, int where);
 
 //  DOC
-extern char *sreplace(char *str, char *pattern, char *replacement);
+extern char *sreplace(cchar *str, cchar *pattern, cchar *replacement);
 
 /*
     Low-level unicode wide string support. Unicode characters are build-time configurable to be 1, 2 or 4 bytes
@@ -4744,6 +4744,11 @@ extern char *mprGetCurrentPath();
  */
 extern int mprDeletePath(cchar *path);
 
+#define MPR_PATH_ENUM_DIRS  0x1
+#define MPR_PATH_INC_DIRS   0x2
+
+extern MprList *mprFindFiles(cchar *dir, int flags);
+
 /**
     Convert a path to an absolute path
     @description Get an absolute (canonical) equivalent representation of a path. 
@@ -5071,7 +5076,7 @@ extern char *mprSearchPath(cchar *path, int flags, cchar *search, ...);
  */
 extern char *mprTrimPathExtension(cchar *path);
 
-extern int mprWritePath(cchar *path, cchar *buf, ssize len, int mode);
+extern ssize mprWritePath(cchar *path, cchar *buf, ssize len, int mode);
 
 
 /**
