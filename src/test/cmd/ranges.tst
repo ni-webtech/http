@@ -1,9 +1,8 @@
 /*
- *  ranges.tst - Test http with ranges
+    ranges.tst - Test http with ranges
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Ranges
 assert(run("--range 0-4 /numbers.html") == "01234")

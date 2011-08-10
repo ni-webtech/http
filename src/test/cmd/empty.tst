@@ -1,9 +1,8 @@
 /*
- *  empty.tst - Empty response
+    empty.tst - Empty response
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Empty get
 data = run("/empty.html")

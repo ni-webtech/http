@@ -1,9 +1,8 @@
 /*
- *  headers.tst - Test http --showHeaders
+    headers.tst - Test http --showHeaders
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Validate that header appears
 data = run("--showHeaders --header 'custom: MyHeader' /index.html 2>&1")

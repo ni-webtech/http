@@ -1,9 +1,8 @@
 /*
- *  put.tst - Test the put command
+    put.tst - Test the put command
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  PUT file
 cleanDir("web/tmp")

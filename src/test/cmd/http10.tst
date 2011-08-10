@@ -1,9 +1,8 @@
 /*
- *  http10.tst - Test using HTTP 1.0
+    http10.tst - Test using HTTP 1.0
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  HTTP/1.0
 run("--http 0 /index.html")
