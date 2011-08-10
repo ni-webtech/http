@@ -45,3 +45,4 @@ xcuserdata
 mob.*
 .embedthis
 .publisher
+src/test/appweb/trace.txt

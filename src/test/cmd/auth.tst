@@ -1,9 +1,8 @@
 /*
- *  auth.tst - Test authentication
+    auth.tst - Test authentication
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Auth
 //  TODO - should test failure

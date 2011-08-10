@@ -1,9 +1,8 @@
 /*
- *  get.tst - Test http get 
+    get.tst - Test http get 
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Basic get
 data = run("/numbers.txt")

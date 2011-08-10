@@ -1,13 +1,12 @@
 /*
- *  delete.tst - Test http delete
+    delete.tst - Test http delete
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  DELETE
-run("http/test.dat /tmp/test.dat")
-assert(exists("web/tmp/test.dat"))
+run("test.dat /tmp/test.dat")
+assert(Path("web/tmp/test.dat").exists)
 run("--method DELETE /tmp/test.dat")
-assert(!exists("web/tmp/test.dat"))
+assert(!Path("web/tmp/test.dat").exists)
 

@@ -1,9 +1,8 @@
 /*
- *  multiple.tst - Test multiple get commands
+    multiple.tst - Test multiple get commands
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Multiple requests to test keep-alive
 run("-i 300 /index.html")

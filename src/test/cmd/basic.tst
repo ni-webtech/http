@@ -1,8 +1,7 @@
 /*
- *  basic.tst - Basic http tests
+    basic.tst - Basic http tests
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
-assert(sh(env() + command + "/index.html").match("Hello /index.html"))
+run("/index.html").match("Hello /index.html")

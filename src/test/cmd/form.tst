@@ -1,9 +1,8 @@
 /*
- *  form.tst - Test forms
+    form.tst - Test forms
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Form data
 data = run("--form 'name=John+Smith&address=300+Park+Avenue' /form.ejs")

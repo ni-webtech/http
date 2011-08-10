@@ -44,6 +44,7 @@ with --os=linux ranlib
 with --os=macosx ranlib
 with --os=win ld mt rc
 with --os=wince ld
+with --optional ejs
 
 with --build --optional doxygen
 with --os=win --build --optional pkg
