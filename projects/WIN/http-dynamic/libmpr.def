@@ -374,12 +374,13 @@ EXPORTS
   mprSetBufSize
   mprSetCacheLimits
   mprSetCmdCallback
+  mprSetCmdDefaultEnv
   mprSetCmdDir
+  mprSetCmdSearchPath
   mprSetCmdTimeout
   mprSetCmdlineLogging
   mprSetCurrentThreadPriority
   mprSetDebugMode
-  mprSetDefaultCmdEnv
   mprSetDomainName
   mprSetExitStrategy
   mprSetHostName
@@ -487,6 +488,7 @@ EXPORTS
   mprWriteFile
   mprWriteFileFormat
   mprWriteFileString
+  mprWritePath
   mprWriteRegistry
   mprWriteSocket
   mprWriteSocketString
