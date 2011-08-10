@@ -327,7 +327,7 @@ HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
         tmpPath = 0;
     }
     for (next = 0; (dir = mprGetNextItem(host->dirs, &next)) != 0; ) {
-        mprAssert(strlen(dir->path) == 0 || dir->path[strlen(dir->path) - 1] != '/');
+        mprAssert(slen(dir->path) == 0 || dir->path[slen(dir->path) - 1] != '/');
         if (dir->path != 0) {
             if (mprSamePath(dir->path, path)) {
                 return dir;
