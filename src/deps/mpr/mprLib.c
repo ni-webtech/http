@@ -13647,7 +13647,8 @@ MprModule *mprCreateModule(cchar *name, cchar *path, cchar *entry, void *data)
 
     if (path) {
         if ((at = mprSearchForModule(path)) == 0) {
-            mprError("Can't find module \"%s\" in search path \"%s\"", path, mprGetModuleSearchPath());
+            mprError("Can't find module \"%s\", cwd: \"%s\" search path \"%s\"", path, mprGetCurrentPath(),
+                mprGetModuleSearchPath());
             return 0;
         }
         path = at;
