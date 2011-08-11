@@ -549,15 +549,13 @@ void httpEnableTraceMethod(HttpLimits *limits, bool on)
 char *httpGetDateString(MprPath *sbuf)
 {
     MprTime     when;
-    struct tm   tm;
 
     if (sbuf == 0) {
         when = ((Http*) MPR->httpService)->now;
     } else {
         when = (MprTime) sbuf->mtime * MPR_TICKS_PER_SEC;
     }
-    mprDecodeUniversalTime(&tm, when);
-    return mprFormatTime(HTTP_DATE_FORMAT, &tm);
+    return mprFormatUniversalTime(HTTP_DATE_FORMAT, when);
 }
 
 
@@ -629,7 +627,6 @@ void httpSetProxy(Http *http, cchar *host, int port)
 
 static void updateCurrentDate(Http *http)
 {
-    struct tm       tm;
     static MprTime  recalcExpires = 0;
 
     lock(http);
@@ -637,8 +634,7 @@ static void updateCurrentDate(Http *http)
     http->currentDate = httpGetDateString(NULL);
 
     if (http->expiresDate == 0 || recalcExpires < (http->now / (60 * 1000))) {
-        mprDecodeUniversalTime(&tm, http->now + (86400 * 1000));
-        http->expiresDate = mprFormatTime(HTTP_DATE_FORMAT, &tm);
+        http->expiresDate = mprFormatUniversalTime(HTTP_DATE_FORMAT, http->now + (86400 * 1000));
         recalcExpires = http->now / (60 * 1000);
     }
     unlock(http);

@@ -411,7 +411,6 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         MprTime lifespan, bool isSecure)
 {
     HttpRx      *rx;
-    struct tm   tm;
     char        *cp, *expiresAtt, *expires, *domainAtt, *domain, *secure;
     int         webkitVersion;
 
@@ -453,9 +452,8 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         domainAtt = "";
     }
     if (lifespan > 0) {
-        mprDecodeUniversalTime(&tm, conn->http->now + lifespan);
         expiresAtt = "; expires=";
-        expires = mprFormatTime(MPR_HTTP_DATE, &tm);
+        expires = mprFormatUniversalTime(MPR_HTTP_DATE, conn->http->now + lifespan);
 
     } else {
         expires = expiresAtt = "";
