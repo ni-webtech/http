@@ -11877,8 +11877,7 @@ MprKeyValue *mprCreateKeyPair(cchar *key, cchar *value)
 {
     MprKeyValue     *pair;
     
-    pair = mprAllocObj(MprKeyValue, manageKeyValue);
-    if (pair == 0) {
+    if ((pair = mprAllocObj(MprKeyValue, manageKeyValue)) == 0) {
         return 0;
     }
     pair->key = sclone(key);
@@ -22916,22 +22915,22 @@ char *mprGetDate(char *fmt)
 char *mprFormatLocalTime(cchar *fmt, MprTime time)
 {
     struct tm   tm;
-    mprDecodeLocalTime(&tm, time);
     if (fmt == 0) {
         fmt = MPR_DEFAULT_DATE;
     }
-    return mprFormatTm(MPR_DEFAULT_DATE, &tm);
+    mprDecodeLocalTime(&tm, time);
+    return mprFormatTm(fmt, &tm);
 }
 
 
 char *mprFormatUniversalTime(cchar *fmt, MprTime time)
 {
     struct tm   tm;
-    mprDecodeUniversalTime(&tm, time);
     if (fmt == 0) {
         fmt = MPR_DEFAULT_DATE;
     }
-    return mprFormatTm(MPR_DEFAULT_DATE, &tm);
+    mprDecodeUniversalTime(&tm, time);
+    return mprFormatTm(fmt, &tm);
 }
 
 
