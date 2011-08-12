@@ -33,15 +33,6 @@ HttpAlias *httpCreateAlias(cchar *prefix, cchar *target, int code)
     }
     ap->prefix = sclone(prefix);
     ap->prefixLen = slen(prefix);
-
-#if UNUSED
-    /*  
-        Always strip trailing "/" from the prefix
-     */
-    if (ap->prefixLen > 0 && ap->prefix[ap->prefixLen - 1] == '/') {
-        ap->prefix[--ap->prefixLen] = '\0';
-    }
-#endif
     if (code) {
         ap->redirectCode = code;
         ap->uri = sclone(target);

@@ -26,14 +26,9 @@ void httpCreateCGIVars(HttpConn *conn)
     tx = conn->tx;
     host = conn->host;
     sock = conn->sock;
-
-    mprAssert(rx->formVars);
     table = rx->formVars;
-#if UNUSED
-    if ((table = rx->formVars) == 0) {
-        table = rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-    }
-#endif
+    mprAssert(table);
+
     mprAddKey(table, "AUTH_TYPE", rx->authType);
     mprAddKey(table, "AUTH_USER", conn->authUser);
     mprAddKey(table, "AUTH_GROUP", conn->authGroup);

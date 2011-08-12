@@ -93,9 +93,6 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
     tx = conn->tx;
 
     rx->inputPipeline = mprCreateList(-1, 0);
-#if UNUSED
-    mprAddItem(rx->inputPipeline, http->netConnector);
-#endif
     if (loc) {
         for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
             if (!matchFilter(conn, filter, HTTP_STAGE_RX)) {

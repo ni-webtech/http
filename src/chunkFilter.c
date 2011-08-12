@@ -68,9 +68,6 @@ static void openChunk(HttpQueue *q)
     rx = conn->rx;
 
     q->packetSize = min(conn->limits->chunkSize, q->max);
-#if UNUSED
-    rx->chunkState = HTTP_CHUNK_START;
-#endif
 }
 
 

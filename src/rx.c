@@ -1128,9 +1128,6 @@ static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
     default:
         mprAssert(0);
     }
-#if UNUSED
-    rx->remainingContent = need;
-#endif
     return need;
 }
 

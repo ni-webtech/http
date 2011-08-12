@@ -471,11 +471,12 @@ static void defineHostTokens(HttpLoc *loc)
 }
 
 
-void httpAddLocationToken(HttpLoc *loc, cchar *key, cchar *value)
+void httpSetLocationToken(HttpLoc *loc, cchar *key, cchar *value)
 {
     mprAssert(key);
     mprAssert(value);
 
+    graduate(loc);
     if (schr(value, '$')) {
         value = stemplate(value, loc->tokens);
     }
