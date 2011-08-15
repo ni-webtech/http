@@ -48,17 +48,18 @@ struct HttpUri;
     /*  
         Tune for size
      */
-    #define HTTP_BUFSIZE               (8 * 1024)            /**< Default I/O buffer size */
-    #define HTTP_MAX_CHUNK             (8 * 1024)            /**< Max chunk size for transfer chunk encoding */
-    #define HTTP_MAX_HEADERS           2048                  /**< Max size of the headers */
-    #define HTTP_MAX_IOVEC             16                    /**< Number of fragments in a single socket write */
-    #define HTTP_MAX_NUM_HEADERS       20                    /**< Max number of header lines */
-    #define HTTP_MAX_RECEIVE_BODY      (128 * 1024 * 1024)   /**< Maximum incoming body size */
-    #define HTTP_MAX_REQUESTS          20                    /**< Max concurrent requests */
-    #define HTTP_MAX_CLIENTS           10                    /**< Max concurrent client endpoints */
-    #define HTTP_MAX_SESSIONS          100                   /**< Max concurrent sessions */
-    #define HTTP_MAX_STAGE_BUFFER      (32 * 1024)           /**< Max buffer for any stage */
-    #define HTTP_CLIENTS_HASH          (131)                 /**< Hash table for client IP addresses */
+    #define HTTP_BUFSIZE               (8 * 1024)           /**< Default I/O buffer size */
+    #define HTTP_MAX_CHUNK             (8 * 1024)           /**< Max chunk size for transfer chunk encoding */
+    #define HTTP_MAX_HEADERS           2048                 /**< Max size of the headers */
+    #define HTTP_MAX_IOVEC             16                   /**< Number of fragments in a single socket write */
+    #define HTTP_MAX_NUM_HEADERS       20                   /**< Max number of header lines */
+    #define HTTP_MAX_RECEIVE_BODY      (128 * 1024 * 1024)  /**< Maximum incoming body size */
+    #define HTTP_MAX_REQUESTS          20                   /**< Max concurrent requests */
+    #define HTTP_MAX_CLIENTS           10                   /**< Max concurrent client endpoints */
+    #define HTTP_MAX_SESSIONS          100                  /**< Max concurrent sessions */
+    #define HTTP_MAX_STAGE_BUFFER      (32 * 1024)          /**< Max buffer for any stage */
+    #define HTTP_CLIENTS_HASH          (131)                /**< Hash table for client IP addresses */
+    #define HTTP_MAX_ROUTE_MATCHES     32                   /**< Max number of submatches in routes */
 
 #elif BLD_TUNE == MPR_TUNE_BALANCED
     /*  
@@ -75,6 +76,7 @@ struct HttpUri;
     #define HTTP_MAX_SESSIONS          500
     #define HTTP_MAX_STAGE_BUFFER      (64 * 1024)
     #define HTTP_CLIENTS_HASH          (257)
+    #define HTTP_MAX_ROUTE_MATCHES     64
 
 #else
     /*  
@@ -91,6 +93,7 @@ struct HttpUri;
     #define HTTP_MAX_SESSIONS          5000
     #define HTTP_MAX_STAGE_BUFFER      (128 * 1024)
     #define HTTP_CLIENTS_HASH          (1009)
+    #define HTTP_MAX_ROUTE_MATCHES     128
 #endif
 
 #define HTTP_MAX_TX_BODY           (INT_MAX)        /**< Max buffer for response data */
@@ -213,6 +216,10 @@ typedef struct Http {
     MprList         *connections;           /**< Currently open connection requests */
     MprHashTable    *stages;                /**< Possible stages in connection pipelines */
     MprHashTable    *statusCodes;           /**< Http status codes */
+
+    MprHashTable    *routeTargets;          /**< Http route target functions */
+    MprHashTable    *routeConditions;       /**< Http route condition functions */
+    MprHashTable    *routeModifications;    /**< Http route modification functions */
 
     /*  
         Some standard pipeline stages
@@ -358,6 +365,7 @@ extern void httpSetSoftware(Http *http, cchar *software);
 extern void httpAddHost(Http *http, struct HttpHost *host);
 extern void httpRemoveHost(Http *http, struct HttpHost *host);
 extern void httpAddKey(cchar *key, cchar *value);
+extern void httpDefineRouteBuiltins();
 
 /************************************* Limits *********************************/
 /** 
@@ -1019,6 +1027,7 @@ typedef struct HttpStage {
     MprModule       *module;                /**< Backing module */
     MprHashTable    *extensions;            /**< Matching extensions for this filter */
 
+#if UNUSED
     /**
         Rewrite a request
         @description This method is invoked to potentially rewrite a request. 
@@ -1028,6 +1037,7 @@ typedef struct HttpStage {
         @ingroup MaStage
      */
     bool (*rewrite)(struct HttpConn *conn, struct HttpStage *stage);
+#endif
 
     /** 
         Match a request
@@ -1723,7 +1733,7 @@ extern int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext);
 extern void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, MprOff total);
 extern HttpLimits *httpSetUniqueConnLimits(HttpConn *conn);
 extern void httpMatchHost(HttpConn *conn);
-extern void httpMatchHandler(HttpConn *conn);
+extern void httpRouteRequest(HttpConn *conn);
 
 extern char *httpGetExtension(HttpConn *conn);
 extern void httpConnTimeout(HttpConn *conn);
@@ -1917,6 +1927,89 @@ extern void httpSetDirPath(HttpDir *dir, cchar *filename);
 extern void httpSetDirPath(HttpDir *dir, cchar *filename);
 extern void httpSetDirIndex(HttpDir *dir, cchar *name);
 
+/********************************* HttpRoute  ********************************/
+
+#define HTTP_ROUTE_NOT            0x1
+#define HTTP_ROUTE_STATIC_VALUES  0x2
+#define HTTP_ROUTE_FREE           0x4
+
+typedef struct HttpRoute {
+    char            *name;                  /* Route name */
+    MprHashTable    *methodHash;            /* Matching HTTP methods */
+    MprList         *formFields;            /* Matching form data values */
+    MprList         *headers;               /* Matching header values */
+    MprList         *conditions;            /* Route conditions */
+    MprList         *modifications;         /* Route modifications */
+    char            *methods;               /* Supported HTTP methods */
+
+    char            *pattern;               /* Original matching URI pattern for the route */
+    char            *patternExpression;     /* Pattern regular expression */
+    void            *patternCompiled;       /* Compiled pattern regular expression */
+
+    char            *targetName;            /* Name of route target */
+    char            *targetDetails;         /* Original route details */
+    char            *targetDest;            /* Route destination - processed from details */
+    int             targetStatus;           /* Route redirect status code */
+
+//  MOB Rename to sourceName, sourcePath
+    char            *sourceName;            /* Source name for route target */
+    char            *sourcePath;            /* Source path for route target */
+
+    char            *template;              /* URI template for forming links based on this route */
+    char            *params;                /* Params to define. Extracted from pattern. (compiled) */
+    MprList         *tokens;                /* Tokens in pattern, {name} */
+} HttpRoute;
+
+
+typedef struct HttpRouteItem {
+    char            *name;                  /* Name of route item */
+    char            *details;               /* Arbitrary route item details */
+    void            *mdata;                 /* Data managed by malloc() */
+    char            *path;                  /* Path to resource (load) */
+    int             flags;
+} HttpRouteItem;
+
+typedef int (HttpRouteProc)(HttpConn *conn, HttpRoute *route, HttpRouteItem *item);
+
+extern HttpRoute *httpCreateRoute(cchar *name);
+extern HttpRoute *httpCreateDefaultRoute();
+#if FUTURE && UNUSED
+extern HttpRoute *httpCreateRouteWithTarget(cchar *name, cchar *kind, cchar *target);
+#endif
+extern int httpFinalizeRoute(HttpRoute *route);
+
+#define HTTP_ROUTE_COMPLETE 0x1
+#define HTTP_ROUTE_REROUTE  0x2
+extern int httpMatchRoute(HttpConn *conn, HttpRoute *route);
+
+
+extern void httpSetRouteTarget(HttpRoute *route, cchar *target, cchar *details);
+extern void httpSetRouteCondition(HttpRoute *route, cchar *source, int flags);
+extern void httpSetRouteHeader(HttpRoute *route, cchar *key, cchar *value, int flags);
+extern void httpSetRouteField(HttpRoute *route, cchar *key, cchar *value, int flags);
+extern void httpSetRouteLoad(HttpRoute *route, cchar *name, cchar *path);
+extern void httpSetRouteMethods(HttpRoute *route, cchar *methods);
+extern void httpSetRoutePattern(HttpRoute *route, cchar *pattern);
+extern void httpSetRouteSource(HttpRoute *route, cchar *source);
+extern void httpSetRouteName(HttpRoute *route, cchar *name);
+extern void httpSetRouteModification(HttpRoute *route, cchar *name, int flags);
+
+
+extern void httpDefineRouteTarget(cchar *key, HttpRouteProc *proc);
+extern void httpDefineRouteModification(cchar *key, HttpRouteProc *proc);
+extern void httpDefineRouteCondition(cchar *key, HttpRouteProc *proc);
+
+/********************************** HttpLang  ********************************/
+
+#define HTTP_LANG_BEFORE        0x1         /**< Insert suffix before extension */
+#define HTTP_LANG_AFTER         0x2         /**< Insert suffix after extension */
+
+typedef struct HttpLang {
+    char        *path;
+    char        *suffix;
+    int         flags;
+} HttpLang;
+
 /********************************** HttpLoc  *********************************/
 
 #define HTTP_LOC_PUT_DELETE     0x1         /**< Support PUT|DELETE */
@@ -1934,18 +2027,29 @@ typedef struct HttpLoc {
     HttpAuth        *auth;                  /**< Per location block authentication */
     Http            *http;                  /**< Http service object (copy of appweb->http) */
     int             flags;                  /**< Location flags */
+
+QUESTIONS
     char            *prefix;                /**< Location prefix name */
     int             prefixLen;              /**< Length of the prefix name */
     HttpAlias       *alias;                 /**< Associated alias for this location */
+
     struct HttpHost *host;                  /**< Owning hsot */
     HttpStage       *connector;             /**< Network connector to use */
     HttpStage       *handler;               /**< Fixed handler */
-    MprHashTable    *data;                  /**< Hash of extra data configuration */
+
     MprHashTable    *extensions;            /**< Hash of handlers by extensions */
+    MprList         *handlers;              /**< List of handlers for this location */
+    MprList         *routes;                /**< Ordered list of routes */
+
+    //  MOB - is this now needed. MOB - rename
+    MprHashTable    *data;                  /**< Hash of extra data configuration */
     MprHashTable    *expires;               /**< Expiry of content by extension */
     MprHashTable    *expiresByType;         /**< Expiry of content by mime type */
     MprHashTable    *tokens;                /**< Tokens to use for $var refrerences */
-    MprList         *handlers;              /**< List of handlers for this location */
+
+    MprHashTable    *lang;                  /**< Language mappings */
+    MprList         *langPref;              /**< Language preference orderings */
+
     MprList         *inputStages;           /**< Input stages */
     MprList         *outputStages;          /**< Output stages */
     MprHashTable    *errorDocuments;        /**< Set of error documents to use on errors */
@@ -1990,6 +2094,11 @@ extern void httpAddLocationExpiryByType(HttpLoc *location, MprTime when, cchar *
 extern void httpSetLocationToken(HttpLoc *loc, cchar *token, cchar *value);
 extern char *httpMakePath(HttpLoc *loc, cchar *file);
 extern void httpSetLocationHost(HttpLoc *loc, struct HttpHost *host);
+
+extern void httpAddLocationLanguage(HttpLoc *loc, cchar *lang, cchar *suffix, int before);
+extern void httpAddLocationLanguageRoot(HttpLoc *loc, cchar *lang, cchar *path);
+extern MprList *httpGetBestLanguage(HttpLoc *loc, cchar *accept);
+extern void httpAddRoute(HttpLoc *loc, HttpRoute *route);
 
 /********************************** HttpUploadFile *********************************/
 /**
@@ -2050,6 +2159,7 @@ typedef struct HttpRx {
     char            *extraPath;             /**< Extra path information (CGI|PHP) */
 
     HttpConn        *conn;                  /**< Connection object */
+    HttpRoute       *route;                 /**< Route for request */
 
     MprList         *etags;                 /**< Document etag to uniquely identify the document version */
     HttpPacket      *headerPacket;          /**< HTTP headers */
@@ -2066,7 +2176,6 @@ typedef struct HttpRx {
     int             form;                   /**< Using mime-type application/x-www-form-urlencoded */
     int             needInputPipeline;      /**< Input pipeline required to process received data */
     int             startAfterContent;      /**< Start handler after receiving all body content */
-    int             rewrites;               /**< Count of request rewrites */
     int             upload;                 /**< Request is using file upload */
 
     ssize           chunkSize;              /**< Size of the next chunk */
@@ -2089,6 +2198,7 @@ typedef struct HttpRx {
     char            *accept;                /**< Accept header */
     char            *acceptCharset;         /**< Accept-Charset header */
     char            *acceptEncoding;        /**< Accept-Encoding header */
+    char            *acceptLanguage;        /**< Accept-Language header */
     char            *cookie;                /**< Cookie header */
     char            *connection;            /**< Connection header */
     char            *contentLength;         /**< Content length string value */
@@ -2108,7 +2218,6 @@ typedef struct HttpRx {
         Auth details
      */
     int             authenticated;          /**< Request has been authenticated */
-    HttpAuth        *auth;                  /**< Auth object */
     char            *authAlgorithm;
     char            *authDetails;
     char            *authStale;             
@@ -2125,6 +2234,13 @@ typedef struct HttpRx {
         Misc
      */
     char            *formData;              /**< Cached form data as a string*/
+
+    /*
+        Routing info
+     */
+    char            *targetKey;             /**< Route target key */
+    int             matches[HTTP_MAX_ROUTE_MATCHES * 3];
+    int             matchCount;
 
     /*
         Extensions for Appweb. Inline for performance.
@@ -2240,7 +2356,6 @@ extern void httpDestroyRx(HttpRx *rx);
 extern void httpCloseRx(struct HttpConn *conn);
 extern bool httpContentNotModified(HttpConn *conn);
 extern HttpRange *httpCreateRange(HttpConn *conn, MprOff start, MprOff end);
-extern int  httpMapToStorage(HttpConn *conn);
 extern void httpProcess(HttpConn *conn, HttpPacket *packet);
 extern void httpProcessWriteEvent(HttpConn *conn);
 extern bool httpProcessCompletion(HttpConn *conn);
@@ -2249,6 +2364,7 @@ extern void httpSetEtag(HttpConn *conn, MprPath *info);
 extern bool httpMatchEtag(HttpConn *conn, char *requestedEtag);
 extern bool httpMatchModified(HttpConn *conn, MprTime time);
 extern char *httpGetFormData(HttpConn *conn);
+extern void httpMapToStorage(HttpConn *conn);
 
 /**************************************** Env ***************************************/
 /**

@@ -7,10 +7,6 @@
 
 #include    "http.h"
 
-/********************************** Locals ************************************/
-
-static char *authTypes[] = { "none", "basic", "digest" };
-
 /***************************** Forward Declarations ***************************/
 
 static void addMatchEtag(HttpConn *conn, char *etag);
@@ -72,6 +68,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->accept);
         mprMark(rx->acceptCharset);
         mprMark(rx->acceptEncoding);
+        mprMark(rx->acceptLanguage);
         mprMark(rx->cookie);
         mprMark(rx->connection);
         mprMark(rx->contentLength);
@@ -83,7 +80,6 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->userAgent);
         mprMark(rx->formVars);
         mprMark(rx->inputRange);
-        mprMark(rx->auth);
         mprMark(rx->authAlgorithm);
         mprMark(rx->authDetails);
         mprMark(rx->authStale);
@@ -93,6 +89,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->alias);
         mprMark(rx->dir);
         mprMark(rx->formData);
+        mprMark(rx->targetKey);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (rx->conn) {
@@ -212,8 +209,10 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         }
         rx->parsedUri->port = conn->sock->listenSock->port;
         rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
+        //  MOB - who sets handler before herer?
+        mprAssert(tx->handler == 0);
         if (!tx->handler) {
-            httpMatchHandler(conn);  
+            httpRouteRequest(conn);  
         }
         loc = rx->loc;
         mprAssert(loc);
@@ -479,6 +478,9 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
             } else if (strcmp(key, "accept-encoding") == 0) {
                 rx->acceptEncoding = sclone(value);
+
+            } else if (strcmp(key, "accept-language") == 0) {
+                rx->acceptLanguage = sclone(value);
             }
             break;
 
@@ -1147,6 +1149,7 @@ bool httpContentNotModified(HttpConn *conn)
             If both checks, the last modification time and etag, claim that the request doesn't need to be
             performed, skip the transfer.
          */
+        mprAssert(tx->fileInfo.valid);
         modified = (MprTime) tx->fileInfo.mtime * MPR_TICKS_PER_SEC;
         same = httpMatchModified(conn, modified) && httpMatchEtag(conn, tx->etag);
         if (tx->outputRanges && !same) {
@@ -1278,63 +1281,18 @@ char *httpGetStatusMessage(HttpConn *conn)
 }
 
 
-int httpMapToStorage(HttpConn *conn)
-{
-    HttpRx      *rx;
-    HttpTx      *tx;
-    HttpHost    *host;
-    MprPath     *info, ginfo;
-    char        *gfile;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    host = conn->host;
-    info = &tx->fileInfo;
-
-    rx->alias = httpGetAlias(host, rx->pathInfo);
-    tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
-    tx->extension = httpGetExtension(conn);
-
-    if ((rx->dir = httpLookupBestDir(host, tx->filename)) == 0) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing directory block for \"%s\"", tx->filename);
-        return MPR_ERR_CANT_ACCESS;
-    }
-    if (rx->dir->auth) {
-        rx->auth = rx->dir->auth;
-    }
-    if ((rx->loc = httpLookupBestLocation(host, rx->pathInfo)) == 0) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing location block for \"%s\"", rx->pathInfo);
-        return MPR_ERR_CANT_ACCESS;
-    }
-    if (rx->auth == 0) {
-        rx->auth = rx->loc->auth;
-    }
-    mprGetPathInfo(tx->filename, info);
-    if (!info->valid && rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
-        gfile = mprAsprintf("%s.gz", tx->filename);
-        if (mprGetPathInfo(gfile, &ginfo) == 0) {
-            tx->filename = gfile;
-            tx->fileInfo = ginfo;
-            httpSetHeader(conn, "Content-Encoding", "gzip");
-        }
-    }
-    if (info->valid) {
-        tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
-    }
-    mprLog(5, "Request Details: uri \"%s\"", rx->uri);
-    mprLog(5, "Filename: \"%s\", extension: \"%s\"", tx->filename, tx->extension);
-    mprLog(5, "Location: \"%s\", alias: \"%s\" => \"%s\"", rx->loc->prefix, rx->alias->prefix, rx->alias->filename);
-    mprLog(5, "Auth: \"%s\"", authTypes[rx->auth->type]);
-    return 0;
-}
 
 
 int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
 {
     HttpRx      *rx;
+    HttpTx      *tx;
     HttpUri     *prior;
+    HttpHost    *host;
 
     rx = conn->rx;
+    tx = conn->tx;
+    host = conn->host;
     prior = rx->parsedUri;
 
     if ((rx->parsedUri = httpCreateUri(uri, 0)) == 0) {
@@ -1360,8 +1318,61 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
     rx->uri = rx->parsedUri->path;
     rx->pathInfo = httpNormalizeUriPath(mprUriDecode(rx->parsedUri->path));
     rx->scriptName = mprEmptyString();
+    rx->alias = httpGetAlias(host, rx->pathInfo);
+    tx->extension = httpGetExtension(conn);
+#if MOVED
+    if ((rx->loc = httpLookupBestLocation(host, rx->pathInfo)) == 0) {
+        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing location block for \"%s\"", rx->pathInfo);
+        return MPR_ERR_CANT_ACCESS;
+    }
+#endif
     httpMapToStorage(conn);
     return 0;
+}
+
+
+/*
+    This will map a request to physical storage iff:
+    - The handler has been defined
+    - The handler is not virtual
+ */
+void httpMapToStorage(HttpConn *conn)
+{
+    HttpTx      *tx;
+    HttpRx      *rx;
+    HttpHost    *host;
+    MprPath     *info, ginfo;
+    char        *gfile;
+
+    rx = conn->rx;
+    tx = conn->tx;
+    host = conn->host;
+
+    if (tx->handler == 0 || (tx->handler->flags & HTTP_STAGE_VIRTUAL)) {
+        return;
+    }
+    tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
+    tx->extension = httpGetExtension(conn);
+    if ((rx->dir = httpLookupBestDir(host, tx->filename)) == 0) {
+        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing directory block for \"%s\"", tx->filename);
+    }
+    info = &tx->fileInfo;
+    mprGetPathInfo(tx->filename, info);
+
+    //  MOB - is this the best place for this?
+    //  MOB - should require a flag from the handler
+    if (!info->valid && rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
+        gfile = mprAsprintf("%s.gz", tx->filename);
+        if (mprGetPathInfo(gfile, &ginfo) == 0) {
+            tx->filename = gfile;
+            tx->fileInfo = ginfo;
+            httpSetHeader(conn, "Content-Encoding", "gzip");
+        }
+    }
+    if (info->valid) {
+        tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
+    }
+    mprLog(5, "MapToStorage uri \"%s\", filename: \"%s\", extension: \"%s\"", rx->uri, tx->filename, tx->extension);
 }
 
 

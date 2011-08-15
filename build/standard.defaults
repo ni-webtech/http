@@ -50,6 +50,7 @@ with --build --optional doxygen
 with --os=win --build --optional pkg
 
 with mpr
+with --optional pcre
 with --host --optional matrixssl openssl ssl
 with http
 

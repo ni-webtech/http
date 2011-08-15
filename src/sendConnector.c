@@ -49,6 +49,7 @@ void httpSendOpen(HttpQueue *q)
     tx = conn->tx;
 
     if (!(tx->flags & HTTP_TX_NO_BODY)) {
+        mprAssert(tx->fileInfo.valid);
         if (tx->fileInfo.size > conn->limits->transmissionBodySize) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
                 "Http transmission aborted. File size exceeds max body of %d bytes", conn->limits->transmissionBodySize);

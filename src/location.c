@@ -12,9 +12,10 @@
 
 /********************************** Forwards **********************************/
 
-static void defineTokens(HttpLoc *loc);
+static void defineRouteTokens(HttpLoc *loc);
 static void defineHostTokens(HttpLoc *loc);
 static void manageLoc(HttpLoc *loc, int flags);
+static void manageLang(HttpLang *lang, int flags);
 
 /************************************ Code ************************************/
 
@@ -27,6 +28,7 @@ HttpLoc *httpCreateLocation()
     }
     loc->http = MPR->httpService;
     loc->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
+    loc->routes = mprCreateList(-1, 0);
     loc->handlers = mprCreateList(-1, 0);
     loc->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     loc->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
@@ -39,7 +41,11 @@ HttpLoc *httpCreateLocation()
     loc->auth = httpCreateAuth(0);
     loc->flags = HTTP_LOC_SMART;
     loc->workers = -1;
-    defineTokens(loc);
+#if UNUSED && FUTURE
+    httpAddRoute(loc, httpCreateRouteWithTarget("--alias--", "alias", 0));
+#endif
+    httpAddRoute(loc, httpCreateDefaultRoute());
+    defineRouteTokens(loc);
     return loc;
 }
 
@@ -68,6 +74,9 @@ static void manageLoc(HttpLoc *loc, int flags)
         mprMark(loc->scriptPath);
         mprMark(loc->ssl);
         mprMark(loc->data);
+        mprMark(loc->lang);
+        mprMark(loc->langPref);
+        mprMark(loc->routes);
     }
 }
 
@@ -92,6 +101,7 @@ HttpLoc *httpCreateInheritedLocation(HttpLoc *parent)
     loc->flags = parent->flags;
     loc->inputStages = parent->inputStages;
     loc->outputStages = parent->outputStages;
+    loc->routes = parent->routes;
     loc->handlers = parent->handlers;
     loc->extensions = parent->extensions;
     loc->expires = parent->expires;
@@ -123,6 +133,7 @@ static void graduate(HttpLoc *loc)
         loc->extensions = mprCloneHash(loc->parent->extensions);
         loc->tokens = mprCloneHash(loc->parent->tokens);
         loc->handlers = mprCloneList(loc->parent->handlers);
+        loc->routes = mprCloneList(loc->parent->routes);
         loc->inputStages = mprCloneList(loc->parent->inputStages);
         loc->outputStages = mprCloneList(loc->parent->outputStages);
         loc->parent = 0;
@@ -451,7 +462,7 @@ void *httpGetLocationData(HttpLoc *loc, cchar *key)
 }
 
 
-static void defineTokens(HttpLoc *loc)
+static void defineRouteTokens(HttpLoc *loc)
 {
     mprAddKey(loc->tokens, "PRODUCT", sclone(BLD_PRODUCT));
     mprAddKey(loc->tokens, "OS", sclone(BLD_OS));
@@ -504,6 +515,91 @@ char *httpMakePath(HttpLoc *loc, cchar *file)
     return result;
 }
 
+
+static HttpLang *createLangDef(cchar *path, cchar *suffix, int flags)
+{
+    HttpLang    *lang;
+
+    if ((lang = mprAllocObj(HttpLang, manageLang)) == 0) {
+        return 0;
+    }
+    if (path) {
+        lang->path = sclone(path);
+    }
+    if (suffix) {
+        lang->suffix = sclone(suffix);
+    }
+    if (flags == 0) {
+        flags |= HTTP_LANG_BEFORE;
+    }
+    lang->flags = flags;
+    return lang;
+}
+
+
+static void manageLang(HttpLang *lang, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(lang->path);
+        mprMark(lang->suffix);
+    }
+}
+
+
+void httpAddLocationLanguage(HttpLoc *loc, cchar *lang, cchar *suffix, int flags)
+{
+    if (loc->lang == 0) {
+        loc->lang = mprCreateHash(-1, 0);
+    }
+    mprAddKey(loc->lang, lang, createLangDef(0, suffix, flags));
+}
+
+
+void httpAddLocationLanguageRoot(HttpLoc *loc, cchar *lang, cchar *path)
+{
+    if (loc->lang == 0) {
+        loc->lang = mprCreateHash(-1, 0);
+    }
+    mprAddKey(loc->lang, lang, createLangDef(path, 0, 0));
+}
+
+
+static int compareLang(char **s1, char **s2)
+{
+    return scmp(*s1, *s2);
+}
+
+
+MprList *httpGetBestLanguage(HttpLoc *loc, cchar *accept)
+{
+    MprList     *list;
+    char        *lang, *next, *tok, *quality;
+
+    if (loc->langPref) {
+        loc->langPref = list = mprCreateList(-1, 0);
+    }
+    for (tok = stok(sclone(accept), ",", &next); tok; tok = stok(next, ",", &next)) {
+        lang = stok(tok, ";", &quality);
+        mprAddItem(list, sfmt("%d %s", (int) (atof(quality) * 100), lang));
+    }
+    mprSortList(list, compareLang);
+    return list;
+}
+
+
+void httpAddRoute(HttpLoc *loc, HttpRoute *route)
+{
+    int     pos;
+
+    /*
+        Insert at the tail before the last route which must always be "--default--"
+     */
+    pos = mprGetListLength(loc->routes) - 1;
+    if (pos < 0) {
+        pos = 0;
+    }
+    mprInsertItemAtPos(loc->routes, pos, route);
+}
 
 /*
     @copy   default

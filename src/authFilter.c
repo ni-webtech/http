@@ -67,7 +67,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
     rx = conn->rx;
     tx = conn->tx;
     http = conn->http;
-    auth = rx->auth;
+    auth = rx->dir->auth ? rx->dir->auth : rx->loc->auth;
 
 #if BLD_DEBUG
     if (dir & HTTP_STAGE_TX) {

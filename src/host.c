@@ -281,6 +281,7 @@ int httpAddLocation(HttpHost *host, HttpLoc *loc)
 }
 
 
+//  MOB - should be named GetBestAlias
 HttpAlias *httpGetAlias(HttpHost *host, cchar *uri)
 {
     HttpAlias     *alias;
