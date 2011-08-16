@@ -1,5 +1,5 @@
 /*
-    authFilter.c - Authorization filter for basic and digest authentication.
+    authCheck.c - Authorization checking for basic and digest authentication.
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
@@ -32,11 +32,10 @@ static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *etag, cchar
 static void decodeBasicAuth(HttpConn *conn, AuthData *ad);
 static int  decodeDigestDetails(HttpConn *conn, AuthData *ad);
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg);
-static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir);
 static int parseDigestNonce(char *nonce, cchar **secret, cchar **etag, cchar **realm, MprTime *when);
 
 /*********************************** Code *************************************/
-
+#if UNUSED
 int httpOpenAuthFilter(Http *http)
 {
     HttpStage     *filter;
@@ -46,12 +45,11 @@ int httpOpenAuthFilter(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     http->authFilter = filter;
-    filter->match = matchAuth; 
     return 0;
 }
+#endif
 
-
-static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
+int httpCheckAuth(HttpConn *conn)
 {
     Http        *http;
     HttpRx      *rx;
@@ -67,24 +65,17 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
     rx = conn->rx;
     tx = conn->tx;
     http = conn->http;
-    auth = rx->dir->auth ? rx->dir->auth : rx->loc->auth;
+    auth = rx->dir->auth ? rx->dir->auth : rx->route->auth;
 
-#if BLD_DEBUG
-    if (dir & HTTP_STAGE_TX) {
-        mprError("AuthFilter configured as output filter. It should be configured as an input filter.");
-        formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
-        return 1;
-    }
-#endif
-    if (!(dir & HTTP_STAGE_RX) || !conn->server || auth == 0 || auth->type == 0) {
+    if (!conn->server || auth == 0 || auth->type == 0) {
         return 0;
     }
     if ((ad = mprAllocStruct(AuthData)) == 0) {
-        return 1;
+        return 0;
     }
     if (rx->authDetails == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
-        return 1;
+        return HTTP_ROUTE_ACCEPTED;
     }
     if (scasecmp(rx->authType, "basic") == 0) {
         decodeBasicAuth(conn, ad);
@@ -93,7 +84,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
     } else if (scasecmp(rx->authType, "digest") == 0) {
         if (decodeDigestDetails(conn, ad) < 0) {
             httpError(conn, 400, "Bad authorization header");
-            return 1;
+            return HTTP_ROUTE_ACCEPTED;
         }
         actualAuthType = HTTP_AUTH_DIGEST;
     } else {
@@ -103,11 +94,11 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
 
     if (ad->userName == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing user name", 0);
-        return 1;
+        return HTTP_ROUTE_ACCEPTED;
     }
     if (auth->type != actualAuthType) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Wrong authentication protocol", 0);
-        return 1;
+        return HTTP_ROUTE_ACCEPTED;
     }
     /*  
         Some backend methods can't return the password and will simply do everything in validateCred. 
@@ -120,7 +111,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
     if (auth->type == HTTP_AUTH_DIGEST) {
         if (scmp(ad->qop, auth->qop) != 0) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied. Protection quality does not match", 0);
-            return 1;
+            return HTTP_ROUTE_ACCEPTED;
         }
         calcDigest(&requiredDigest, 0, requiredPassword, ad->realm, rx->pathInfo, ad->nonce, ad->qop, ad->nc, 
             ad->cnonce, rx->method);
@@ -141,7 +132,7 @@ static bool matchAuth(HttpConn *conn, HttpStage *handler, int dir)
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, incorrect username/password", msg);
     }
     rx->authenticated = 1;
-    return 1;
+    return HTTP_ROUTE_ACCEPTED;
 }
 
 

@@ -1,7 +1,6 @@
+#if UNUSED
 /*
     alias.c -- Alias service for aliasing URLs to file storage.
-
-    This module supports the alias directives and mapping URLs to physical locations. 
 
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
@@ -60,6 +59,7 @@ static void manageAlias(HttpAlias *alias, int flags)
         mprMark(alias->uri);
     }
 }
+#endif
 
 
 /*

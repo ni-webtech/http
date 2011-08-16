@@ -29,8 +29,8 @@ int httpOpenChunkFilter(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     http->chunkFilter = filter;
-    filter->open = openChunk; 
     filter->match = matchChunk; 
+    filter->open = openChunk; 
     filter->outgoingService = outgoingChunkService; 
     filter->incomingData = incomingChunkData; 
     return 0;
@@ -49,13 +49,12 @@ static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir)
         tx = conn->tx;
         return (tx->length < 0 && tx->chunkSize != 0) ? 1 : 0;
 
-    } else {
-        /* 
-            Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
-            know what the response data looks like (chunked or not).
-         */
-        return 1;
     }
+    /* 
+        Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
+        know what the response data looks like (chunked or not).
+     */
+    return 1;
 }
 
 

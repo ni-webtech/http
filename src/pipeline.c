@@ -16,7 +16,7 @@ static void setVars(HttpConn *conn);
 
 /*********************************** Code *************************************/
 
-void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc)
+void httpCreateTxPipeline(HttpConn *conn, HttpRoute *loc)
 {
     Http        *http;
     HttpTx      *tx;
@@ -48,7 +48,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc)
     if (tx->connector == 0) {
         if (tx->handler == http->fileHandler && rx->flags & HTTP_GET && !tx->outputRanges && 
                 !conn->secure && tx->chunkSize <= 0 &&
-                httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->extension) < 0) {
+                httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->ext) < 0) {
             tx->connector = http->sendConnector;
         } else if (loc && loc->connector) {
             tx->connector = loc->connector;
@@ -76,7 +76,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc)
 }
 
 
-void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
+void httpCreateRxPipeline(HttpConn *conn, HttpRoute *loc)
 {
     Http        *http;
     HttpTx      *tx;
@@ -297,9 +297,9 @@ void httpDiscardTransmitData(HttpConn *conn)
 }
 
 
+#if UNUSED
 static void trimExtraPath(HttpConn *conn)
 {
-    HttpAlias   *alias;
     HttpRx      *rx;
     HttpTx      *tx;
     cchar       *seps;
@@ -308,19 +308,18 @@ static void trimExtraPath(HttpConn *conn)
 
     rx = conn->rx;
     tx = conn->tx;
-    alias = rx->alias;
 
     /*
-        Find the script name in the uri. This is assumed to be either:
+        Heuristically find the script name in the uri. This is assumed to be either:
             - the original uri up to and including first path component containing a ".", or
             - the entire original uri
-        Once found, set the scriptName and trim the extraPath from pathInfo. The filename is used to search for a 
-        component with "." because we want to skip the alias prefix.
+        Once found, set the scriptName and trim the extraPath from pathInfo.
+        WARNING: ExtraPath is an old, unreliable, CGI specific technique. Directories with "." will thwart this code.
      */
-    start = &tx->filename[strlen(alias->filename)];
+    start = tx->filename;
     seps = mprGetPathSeparators(start);
     if ((cp = strchr(start, '.')) != 0 && (extra = strchr(cp, seps[0])) != 0) {
-        len = alias->prefixLen + extra - start;
+        len = extra - start;
         if (0 < len && len < slen(rx->pathInfo)) {
             *extra = '\0';
             rx->extraPath = sclone(&rx->pathInfo[len]);
@@ -329,6 +328,7 @@ static void trimExtraPath(HttpConn *conn)
         }
     }
 }
+#endif
 
 
 /*
@@ -342,9 +342,11 @@ static void setVars(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
 
+#if UNUSED
     if (tx->handler->flags & HTTP_STAGE_EXTRA_PATH) {
         trimExtraPath(conn);
     }
+#endif
     if (tx->handler->flags & (HTTP_STAGE_CGI_VARS | HTTP_STAGE_FORM_VARS | HTTP_STAGE_QUERY_VARS)) {
         rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     }
@@ -368,8 +370,8 @@ static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir)
     if (filter->match) {
         return filter->match(conn, filter, dir);
     }
-    if (filter->extensions && tx->extension) {
-        return mprLookupKey(filter->extensions, tx->extension) != 0;
+    if (filter->extensions && tx->ext) {
+        return mprLookupKey(filter->extensions, tx->ext) != 0;
     }
     return 1;
 }

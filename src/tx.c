@@ -9,6 +9,7 @@
 
 /***************************** Forward Declarations ***************************/
 
+static char *getExtension(HttpConn *conn, cchar *path);
 static void manageTx(HttpTx *tx, int flags);
 
 /*********************************** Code *************************************/
@@ -73,7 +74,7 @@ static void manageTx(HttpTx *tx, int flags)
         mprMark(tx->altBody);
         mprMark(tx->file);
         mprMark(tx->filename);
-        mprMark(tx->extension);
+        mprMark(tx->ext);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyTx(tx);
@@ -322,6 +323,7 @@ void *httpGetQueueData(HttpConn *conn)
 }
 
 
+//  MOB - refactor how this is done
 void httpOmitBody(HttpConn *conn)
 {
     if (conn->tx) {
@@ -380,7 +382,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         }
         targetUri = uri;
     }
-    httpSetHeader(conn, "Location", "%s", targetUri);
+    httpSetHeader(conn, "Route", "%s", targetUri);
     mprAssert(tx->altBody == 0);
     msg = httpLookupStatus(conn->http, status);
     tx->altBody = mprAsprintf(
@@ -490,8 +492,8 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 
     httpAddHeaderString(conn, "Date", conn->http->currentDate);
 
-    if (tx->extension) {
-        if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->extension)) != 0) {
+    if (tx->ext) {
+        if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->ext)) != 0) {
             if (conn->error) {
                 httpAddHeaderString(conn, "Content-Type", "text/html");
             } else {
@@ -502,18 +504,18 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->flags & HTTP_TX_DONT_CACHE) {
         httpAddHeaderString(conn, "Cache-Control", "no-cache");
 
-    } else if (rx->loc) {
+    } else if (rx->route) {
         expires = 0;
-        if (tx->extension) {
-            expires = PTOL(mprLookupKey(rx->loc->expires, tx->extension));
+        if (tx->ext) {
+            expires = PTOL(mprLookupKey(rx->route->expires, tx->ext));
         }
         if (expires == 0 && (mimeType = mprLookupKey(tx->headers, "Content-Type")) != 0) {
-            expires = PTOL(mprLookupKey(rx->loc->expiresByType, mimeType));
+            expires = PTOL(mprLookupKey(rx->route->expiresByType, mimeType));
         }
         if (expires == 0) {
-            expires = PTOL(mprLookupKey(rx->loc->expires, ""));
+            expires = PTOL(mprLookupKey(rx->route->expires, ""));
             if (expires == 0) {
-                expires = PTOL(mprLookupKey(rx->loc->expiresByType, ""));
+                expires = PTOL(mprLookupKey(rx->route->expiresByType, ""));
             }
         }
         if (expires) {
@@ -654,7 +656,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
             }
         }
     }
-    if ((level = httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_FIRST, tx->extension)) >= mprGetLogLevel(tx)) {
+    if ((level = httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_FIRST, tx->ext)) >= mprGetLogLevel(tx)) {
         mprAddNullToBuf(buf);
         mprLog(level, "%s", mprGetBufStart(buf));
     }
@@ -686,6 +688,61 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     tx->headerSize = mprGetBufLength(buf);
     tx->flags |= HTTP_TX_HEADERS_CREATED;
+}
+
+
+bool httpFileExists(HttpConn *conn)
+{
+    HttpTx      *tx;
+
+    tx = conn->tx;
+    if (!(tx->handler->flags & HTTP_STAGE_VIRTUAL)) {
+        if (!tx->fileInfo.checked) {
+            mprGetPathInfo(tx->filename, &tx->fileInfo);
+        }
+        return tx->fileInfo.valid;
+    }
+    return 0;
+}
+
+
+/*
+    Get the request extension. Look first at the URI (pathInfo). If no extension, look at the filename.
+    Return NULL if no extension.
+ */
+char *httpGetExtension(HttpConn *conn)
+{
+    HttpRx  *rx;
+    char    *ext;
+
+    rx = conn->rx;
+    if ((ext = getExtension(conn, rx->pathInfo)) == 0) {
+        if (conn->tx->filename) {
+            ext = getExtension(conn, conn->tx->filename);
+        }
+    }
+    return ext;
+}
+
+
+static char *getExtension(HttpConn *conn, cchar *path)
+{
+    HttpRx      *rx;
+    char        *cp, *ep, *ext;
+
+    rx = conn->rx;
+
+    if (rx && rx->pathInfo) {
+        if ((cp = strrchr(path, '.')) != 0) {
+            ext = sclone(++cp);
+            for (ep = ext; *ep && isalnum((int)*ep); ep++) {
+                ;
+            }
+            *ep = '\0';
+            return ext;
+        }
+    }
+    return 0;
 }
 
 

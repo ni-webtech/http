@@ -33,12 +33,12 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
     server->port = port;
     server->ip = sclone(ip);
     server->dispatcher = dispatcher;
-    server->loc = httpCreateConfiguredLocation(1);
+    server->route = httpCreateConfiguredRoute(1);
     server->hosts = mprCreateList(-1, 0);
     httpAddServer(http, server);
 
     if (flags & HTTP_CREATE_HOST) {
-        host = httpCreateHost(server->loc);
+        host = httpCreateHost(server->route);
         httpSetHostName(host, ip, port);
         httpAddHostToServer(server, host);
     }
@@ -66,7 +66,7 @@ static int manageServer(HttpServer *server, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(server->http);
-        mprMark(server->loc);
+        mprMark(server->route);
         mprMark(server->limits);
         mprMark(server->waitHandler);
         mprMark(server->clientLoad);
@@ -150,9 +150,11 @@ static bool validateServer(HttpServer *server)
         mprError("Missing host object on server");
         return 0;
     }
+#if UNUSED
     if (mprGetListLength(host->aliases) == 0) {
         httpAddAlias(host, httpCreateAlias("", host->documentRoot, 0));
     }
+#endif
     return 1;
 }
 
@@ -360,11 +362,11 @@ void httpSetServerContext(HttpServer *server, void *context)
 }
 
 
-void httpSetServerLocation(HttpServer *server, HttpLoc *loc)
+void httpSetServerRoute(HttpServer *server, HttpRoute *route)
 {
     mprAssert(server);
-    mprAssert(loc);
-    server->loc = loc;
+    mprAssert(route);
+    server->route = route;
 }
 
 

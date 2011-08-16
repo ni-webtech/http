@@ -61,7 +61,8 @@ void httpCreateCGIVars(HttpConn *conn)
         /*  
             Only set PATH_TRANSLATED if extraPath is set (CGI spec) 
          */
-        mprAddKey(table, "PATH_TRANSLATED", httpMakeFilename(conn, rx->alias, rx->extraPath, 0));
+        mprAssert(rx->extraPath[0] == '/');
+        mprAddKey(table, "PATH_TRANSLATED", mprGetNormalizedPath(sfmt("%s%s", host->documentRoot, rx->extraPath)));
     }
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextKey(conn->rx->files, hp)) != 0; index++) {

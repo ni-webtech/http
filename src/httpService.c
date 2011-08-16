@@ -104,7 +104,6 @@ Http *httpCreate()
     httpInitAuth(http);
     httpOpenNetConnector(http);
     httpOpenSendConnector(http);
-    httpOpenAuthFilter(http);
     httpOpenRangeFilter(http);
     httpOpenChunkFilter(http);
     httpOpenUploadFilter(http);
@@ -112,7 +111,7 @@ Http *httpCreate()
 
     http->clientLimits = httpCreateLimits(0);
     http->serverLimits = httpCreateLimits(1);
-    http->clientLocation = httpCreateConfiguredLocation(0);
+    http->clientRoute = httpCreateConfiguredRoute(0);
 
     mprSetIdleCallback(isIdle);
     httpDefineRouteBuiltins();
@@ -134,7 +133,7 @@ static void manageHttp(Http *http, int flags)
         mprMark(http->statusCodes);
         mprMark(http->clientLimits);
         mprMark(http->serverLimits);
-        mprMark(http->clientLocation);
+        mprMark(http->clientRoute);
         mprMark(http->timer);
         mprMark(http->mutex);
         mprMark(http->software);
@@ -224,23 +223,25 @@ void httpRemoveHost(Http *http, HttpHost *host)
 }
 
 
-HttpLoc *httpCreateConfiguredLocation(int serverSide)
+HttpRoute *httpCreateConfiguredRoute(int serverSide)
 {
-    HttpLoc     *loc;
+    HttpRoute     *loc;
     Http        *http;
 
     /*
         Create default incoming and outgoing pipelines. Order matters.
      */
     http = MPR->httpService;
-    loc = httpCreateLocation();
+    loc = httpCreateRoute();
+#if UNUSED
     if (serverSide) {
         httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_RX);
     }
-    httpAddFilter(loc, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
-    httpAddFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_RX | HTTP_STAGE_TX);
+#endif
+    httpAddRouteFilter(loc, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
+    httpAddRouteFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_RX | HTTP_STAGE_TX);
     if (serverSide) {
-        httpAddFilter(loc, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
+        httpAddRouteFilter(loc, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
     }
     loc->connector = http->netConnector;
     return loc;

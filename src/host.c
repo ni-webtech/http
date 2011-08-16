@@ -17,35 +17,7 @@ static void manageHost(HttpHost *host, int flags);
 
 /*********************************** Code *************************************/
 
-static void manageHost(HttpHost *host, int flags)
-{
-    if (flags & MPR_MANAGE_MARK) {
-        mprMark(host->name);
-        mprMark(host->ip);
-        mprMark(host->parent);
-        mprMark(host->aliases);
-        mprMark(host->dirs);
-        mprMark(host->locations);
-        mprMark(host->loc);
-        mprMark(host->mimeTypes);
-        mprMark(host->documentRoot);
-        mprMark(host->serverRoot);
-        mprMark(host->traceInclude);
-        mprMark(host->traceExclude);
-        mprMark(host->protocol);
-        mprMark(host->mutex);
-        mprMark(host->log);
-        mprMark(host->logFormat);
-        mprMark(host->logPath);
-        mprMark(host->limits);
-
-    } else if (flags & MPR_MANAGE_FREE) {
-        httpRemoveHost(MPR->httpService, host);
-    }
-}
-
-
-HttpHost *httpCreateHost(HttpLoc *loc)
+HttpHost *httpCreateHost(HttpRoute *route)
 {
     HttpHost    *host;
     Http        *http;
@@ -55,9 +27,8 @@ HttpHost *httpCreateHost(HttpLoc *loc)
         return 0;
     }
     host->mutex = mprCreateLock();
-    host->aliases = mprCreateList(-1, 0);
     host->dirs = mprCreateList(-1, 0);
-    host->locations = mprCreateList(-1, 0);
+    host->routes = mprCreateList(-1, 0);
     host->limits = mprMemdup(http->serverLimits, sizeof(HttpLimits));
     host->flags = HTTP_HOST_NO_TRACE;
     host->protocol = sclone("HTTP/1.1");
@@ -68,9 +39,9 @@ HttpHost *httpCreateHost(HttpLoc *loc)
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
 
-    host->loc = (loc) ? loc : httpCreateLocation();
-    httpAddLocation(host, host->loc);
-    host->loc->auth = httpCreateAuth(host->loc->auth);
+    host->route = (route) ? route : httpCreateDefaultRoute();
+    httpAddRoute(host, host->route);
+    host->route->auth = httpCreateAuth(host->route->auth);
     httpAddDir(host, httpCreateBareDir("."));
     httpAddHost(http, host);
     return host;
@@ -90,20 +61,19 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->mutex = mprCreateLock();
 
     /*  
-        The aliases, dirs and locations are all copy-on-write
+        The dirs and routes are all copy-on-write
      */
     host->parent = parent;
-    host->aliases = parent->aliases;
     host->dirs = parent->dirs;
-    host->locations = parent->locations;
+    host->routes = parent->routes;
     host->flags = parent->flags | HTTP_HOST_VHOST;
     host->protocol = parent->protocol;
     host->mimeTypes = parent->mimeTypes;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
     host->documentRoot = parent->documentRoot;
     host->serverRoot = parent->serverRoot;
-    host->loc = httpCreateInheritedLocation(parent->loc);
-    httpSetLocationHost(host->loc, host);
+    host->route = httpCreateInheritedRoute(parent->route);
+    httpSetRouteHost(host->route, host);
     host->traceMask = parent->traceMask;
     host->traceLevel = parent->traceLevel;
     host->traceMaxLength = parent->traceMaxLength;
@@ -113,9 +83,36 @@ HttpHost *httpCloneHost(HttpHost *parent)
     if (parent->traceExclude) {
         host->traceExclude = mprCloneHash(parent->traceExclude);
     }
-    httpAddLocation(host, host->loc);
+    httpAddRoute(host, host->route);
     httpAddHost(http, host);
     return host;
+}
+
+
+static void manageHost(HttpHost *host, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(host->name);
+        mprMark(host->ip);
+        mprMark(host->parent);
+        mprMark(host->dirs);
+        mprMark(host->routes);
+        mprMark(host->route);
+        mprMark(host->mimeTypes);
+        mprMark(host->documentRoot);
+        mprMark(host->serverRoot);
+        mprMark(host->traceInclude);
+        mprMark(host->traceExclude);
+        mprMark(host->protocol);
+        mprMark(host->mutex);
+        mprMark(host->log);
+        mprMark(host->logFormat);
+        mprMark(host->logPath);
+        mprMark(host->limits);
+
+    } else if (flags & MPR_MANAGE_FREE) {
+        httpRemoveHost(MPR->httpService, host);
+    }
 }
 
 
@@ -124,13 +121,15 @@ void httpSetHostDocumentRoot(HttpHost *host, cchar *dir)
     char    *doc;
     ssize   len;
 
-    doc = host->documentRoot = httpMakePath(host->loc, dir);
+    doc = host->documentRoot = httpMakePath(host->route, dir);
     len = slen(doc);
     if (doc[len - 1] == '/') {
         doc[len - 1] = '\0';
     }
+#if UNUSED
     /*  Create a catch-all alias */
     httpAddAlias(host, httpCreateAlias("", doc, 0));
+#endif
 }
 
 
@@ -181,6 +180,7 @@ void httpSetHostProtocol(HttpHost *host, cchar *protocol)
 }
 
 
+#if UNUSED
 int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
 {
     HttpAlias   *alias;
@@ -213,6 +213,7 @@ int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
     mprAddItem(host->aliases, newAlias);
     return 0;
 }
+#endif
 
 
 int httpAddDir(HttpHost *host, HttpDir *dir)
@@ -248,39 +249,29 @@ int httpAddDir(HttpHost *host, HttpDir *dir)
 }
 
 
-int httpAddLocation(HttpHost *host, HttpLoc *loc)
+int httpAddRoute(HttpHost *host, HttpRoute *route)
 {
-    HttpLoc     *lp;
-    int         next, rc;
+    int     pos;
 
-    mprAssert(loc);
-    mprAssert(loc->prefix);
+    mprAssert(route);
     
-    if (host->parent && host->locations == host->parent->locations) {
-        host->locations = mprCloneList(host->parent->locations);
+    if (host->parent && host->routes == host->parent->routes) {
+        host->routes = mprCloneList(host->parent->routes);
     }
-
     /*
-        Sort in reverse collating sequence. Must make sure that /abc/def sorts before /abc
+        Insert at the tail before the last route which must always be "--default--"
      */
-    for (next = 0; (lp = mprGetNextItem(host->locations, &next)) != 0; ) {
-        rc = strcmp(loc->prefix, lp->prefix);
-        if (rc == 0) {
-            mprRemoveItem(host->locations, lp);
-            mprInsertItemAtPos(host->locations, next - 1, loc);
-            return 0;
-        }
-        if (strcmp(loc->prefix, lp->prefix) > 0) {
-            mprInsertItemAtPos(host->locations, next - 1, loc);
-            return 0;
-        }
+    pos = mprGetListLength(host->routes) - 1;
+    if (pos < 0) {
+        pos = 0;
     }
-    mprAddItem(host->locations, loc);
-    httpSetLocationHost(loc, host);
+    mprInsertItemAtPos(host->routes, pos, route);
+    httpSetRouteHost(route, host);
     return 0;
 }
 
 
+#if UNUSED
 //  MOB - should be named GetBestAlias
 HttpAlias *httpGetAlias(HttpHost *host, cchar *uri)
 {
@@ -313,6 +304,7 @@ HttpAlias *httpLookupAlias(HttpHost *host, cchar *prefix)
     }
     return 0;
 }
+#endif
 
 
 HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
@@ -364,38 +356,40 @@ HttpDir *httpLookupBestDir(HttpHost *host, cchar *path)
 }
 
 
-HttpLoc *httpLookupLocation(HttpHost *host, cchar *prefix)
+#if UNUSED
+HttpRoute *httpLookupRoute(HttpHost *host, cchar *prefix)
 {
-    HttpLoc     *loc;
+    HttpRoute   *route;
     int         next;
 
     mprAssert(host);
 
-    for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
-        if (strcmp(prefix, loc->prefix) == 0) {
-            return loc;
+    for (next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
+        if (strcmp(prefix, route->prefix) == 0) {
+            return route;
         }
     }
     return 0;
 }
 
 
-HttpLoc *httpLookupBestLocation(HttpHost *host, cchar *uri)
+HttpRoute *httpLookupBestRoute(HttpHost *host, cchar *uri)
 {
-    HttpLoc     *loc;
+    HttpRoute   *route;
     int         next, rc;
 
     if (uri) {
         mprAssert(host);
-        for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
-            rc = sncmp(loc->prefix, uri, loc->prefixLen);
+        for (next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
+            rc = sncmp(route->prefix, uri, route->prefixLen);
             if (rc == 0) {
-                return loc;
+                return route;
             }
         }
     }
-    return mprGetLastItem(host->locations);
+    return mprGetLastItem(host->routes);
 }
+#endif
 
 
 void httpSetHostTrace(HttpHost *host, int level, int mask)

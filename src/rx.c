@@ -61,7 +61,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->headerPacket);
         mprMark(rx->headers);
         mprMark(rx->inputPipeline);
-        mprMark(rx->loc);
+        mprMark(rx->route);
         mprMark(rx->parsedUri);
         mprMark(rx->requestData);
         mprMark(rx->statusMessage);
@@ -86,7 +86,9 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->authType);
         mprMark(rx->files);
         mprMark(rx->uploadDir);
+#if UNUSED
         mprMark(rx->alias);
+#endif
         mprMark(rx->dir);
         mprMark(rx->formData);
         mprMark(rx->targetKey);
@@ -158,7 +160,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     HttpTx      *tx;
-    HttpLoc     *loc;
+    HttpRoute   *route;
     ssize       len;
     char        *start, *end;
 
@@ -204,30 +206,29 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
             httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad URL format");
             return 0;
         }
+        //  MOB - cleanup
         if (conn->secure) {
             rx->parsedUri->scheme = sclone("https");
         }
         rx->parsedUri->port = conn->sock->listenSock->port;
         rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
-        //  MOB - who sets handler before herer?
-        mprAssert(tx->handler == 0);
-        if (!tx->handler) {
-            httpRouteRequest(conn);  
-        }
-        loc = rx->loc;
-        mprAssert(loc);
-
-        mprLog(4, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
         httpSetState(conn, HTTP_STATE_PARSED);        
+
+        mprAssert(!tx->handler);
+        httpRouteRequest(conn);  
+
         /* Clients have already created their Tx pipeline */
-        httpCreateRxPipeline(conn, loc);
-        httpCreateTxPipeline(conn, loc);
-        rx->startAfterContent = (loc->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && loc->flags & HTTP_LOC_SMART));
+
+        route = rx->route;
+        mprAssert(route);
+        httpCreateRxPipeline(conn, route);
+        httpCreateTxPipeline(conn, route);
+        rx->startAfterContent = (route->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && route->flags & HTTP_LOC_SMART));
 
     //  MOB - what happens if server responds to client with other status
     } else if (!(100 <= rx->status && rx->status < 200)) {
         httpSetState(conn, HTTP_STATE_PARSED);        
-        httpCreateRxPipeline(conn, conn->http->clientLocation);
+        httpCreateRxPipeline(conn, conn->http->clientRoute);
     }
     return 1;
 }
@@ -252,7 +253,7 @@ static void traceRequest(HttpConn *conn, HttpPacket *packet)
         if ((cp = schr(++cp, ' ')) != 0) {
             for (ext = --cp; ext > content->start && *ext != '.'; ext--) ;
             ext = (*ext == '.') ? snclone(&ext[1], cp - ext) : 0;
-            conn->tx->extension = ext;
+            conn->tx->ext = ext;
         }
     }
 
@@ -390,7 +391,7 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     tx = conn->tx;
     traced = 0;
 
-    if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, tx->extension) >= 0) {
+    if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, tx->ext) >= 0) {
         content = packet->content;
         endp = strstr((char*) content->start, "\r\n\r\n");
         len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
@@ -413,7 +414,7 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     if (slen(rx->statusMessage) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
     }
-    if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, tx->extension)) >= 0) {
+    if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, tx->ext)) >= 0) {
         mprLog(level, "%s %d %s", protocol, rx->status, rx->statusMessage);
     }
 }
@@ -911,7 +912,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     mprAssert(nbytes >= 0);
 
     if (nbytes > 0) {
-        if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, tx->extension) >= 0) {
+        if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, tx->ext) >= 0) {
             httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, packet, nbytes, 0);
         }
     }
@@ -1027,7 +1028,7 @@ static void measure(HttpConn *conn)
     }
     uri = (conn->server) ? conn->rx->uri : tx->parsedUri->path;
    
-    if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, tx->extension) >= 0) {
+    if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, tx->ext) >= 0) {
         elapsed = mprGetTime() - conn->startTime;
 #if MPR_HIGH_RES_TIMER
         if (elapsed < 1000) {
@@ -1318,61 +1319,16 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
     rx->uri = rx->parsedUri->path;
     rx->pathInfo = httpNormalizeUriPath(mprUriDecode(rx->parsedUri->path));
     rx->scriptName = mprEmptyString();
-    rx->alias = httpGetAlias(host, rx->pathInfo);
-    tx->extension = httpGetExtension(conn);
+    tx->ext = httpGetExtension(conn);
 #if MOVED
-    if ((rx->loc = httpLookupBestLocation(host, rx->pathInfo)) == 0) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing location block for \"%s\"", rx->pathInfo);
+    rx->alias = httpGetAlias(host, rx->pathInfo);
+    if ((rx->route = httpLookupBestRoute(host, rx->pathInfo)) == 0) {
+        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing route for \"%s\"", rx->pathInfo);
         return MPR_ERR_CANT_ACCESS;
     }
-#endif
     httpMapToStorage(conn);
+#endif
     return 0;
-}
-
-
-/*
-    This will map a request to physical storage iff:
-    - The handler has been defined
-    - The handler is not virtual
- */
-void httpMapToStorage(HttpConn *conn)
-{
-    HttpTx      *tx;
-    HttpRx      *rx;
-    HttpHost    *host;
-    MprPath     *info, ginfo;
-    char        *gfile;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    host = conn->host;
-
-    if (tx->handler == 0 || (tx->handler->flags & HTTP_STAGE_VIRTUAL)) {
-        return;
-    }
-    tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
-    tx->extension = httpGetExtension(conn);
-    if ((rx->dir = httpLookupBestDir(host, tx->filename)) == 0) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing directory block for \"%s\"", tx->filename);
-    }
-    info = &tx->fileInfo;
-    mprGetPathInfo(tx->filename, info);
-
-    //  MOB - is this the best place for this?
-    //  MOB - should require a flag from the handler
-    if (!info->valid && rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
-        gfile = mprAsprintf("%s.gz", tx->filename);
-        if (mprGetPathInfo(gfile, &ginfo) == 0) {
-            tx->filename = gfile;
-            tx->fileInfo = ginfo;
-            httpSetHeader(conn, "Content-Encoding", "gzip");
-        }
-    }
-    if (info->valid) {
-        tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
-    }
-    mprLog(5, "MapToStorage uri \"%s\", filename: \"%s\", extension: \"%s\"", rx->uri, tx->filename, tx->extension);
 }
 
 
@@ -1670,35 +1626,6 @@ cvoid *httpGetStageData(HttpConn *conn, cchar *key)
         return NULL;
     }
     return mprLookupKey(rx->requestData, key);
-}
-
-
-char *httpMakeFilename(HttpConn *conn, HttpAlias *alias, cchar *url, bool skipAliasPrefix)
-{
-    cchar   *seps;
-    char    *path;
-    int     len;
-
-    mprAssert(alias);
-    mprAssert(url);
-
-    if (skipAliasPrefix) {
-        url += alias->prefixLen;
-    }
-    while (*url == '/') {
-        url++;
-    }
-    len = (int) strlen(alias->filename);
-    if ((path = mprAlloc(len + strlen(url) + 2)) == 0) {
-        return 0;
-    }
-    strcpy(path, alias->filename);
-    if (*url) {
-        seps = mprGetPathSeparators(path);
-        path[len++] = seps[0];
-        strcpy(&path[len], url);
-    }
-    return mprGetNativePath(path);
 }
 
 
