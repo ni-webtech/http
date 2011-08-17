@@ -88,7 +88,7 @@ Http *httpCreate()
     http->stages = mprCreateHash(-1, 0);
     http->routeTargets = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
     http->routeConditions = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
-    http->routeModifications = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
+    http->routeUpdates = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
     http->hosts = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     http->servers = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     http->connections = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
@@ -148,7 +148,7 @@ static void manageHttp(Http *http, int flags)
         mprMark(http->defaultClientHost);
         mprMark(http->routeTargets);
         mprMark(http->routeConditions);
-        mprMark(http->routeModifications);
+        mprMark(http->routeUpdates);
 
         /*
             Servers keep connections alive until a timeout. Keep marking even if no other references.

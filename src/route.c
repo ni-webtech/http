@@ -20,12 +20,12 @@ static void manageRoute(HttpRoute *route, int flags);
 static void manageLang(HttpLang *lang, int flags);
 static void manageRouteItem(HttpRouteItem *item, int flags);
 static int mapToStorage(HttpConn *conn, HttpRoute *route);
-static int modifyRequest(HttpConn *conn, HttpRoute *route, HttpRouteItem *modification);
 static int processDirectories(HttpConn *conn, HttpRoute *route);
 static char *replace(cchar *str, cchar *replacement, int *matches, int matchCount);
 static int selectHandler(HttpConn *conn, HttpRoute *route);
 static int testCondition(HttpConn *conn, HttpRoute *route, HttpRouteItem *condition);
 static void trimExtraPath(HttpConn *conn);
+static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteItem *update);
 
 /************************************ Code ************************************/
 
@@ -45,17 +45,13 @@ HttpRoute *httpCreateRoute()
     route->pathVars = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->inputStages = mprCreateList(-1, 0);
     route->outputStages = mprCreateList(-1, 0);
+#if UNUSED
     route->auth = httpCreateAuth(0);
+#endif
+    route->dir = httpCreateDir(".");
     route->flags = HTTP_LOC_SMART;
     route->workers = -1;
     definePathVars(route);
-
-#if UNUSED
-    /*
-        The selectHandler modification must be first, followed immediately by mapToStorage. User modifications come next.
-     */
-    route->modifications = mprCreateList(-1, 0);
-#endif
     return route;
 }
 
@@ -99,7 +95,9 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->pathVars = parent->pathVars;
     route->connector = parent->connector;
     route->errorDocuments = parent->errorDocuments;
+#if UNUSED
     route->auth = httpCreateAuth(parent->auth);
+#endif
     route->uploadDir = parent->uploadDir;
     route->autoDelete = parent->autoDelete;
     route->script = parent->script;
@@ -112,7 +110,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->formFields = parent->formFields;
     route->headers = parent->headers;
     route->conditions = parent->conditions;
-    route->modifications = parent->modifications;
+    route->updates = parent->updates;
     route->methods = parent->methods;
     route->pattern = parent->pattern;
     route->patternExpression = parent->patternExpression;
@@ -146,46 +144,47 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *prefix, cchar *path, i
 static void manageRoute(HttpRoute *route, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
+#if UNUSED
         mprMark(route->auth);
-        mprMark(route->http);
+#endif
+        mprMark(route->conditions);
         mprMark(route->connector);
-        mprMark(route->handler);
-        mprMark(route->extensions);
+        mprMark(route->context);
+        mprMark(route->data);
+        mprMark(route->dir);
+        mprMark(route->errorDocuments);
         mprMark(route->expires);
         mprMark(route->expiresByType);
-        mprMark(route->pathVars);
+        mprMark(route->extensions);
+        mprMark(route->formFields);
+        mprMark(route->handler);
         mprMark(route->handlers);
+        mprMark(route->headers);
+        mprMark(route->http);
         mprMark(route->inputStages);
-        mprMark(route->outputStages);
-        mprMark(route->errorDocuments);
-        mprMark(route->parent);
-        mprMark(route->context);
-        mprMark(route->uploadDir);
-        mprMark(route->searchPath);
-        mprMark(route->script);
-        mprMark(route->scriptPath);
-        mprMark(route->ssl);
-        mprMark(route->data);
+        mprMark(route->kind);
         mprMark(route->lang);
         mprMark(route->langPref);
-
-        mprMark(route->name);
-        mprMark(route->conditions);
-        mprMark(route->modifications);
-        mprMark(route->methods);
         mprMark(route->methodHash);
+        mprMark(route->methods);
+        mprMark(route->name);
+        mprMark(route->outputStages);
+        mprMark(route->params);
+        mprMark(route->parent);
+        mprMark(route->pathVars);
         mprMark(route->pattern);
+        mprMark(route->patternExpression);
+        mprMark(route->script);
+        mprMark(route->scriptPath);
+        mprMark(route->searchPath);
         mprMark(route->sourceName);
         mprMark(route->sourcePath);
-        mprMark(route->patternExpression);
-        mprMark(route->params);
-        mprMark(route->tokens);
-        mprMark(route->formFields);
-        mprMark(route->headers);
-
-        mprMark(route->kind);
-        mprMark(route->targetDetails);
+        mprMark(route->ssl);
         mprMark(route->targetDest);
+        mprMark(route->targetDetails);
+        mprMark(route->tokens);
+        mprMark(route->updates);
+        mprMark(route->uploadDir);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (route->patternCompiled) {
@@ -352,7 +351,7 @@ int httpFinalizeRoute(HttpRoute *route)
 
 int httpMatchRoute(HttpConn *conn, HttpRoute *route)
 {
-    HttpRouteItem   *item, *condition, *modification;
+    HttpRouteItem   *item, *condition, *update;
     HttpRouteProc   *proc;
     HttpRx          *rx;
     cchar           *token, *value, *header, *field;
@@ -416,9 +415,9 @@ int httpMatchRoute(HttpConn *conn, HttpRoute *route)
     }
     //  Point of no return
 
-    if (route->modifications) {
-        for (next = 0; (modification = mprGetNextItem(route->modifications, &next)) != 0; ) {
-            if ((rc = modifyRequest(conn, route, modification)) == HTTP_ROUTE_REROUTE) {
+    if (route->updates) {
+        for (next = 0; (update = mprGetNextItem(route->updates, &next)) != 0; ) {
+            if ((rc = updateRequest(conn, route, update)) == HTTP_ROUTE_REROUTE) {
                 return rc;
             }
         }
@@ -485,10 +484,15 @@ static int mapToStorage(HttpConn *conn, HttpRoute *route)
         tx->filename = sclone(&rx->pathInfo[1]);
     }
     tx->ext = httpGetExtension(conn);
+
+#if UNUSED
     if ((rx->dir = httpLookupBestDir(host, tx->filename)) == 0) {
         httpError(conn, HTTP_CODE_NOT_FOUND, "Missing directory block for \"%s\"", tx->filename);
         return 0;
     }
+#else
+    rx->dir = route->dir;
+#endif
     info = &tx->fileInfo;
     mprGetPathInfo(tx->filename, info);
     if (!info->valid && rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
@@ -772,17 +776,6 @@ int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions)
             mprAddItem(route->handlers, handler);
         }
     }
-#if UNUSED
-    /*
-        Optimize and eliminate adjacent addhandler mods
-     */
-    mods = route->modifications;
-    len = mprGetListLength(mods);
-    if (len > 0 && (item = mprGetItem(mods, len -1 )) && scmp(item->name, "selectHandler") == 0) {
-        return 0;
-    }
-    httpAddRouteModification(route, "selectHandler", 0);
-#endif
     return 0;
 }
 
@@ -812,18 +805,23 @@ void httpAddRouteHeader(HttpRoute *route, cchar *header, cchar *value, int flags
 
 void httpAddRouteLoad(HttpRoute *route, cchar *module, cchar *path)
 {
-    if (route->modifications == 0) {
-        route->modifications = mprCreateList(0, -1);
-    } else if (route->parent && route->modifications == route->parent->modifications) {
-        route->modifications = mprCloneList(route->parent->modifications);
+    if (route->updates == 0) {
+        route->updates = mprCreateList(0, -1);
+    } else if (route->parent && route->updates == route->parent->updates) {
+        route->updates = mprCloneList(route->parent->updates);
     }
-    mprAddItem(route->modifications, createRouteItem("--load--", module, 0, path, 0));
+    mprAddItem(route->updates, createRouteItem("--load--", module, 0, path, 0));
 }
 
 
-void httpAddRouteModification(HttpRoute *route, cchar *name, int flags)
+void httpAddRouteUpdate(HttpRoute *route, cchar *name, cchar *details, int flags)
 {
-    mprAddItem(route->modifications, createRouteItem(name, 0, 0, 0, flags));
+    if (route->updates == 0) {
+        route->updates = mprCreateList(0, -1);
+    } else if (route->parent && route->updates == route->parent->updates) {
+        route->updates = mprCloneList(route->parent->updates);
+    }
+    mprAddItem(route->updates, createRouteItem(name, details, 0, 0, flags));
 }
 
 
@@ -850,9 +848,9 @@ void httpDefineRouteCondition(cchar *key, HttpRouteProc *proc)
 }
 
 
-void httpDefineRouteModification(cchar *key, HttpRouteProc *proc)
+void httpDefineRouteUpdate(cchar *key, HttpRouteProc *proc)
 {
-    mprAddKey(((Http*) MPR->httpService)->routeModifications, key, proc);
+    mprAddKey(((Http*) MPR->httpService)->routeUpdates, key, proc);
 }
 
 
@@ -865,11 +863,12 @@ void *httpGetRouteData(HttpRoute *route, cchar *key)
 }
 
 
+#if UNUSED
 void httpSetRouteAuth(HttpRoute *route, HttpAuth *auth)
 {
     route->auth = auth;
 }
-
+#endif
 
 void httpSetRouteAutoDelete(HttpRoute *route, int enable)
 {
@@ -920,9 +919,6 @@ int httpSetRouteHandler(HttpRoute *route, cchar *name)
         return MPR_ERR_CANT_FIND;
     }
     route->handler = handler;
-#if UNUSED
-    httpAddRouteModification(route, "setHandlerModification", 0);
-#endif
     return 0;
 }
 
@@ -931,6 +927,13 @@ void httpSetRouteHost(HttpRoute *route, HttpHost *host)
 {
     route->host = host;
     defineHostVars(route);
+}
+
+
+void httpSetRouteDir(HttpRoute *route, HttpDir *dir)
+{
+    route->dir = dir;
+    httpSetRoutePathVar(route, "DOCUMENT_ROOT", dir->path);
 }
 
 
@@ -993,7 +996,6 @@ void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath)
     Target names are extensible and hashed in http->routeTargets. 
     Internal names are: "close", "redirect", "file", "virt"
 
-    Target alias "${DOCUMENT_ROOT}"
     Target close [immediate]
     Target redirect [status] URI            # Redirect to a new URI and re-route
     Target file "${DOCUMENT_ROOT}/${request:uri}"
@@ -1139,16 +1141,16 @@ static int testCondition(HttpConn *conn, HttpRoute *route, HttpRouteItem *condit
 }
 
 
-static int modifyRequest(HttpConn *conn, HttpRoute *route, HttpRouteItem *modification)
+static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteItem *update)
 {
     HttpRouteProc   *proc;
 
-    if ((proc = mprLookupKey(conn->http->routeModifications, modification->name)) == 0) {
-        httpError(conn, -1, "Can't find route modification name %s", modification->name);
+    if ((proc = mprLookupKey(conn->http->routeUpdates, update->name)) == 0) {
+        httpError(conn, -1, "Can't find route update name %s", update->name);
         return 0;
     }
-    mprLog(0, "run modification on route %s modification %s", route->name, modification->name);
-    return (*proc)(conn, route, modification);
+    mprLog(0, "run update on route %s update %s", route->name, update->name);
+    return (*proc)(conn, route, update);
 }
 
 
@@ -1158,7 +1160,11 @@ static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteItem *unused
     HttpAuth    *auth;
 
     rx = conn->rx;
+#if UNUSED
     auth = rx->dir->auth ? rx->dir->auth : rx->route->auth;
+#else
+    auth = rx->dir->auth;
+#endif
     if (conn->server || auth == 0 || auth->type == 0) {
         return HTTP_ROUTE_ACCEPTED;
     }
@@ -1195,12 +1201,12 @@ static int directoryCondition(HttpConn *conn, HttpRoute *route, HttpRouteItem *u
     return 0;
 }
 
-/********************************* Modifications ******************************/
+/********************************* Updates ******************************/
 
-static int fieldModification(HttpConn *conn, HttpRoute *route, HttpRouteItem *modification)
+static int fieldUpdate(HttpConn *conn, HttpRoute *route, HttpRouteItem *update)
 {
 #if FUTURE
-    httpSetFormVar(conn, modification->name, momdification->value);
+    httpSetFormVar(conn, update->name, momdification->value);
 #endif
     return 0;
 }
@@ -1370,7 +1376,7 @@ static void definePathVars(HttpRoute *route)
 
 static void defineHostVars(HttpRoute *route) 
 {
-    mprAddKey(route->pathVars, "DOCUMENT_ROOT", route->host->documentRoot);
+    mprAddKey(route->pathVars, "DOCUMENT_ROOT", route->dir);
     mprAddKey(route->pathVars, "SERVER_ROOT", route->host->serverRoot);
 }
 
@@ -1543,12 +1549,11 @@ void httpDefineRouteBuiltins()
     httpDefineRouteCondition("missing", fileMissingCondition);
     httpDefineRouteCondition("directory", directoryCondition);
 
-    httpDefineRouteModification("field", fieldModification);
+    httpDefineRouteUpdate("field", fieldUpdate);
 
-    //  MOB - what about "alias"
     httpDefineRouteTarget("close", closeTarget);
-    httpDefineRouteTarget("redirect", redirectTarget);
     httpDefineRouteTarget("file", fileTarget);
+    httpDefineRouteTarget("redirect", redirectTarget);
     httpDefineRouteTarget("virt", virtTarget);
 }
 

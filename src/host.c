@@ -33,16 +33,18 @@ HttpHost *httpCreateHost(HttpRoute *route)
     host->flags = HTTP_HOST_NO_TRACE;
     host->protocol = sclone("HTTP/1.1");
     host->mimeTypes = MPR->mimeTypes;
-    host->documentRoot = host->serverRoot = sclone(".");
+    host->serverRoot = sclone(".");
 
     host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
 
+#if UNUSED
+    httpAddHostDir(host, httpCreateDir("."));
+#endif
     host->route = (route) ? route : httpCreateDefaultRoute();
-    httpAddRoute(host, host->route);
+    httpAddHostRoute(host, host->route);
     host->route->auth = httpCreateAuth(host->route->auth);
-    httpAddDir(host, httpCreateBareDir("."));
     httpAddHost(http, host);
     return host;
 }
@@ -70,7 +72,9 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->protocol = parent->protocol;
     host->mimeTypes = parent->mimeTypes;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
+#if UNUSED
     host->documentRoot = parent->documentRoot;
+#endif
     host->serverRoot = parent->serverRoot;
     host->route = httpCreateInheritedRoute(parent->route);
     httpSetRouteHost(host->route, host);
@@ -83,7 +87,7 @@ HttpHost *httpCloneHost(HttpHost *parent)
     if (parent->traceExclude) {
         host->traceExclude = mprCloneHash(parent->traceExclude);
     }
-    httpAddRoute(host, host->route);
+    httpAddHostRoute(host, host->route);
     httpAddHost(http, host);
     return host;
 }
@@ -99,7 +103,9 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->routes);
         mprMark(host->route);
         mprMark(host->mimeTypes);
+#if UNUSED
         mprMark(host->documentRoot);
+#endif
         mprMark(host->serverRoot);
         mprMark(host->traceInclude);
         mprMark(host->traceExclude);
@@ -116,6 +122,7 @@ static void manageHost(HttpHost *host, int flags)
 }
 
 
+#if UNUSED
 void httpSetHostDocumentRoot(HttpHost *host, cchar *dir)
 {
     char    *doc;
@@ -131,6 +138,7 @@ void httpSetHostDocumentRoot(HttpHost *host, cchar *dir)
     httpAddAlias(host, httpCreateAlias("", doc, 0));
 #endif
 }
+#endif
 
 
 void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize)
@@ -216,7 +224,7 @@ int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
 #endif
 
 
-int httpAddDir(HttpHost *host, HttpDir *dir)
+int httpAddHostDir(HttpHost *host, HttpDir *dir)
 {
     HttpDir     *dp;
     int         next, rc;
@@ -249,7 +257,7 @@ int httpAddDir(HttpHost *host, HttpDir *dir)
 }
 
 
-int httpAddRoute(HttpHost *host, HttpRoute *route)
+int httpAddHostRoute(HttpHost *host, HttpRoute *route)
 {
     int     pos;
 
@@ -268,6 +276,16 @@ int httpAddRoute(HttpHost *host, HttpRoute *route)
     mprInsertItemAtPos(host->routes, pos, route);
     httpSetRouteHost(route, host);
     return 0;
+}
+
+
+void httpResetRoutes(HttpHost *host)
+{
+    HttpRoute   *route;
+
+    route = mprGetLastItem(host->routes);
+    host->routes = mprCreateList(-1, 0);
+    mprAddItem(host->routes, route);
 }
 
 
@@ -331,6 +349,7 @@ HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
 }
 
 
+#if UNUSED
 /*  
     Find the directory entry that this file (path) resides in. path is a physical file path. We find the most specific
     (longest) directory that matches. The directory must match or be a parent of path. Not called with raw files names.
@@ -356,7 +375,6 @@ HttpDir *httpLookupBestDir(HttpHost *host, cchar *path)
 }
 
 
-#if UNUSED
 HttpRoute *httpLookupRoute(HttpHost *host, cchar *prefix)
 {
     HttpRoute   *route;

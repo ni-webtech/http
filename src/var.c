@@ -35,7 +35,7 @@ void httpCreateCGIVars(HttpConn *conn)
     mprAddKey(table, "AUTH_ACL", MPR->emptyString);
     mprAddKey(table, "CONTENT_LENGTH", rx->contentLength);
     mprAddKey(table, "CONTENT_TYPE", rx->mimeType);
-    mprAddKey(table, "DOCUMENT_ROOT", host->documentRoot);
+    mprAddKey(table, "DOCUMENT_ROOT", rx->route->dir);
     mprAddKey(table, "GATEWAY_INTERFACE", sclone("CGI/1.1"));
     mprAddKey(table, "QUERY_STRING", rx->parsedUri->query);
     mprAddKey(table, "REMOTE_ADDR", conn->ip);
@@ -62,7 +62,7 @@ void httpCreateCGIVars(HttpConn *conn)
             Only set PATH_TRANSLATED if extraPath is set (CGI spec) 
          */
         mprAssert(rx->extraPath[0] == '/');
-        mprAddKey(table, "PATH_TRANSLATED", mprGetNormalizedPath(sfmt("%s%s", host->documentRoot, rx->extraPath)));
+        mprAddKey(table, "PATH_TRANSLATED", mprGetNormalizedPath(sfmt("%s%s", rx->route->dir, rx->extraPath)));
     }
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextKey(conn->rx->files, hp)) != 0; index++) {

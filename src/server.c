@@ -115,8 +115,9 @@ HttpServer *httpCreateConfiguredServer(cchar *docRoot, cchar *ip, int port)
     if ((host->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
         host->mimeTypes = MPR->mimeTypes;
     }
-    httpAddDir(host, httpCreateBareDir(docRoot));
-    httpSetHostDocumentRoot(host, docRoot);
+    httpSetDirPath(host->route->dir, docRoot);
+    //  MOB -- but host already has a dir
+    httpAddHostDir(host, httpCreateDir(docRoot));
     return server;
 }
 
@@ -150,11 +151,6 @@ static bool validateServer(HttpServer *server)
         mprError("Missing host object on server");
         return 0;
     }
-#if UNUSED
-    if (mprGetListLength(host->aliases) == 0) {
-        httpAddAlias(host, httpCreateAlias("", host->documentRoot, 0));
-    }
-#endif
     return 1;
 }
 

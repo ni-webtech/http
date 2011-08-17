@@ -14,17 +14,7 @@ static void manageDir(HttpDir *dir, int flags);
 
 /************************************ Code *************************************/
 
-static void manageDir(HttpDir *dir, int flags)
-{
-    if (flags & MPR_MANAGE_MARK) {
-        mprMark(dir->auth);
-        mprMark(dir->indexName);
-        mprMark(dir->path);
-    }
-}
-
-
-HttpDir *httpCreateBareDir(cchar *path)
+HttpDir *httpCreateDir(cchar *path)
 {
     HttpDir   *dir;
 
@@ -37,44 +27,43 @@ HttpDir *httpCreateBareDir(cchar *path)
     dir->auth = httpCreateAuth(0);
     if (path) {
         dir->path = sclone(path);
-        dir->pathLen = strlen(path);
     }
     return dir;
 }
 
 
-HttpDir *httpCreateDir(cchar *path, HttpDir *parent)
+HttpDir *httpCreateInheritedDir(HttpDir *parent)
 {
     HttpDir   *dir;
 
-    mprAssert(path);
     mprAssert(parent);
 
     if ((dir = mprAllocObj(HttpDir, manageDir)) == 0) {
         return 0;
     }
     dir->indexName = sclone(parent->indexName);
-    if (path == 0) {
-        path = parent->path;
-    }
-    httpSetDirPath(dir, path);
+    httpSetDirPath(dir, parent->path);
     dir->auth = httpCreateAuth(parent->auth);
     return dir;
 }
 
 
-void httpSetDirPath(HttpDir *dir, cchar *fileName)
+static void manageDir(HttpDir *dir, int flags)
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(dir->auth);
+        mprMark(dir->indexName);
+        mprMark(dir->path);
+    }
+}
+
+
+void httpSetDirPath(HttpDir *dir, cchar *path)
 {
     mprAssert(dir);
-    mprAssert(fileName);
+    mprAssert(path);
 
-    dir->path = mprGetAbsPath(fileName);
-    dir->pathLen = strlen(dir->path);
-
-    /*  Always strip trailing "/" */
-    if (dir->pathLen > 0 && dir->path[dir->pathLen - 1] == '/') {
-        dir->path[--dir->pathLen] = '\0';
-    }
+    dir->path = strim(mprGetAbsPath(path), "/", MPR_TRIM_END);
 }
 
 
