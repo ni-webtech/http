@@ -47,7 +47,7 @@ void httpCreateCGIVars(HttpConn *conn)
     mprAddKey(table, "SERVER_NAME", host->name);
     mprAddKeyFmt(table, "SERVER_PORT", "%d", sock->acceptPort);
     mprAddKey(table, "SERVER_PROTOCOL", conn->protocol);
-    mprAddKey(table, "SERVER_ROOT", host->serverRoot);
+    mprAddKey(table, "SERVER_ROOT", host->home);
     mprAddKey(table, "SERVER_SOFTWARE", conn->http->software);
     mprAddKey(table, "REQUEST_URI", rx->originalUri);
     /*  

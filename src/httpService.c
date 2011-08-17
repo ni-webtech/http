@@ -111,7 +111,7 @@ Http *httpCreate()
 
     http->clientLimits = httpCreateLimits(0);
     http->serverLimits = httpCreateLimits(1);
-    http->clientRoute = httpCreateConfiguredRoute(0);
+    http->clientRoute = httpCreateConfiguredRoute(0, 0);
 
     mprSetIdleCallback(isIdle);
     httpDefineRouteBuiltins();
@@ -223,28 +223,28 @@ void httpRemoveHost(Http *http, HttpHost *host)
 }
 
 
-HttpRoute *httpCreateConfiguredRoute(int serverSide)
+HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
 {
-    HttpRoute     *loc;
+    HttpRoute   *route;
     Http        *http;
 
     /*
         Create default incoming and outgoing pipelines. Order matters.
      */
     http = MPR->httpService;
-    loc = httpCreateRoute();
+    route = httpCreateRoute(host);
 #if UNUSED
     if (serverSide) {
-        httpAddFilter(loc, http->authFilter->name, NULL, HTTP_STAGE_RX);
+        httpAddFilter(route, http->authFilter->name, NULL, HTTP_STAGE_RX);
     }
 #endif
-    httpAddRouteFilter(loc, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
-    httpAddRouteFilter(loc, http->chunkFilter->name, NULL, HTTP_STAGE_RX | HTTP_STAGE_TX);
+    httpAddRouteFilter(route, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
+    httpAddRouteFilter(route, http->chunkFilter->name, NULL, HTTP_STAGE_RX | HTTP_STAGE_TX);
     if (serverSide) {
-        httpAddRouteFilter(loc, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
+        httpAddRouteFilter(route, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
     }
-    loc->connector = http->netConnector;
-    return loc;
+    route->connector = http->netConnector;
+    return route;
 }
 
 

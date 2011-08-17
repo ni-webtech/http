@@ -17,7 +17,7 @@ static void manageHost(HttpHost *host, int flags);
 
 /*********************************** Code *************************************/
 
-HttpHost *httpCreateHost(HttpRoute *route)
+HttpHost *httpCreateHost()
 {
     HttpHost    *host;
     Http        *http;
@@ -33,17 +33,14 @@ HttpHost *httpCreateHost(HttpRoute *route)
     host->flags = HTTP_HOST_NO_TRACE;
     host->protocol = sclone("HTTP/1.1");
     host->mimeTypes = MPR->mimeTypes;
-    host->serverRoot = sclone(".");
+    host->home = sclone(".");
 
     host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
 
-#if UNUSED
-    httpAddHostDir(host, httpCreateDir("."));
-#endif
-    host->route = (route) ? route : httpCreateDefaultRoute();
-    httpAddHostRoute(host, host->route);
+    host->route = httpCreateDefaultRoute(host);
+    httpAddRoute(host, host->route);
     host->route->auth = httpCreateAuth(host->route->auth);
     httpAddHost(http, host);
     return host;
@@ -72,10 +69,7 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->protocol = parent->protocol;
     host->mimeTypes = parent->mimeTypes;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
-#if UNUSED
-    host->documentRoot = parent->documentRoot;
-#endif
-    host->serverRoot = parent->serverRoot;
+    host->home = parent->home;
     host->route = httpCreateInheritedRoute(parent->route);
     httpSetRouteHost(host->route, host);
     host->traceMask = parent->traceMask;
@@ -87,7 +81,7 @@ HttpHost *httpCloneHost(HttpHost *parent)
     if (parent->traceExclude) {
         host->traceExclude = mprCloneHash(parent->traceExclude);
     }
-    httpAddHostRoute(host, host->route);
+    httpAddRoute(host, host->route);
     httpAddHost(http, host);
     return host;
 }
@@ -103,10 +97,7 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->routes);
         mprMark(host->route);
         mprMark(host->mimeTypes);
-#if UNUSED
-        mprMark(host->documentRoot);
-#endif
-        mprMark(host->serverRoot);
+        mprMark(host->home);
         mprMark(host->traceInclude);
         mprMark(host->traceExclude);
         mprMark(host->protocol);
@@ -122,25 +113,6 @@ static void manageHost(HttpHost *host, int flags)
 }
 
 
-#if UNUSED
-void httpSetHostDocumentRoot(HttpHost *host, cchar *dir)
-{
-    char    *doc;
-    ssize   len;
-
-    doc = host->documentRoot = httpMakePath(host->route, dir);
-    len = slen(doc);
-    if (doc[len - 1] == '/') {
-        doc[len - 1] = '\0';
-    }
-#if UNUSED
-    /*  Create a catch-all alias */
-    httpAddAlias(host, httpCreateAlias("", doc, 0));
-#endif
-}
-#endif
-
-
 void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize)
 {
     host->logCount = logCount;
@@ -148,9 +120,9 @@ void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize)
 }
 
 
-void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
+void httpSetHostHome(HttpHost *host, cchar *home)
 {
-    host->serverRoot = mprGetAbsPath(serverRoot);
+    host->home = mprGetAbsPath(home);
 }
 
 
@@ -221,7 +193,6 @@ int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
     mprAddItem(host->aliases, newAlias);
     return 0;
 }
-#endif
 
 
 int httpAddHostDir(HttpHost *host, HttpDir *dir)
@@ -255,9 +226,10 @@ int httpAddHostDir(HttpHost *host, HttpDir *dir)
     mprAddItem(host->dirs, dir);
     return 0;
 }
+#endif
 
 
-int httpAddHostRoute(HttpHost *host, HttpRoute *route)
+int httpAddRoute(HttpHost *host, HttpRoute *route)
 {
     int     pos;
 
@@ -322,7 +294,6 @@ HttpAlias *httpLookupAlias(HttpHost *host, cchar *prefix)
     }
     return 0;
 }
-#endif
 
 
 HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
@@ -349,7 +320,6 @@ HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
 }
 
 
-#if UNUSED
 /*  
     Find the directory entry that this file (path) resides in. path is a physical file path. We find the most specific
     (longest) directory that matches. The directory must match or be a parent of path. Not called with raw files names.

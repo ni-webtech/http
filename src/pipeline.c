@@ -16,7 +16,7 @@ static void setVars(HttpConn *conn);
 
 /*********************************** Code *************************************/
 
-void httpCreateTxPipeline(HttpConn *conn, HttpRoute *loc)
+void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
 {
     Http        *http;
     HttpTx      *tx;
@@ -26,7 +26,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *loc)
     int         next;
 
     mprAssert(conn);
-    mprAssert(loc);
+    mprAssert(route);
 
     http = conn->http;
     rx = conn->rx;
@@ -38,8 +38,8 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *loc)
     }
     mprAddItem(tx->outputPipeline, tx->handler);
 
-    if (loc->outputStages) {
-        for (next = 0; (filter = mprGetNextItem(loc->outputStages, &next)) != 0; ) {
+    if (route->outputStages) {
+        for (next = 0; (filter = mprGetNextItem(route->outputStages, &next)) != 0; ) {
             if (matchFilter(conn, filter, HTTP_STAGE_TX)) {
                 mprAddItem(tx->outputPipeline, filter);
             }
@@ -50,8 +50,8 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *loc)
                 !conn->secure && tx->chunkSize <= 0 &&
                 httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->ext) < 0) {
             tx->connector = http->sendConnector;
-        } else if (loc && loc->connector) {
-            tx->connector = loc->connector;
+        } else if (route && route->connector) {
+            tx->connector = route->connector;
         } else {
             tx->connector = http->netConnector;
         }
@@ -76,7 +76,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *loc)
 }
 
 
-void httpCreateRxPipeline(HttpConn *conn, HttpRoute *loc)
+void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
 {
     Http        *http;
     HttpTx      *tx;
@@ -86,15 +86,15 @@ void httpCreateRxPipeline(HttpConn *conn, HttpRoute *loc)
     int         next;
 
     mprAssert(conn);
-    mprAssert(loc);
+    mprAssert(route);
 
     http = conn->http;
     rx = conn->rx;
     tx = conn->tx;
 
     rx->inputPipeline = mprCreateList(-1, 0);
-    if (loc) {
-        for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
+    if (route) {
+        for (next = 0; (filter = mprGetNextItem(route->inputStages, &next)) != 0; ) {
             if (!matchFilter(conn, filter, HTTP_STAGE_RX)) {
                 continue;
             }

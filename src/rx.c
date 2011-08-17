@@ -50,48 +50,44 @@ HttpRx *httpCreateRx(HttpConn *conn)
 static void manageRx(HttpRx *rx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(rx->method);
-        mprMark(rx->originalUri);
-        mprMark(rx->uri);
-        mprMark(rx->scriptName);
-        mprMark(rx->pathInfo);
-        mprMark(rx->extraPath);
-        mprMark(rx->conn);
-        mprMark(rx->etags);
-        mprMark(rx->headerPacket);
-        mprMark(rx->headers);
-        mprMark(rx->inputPipeline);
-        mprMark(rx->route);
-        mprMark(rx->parsedUri);
-        mprMark(rx->requestData);
-        mprMark(rx->statusMessage);
         mprMark(rx->accept);
         mprMark(rx->acceptCharset);
         mprMark(rx->acceptEncoding);
         mprMark(rx->acceptLanguage);
-        mprMark(rx->cookie);
-        mprMark(rx->connection);
-        mprMark(rx->contentLength);
-        mprMark(rx->hostHeader);
-        mprMark(rx->pragma);
-        mprMark(rx->mimeType);
-        mprMark(rx->redirect);
-        mprMark(rx->referrer);
-        mprMark(rx->userAgent);
-        mprMark(rx->formVars);
-        mprMark(rx->inputRange);
         mprMark(rx->authAlgorithm);
         mprMark(rx->authDetails);
         mprMark(rx->authStale);
         mprMark(rx->authType);
+        mprMark(rx->conn);
+        mprMark(rx->connection);
+        mprMark(rx->contentLength);
+        mprMark(rx->cookie);
+        mprMark(rx->etags);
+        mprMark(rx->extraPath);
         mprMark(rx->files);
-        mprMark(rx->uploadDir);
-#if UNUSED
-        mprMark(rx->alias);
-#endif
-        mprMark(rx->dir);
         mprMark(rx->formData);
+        mprMark(rx->formVars);
+        mprMark(rx->headerPacket);
+        mprMark(rx->headers);
+        mprMark(rx->hostHeader);
+        mprMark(rx->inputPipeline);
+        mprMark(rx->inputRange);
+        mprMark(rx->method);
+        mprMark(rx->mimeType);
+        mprMark(rx->originalUri);
+        mprMark(rx->parsedUri);
+        mprMark(rx->pathInfo);
+        mprMark(rx->pragma);
+        mprMark(rx->redirect);
+        mprMark(rx->referrer);
+        mprMark(rx->requestData);
+        mprMark(rx->route);
+        mprMark(rx->scriptName);
+        mprMark(rx->statusMessage);
         mprMark(rx->targetKey);
+        mprMark(rx->uploadDir);
+        mprMark(rx->uri);
+        mprMark(rx->userAgent);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (rx->conn) {
@@ -223,7 +219,8 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         mprAssert(route);
         httpCreateRxPipeline(conn, route);
         httpCreateTxPipeline(conn, route);
-        rx->startAfterContent = (route->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && route->flags & HTTP_LOC_SMART));
+        rx->startAfterContent = 
+            (route->flags & HTTP_ROUTE_AFTER || ((rx->form || rx->upload) && route->flags & HTTP_ROUTE_SMART));
 
     //  MOB - what happens if server responds to client with other status
     } else if (!(100 <= rx->status && rx->status < 200)) {

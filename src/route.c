@@ -29,7 +29,7 @@ static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteItem *update
 
 /************************************ Code ************************************/
 
-HttpRoute *httpCreateRoute()
+HttpRoute *httpCreateRoute(HttpHost *host)
 {
     HttpRoute  *route;
 
@@ -45,27 +45,24 @@ HttpRoute *httpCreateRoute()
     route->pathVars = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->inputStages = mprCreateList(-1, 0);
     route->outputStages = mprCreateList(-1, 0);
-#if UNUSED
     route->auth = httpCreateAuth(0);
-#endif
-    route->dir = httpCreateDir(".");
-    route->flags = HTTP_LOC_SMART;
+    route->dir = mprGetCurrentPath(".");
+    route->index = sclone("index.html");
+    route->flags = HTTP_ROUTE_SMART;
     route->workers = -1;
+    route->host = host;
     definePathVars(route);
     return route;
 }
 
 
-HttpRoute *httpCreateDefaultRoute()
+HttpRoute *httpCreateDefaultRoute(HttpHost *host)
 {
     HttpRoute   *route;
 
-    if ((route = httpCreateRoute("--default--")) == 0) {
+    if ((route = httpCreateRoute(host)) == 0) {
         return 0;
     }
-#if UNUSED
-    httpSetRouteTarget(route, "accept", 0);
-#endif
     return route;
 }
 
@@ -77,52 +74,49 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
 {
     HttpRoute  *route;
 
-    if (parent == 0) {
-        return httpCreateRoute();
-    }
+    mprAssert(parent);
     if ((route = mprAllocObj(HttpRoute, manageRoute)) == 0) {
         return 0;
     }
-    route->http = MPR->httpService;
-    route->parent = parent;
-    route->flags = parent->flags;
-    route->inputStages = parent->inputStages;
-    route->outputStages = parent->outputStages;
-    route->handlers = parent->handlers;
-    route->extensions = parent->extensions;
+    route->auth = httpCreateAuth(parent->auth);
+    route->autoDelete = parent->autoDelete;
+    route->conditions = parent->conditions;
+    route->connector = parent->connector;
+    route->dir = parent->dir;
+    route->errorDocuments = parent->errorDocuments;
     route->expires = parent->expires;
     route->expiresByType = parent->expiresByType;
+    route->extensions = parent->extensions;
+    route->flags = parent->flags;
+    route->formFields = parent->formFields;
+    route->handlers = parent->handlers;
+    route->headers = parent->headers;
+    route->http = MPR->httpService;
+    route->host = parent->host;
+    route->inputStages = parent->inputStages;
+    route->kind = parent->kind;
+    route->methodHash = parent->methodHash;
+    route->methods = parent->methods;
+    route->outputStages = parent->outputStages;
+    route->params = parent->params;
+    route->parent = parent;
     route->pathVars = parent->pathVars;
-    route->connector = parent->connector;
-    route->errorDocuments = parent->errorDocuments;
-#if UNUSED
-    route->auth = httpCreateAuth(parent->auth);
-#endif
-    route->uploadDir = parent->uploadDir;
-    route->autoDelete = parent->autoDelete;
+    route->pattern = parent->pattern;
+    route->patternCompiled = parent->patternCompiled;
+    route->patternExpression = parent->patternExpression;
     route->script = parent->script;
     route->scriptPath = parent->scriptPath;
     route->searchPath = parent->searchPath;
-    route->ssl = parent->ssl;
-    route->workers = parent->workers;
-
-    route->methodHash = parent->methodHash;
-    route->formFields = parent->formFields;
-    route->headers = parent->headers;
-    route->conditions = parent->conditions;
-    route->updates = parent->updates;
-    route->methods = parent->methods;
-    route->pattern = parent->pattern;
-    route->patternExpression = parent->patternExpression;
-    route->patternCompiled = parent->patternCompiled;
-    route->kind = parent->kind;
-    route->targetDest = parent->targetDest;
-    route->targetStatus = parent->targetStatus;
     route->sourceName = parent->sourceName;
     route->sourcePath = parent->sourcePath;
+    route->ssl = parent->ssl;
+    route->targetDest = parent->targetDest;
+    route->targetStatus = parent->targetStatus;
     route->template = parent->template;
-    route->params = parent->params;
     route->tokens = parent->tokens;
+    route->updates = parent->updates;
+    route->uploadDir = parent->uploadDir;
+    route->workers = parent->workers;
     return route;
 }
 
@@ -135,7 +129,11 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *prefix, cchar *path, i
         return 0;
     }
     httpSetRoutePattern(route, prefix);
+#if UNUSED
     httpSetRouteTarget(route, "fileTarget", sfmt("%s/%s", path, "$&"));
+#else
+    httpSetRouteDir(route, path);
+#endif
     route->targetStatus = status;
     return route;
 }
@@ -144,14 +142,13 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *prefix, cchar *path, i
 static void manageRoute(HttpRoute *route, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-#if UNUSED
         mprMark(route->auth);
-#endif
         mprMark(route->conditions);
         mprMark(route->connector);
         mprMark(route->context);
         mprMark(route->data);
         mprMark(route->dir);
+        mprMark(route->index);
         mprMark(route->errorDocuments);
         mprMark(route->expires);
         mprMark(route->expiresByType);
@@ -490,8 +487,6 @@ static int mapToStorage(HttpConn *conn, HttpRoute *route)
         httpError(conn, HTTP_CODE_NOT_FOUND, "Missing directory block for \"%s\"", tx->filename);
         return 0;
     }
-#else
-    rx->dir = route->dir;
 #endif
     info = &tx->fileInfo;
     mprGetPathInfo(tx->filename, info);
@@ -533,8 +528,8 @@ static int processDirectories(HttpConn *conn, HttpRoute *route)
     rx = conn->rx;
     prior = rx->parsedUri;
 
-    mprAssert(rx->dir);
-    mprAssert(rx->dir->indexName);
+    mprAssert(route == rx->route);
+    mprAssert(route->index);
     mprAssert(rx->pathInfo);
     mprAssert(tx->fileInfo.checked);
 
@@ -545,12 +540,12 @@ static int processDirectories(HttpConn *conn, HttpRoute *route)
         /*  
             Internal directory redirections
          */
-        path = mprJoinPath(tx->filename, rx->dir->indexName);
+        path = mprJoinPath(tx->filename, route->index);
         if (mprPathExists(path, R_OK)) {
             /*  
                 Index file exists, so do an internal redirect to it. Client will not be aware of this happening.
              */
-            pathInfo = mprJoinPath(rx->pathInfo, rx->dir->indexName);
+            pathInfo = mprJoinPath(rx->pathInfo, route->index);
             uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
             httpSetUri(conn, uri, 0);
             return HTTP_ROUTE_REROUTE;
@@ -863,12 +858,11 @@ void *httpGetRouteData(HttpRoute *route, cchar *key)
 }
 
 
-#if UNUSED
 void httpSetRouteAuth(HttpRoute *route, HttpAuth *auth)
 {
     route->auth = auth;
 }
-#endif
+
 
 void httpSetRouteAutoDelete(HttpRoute *route, int enable)
 {
@@ -930,10 +924,16 @@ void httpSetRouteHost(HttpRoute *route, HttpHost *host)
 }
 
 
-void httpSetRouteDir(HttpRoute *route, HttpDir *dir)
+void httpSetRouteDir(HttpRoute *route, cchar *path)
 {
-    route->dir = dir;
-    httpSetRoutePathVar(route, "DOCUMENT_ROOT", dir->path);
+    route->dir = httpMakePath(route, path);
+    httpSetRoutePathVar(route, "DOCUMENT_ROOT", route->dir);
+}
+
+
+void httpSetRouteIndex(HttpRoute *route, cchar *index)
+{
+    route->index = sclone(index);
 }
 
 
@@ -1077,7 +1077,7 @@ char *httpMakePath(HttpRoute *route, cchar *file)
         return 0;
     }
     if (mprIsRelPath(path)) {
-        result = mprJoinPath(route->host->serverRoot, path);
+        result = mprJoinPath(route->host->home, path);
     } else {
         result = mprGetAbsPath(path);
     }
@@ -1157,15 +1157,9 @@ static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteItem *update
 static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteItem *unused)
 {
     HttpRx      *rx;
-    HttpAuth    *auth;
 
     rx = conn->rx;
-#if UNUSED
-    auth = rx->dir->auth ? rx->dir->auth : rx->route->auth;
-#else
-    auth = rx->dir->auth;
-#endif
-    if (conn->server || auth == 0 || auth->type == 0) {
+    if (conn->server || route->auth == 0 || route->auth->type == 0) {
         return HTTP_ROUTE_ACCEPTED;
     }
     return httpCheckAuth(conn);
@@ -1377,7 +1371,7 @@ static void definePathVars(HttpRoute *route)
 static void defineHostVars(HttpRoute *route) 
 {
     mprAddKey(route->pathVars, "DOCUMENT_ROOT", route->dir);
-    mprAddKey(route->pathVars, "SERVER_ROOT", route->host->serverRoot);
+    mprAddKey(route->pathVars, "SERVER_ROOT", route->host->home);
 }
 
 

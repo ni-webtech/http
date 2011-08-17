@@ -65,7 +65,7 @@ int httpCheckAuth(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
     http = conn->http;
-    auth = rx->dir->auth ? rx->dir->auth : rx->route->auth;
+    auth = rx->route->auth;
 
     if (!conn->server || auth == 0 || auth->type == 0) {
         return 0;

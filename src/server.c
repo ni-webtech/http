@@ -33,14 +33,19 @@ HttpServer *httpCreateServer(cchar *ip, int port, MprDispatcher *dispatcher, int
     server->port = port;
     server->ip = sclone(ip);
     server->dispatcher = dispatcher;
-    server->route = httpCreateConfiguredRoute(1);
     server->hosts = mprCreateList(-1, 0);
     httpAddServer(http, server);
 
     if (flags & HTTP_CREATE_HOST) {
-        host = httpCreateHost(server->route);
+        host = httpCreateHost();
         httpSetHostName(host, ip, port);
         httpAddHostToServer(server, host);
+    } else {
+        //MOB -should not do this
+        mprAssert(0);
+#if UNUSED
+        server->route = httpCreateConfiguredRoute(0, 1);
+#endif
     }
     return server;
 }
@@ -66,7 +71,9 @@ static int manageServer(HttpServer *server, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(server->http);
+#if UNUSED
         mprMark(server->route);
+#endif
         mprMark(server->limits);
         mprMark(server->waitHandler);
         mprMark(server->clientLoad);
@@ -86,7 +93,7 @@ static int manageServer(HttpServer *server, int flags)
 /*  
     Convenience function to create and configure a new server without using a config file.
  */
-HttpServer *httpCreateConfiguredServer(cchar *docRoot, cchar *ip, int port)
+HttpServer *httpCreateConfiguredServer(cchar *home, cchar *documents, cchar *ip, int port)
 {
     Http            *http;
     HttpHost        *host;
@@ -111,13 +118,13 @@ HttpServer *httpCreateConfiguredServer(cchar *docRoot, cchar *ip, int port)
     } else {
         server = httpCreateServer(ip, port, NULL, HTTP_CREATE_HOST);
     }
+    mprAssert(mprGetListLength(server->hosts) == 1);
     host = mprGetFirstItem(server->hosts);
+    httpSetHostHome(host, home);
+    httpSetRouteDir(host->route, documents);
     if ((host->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
         host->mimeTypes = MPR->mimeTypes;
     }
-    httpSetDirPath(host->route->dir, docRoot);
-    //  MOB -- but host already has a dir
-    httpAddHostDir(host, httpCreateDir(docRoot));
     return server;
 }
 
@@ -358,12 +365,14 @@ void httpSetServerContext(HttpServer *server, void *context)
 }
 
 
+#if UNUSED
 void httpSetServerRoute(HttpServer *server, HttpRoute *route)
 {
     mprAssert(server);
     mprAssert(route);
     server->route = route;
 }
+#endif
 
 
 void httpSetServerNotifier(HttpServer *server, HttpNotifier notifier)
