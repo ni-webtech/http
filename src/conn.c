@@ -18,7 +18,7 @@ static void writeEvent(HttpConn *conn);
 /*
     Create a new connection object.
  */
-HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatcher)
+HttpConn *httpCreateConn(Http *http, HttpEndpoint *endpoint, MprDispatcher *dispatcher)
 {
     HttpConn    *conn;
     HttpHost    *host;
@@ -32,13 +32,13 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
     conn->protocol = http->protocol;
     conn->port = -1;
     conn->retries = HTTP_RETRIES;
-    conn->server = server;
+    conn->endpoint = endpoint;
     conn->lastActivity = http->now;
     conn->ioCallback = httpEvent;
 
-    if (server) {
-        conn->notifier = server->notifier;
-        host = mprGetFirstItem(server->hosts);
+    if (endpoint) {
+        conn->notifier = endpoint->notifier;
+        host = mprGetFirstItem(endpoint->hosts);
         conn->limits = (host) ? host->limits : http->serverLimits;
     } else {
         conn->limits = http->clientLimits;
@@ -49,8 +49,8 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
 
     if (dispatcher) {
         conn->dispatcher = dispatcher;
-    } else if (server) {
-        conn->dispatcher = server->dispatcher;
+    } else if (endpoint) {
+        conn->dispatcher = endpoint->dispatcher;
     } else {
         conn->dispatcher = mprGetDispatcher();
     }
@@ -66,8 +66,8 @@ HttpConn *httpCreateConn(Http *http, HttpServer *server, MprDispatcher *dispatch
 void httpDestroyConn(HttpConn *conn)
 {
     if (conn->http) {
-        if (conn->server) {
-            httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_CONN, conn);
+        if (conn->endpoint) {
+            httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_CONN, conn);
         }
         if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
             HTTP_NOTIFY(conn, HTTP_STATE_COMPLETE, 0);
@@ -95,53 +95,47 @@ static void manageConn(HttpConn *conn, int flags)
     mprAssert(conn);
 
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(conn->rx);
-        mprMark(conn->tx);
-        mprMark(conn->limits);
-        mprMark(conn->http);
-        mprMark(conn->stages);
-        mprMark(conn->dispatcher);
-        mprMark(conn->oldDispatcher);
-        mprMark(conn->waitHandler);
-        mprMark(conn->server);
-        mprMark(conn->host);
-        mprMark(conn->sock);
-        mprMark(conn->serviceq);
-        mprMark(conn->currentq);
-        mprMark(conn->input);
-
-        //  OPT - these 3 should not be required
-        mprMark(conn->readq);
-        mprMark(conn->writeq);
-        mprMark(conn->connq);
-
-        mprMark(conn->context);
-        mprMark(conn->boundary);
-        mprMark(conn->errorMsg);
-        mprMark(conn->host);
-        mprMark(conn->ip);
-        mprMark(conn->protocol);
-        mprMark(conn->headersCallbackArg);
-        mprMark(conn->timeoutEvent);
-        mprMark(conn->workerEvent);
-        mprMark(conn->data);
-        mprMark(conn->mark);
-        mprMark(conn->pool);
-        mprMark(conn->ejs);
-
-        httpManageTrace(&conn->trace[0], flags);
-        httpManageTrace(&conn->trace[1], flags);
-
         mprMark(conn->authCnonce);
         mprMark(conn->authDomain);
+        mprMark(conn->authGroup);
         mprMark(conn->authNonce);
         mprMark(conn->authOpaque);
-        mprMark(conn->authRealm);
-        mprMark(conn->authQop);
-        mprMark(conn->authType);
-        mprMark(conn->authGroup);
-        mprMark(conn->authUser);
         mprMark(conn->authPassword);
+        mprMark(conn->authQop);
+        mprMark(conn->authRealm);
+        mprMark(conn->authType);
+        mprMark(conn->authUser);
+        mprMark(conn->boundary);
+        mprMark(conn->connq);
+        mprMark(conn->context);
+        mprMark(conn->currentq);
+        mprMark(conn->data);
+        mprMark(conn->dispatcher);
+        mprMark(conn->ejs);
+        mprMark(conn->endpoint);
+        mprMark(conn->errorMsg);
+        mprMark(conn->headersCallbackArg);
+        mprMark(conn->host);
+        mprMark(conn->http);
+        mprMark(conn->input);
+        mprMark(conn->ip);
+        mprMark(conn->limits);
+        mprMark(conn->mark);
+        mprMark(conn->oldDispatcher);
+        mprMark(conn->pool);
+        mprMark(conn->protocol);
+        mprMark(conn->readq);
+        mprMark(conn->rx);
+        mprMark(conn->serviceq);
+        mprMark(conn->sock);
+        mprMark(conn->stages);
+        mprMark(conn->timeoutEvent);
+        mprMark(conn->tx);
+        mprMark(conn->waitHandler);
+        mprMark(conn->workerEvent);
+        mprMark(conn->writeq);
+        httpManageTrace(&conn->trace[0], flags);
+        httpManageTrace(&conn->trace[1], flags);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyConn(conn);
@@ -228,7 +222,7 @@ void httpPrepServerConn(HttpConn *conn)
     mprAssert(conn);
     mprAssert(conn->rx == 0);
     mprAssert(conn->tx == 0);
-    mprAssert(conn->server);
+    mprAssert(conn->endpoint);
 
     conn->readq = 0;
     conn->writeq = 0;
@@ -308,7 +302,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
     if (event->mask & MPR_READABLE) {
         readEvent(conn);
     }
-    if (conn->keepAliveCount < 0 && conn->server && conn->state == HTTP_STATE_BEGIN) {
+    if (conn->keepAliveCount < 0 && conn->endpoint && conn->state == HTTP_STATE_BEGIN) {
         /*  
             NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
             It should respond to the "Connection: close" and thus initiate a client-led close. This reduces 

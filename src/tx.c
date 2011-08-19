@@ -9,7 +9,6 @@
 
 /***************************** Forward Declarations ***************************/
 
-static char *getExtension(HttpConn *conn, cchar *path);
 static void manageTx(HttpTx *tx, int flags);
 
 /*********************************** Code *************************************/
@@ -35,7 +34,7 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
     if (headers) {
         tx->headers = headers;
     } else if ((tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS)) != 0) {
-        if (conn->server) {
+        if (conn->endpoint) {
             httpAddHeaderString(conn, "Server", conn->http->software);
         } else {
             httpAddHeaderString(conn, "User-Agent", sclone(HTTP_NAME));
@@ -350,9 +349,10 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
 
     rx = conn->rx;
     tx = conn->tx;
-    uri = 0;
     tx->status = status;
     prev = rx->parsedUri;
+    uri = 0;
+
     if (targetUri == 0) {
         targetUri = "/";
     }
@@ -362,7 +362,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         targetUri = (conn->http->redirectCallback)(conn, &status, target);
     }
     if (strstr(targetUri, "://") == 0) {
-        port = strchr(targetUri, ':') ? prev->port : conn->server->port;
+        port = strchr(targetUri, ':') ? prev->port : conn->endpoint->port;
         if (target->path[0] == '/') {
             /*
                 Absolute URL. If hostName has a port specifier, it overrides prev->port.
@@ -382,7 +382,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         }
         targetUri = uri;
     }
-    httpSetHeader(conn, "Route", "%s", targetUri);
+    httpSetHeader(conn, "Location", "%s", targetUri);
     mprAssert(tx->altBody == 0);
     msg = httpLookupStatus(conn->http, status);
     tx->altBody = mprAsprintf(
@@ -392,6 +392,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         "<address>%s at %s</address></body>\r\n</html>\r\n",
         msg, msg, targetUri, HTTP_NAME, conn->host->name);
     tx->responded = 1;
+    tx->redirected = 1;
     httpOmitBody(conn);
 }
 
@@ -544,7 +545,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         if (!(rx->flags & HTTP_HEAD)) {
             httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
         }
-    } else if (tx->length > 0 || conn->server) {
+    } else if (tx->length > 0 || conn->endpoint) {
         httpAddHeader(conn, "Content-Length", "%Ld", tx->length);
     }
     if (tx->outputRanges) {
@@ -560,7 +561,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         }
         httpAddHeader(conn, "Accept-Ranges", "bytes");
     }
-    if (conn->server) {
+    if (conn->endpoint) {
         if (--conn->keepAliveCount > 0) {
             httpSetHeaderString(conn, "Connection", "keep-alive");
             httpSetHeader(conn, "Keep-Alive", "timeout=%Ld, max=%d", conn->limits->inactivityTimeout / 1000,
@@ -628,7 +629,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     setHeaders(conn, packet);
 
-    if (conn->server) {
+    if (conn->endpoint) {
         mprPutStringToBuf(buf, conn->protocol);
         mprPutCharToBuf(buf, ' ');
         mprPutIntToBuf(buf, tx->status);
@@ -701,46 +702,6 @@ bool httpFileExists(HttpConn *conn)
             mprGetPathInfo(tx->filename, &tx->fileInfo);
         }
         return tx->fileInfo.valid;
-    }
-    return 0;
-}
-
-
-/*
-    Get the request extension. Look first at the URI (pathInfo). If no extension, look at the filename.
-    Return NULL if no extension.
- */
-char *httpGetExtension(HttpConn *conn)
-{
-    HttpRx  *rx;
-    char    *ext;
-
-    rx = conn->rx;
-    if ((ext = getExtension(conn, rx->pathInfo)) == 0) {
-        if (conn->tx->filename) {
-            ext = getExtension(conn, conn->tx->filename);
-        }
-    }
-    return ext;
-}
-
-
-static char *getExtension(HttpConn *conn, cchar *path)
-{
-    HttpRx      *rx;
-    char        *cp, *ep, *ext;
-
-    rx = conn->rx;
-
-    if (rx && rx->pathInfo) {
-        if ((cp = strrchr(path, '.')) != 0) {
-            ext = sclone(++cp);
-            for (ep = ext; *ep && isalnum((int)*ep); ep++) {
-                ;
-            }
-            *ep = '\0';
-            return ext;
-        }
     }
     return 0;
 }

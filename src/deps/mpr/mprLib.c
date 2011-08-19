@@ -9802,6 +9802,7 @@ static char *findNewline(cchar *str, cchar *newline, ssize len, ssize *nlen)
 }
 
 
+//  MOB -- reanem mprReadFileLine
 /*
     Get a string from the file. This will put the file into buffered mode.
     Return NULL on eof.
@@ -14495,8 +14496,7 @@ MprList *mprGetPathFiles(cchar *path, bool enumDirs)
     char            *fileName;
     int             rc;
 
-    dir = opendir((char*) path);
-    if (dir == 0) {
+    if ((dir = opendir((char*) path)) == 0) {
         return 0;
     }
     list = mprCreateList(256, 0);
@@ -14548,13 +14548,16 @@ char *mprGetPathLink(cchar *path)
     Return the extension portion of a pathname.
     Return the extension without the "."
  */
-char *mprGetPathExtension(cchar *path)
+char *mprGetPathExt(cchar *path)
 {
     MprFileSystem  *fs;
     char            *cp;
 
     if ((cp = srchr(path, '.')) != NULL) {
         fs = mprLookupFileSystem(path);
+        /*
+            If there is no separator ("/") after the extension, then use it.
+         */
         if (firstSep(fs, cp) == 0) {
             return sclone(++cp);
         }
@@ -15444,11 +15447,10 @@ ssize mprWritePath(cchar *path, cchar *buf, ssize len, int mode)
 
 
 
-//  MOB - should be TrimPathExt
 /*
     Return the extension portion of a pathname.
  */
-char *mprTrimPathExtension(cchar *path)
+char *mprTrimPathExt(cchar *path)
 {
     MprFileSystem   *fs;
     char            *cp, *ext;
@@ -19698,6 +19700,19 @@ char *itos(char *buf, ssize count, int64 value, int radix)
 }
 
 
+bool snumber(cchar *token)
+{
+    cchar   *cp;
+
+    for (cp = token; *cp; cp++) {
+        if (!isdigit((int) *cp)) {
+            return 0;
+        }
+    }
+    return 1;
+} 
+
+
 char *schr(cchar *s, int c)
 {
     if (s == 0) {
@@ -19721,6 +19736,12 @@ int scasecmp(cchar *s1, cchar *s2)
         return 1;
     }
     return sncasecmp(s1, s2, max(slen(s1), slen(s2)));
+}
+
+
+bool scasematch(cchar *s1, cchar *s2)
+{
+    return scasecmp(s1, s2) == 0;
 }
 
 
@@ -19780,29 +19801,6 @@ char *sclone(cchar *str)
         str = "";
     }
     len = slen(str);
-    size = len + 1;
-    if ((ptr = mprAlloc(size)) != 0) {
-        memcpy(ptr, str, len);
-        ptr[len] = '\0';
-    }
-    return ptr;
-}
-
-
-/*
-    Clone a sub-string of a specified length. The null is added after the length. The given len can be longer than the
-    source string.
- */
-char *snclone(cchar *str, ssize len)
-{
-    char    *ptr;
-    ssize   size, l;
-
-    if (str == 0) {
-        str = "";
-    }
-    l = slen(str);
-    len = min(l, len);
     size = len + 1;
     if ((ptr = mprAlloc(size)) != 0) {
         memcpy(ptr, str, len);
@@ -20015,7 +20013,7 @@ ssize slen(cchar *s)
 
 
 /*  
-    Map a string to lower case. Allocates a new string 
+    Map a string to lower case. Allocates a new string.
  */
 char *slower(cchar *str)
 {
@@ -20033,6 +20031,12 @@ char *slower(cchar *str)
         str = s;
     }
     return (char*) str;
+}
+
+
+bool smatch(cchar *s1, cchar *s2)
+{
+    return scmp(s1, s2) == 0;
 }
 
 
@@ -20064,6 +20068,29 @@ int sncasecmp(cchar *s1, cchar *s2, ssize n)
         return 1;
     }
     return 0;
+}
+
+
+/*
+    Clone a sub-string of a specified length. The null is added after the length. The given len can be longer than the
+    source string.
+ */
+char *snclone(cchar *str, ssize len)
+{
+    char    *ptr;
+    ssize   size, l;
+
+    if (str == 0) {
+        str = "";
+    }
+    l = slen(str);
+    len = min(l, len);
+    size = len + 1;
+    if ((ptr = mprAlloc(size)) != 0) {
+        memcpy(ptr, str, len);
+        ptr[len] = '\0';
+    }
+    return ptr;
 }
 
 
@@ -20407,6 +20434,9 @@ char *ssub(cchar *str, ssize offset, ssize len)
 }
 
 
+/*
+    Trim characters from the given set. Returns a newly allocated string.
+ */
 char *strim(cchar *str, cchar *set, int where)
 {
     char    *s;
@@ -23954,19 +23984,6 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
 }
 
 
-static bool allDigits(cchar *token)
-{
-    cchar   *cp;
-
-    for (cp = token; *cp; cp++) {
-        if (!isdigit((int) *cp)) {
-            return 0;
-        }
-    }
-    return 1;
-} 
-
-
 static void swapDayMonth(struct tm *tp)
 {
     int     tmp;
@@ -24031,7 +24048,7 @@ int mprParseTime(MprTime *time, cchar *dateString, int zoneFlags, struct tm *def
     token = stok(str, sep, &next);
 
     while (token && *token) {
-        if (allDigits(token)) {
+        if (snumber(token)) {
             /*
                 Parse either day of month or year. Priority to day of month. Format: <29> Jan <15> <2011>
              */ 

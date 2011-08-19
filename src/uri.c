@@ -277,8 +277,8 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
     } else {
         host = hostDelim = "";
     }
-
-    /*  Hosts with integral port specifiers override
+    /*  
+        Hosts with integral port specifiers override
      */
     if (host && schr(host, ':')) {
         portDelim = 0;
@@ -461,7 +461,7 @@ HttpUri *httpJoinUri(HttpUri *uri, int argc, HttpUri **others)
             uri->query = sclone(other->query);
         }
     }
-    uri->ext = mprGetPathExtension(uri->path);
+    uri->ext = mprGetPathExt(uri->path);
     return uri;
 }
 
@@ -601,7 +601,7 @@ HttpUri *httpResolveUri(HttpUri *base, int argc, HttpUri **others, int local)
             current->query = sclone(other->query);
         }
     }
-    current->ext = mprGetPathExtension(current->path);
+    current->ext = mprGetPathExt(current->path);
     return current;
 }
 

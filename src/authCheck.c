@@ -67,7 +67,7 @@ int httpCheckAuth(HttpConn *conn)
     http = conn->http;
     auth = rx->route->auth;
 
-    if (!conn->server || auth == 0 || auth->type == 0) {
+    if (!conn->endpoint || auth == 0 || auth->type == 0) {
         return 0;
     }
     if ((ad = mprAllocStruct(AuthData)) == 0) {

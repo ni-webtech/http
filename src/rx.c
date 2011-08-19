@@ -40,7 +40,7 @@ HttpRx *httpCreateRx(HttpConn *conn)
     rx->ifModified = 1;
     rx->pathInfo = sclone("/");
     rx->scriptName = mprEmptyString();
-    rx->needInputPipeline = !conn->server;
+    rx->needInputPipeline = !conn->endpoint;
     rx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     rx->chunkState = HTTP_CHUNK_START;
     return rx;
@@ -72,6 +72,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->hostHeader);
         mprMark(rx->inputPipeline);
         mprMark(rx->inputRange);
+        mprMark(rx->language);
         mprMark(rx->method);
         mprMark(rx->mimeType);
         mprMark(rx->originalUri);
@@ -187,8 +188,8 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
         return 0;
     }
-    if (conn->server) {
-        if (!httpValidateLimits(conn->server, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
+    if (conn->endpoint) {
+        if (!httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
             return 0;
         }
         parseRequestLine(conn, packet);
@@ -196,7 +197,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         parseResponseLine(conn, packet);
     }
     parseHeaders(conn, packet);
-    if (conn->server) {
+    if (conn->endpoint) {
         httpMatchHost(conn);
         if (httpSetUri(conn, rx->uri, "") < 0) {
             httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad URL format");
@@ -219,8 +220,8 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         mprAssert(route);
         httpCreateRxPipeline(conn, route);
         httpCreateTxPipeline(conn, route);
-        rx->startAfterContent = 
-            (route->flags & HTTP_ROUTE_AFTER || ((rx->form || rx->upload) && route->flags & HTTP_ROUTE_SMART));
+        rx->startAfterContent = (route->flags & HTTP_ROUTE_HANDLER_AFTER || 
+             ((rx->form || rx->upload) && route->flags & HTTP_ROUTE_HANDLER_SMART));
 
     //  MOB - what happens if server responds to client with other status
     } else if (!(100 <= rx->status && rx->status < 200)) {
@@ -500,7 +501,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 rx->contentLength = sclone(value);
                 mprAssert(rx->length >= 0);
-                if (conn->server || strcmp(tx->method, "HEAD") != 0) {
+                if (conn->endpoint || strcmp(tx->method, "HEAD") != 0) {
                     rx->remainingContent = rx->length;
                     rx->needInputPipeline = 1;
                 }
@@ -994,7 +995,7 @@ static bool processRunning(HttpConn *conn)
     if (conn->connError) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
     } else {
-        if (conn->server) {
+        if (conn->endpoint) {
             httpProcessPipeline(conn);
             if (conn->connError || conn->writeComplete) {
                 httpSetState(conn, HTTP_STATE_COMPLETE);
@@ -1023,7 +1024,7 @@ static void measure(HttpConn *conn)
     if (conn->rx == 0 || tx == 0) {
         return;
     }
-    uri = (conn->server) ? conn->rx->uri : tx->parsedUri->path;
+    uri = (conn->endpoint) ? conn->rx->uri : tx->parsedUri->path;
    
     if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, tx->ext) >= 0) {
         elapsed = mprGetTime() - conn->startTime;
@@ -1049,14 +1050,14 @@ static bool processCompletion(HttpConn *conn)
 
     httpDestroyPipeline(conn);
     measure(conn);
-    if (conn->server && conn->rx) {
+    if (conn->endpoint && conn->rx) {
         conn->rx->conn = 0;
         conn->tx->conn = 0;
         conn->rx = 0;
         conn->tx = 0;
         packet = conn->input;
         more = packet && !conn->connError && (httpGetPacketLength(packet) > 0);
-        httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
+        httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
         httpPrepServerConn(conn);
         return more;
     }
@@ -1316,15 +1317,7 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
     rx->uri = rx->parsedUri->path;
     rx->pathInfo = httpNormalizeUriPath(mprUriDecode(rx->parsedUri->path));
     rx->scriptName = mprEmptyString();
-    tx->ext = httpGetExtension(conn);
-#if MOVED
-    rx->alias = httpGetAlias(host, rx->pathInfo);
-    if ((rx->route = httpLookupBestRoute(host, rx->pathInfo)) == 0) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing route for \"%s\"", rx->pathInfo);
-        return MPR_ERR_CANT_ACCESS;
-    }
-    httpMapToStorage(conn);
-#endif
+    tx->ext = httpGetExt(conn);
     return 0;
 }
 
@@ -1673,6 +1666,83 @@ char *httpGetFormData(HttpConn *conn)
         }
     }
     return rx->formData;
+}
+
+
+char *httpGetPathExt(HttpConn *conn, cchar *path)
+{
+    char    *ep, *ext;
+
+    if ((ext = strrchr(path, '.')) != 0) {
+        ext = sclone(++ext);
+        for (ep = ext; *ep && isalnum((int)*ep); ep++) {
+            ;
+        }
+        *ep = '\0';
+    }
+    return 0;
+}
+
+
+/*
+    Get the request extension. Look first at the URI pathInfo. If no extension, look at the filename if defined.
+    Return NULL if no extension.
+ */
+char *httpGetExt(HttpConn *conn)
+{
+    HttpRx  *rx;
+    char    *ext;
+
+    rx = conn->rx;
+    if ((ext = httpGetPathExt(conn, rx->pathInfo)) == 0) {
+        if (conn->tx->filename) {
+            ext = httpGetPathExt(conn, conn->tx->filename);
+        }
+    }
+    return ext;
+}
+
+
+static int compareLang(char **s1, char **s2)
+{
+    return scmp(*s1, *s2);
+}
+
+
+HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken)
+{
+    HttpRx      *rx;
+    HttpLang    *lang;
+    MprList     *list;
+    cchar       *accept;
+    char        *nextTok, *tok, *quality, *language;
+    int         next;
+
+    rx = conn->rx;
+    if (rx->language) {
+        return rx->language;
+    }
+    if (spoken == 0) {
+        return 0;
+    }
+    list = mprCreateList(-1, 0);
+    if ((accept = httpGetHeader(conn, "Accept-Language")) != 0) {
+        for (tok = stok(sclone(accept), ",", &nextTok); tok; tok = stok(nextTok, ",", &nextTok)) {
+            language = stok(tok, ";", &quality);
+            if (quality == 0) {
+                quality = "1";
+            }
+            mprAddItem(list, sfmt("%03d %s", (int) (atof(quality) * 100), language));
+        }
+        mprSortList(list, compareLang);
+        for (next = 0; (language = mprGetNextItem(list, &next)) != 0; ) {
+            if ((lang = mprLookupKey(rx->route->languages, &language[4])) != 0) {
+                rx->language = lang;
+                return lang;
+            }
+        }
+    }
+    return 0;
 }
 
 /*

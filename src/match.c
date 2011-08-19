@@ -14,27 +14,27 @@
 void httpMatchHost(HttpConn *conn)
 { 
     MprSocket       *listenSock;
-    HttpServer      *server;
+    HttpEndpoint    *endpoint;
     HttpHost        *host;
     Http            *http;
 
     http = conn->http;
     listenSock = conn->sock->listenSock;
 
-    if ((server = httpLookupServer(http, listenSock->ip, listenSock->port)) == 0) {
-        mprError("No server for request from %s:%d", listenSock->ip, listenSock->port);
+    if ((endpoint = httpLookupEndpoint(http, listenSock->ip, listenSock->port)) == 0) {
+        mprError("No listening endpoint for request from %s:%d", listenSock->ip, listenSock->port);
         mprCloseSocket(conn->sock, 0);
         return;
     }
-    if (httpIsNamedVirtualServer(server)) {
-        host = httpLookupHost(server, conn->rx->hostHeader);
+    if (httpIsNamedVirtualEndpoint(endpoint)) {
+        host = httpLookupHost(endpoint, conn->rx->hostHeader);
     } else {
-        host = mprGetFirstItem(server->hosts);
+        host = mprGetFirstItem(endpoint->hosts);
     }
     if (host == 0) {
         httpSetConnHost(conn, 0);
         httpError(conn, HTTP_CODE_NOT_FOUND, "No host to serve request. Searching for %s", conn->rx->hostHeader);
-        conn->host = mprGetFirstItem(server->hosts);
+        conn->host = mprGetFirstItem(endpoint->hosts);
         return;
     }
     mprLog(4, "Select host: \"%s\"", host->name);
@@ -69,7 +69,7 @@ void httpRouteRequest(HttpConn *conn)
             rewrites++;
         }
     }
-    if (conn->error) {
+    if (conn->error || conn->tx->redirected) {
         tx->handler = conn->http->passHandler;
         if (rewrites >= HTTP_MAX_REWRITE) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");

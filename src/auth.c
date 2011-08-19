@@ -13,16 +13,34 @@ static void manageAuth(HttpAuth *auth, int flags);
 
 /*********************************** Code *************************************/
 
-HttpAuth *httpCreateAuth(HttpAuth *parent)
+HttpAuth *httpCreateAuth()
+{
+    HttpAuth      *auth;
+
+    auth = mprAllocObj(HttpAuth, manageAuth);
+#if BLD_FEATURE_AUTH_PAM
+    auth->backend = HTTP_AUTH_METHOD_PAM;
+#elif BLD_FEATURE_AUTH_FILE
+    auth->backend = HTTP_AUTH_METHOD_FILE;
+#endif
+    return auth;
+}
+
+
+HttpAuth *httpCreateInheritedAuth(HttpAuth *parent)
 {
     HttpAuth      *auth;
 
     auth = mprAllocObj(HttpAuth, manageAuth);
     if (parent) {
-        auth->allow = parent->allow;
+        if (parent->allow) {
+            auth->allow = mprCloneHash(parent->allow);
+        }
+        if (parent->deny) {
+            auth->deny = mprCloneHash(parent->deny);
+        }
         auth->anyValidUser = parent->anyValidUser;
         auth->type = parent->type;
-        auth->deny = parent->deny;
         auth->backend = parent->backend;
         auth->flags = parent->flags;
         auth->order = parent->order;
@@ -64,9 +82,12 @@ static void manageAuth(HttpAuth *auth, int flags)
 }
 
 
-void httpSetAuthAllow(HttpAuth *auth, cchar *allow)
+void httpSetAuthAllow(HttpAuth *auth, cchar *client)
 {
-    auth->allow = sclone(allow);
+    if (auth->allow == 0) {
+        auth->allow = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
+    }
+    mprAddKey(auth->allow, sclone(client), "");
 }
 
 
@@ -77,9 +98,12 @@ void httpSetAuthAnyValidUser(HttpAuth *auth)
 }
 
 
-void httpSetAuthDeny(HttpAuth *auth, cchar *deny)
+void httpSetAuthDeny(HttpAuth *auth, cchar *client)
 {
-    auth->deny = sclone(deny);
+    if (auth->deny == 0) {
+        auth->deny = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
+    }
+    mprAddKey(auth->deny, sclone(client), "");
 }
 
 

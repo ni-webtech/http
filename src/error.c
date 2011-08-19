@@ -17,7 +17,7 @@ void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
             if (status < 0) {
                 status = HTTP_CODE_INTERNAL_SERVER_ERROR;
             }
-            if (conn->server && conn->tx) {
+            if (conn->endpoint && conn->tx) {
                 conn->tx->status = status;
             } else if (conn->rx) {
                 conn->rx->status = status;
@@ -70,7 +70,7 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
     if (flags & (HTTP_ABORT | HTTP_CLOSE)) {
         conn->keepAliveCount = -1;
     }
-    if (conn->server) {
+    if (conn->endpoint) {
         /*
             Server side must not call httpCloseConn() as it will remove wait handlers.
          */

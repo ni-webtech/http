@@ -66,9 +66,11 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
     conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
     conn->connq = tx->queue[HTTP_QUEUE_TX]->prevQ;
 
+#if UNUSED
     if ((tx->handler->flags & HTTP_STAGE_VERIFY_ENTITY) && !tx->fileInfo.valid && !(rx->flags & HTTP_PUT)) {
         httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
     }
+#endif
     setVars(conn);
     pairQueues(conn);
     openQueues(conn);
@@ -110,7 +112,7 @@ void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
     }
     conn->readq = tx->queue[HTTP_QUEUE_RX]->prevQ;
 
-    if (!conn->server) {
+    if (!conn->endpoint) {
         pairQueues(conn);
         openQueues(conn);
     }

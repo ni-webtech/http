@@ -179,7 +179,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     mprAssert(method && *method);
     mprAssert(url && *url);
 
-    if (conn->server) {
+    if (conn->endpoint) {
         httpError(conn, HTTP_CODE_BAD_GATEWAY, "Can't call connect in a server");
         return MPR_ERR_BAD_STATE;
     }

@@ -90,7 +90,7 @@ Http *httpCreate()
     http->routeConditions = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
     http->routeUpdates = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
     http->hosts = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
-    http->servers = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
+    http->endpoints = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     http->connections = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     http->defaultClientHost = sclone("127.0.0.1");
     http->defaultClientPort = 80;
@@ -125,37 +125,36 @@ static void manageHttp(Http *http, int flags)
     int         next;
 
     if (flags & MPR_MANAGE_MARK) {
-        /* Note servers and hosts are static values - contents are not marked so they can be collected */
-        mprMark(http->servers);
-        mprMark(http->hosts);
-        mprMark(http->connections);
-        mprMark(http->stages);
-        mprMark(http->statusCodes);
+        /* Note endpoints and hosts are static values - contents are not marked so they can be collected */
         mprMark(http->clientLimits);
-        mprMark(http->serverLimits);
         mprMark(http->clientRoute);
-        mprMark(http->timer);
-        mprMark(http->mutex);
-        mprMark(http->software);
-        mprMark(http->forkData);
+        mprMark(http->connections);
         mprMark(http->context);
         mprMark(http->currentDate);
+        mprMark(http->defaultClientHost);
+        mprMark(http->endpoints);
         mprMark(http->expiresDate);
-        mprMark(http->secret);
+        mprMark(http->forkData);
+        mprMark(http->hosts);
+        mprMark(http->mutex);
         mprMark(http->protocol);
         mprMark(http->proxyHost);
-        mprMark(http->servers);
-        mprMark(http->defaultClientHost);
-        mprMark(http->routeTargets);
         mprMark(http->routeConditions);
+        mprMark(http->routeTargets);
         mprMark(http->routeUpdates);
+        mprMark(http->secret);
+        mprMark(http->serverLimits);
+        mprMark(http->software);
+        mprMark(http->stages);
+        mprMark(http->statusCodes);
+        mprMark(http->timer);
 
         /*
-            Servers keep connections alive until a timeout. Keep marking even if no other references.
+            Endpoints keep connections alive until a timeout. Keep marking even if no other references.
          */
         lock(http);
         for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
-            if (conn->server) {
+            if (conn->endpoint) {
                 mprMark(conn);
             }
         }
@@ -170,34 +169,34 @@ void httpDestroy(Http *http)
 }
 
 
-void httpAddServer(Http *http, HttpServer *server)
+void httpAddEndpoint(Http *http, HttpEndpoint *endpoint)
 {
-    mprAddItem(http->servers, server);
+    mprAddItem(http->endpoints, endpoint);
 }
 
 
-void httpRemoveServer(Http *http, HttpServer *server)
+void httpRemoveEndpoint(Http *http, HttpEndpoint *endpoint)
 {
-    mprRemoveItem(http->servers, server);
+    mprRemoveItem(http->endpoints, endpoint);
 }
 
 
 /*  
     Lookup a host address. If ipAddr is null or port is -1, then those elements are wild.
  */
-HttpServer *httpLookupServer(Http *http, cchar *ip, int port)
+HttpEndpoint *httpLookupEndpoint(Http *http, cchar *ip, int port)
 {
-    HttpServer  *server;
-    int         next;
+    HttpEndpoint    *endpoint;
+    int             next;
 
     if (ip == 0) {
         ip = "";
     }
-    for (next = 0; (server = mprGetNextItem(http->servers, &next)) != 0; ) {
-        if (server->port <= 0 || port <= 0 || server->port == port) {
-            mprAssert(server->ip);
-            if (*server->ip == '\0' || *ip == '\0' || scmp(server->ip, ip) == 0) {
-                return server;
+    for (next = 0; (endpoint = mprGetNextItem(http->endpoints, &next)) != 0; ) {
+        if (endpoint->port <= 0 || port <= 0 || endpoint->port == port) {
+            mprAssert(endpoint->ip);
+            if (*endpoint->ip == '\0' || *ip == '\0' || scmp(endpoint->ip, ip) == 0) {
+                return endpoint;
             }
         }
     }
@@ -205,9 +204,9 @@ HttpServer *httpLookupServer(Http *http, cchar *ip, int port)
 }
 
 
-HttpServer *httpGetFirstServer(Http *http)
+HttpEndpoint *httpGetFirstEndpoint(Http *http)
 {
-    return mprGetFirstItem(http->servers);
+    return mprGetFirstItem(http->endpoints);
 }
 
 
@@ -243,7 +242,9 @@ HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
     if (serverSide) {
         httpAddRouteFilter(route, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
     }
+#if UNUSED
     route->connector = http->netConnector;
+#endif
     return route;
 }
 
@@ -270,18 +271,18 @@ void httpInitLimits(HttpLimits *limits, int serverSide)
     limits->requestCount = HTTP_MAX_REQUESTS;
 
 #if FUTURE
-    mprSetMaxSocketClients(server, atoi(value));
+    mprSetMaxSocketClients(endpoint, atoi(value));
 
     if (scasecmp(key, "LimitClients") == 0) {
-        mprSetMaxSocketClients(server, atoi(value));
+        mprSetMaxSocketClients(endpoint, atoi(value));
         return 1;
     }
     if (scasecmp(key, "LimitMemoryMax") == 0) {
-        mprSetAllocLimits(server, -1, atoi(value));
+        mprSetAllocLimits(endpoint, -1, atoi(value));
         return 1;
     }
     if (scasecmp(key, "LimitMemoryRedline") == 0) {
-        mprSetAllocLimits(server, atoi(value), -1);
+        mprSetAllocLimits(endpoint, atoi(value), -1);
         return 1;
     }
 #endif

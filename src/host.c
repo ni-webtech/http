@@ -40,8 +40,6 @@ HttpHost *httpCreateHost()
     host->traceMaxLength = MAXINT;
 
     host->route = httpCreateDefaultRoute(host);
-    httpAddRoute(host, host->route);
-    host->route->auth = httpCreateAuth(host->route->auth);
     httpAddHost(http, host);
     return host;
 }
@@ -81,7 +79,6 @@ HttpHost *httpCloneHost(HttpHost *parent)
     if (parent->traceExclude) {
         host->traceExclude = mprCloneHash(parent->traceExclude);
     }
-    httpAddRoute(host, host->route);
     httpAddHost(http, host);
     return host;
 }
@@ -231,13 +228,12 @@ int httpAddHostDir(HttpHost *host, HttpDir *dir)
 
 int httpAddRoute(HttpHost *host, HttpRoute *route)
 {
-    int     pos;
-
     mprAssert(route);
     
     if (host->parent && host->routes == host->parent->routes) {
         host->routes = mprCloneList(host->parent->routes);
     }
+#if UNUSED
     /*
         Insert at the tail before the last route which must always be "--default--"
      */
@@ -246,6 +242,10 @@ int httpAddRoute(HttpHost *host, HttpRoute *route)
         pos = 0;
     }
     mprInsertItemAtPos(host->routes, pos, route);
+#endif
+    if (mprLookupItem(host->routes, route) < 0) {
+        mprAddItem(host->routes, route);
+    }
     httpSetRouteHost(route, host);
     return 0;
 }
