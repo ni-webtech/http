@@ -35,19 +35,6 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
 static int parseDigestNonce(char *nonce, cchar **secret, cchar **etag, cchar **realm, MprTime *when);
 
 /*********************************** Code *************************************/
-#if UNUSED
-int httpOpenAuthFilter(Http *http)
-{
-    HttpStage     *filter;
-
-    mprLog(5, "Open auth filter");
-    if ((filter = httpCreateFilter(http, "authFilter", HTTP_STAGE_ALL, NULL)) == 0) {
-        return MPR_ERR_CANT_CREATE;
-    }
-    http->authFilter = filter;
-    return 0;
-}
-#endif
 
 int httpCheckAuth(HttpConn *conn)
 {

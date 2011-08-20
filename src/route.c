@@ -1080,63 +1080,49 @@ static void finalizePattern(HttpRoute *route)
     if (route->name == 0) {
         route->name = route->pattern;
     }
-    if (route->pattern[0] == '%') {
-        //  MOB - is this needed?
-        route->processedPattern = sclone(&route->pattern[1]);
+    params = mprCreateBuf(-1, -1);
+    for (submatch = 0, cp = route->pattern; *cp; cp++) {
+        if (*cp == '(') {
+            mprPutCharToBuf(pattern, *cp);
+            ++submatch;
 
-    } else {
-        params = mprCreateBuf(-1, -1);
-        for (submatch = 0, cp = route->pattern; *cp; cp++) {
-            if (*cp == '(') {
-#if UNUSED
-                mprPutStringToBuf(pattern, "(?:");
-#else
+        } else if (*cp == ')') {
+            mprPutCharToBuf(pattern, *cp);
+
+        } else if (*cp == '{') {
+            if (cp > route->pattern && cp[-1] == '\\') {
+                mprAdjustBufEnd(pattern, -1);
                 mprPutCharToBuf(pattern, *cp);
-                ++submatch;
-#endif
-
-            } else if (*cp == ')') {
-#if UNUSED
-                mprPutStringToBuf(pattern, ")?");
-#else
-                mprPutCharToBuf(pattern, *cp);
-#endif
-
-            } else if (*cp == '{') {
-                if (cp > route->pattern && cp[-1] == '\\') {
-                    mprAdjustBufEnd(pattern, -1);
-                    mprPutCharToBuf(pattern, *cp);
-                } else {
-                    if ((ep = schr(cp, '}')) != 0) {
-                        /* Trim {} off the token and replace in pattern with "([^/]*)"  */
-                        token = snclone(&cp[1], ep - cp - 1);
-                        if ((field = schr(token, '=')) != 0) {
-                            *field++ = '\0';
-                        } else {
-                            field = "([^/]*)";
-                        }
-                        mprPutStringToBuf(pattern, field);
-                        mprAddItem(route->tokens, token);
-                        /* Params ends up looking like "$1:$2:$3:$4" */
-                        mprPutCharToBuf(params, '$');
-                        mprPutIntToBuf(params, ++submatch);
-                        mprPutCharToBuf(params, ':');
-                        cp = ep;
-                    }
-                }
             } else {
-                mprPutCharToBuf(pattern, *cp);
+                if ((ep = schr(cp, '}')) != 0) {
+                    /* Trim {} off the token and replace in pattern with "([^/]*)"  */
+                    token = snclone(&cp[1], ep - cp - 1);
+                    if ((field = schr(token, '=')) != 0) {
+                        *field++ = '\0';
+                    } else {
+                        field = "([^/]*)";
+                    }
+                    mprPutStringToBuf(pattern, field);
+                    mprAddItem(route->tokens, token);
+                    /* Params ends up looking like "$1:$2:$3:$4" */
+                    mprPutCharToBuf(params, '$');
+                    mprPutIntToBuf(params, ++submatch);
+                    mprPutCharToBuf(params, ':');
+                    cp = ep;
+                }
             }
+        } else {
+            mprPutCharToBuf(pattern, *cp);
         }
-        mprAddNullToBuf(pattern);
-        mprAddNullToBuf(params);
-        route->processedPattern = sclone(mprGetBufStart(pattern));
+    }
+    mprAddNullToBuf(pattern);
+    mprAddNullToBuf(params);
+    route->processedPattern = sclone(mprGetBufStart(pattern));
 
-        /* Trim last ":" from params */
-        if (mprGetBufLength(params) > 0) {
-            route->params = sclone(mprGetBufStart(params));
-            route->params[slen(route->params) - 1] = '\0';
-        }
+    /* Trim last ":" from params */
+    if (mprGetBufLength(params) > 0) {
+        route->params = sclone(mprGetBufStart(params));
+        route->params[slen(route->params) - 1] = '\0';
     }
     if ((route->patternCompiled = pcre_compile2(route->processedPattern, 0, 0, &errMsg, &column, NULL)) == 0) {
         mprError("Can't compile route. Error %s at column %d", errMsg, column); 
@@ -1396,22 +1382,11 @@ static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int directoryCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-#if UNUSED
-    HttpTx  *tx;
-    tx = conn->tx;
-    if (!tx->fileInfo.checked) {
-        mprGetPathInfo(tx->filename, &tx->fileInfo);
-    }
-    if (tx->fileInfo.isDir) {
-        return HTTP_ROUTE_ACCEPTED;
-    } 
-#endif
     HttpRx      *rx;
     MprPath     info;
     char        *path;
 
     rx = conn->rx;
-    /* Must have tx->filename set when expanding op->details, so map fileTarget now */
     mapFile(conn, route);
     path = mprJoinPath(route->dir, expandPath(conn, op->details));
     mprGetPathInfo(path, &info);
@@ -1901,41 +1876,6 @@ void httpDefineRouteBuiltins()
     httpDefineRouteTarget("virtual", virtualTarget);
     httpDefineRouteTarget("write", writeTarget);
 }
-
-
-#if UNUSED
-HttpStage *httpGetHandlerByExtension(HttpRoute *route, cchar *ext)
-{
-    return (HttpStage*) mprLookupKey(route->extensions, ext);
-}
-
-char *httpMakeFilename(HttpConn *conn, cchar *url, bool skipAliasPrefix)
-{
-    cchar   *seps;
-    char    *path;
-    int     len;
-
-    mprAssert(url);
-
-    if (skipAliasPrefix) {
-        url += alias->prefixLen;
-    }
-    while (*url == '/') {
-        url++;
-    }
-    len = (int) strlen(alias->filename);
-    if ((path = mprAlloc(len + strlen(url) + 2)) == 0) {
-        return 0;
-    }
-    strcpy(path, alias->filename);
-    if (*url) {
-        seps = mprGetPathSeparators(path);
-        path[len++] = seps[0];
-        strcpy(&path[len], url);
-    }
-    return mprGetNativePath(path);
-}
-#endif
 
 
 /*

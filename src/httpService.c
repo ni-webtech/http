@@ -232,19 +232,11 @@ HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
      */
     http = MPR->httpService;
     route = httpCreateRoute(host);
-#if UNUSED
-    if (serverSide) {
-        httpAddFilter(route, http->authFilter->name, NULL, HTTP_STAGE_RX);
-    }
-#endif
     httpAddRouteFilter(route, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
     httpAddRouteFilter(route, http->chunkFilter->name, NULL, HTTP_STAGE_RX | HTTP_STAGE_TX);
     if (serverSide) {
         httpAddRouteFilter(route, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
     }
-#if UNUSED
-    route->connector = http->netConnector;
-#endif
     return route;
 }
 

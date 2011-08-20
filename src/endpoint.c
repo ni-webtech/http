@@ -34,14 +34,6 @@ HttpEndpoint *httpCreateEndpoint(cchar *ip, int port, MprDispatcher *dispatcher)
     endpoint->dispatcher = dispatcher;
     endpoint->hosts = mprCreateList(-1, 0);
     httpAddEndpoint(http, endpoint);
-
-#if UNUSED
-    if (flags & HTTP_CREATE_HOST) {
-        host = httpCreateHost();
-        httpSetHostName(host, ip, port);
-        httpAddHostToEndpoint(endpoint, host);
-    }
-#endif
     return endpoint;
 }
 
@@ -367,48 +359,11 @@ void httpSetEndpointContext(HttpEndpoint *endpoint, void *context)
 }
 
 
-#if UNUSED
-void httpSetEndpointRoute(HttpEndpoint *endpoint, HttpRoute *route)
-{
-    mprAssert(endpoint);
-    mprAssert(route);
-    endpoint->route = route;
-}
-#endif
-
-
 void httpSetEndpointNotifier(HttpEndpoint *endpoint, HttpNotifier notifier)
 {
     mprAssert(endpoint);
     endpoint->notifier = notifier;
 }
-
-
-#if UNUSED
-/*
-    This returns the first matching endpoint. IP and port can be wild (set to 0)
- */
-HttpEndpoint *httpLookupEndpoint(cchar *ip, int port)
-{
-    HttpEndpoint    *endpoint;
-    Http            *http;
-    int             next, count;
-
-    http = MPR->httpService;
-    if (ip == 0) {
-        ip = "";
-    }
-    for (count = 0, next = 0; (endpoint = mprGetNextItem(http->endpoints, &next)) != 0; ) {
-        if (endpoint->port <= 0 || port <= 0 || endpoint->port == port) {
-            mprAssert(endpoint->ip);
-            if (*endpoint->ip == '\0' || *ip == '\0' || scmp(endpoint->ip, ip) == 0) {
-                return endpoint;
-            }
-        }
-    }
-    return 0;
-}
-#endif
 
 
 int httpSecureEndpoint(HttpEndpoint *endpoint, struct MprSsl *ssl)

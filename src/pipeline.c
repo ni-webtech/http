@@ -66,11 +66,6 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
     conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
     conn->connq = tx->queue[HTTP_QUEUE_TX]->prevQ;
 
-#if UNUSED
-    if ((tx->handler->flags & HTTP_STAGE_VERIFY_ENTITY) && !tx->fileInfo.valid && !(rx->flags & HTTP_PUT)) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
-    }
-#endif
     setVars(conn);
     pairQueues(conn);
     openQueues(conn);
@@ -299,40 +294,6 @@ void httpDiscardTransmitData(HttpConn *conn)
 }
 
 
-#if UNUSED
-static void trimExtraPath(HttpConn *conn)
-{
-    HttpRx      *rx;
-    HttpTx      *tx;
-    cchar       *seps;
-    char        *cp, *extra, *start;
-    ssize       len;
-
-    rx = conn->rx;
-    tx = conn->tx;
-
-    /*
-        Heuristically find the script name in the uri. This is assumed to be either:
-            - the original uri up to and including first path component containing a ".", or
-            - the entire original uri
-        Once found, set the scriptName and trim the extraPath from pathInfo.
-        WARNING: ExtraPath is an old, unreliable, CGI specific technique. Directories with "." will thwart this code.
-     */
-    start = tx->filename;
-    seps = mprGetPathSeparators(start);
-    if ((cp = strchr(start, '.')) != 0 && (extra = strchr(cp, seps[0])) != 0) {
-        len = extra - start;
-        if (0 < len && len < slen(rx->pathInfo)) {
-            *extra = '\0';
-            rx->extraPath = sclone(&rx->pathInfo[len]);
-            rx->pathInfo[len] = '\0';
-            return;
-        }
-    }
-}
-#endif
-
-
 /*
     Create the form variables based on the URI query. Also create formVars for CGI style programs (cgi | egi)
  */
@@ -344,11 +305,6 @@ static void setVars(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
 
-#if UNUSED
-    if (tx->handler->flags & HTTP_STAGE_EXTRA_PATH) {
-        trimExtraPath(conn);
-    }
-#endif
     if (tx->handler->flags & (HTTP_STAGE_CGI_VARS | HTTP_STAGE_FORM_VARS | HTTP_STAGE_QUERY_VARS)) {
         rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     }
