@@ -34,6 +34,9 @@ static void defineHostVars(HttpRoute *route);
 static char *expandPath(HttpConn *conn, cchar *path);
 static char *expandPatternTokens(cchar *str, cchar *replacement, int *matches, int matchCount);
 static char *expandRequestTokens(HttpConn *conn, char *targetKey);
+static void finalizeMethods(HttpRoute *route);
+static void finalizePattern(HttpRoute *route);
+static char *finalizeReplacement(HttpRoute *route, cchar *str);
 static bool opPresent(MprList *list, HttpRouteOp *op);
 static void manageRoute(HttpRoute *route, int flags);
 static void manageLang(HttpLang *lang, int flags);
@@ -119,6 +122,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->http = MPR->httpService;
     route->host = parent->host;
     route->inputStages = parent->inputStages;
+    route->index = parent->index;
     route->languages = parent->languages;
     route->targetOp = parent->targetOp;
     route->methodHash = parent->methodHash;
@@ -130,8 +134,8 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->pattern = parent->pattern;
     route->patternCompiled = parent->patternCompiled;
     route->processedPattern = parent->processedPattern;
-    route->redirectStatus = parent->redirectStatus;
     route->redirectTarget = parent->redirectTarget;
+    route->responseStatus = parent->responseStatus;
     route->script = parent->script;
     route->scriptPath = parent->scriptPath;
     route->searchPath = parent->searchPath;
@@ -144,6 +148,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->updates = parent->updates;
     route->uploadDir = parent->uploadDir;
     route->virtualTarget = parent->virtualTarget;
+    route->writeTarget = parent->writeTarget;
     route->workers = parent->workers;
     return route;
 }
@@ -156,9 +161,9 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *prefix, cchar *path, i
     if ((route = httpCreateInheritedRoute(parent)) == 0) {
         return 0;
     }
-    httpSetRoutePattern(route, prefix);
+    httpSetRoutePattern(route, prefix, 0);
     httpSetRouteDir(route, path);
-    route->redirectStatus = status;
+    route->responseStatus = status;
     return route;
 }
 
@@ -210,6 +215,7 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->updates);
         mprMark(route->uploadDir);
         mprMark(route->virtualTarget);
+        mprMark(route->writeTarget);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (route->patternCompiled) {
@@ -219,194 +225,33 @@ static void manageRoute(HttpRoute *route, int flags)
 }
 
 
-static void finalizeMethods(HttpRoute *route)
-{
-    char    *method, *methods, *tok;
-
-    methods = route->methods;
-    if (methods && *methods && !scasematch(route->methods, "ALL") && !smatch(route->methods, "*")) {
-        if ((route->methodHash = mprCreateHash(-1, 0)) == 0) {
-            return;
-        }
-        methods = sclone(methods);
-        while ((method = stok(methods, ", \t\n\r", &tok)) != 0) {
-            mprAddKey(route->methodHash, method, route);
-            methods = 0;
-        }
-    } else {
-        route->methods = sclone("*");
-    }
-}
-
-
-/*
-    Finalize the pattern. 
-        - Extract the tokens and change tokens: "{word}" to "(word)"
-        - Change optional sections: "(portion)" to "(?:portion)?"
-        - Create a params RE replacement string of the form "$1:$2:$3" for the {tokens}
-        - Wrap the pattern in "^" and "$"
- */
-static void finalizePattern(HttpRoute *route)
-{
-    MprBuf      *pattern, *params;
-    cchar       *errMsg;
-    char        *cp, *ep, *token, *field;
-    int         column, index;
-
-    route->tokens = mprCreateList(-1, 0);
-    pattern = mprCreateBuf(-1, -1);
-
-    if (route->name == 0) {
-        route->name = route->pattern;
-    }
-    if (route->pattern[0] == '%') {
-        route->processedPattern = sclone(&route->pattern[1]);
-
-    } else {
-        params = mprCreateBuf(-1, -1);
-        for (cp = route->pattern; *cp; cp++) {
-            if (*cp == '(') {
-                mprPutStringToBuf(pattern, "(?:");
-
-            } else if (*cp == ')') {
-                mprPutStringToBuf(pattern, ")?");
-
-            } else if (*cp == '{' && (cp == route->pattern || cp[-1] != '\\')) {
-                if ((ep = schr(cp, '}')) != 0) {
-                    /* Trim {} off the token and replace in pattern with "([^/]*)"  */
-                    token = snclone(&cp[1], ep - cp - 1);
-                    if ((field = schr(token, '=')) != 0) {
-                        *field++ = '\0';
-                    } else {
-                        field = "([^/]*)";
-                    }
-                    mprPutStringToBuf(pattern, field);
-                    index = mprAddItem(route->tokens, token);
-                    /* Params ends up looking like "$1:$2:$3:$4" */
-                    mprPutCharToBuf(params, '$');
-                    mprPutIntToBuf(params, index + 1);
-                    mprPutCharToBuf(params, ':');
-                    cp = ep;
-                }
-            } else {
-                mprPutCharToBuf(pattern, *cp);
-            }
-        }
-        mprAddNullToBuf(pattern);
-        mprAddNullToBuf(params);
-        route->processedPattern = sclone(mprGetBufStart(pattern));
-
-        /* Trim last ":" from params */
-        if (mprGetBufLength(params) > 0) {
-            route->params = sclone(mprGetBufStart(params));
-            route->params[slen(route->params) - 1] = '\0';
-        }
-    }
-    if ((route->patternCompiled = pcre_compile2(route->processedPattern, 0, 0, &errMsg, &column, NULL)) == 0) {
-        mprError("Can't compile route. Error %s at column %d", errMsg, column); 
-    }
-
-    /*
-        Create a template for links. Strip "()" and "/.*" from the pattern.
-     */
-    route->template = sreplace(route->pattern, "(", "");
-    route->template = sreplace(route->template, ")", "");
-    route->template = sreplace(route->template, "/.*", "");
-}
-
-
-static char *finalizeReplacement(HttpRoute *route, cchar *str)
-{
-    MprBuf      *buf;
-    cchar       *item;
-    cchar       *tok, *cp, *ep, *token;
-    int         next, braced;
-
-    /*
-        Prepare a replacement string. Change $token to $N
-     */
-    buf = mprCreateBuf(-1, -1);
-    for (cp = str; *cp; cp++) {
-        if ((tok = schr(cp, '$')) != 0 && (tok == str || tok[-1] != '\\')) {
-            if (tok > cp) {
-                mprPutBlockToBuf(buf, cp, tok - cp);
-            }
-            if ((braced = (*++tok == '{')) != 0) {
-                tok++;
-            }
-            if (*tok == '&' || *tok == '\'' || *tok == '`' || *tok == '$') {
-                mprPutCharToBuf(buf, '$');
-                mprPutCharToBuf(buf, *tok);
-                ep = tok + 1;
-            } else {
-                if (braced) {
-                    for (ep = tok; *ep && *ep != '}'; ep++) ;
-                } else {
-                    for (ep = tok; *ep && isdigit((int) *ep); ep++) ;
-                }
-                token = snclone(tok, ep - tok);
-                if (schr(token, ':')) {
-                    mprPutStringToBuf(buf, "$${");
-                    mprPutStringToBuf(buf, token);
-                    mprPutCharToBuf(buf, '}');
-                } else {
-                    for (next = 0; (item = mprGetNextItem(route->tokens, &next)) != 0; ) {
-                        if (scmp(item, token) == 0) {
-                            break;
-                        }
-                    }
-                    if (item) {
-                        mprPutCharToBuf(buf, '$');
-                        mprPutIntToBuf(buf, next);
-                    } else if (snumber(token)) {
-                        mprPutCharToBuf(buf, '$');
-                        mprPutStringToBuf(buf, token);
-                    } else {
-                        mprError("Can't find token \"%s\" in template \"%s\"", token, route->pattern);
-                    }
-                }
-            }
-            if (braced) {
-                ep++;
-            }
-            cp = ep - 1;
-        } else {
-            mprPutCharToBuf(buf, *cp);
-        }
-    }
-    mprAddNullToBuf(buf);
-    return sclone(mprGetBufStart(buf));
-}
-
-
-int httpFinalizeRoute(HttpRoute *route)
-{
-    /*
-        Add the route to the owning host. When using an Appweb configuration file, the order of route finalization 
-        will be from the inside out. This ensures that nested routes are defined BEFORE outer/enclosing routes.
-        This is important as requests process routes in-order.
-     */
-    httpAddRoute(route->host, route);
-    mprConfigureSsl(route->ssl);
-    return 0;
-}
-
-
 int httpMatchRoute(HttpConn *conn, HttpRoute *route)
 {
     HttpRouteOp     *op, *condition, *update;
     HttpRouteProc   *proc;
     HttpRx          *rx;
+    HttpTx          *tx;
     cchar           *token, *value, *header, *field;
     int             next, rc, matched[HTTP_MAX_ROUTE_MATCHES * 2], count;
 
     rx = conn->rx;
+    tx = conn->tx;
     route->flags &= ~HTTP_ROUTE_MAPPED;
 
     if (route->patternCompiled) {
-        if ((rx->matchCount = pcre_exec(route->patternCompiled, NULL, rx->pathInfo, (int) slen(rx->pathInfo), 0, 0, 
-                rx->matches, sizeof(rx->matches) / sizeof(int))) < 0) {
-            return 0;
+        rx->matchCount = pcre_exec(route->patternCompiled, NULL, rx->pathInfo, (int) slen(rx->pathInfo), 0, 0, 
+                rx->matches, sizeof(rx->matches) / sizeof(int));
+        if (route->flags & HTTP_ROUTE_NOT) {
+            if (rx->matchCount > 0) {
+                return 0;
+            }
+            rx->matchCount = 1;
+            rx->matches[0] = 0;
+            rx->matches[1] = (int) slen(rx->pathInfo);
+        } else {
+            if (rx->matchCount <= 0) {
+                return 0;
+            }
         }
     }
     if (route->methodHash && !mprLookupKey(route->methodHash, rx->method)) {
@@ -544,7 +389,7 @@ static int mapFile(HttpConn *conn, HttpRoute *route)
                 } else if (lang->flags & HTTP_LANG_BEFORE) {
                     ext = mprGetPathExt(filename);
                     if (ext && *ext) {
-                        filename = mprJoinPathExt(mprJoinPathExt(mprTrimPathExt(filename), lang->suffix), ext);
+                        filename = sjoin(mprJoinPathExt(mprTrimPathExt(filename), lang->suffix), ".", ext, 0);
                     } else {
                         filename = mprJoinPathExt(mprTrimPathExt(filename), lang->suffix);
                     }
@@ -1087,9 +932,10 @@ void httpSetRouteName(HttpRoute *route, cchar *name)
 }
 
 
-void httpSetRoutePattern(HttpRoute *route, cchar *pattern)
+void httpSetRoutePattern(HttpRoute *route, cchar *pattern, int flags)
 {
     route->pattern = sclone(pattern);
+    route->flags |= (flags & HTTP_ROUTE_NOT);
     finalizePattern(route);
 }
 
@@ -1124,7 +970,7 @@ void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath)
  */
 int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
 {
-    char    *redirectTarget;
+    char    *target;
 
     mprAssert(route);
     mprAssert(kind && *kind);
@@ -1136,16 +982,16 @@ int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
         route->closeTarget = route->target;
 
     } else if (scasematch(kind, "redirect")) {
-        if (isdigit(details[0])) {
-            if (!httpTokenize(route, details, "%N %S", &route->redirectStatus, &redirectTarget)) {
+        if (isdigit(route->target[0])) {
+            if (!httpTokenize(route, route->target, "%N %S", &route->responseStatus, &target)) {
                 return MPR_ERR_BAD_SYNTAX;
             }
         } else {
-            if (!httpTokenize(route, details, "%S", &redirectTarget)) {
+            if (!httpTokenize(route, route->target, "%S", &target)) {
                 return MPR_ERR_BAD_SYNTAX;
             }
         }
-        route->redirectTarget = finalizeReplacement(route, redirectTarget);
+        route->redirectTarget = finalizeReplacement(route, target);
         return 0;
 
     } else if (scasematch(kind, "file")) {
@@ -1153,6 +999,12 @@ int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
 
     } else if (scasematch(kind, "virtual")) {
         route->virtualTarget = finalizeReplacement(route, route->target);
+
+    } else if (scasematch(kind, "write")) {
+        if (!httpTokenize(route, route->target, "%N %S", &route->responseStatus, &target)) {
+            return MPR_ERR_BAD_SYNTAX;
+        }
+        route->writeTarget = finalizeReplacement(route, target);
 
     } else {
         return MPR_ERR_BAD_SYNTAX;
@@ -1184,6 +1036,210 @@ cchar *httpLookupRouteErrorDocument(HttpRoute *route, int code)
     itos(numBuf, sizeof(numBuf), code, 10);
     return (cchar*) mprLookupKey(route->errorDocuments, numBuf);
 }
+
+/********************************* Route Finalization *************************/
+
+static void finalizeMethods(HttpRoute *route)
+{
+    char    *method, *methods, *tok;
+
+    methods = route->methods;
+    if (methods && *methods && !scasematch(route->methods, "ALL") && !smatch(route->methods, "*")) {
+        if ((route->methodHash = mprCreateHash(-1, 0)) == 0) {
+            return;
+        }
+        methods = sclone(methods);
+        while ((method = stok(methods, ", \t\n\r", &tok)) != 0) {
+            mprAddKey(route->methodHash, method, route);
+            methods = 0;
+        }
+    } else {
+        route->methods = sclone("*");
+    }
+}
+
+
+/*
+    Finalize the pattern. 
+        - Change "\{n[:m]}" to "{n[:m]}"
+        - Extract the tokens and change tokens: "{word}" to "(word)"
+        - Change optional sections: "(portion)" to "(?:portion)?"
+        - Create a params RE replacement string of the form "$1:$2:$3" for the {tokens}
+        - Wrap the pattern in "^" and "$"
+ */
+static void finalizePattern(HttpRoute *route)
+{
+    MprBuf      *pattern, *params;
+    cchar       *errMsg;
+    char        *cp, *ep, *token, *field;
+    int         column, submatch;
+
+    route->tokens = mprCreateList(-1, 0);
+    pattern = mprCreateBuf(-1, -1);
+
+    if (route->name == 0) {
+        route->name = route->pattern;
+    }
+    if (route->pattern[0] == '%') {
+        //  MOB - is this needed?
+        route->processedPattern = sclone(&route->pattern[1]);
+
+    } else {
+        params = mprCreateBuf(-1, -1);
+        for (submatch = 0, cp = route->pattern; *cp; cp++) {
+            if (*cp == '(') {
+#if UNUSED
+                mprPutStringToBuf(pattern, "(?:");
+#else
+                mprPutCharToBuf(pattern, *cp);
+                ++submatch;
+#endif
+
+            } else if (*cp == ')') {
+#if UNUSED
+                mprPutStringToBuf(pattern, ")?");
+#else
+                mprPutCharToBuf(pattern, *cp);
+#endif
+
+            } else if (*cp == '{') {
+                if (cp > route->pattern && cp[-1] == '\\') {
+                    mprAdjustBufEnd(pattern, -1);
+                    mprPutCharToBuf(pattern, *cp);
+                } else {
+                    if ((ep = schr(cp, '}')) != 0) {
+                        /* Trim {} off the token and replace in pattern with "([^/]*)"  */
+                        token = snclone(&cp[1], ep - cp - 1);
+                        if ((field = schr(token, '=')) != 0) {
+                            *field++ = '\0';
+                        } else {
+                            field = "([^/]*)";
+                        }
+                        mprPutStringToBuf(pattern, field);
+                        mprAddItem(route->tokens, token);
+                        /* Params ends up looking like "$1:$2:$3:$4" */
+                        mprPutCharToBuf(params, '$');
+                        mprPutIntToBuf(params, ++submatch);
+                        mprPutCharToBuf(params, ':');
+                        cp = ep;
+                    }
+                }
+            } else {
+                mprPutCharToBuf(pattern, *cp);
+            }
+        }
+        mprAddNullToBuf(pattern);
+        mprAddNullToBuf(params);
+        route->processedPattern = sclone(mprGetBufStart(pattern));
+
+        /* Trim last ":" from params */
+        if (mprGetBufLength(params) > 0) {
+            route->params = sclone(mprGetBufStart(params));
+            route->params[slen(route->params) - 1] = '\0';
+        }
+    }
+    if ((route->patternCompiled = pcre_compile2(route->processedPattern, 0, 0, &errMsg, &column, NULL)) == 0) {
+        mprError("Can't compile route. Error %s at column %d", errMsg, column); 
+    }
+
+    /*
+        Create a template for links. Strip "()" and "/.*" from the pattern.
+     */
+    route->template = sreplace(route->pattern, "(", "");
+    route->template = sreplace(route->template, ")", "");
+    route->template = sreplace(route->template, "/.*", "");
+}
+
+
+static char *finalizeReplacement(HttpRoute *route, cchar *str)
+{
+    MprBuf      *buf;
+    cchar       *item;
+    cchar       *tok, *cp, *ep, *token;
+    int         next, braced;
+
+    /*
+        Prepare a replacement string. Change $token to $N
+     */
+    buf = mprCreateBuf(-1, -1);
+    for (cp = str; *cp; cp++) {
+        if ((tok = schr(cp, '$')) != 0 && (tok == str || tok[-1] != '\\')) {
+            if (tok > cp) {
+                mprPutBlockToBuf(buf, cp, tok - cp);
+            }
+            if ((braced = (*++tok == '{')) != 0) {
+                tok++;
+            }
+            if (*tok == '&' || *tok == '\'' || *tok == '`' || *tok == '$') {
+                mprPutCharToBuf(buf, '$');
+                mprPutCharToBuf(buf, *tok);
+                ep = tok + 1;
+            } else {
+                if (braced) {
+                    for (ep = tok; *ep && *ep != '}'; ep++) ;
+                } else {
+                    for (ep = tok; *ep && isdigit((int) *ep); ep++) ;
+                }
+                token = snclone(tok, ep - tok);
+                if (schr(token, ':')) {
+                    mprPutStringToBuf(buf, "$${");
+                    mprPutStringToBuf(buf, token);
+                    mprPutCharToBuf(buf, '}');
+                } else {
+                    for (next = 0; (item = mprGetNextItem(route->tokens, &next)) != 0; ) {
+                        if (scmp(item, token) == 0) {
+                            break;
+                        }
+                    }
+                    if (item) {
+                        mprPutCharToBuf(buf, '$');
+                        mprPutIntToBuf(buf, next);
+                    } else if (snumber(token)) {
+                        mprPutCharToBuf(buf, '$');
+                        mprPutStringToBuf(buf, token);
+                    } else {
+                        mprError("Can't find token \"%s\" in template \"%s\"", token, route->pattern);
+                    }
+                }
+            }
+            if (braced) {
+                ep++;
+            }
+            cp = ep - 1;
+
+        } else {
+            if (*cp == '\\') {
+                if (cp[1] == 'r') {
+                    mprPutCharToBuf(buf, '\r');
+                    cp++;
+                } else if (cp[1] == 'n') {
+                    mprPutCharToBuf(buf, '\n');
+                    cp++;
+                } else {
+                    mprPutCharToBuf(buf, *cp);
+                }
+            } else {
+                mprPutCharToBuf(buf, *cp);
+            }
+        }
+    }
+    mprAddNullToBuf(buf);
+    return sclone(mprGetBufStart(buf));
+}
+
+
+int httpFinalizeRoute(HttpRoute *route)
+{
+    /*
+        Add the route to the owning host. When using an Appweb configuration file, the order of route finalization 
+        will be from the inside out. This ensures that nested routes are defined BEFORE outer/enclosing routes.
+        This is important as requests process routes in-order.
+     */
+    httpAddRoute(route->host, route);
+    mprConfigureSsl(route->ssl);
+    return 0;
+}
+
 
 /********************************* Path Expansion *****************************/
 
@@ -1289,7 +1345,7 @@ static int allowDenyCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     rx = conn->rx;
     auth = rx->route->auth;
-    if (!conn->endpoint || auth == 0) {
+    if (auth == 0) {
         return HTTP_ROUTE_ACCEPTED;
     }
     allow = 0;
@@ -1331,7 +1387,7 @@ static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     HttpRx      *rx;
 
     rx = conn->rx;
-    if (!conn->endpoint || route->auth == 0 || route->auth->type == 0) {
+    if (route->auth == 0 || route->auth->type == 0) {
         return HTTP_ROUTE_ACCEPTED;
     }
     return httpCheckAuth(conn);
@@ -1392,11 +1448,6 @@ static int matchCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     int         matched[HTTP_MAX_ROUTE_MATCHES * 2], count;
 
     rx = conn->rx;
-    //  MOB - are these tests against endpoint required. Why does client come here?
-    mprAssert(conn->endpoint);
-    if (!conn->endpoint) {
-        return HTTP_ROUTE_ACCEPTED;
-    }
     str = expandPath(conn, op->details);
     count = pcre_exec(op->mdata, NULL, str, (int) slen(str), 0, 0, matched, sizeof(matched) / sizeof(int)); 
     if (count > 0) {
@@ -1485,8 +1536,8 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(route->redirectTarget && *route->redirectTarget);
 
     target = expandPath(conn, route->redirectTarget);
-    if (route->redirectStatus) {
-        httpRedirect(conn, route->redirectStatus, target);
+    if (route->responseStatus) {
+        httpRedirect(conn, route->responseStatus, target);
         return HTTP_ROUTE_ACCEPTED;
     }
     prior = rx->parsedUri;
@@ -1505,6 +1556,17 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 static int virtualTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     conn->rx->targetKey = route->virtualTarget ? expandPath(conn, route->virtualTarget) : sclone(&conn->rx->pathInfo[1]);
+    return HTTP_ROUTE_ACCEPTED;
+}
+
+
+static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
+{
+    char    *str;
+
+    str = route->writeTarget ? expandPath(conn, route->writeTarget) : sclone(&conn->rx->pathInfo[1]);
+    httpSetStatus(conn, route->responseStatus);
+    httpFormatResponse(conn, "%s", str);
     return HTTP_ROUTE_ACCEPTED;
 }
 
@@ -1837,6 +1899,7 @@ void httpDefineRouteBuiltins()
     httpDefineRouteTarget("file", fileTarget);
     httpDefineRouteTarget("redirect", redirectTarget);
     httpDefineRouteTarget("virtual", virtualTarget);
+    httpDefineRouteTarget("write", writeTarget);
 }
 
 
@@ -1921,23 +1984,26 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
         if (*f == '%' || *f == '?') {
             f++;
             if (*tok == '"' || *tok == '\'') {
-                quote = *tok;
+                quote = *tok++;
             }
-            if (quote) {
-                for (etok = ++tok; *etok && (*etok != quote && etok[-1] != '\\'); etok++) ; 
-                *etok++ = '\0';
-                quote = 0;
-            } else if (*f == '*') {
-                for (etok = tok; *etok; etok++) {
-                    if (*etok == '#') {
-                        *etok = '\0';
-                    }
-                }
+            if (*f == '!') {
+                etok = &tok[1];
             } else {
-                for (etok = tok; *etok && !isspace((int) *etok); etok++) ;
+                if (quote) {
+                    for (etok = tok; *etok && !(*etok == quote && etok[-1] != '\\'); etok++) ; 
+                    *etok++ = '\0';
+                    quote = 0;
+                } else if (*f == '*') {
+                    for (etok = tok; *etok; etok++) {
+                        if (*etok == '#') {
+                            *etok = '\0';
+                        }
+                    }
+                } else {
+                    for (etok = tok; *etok && !isspace((int) *etok); etok++) ;
+                }
+                *etok++ = '\0';
             }
-            *etok++ = '\0';
-
             if (*f == '*') {
                 f++;
                 if (directive) {
@@ -2003,9 +2069,8 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
          */
         for (; tok < end && isspace((int) *tok); tok++) ;
         if (*tok) {
-            return MPR_ERR_BAD_SYNTAX;
+            return 0;
         }
-        return 0;
     }
     if (*f) {
         /*
@@ -2039,7 +2104,7 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
             }
         }
         if (*f) {
-            return MPR_ERR_BAD_SYNTAX;
+            return 0;
         }
     }
     va_end(args);

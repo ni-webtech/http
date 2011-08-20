@@ -81,7 +81,7 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
              */
             httpDisconnect(conn);
         } else {
-            httpSetResponseBody(conn, status, conn->errorMsg);
+            httpSetResponseError(conn, status, conn->errorMsg);
         }
     } else {
         if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {

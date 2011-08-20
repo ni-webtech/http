@@ -69,7 +69,7 @@ void httpRouteRequest(HttpConn *conn)
             rewrites++;
         }
     }
-    if (conn->error || conn->tx->redirected) {
+    if (conn->error || tx->redirected || tx->altBody) {
         tx->handler = conn->http->passHandler;
         if (rewrites >= HTTP_MAX_REWRITE) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");

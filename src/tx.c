@@ -211,6 +211,11 @@ void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 }
 
 
+/*
+    Convenience routine to add Cache-Control header:
+
+    httpAddHeaderString(conn, "Cache-Control", "no-cache");
+ */
 void httpDontCache(HttpConn *conn)
 {
     if (conn->tx) {
@@ -252,64 +257,100 @@ void httpFlush(HttpConn *conn)
 }
 
 
-/*
-    Format alternative body content. The message is HTML escaped.
- */
-int httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
+ssize httpFormatResponsev(HttpConn *conn, cchar *fmt, va_list args)
+{
+    HttpTx      *tx;
+    char        *body;
+
+    tx = conn->tx;
+    body = mprAsprintfv(fmt, args);
+    tx->altBody = body;
+    tx->responded = 1;
+    httpOmitBody(conn);
+    return slen(tx->altBody);
+}
+
+
+ssize httpFormatResponse(HttpConn *conn, cchar *fmt, ...)
+{
+    va_list     args;
+    ssize       rc;
+
+    va_start(args, fmt);
+    rc = httpFormatResponsev(conn, fmt, args);
+    va_end(args);
+    return rc;
+}
+
+
+ssize httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
 {
     HttpTx      *tx;
     va_list     args;
-    char        *body;
+    char        *msg, *body;
 
     tx = conn->tx;
     va_start(args, fmt);
 
-    httpOmitBody(conn);
     body = mprAsprintfv(fmt, args);
-
     if (scmp(conn->rx->accept, "text/plain") == 0) {
-        tx->altBody = body;
+        msg = body;
     } else {
-        tx->altBody = mprAsprintf(
+        msg = mprAsprintf(
             "<!DOCTYPE html>\r\n"
             "<html><head><title>%s</title></head>\r\n"
             "<body>\r\n%s\r\n</body>\r\n</html>\r\n",
             title, body);
-        va_end(args);
     }
-    tx->responded = 1;
-    return (int) strlen(tx->altBody);
+    va_end(args);
+    return httpFormatResponse(conn, "%s", msg);
+}
+
+
+/*
+    The message is NOT html escaped
+ */
+void httpSetResponseBody(HttpConn *conn, int status, cchar *fmt, ...)
+{
+    va_list     args;
+    HttpTx      *tx;
+    cchar       *msg;
+
+    mprAssert(msg && msg);
+    tx = conn->tx;
+
+    va_start(args, fmt);
+    msg = mprAsprintfv(fmt, args);
+    tx->status = status;
+    if (tx->altBody == 0) {
+        httpFormatBody(conn, httpLookupStatus(conn->http, status), "%s", msg);
+    }
+    va_end(args);
 }
 
 
 /*
     Create an alternate body response. Typically used for error responses. The message is HTML escaped.
  */
-void httpSetResponseBody(HttpConn *conn, int status, cchar *msg)
+void httpSetResponseError(HttpConn *conn, int status, cchar *fmt, ...)
 {
-    HttpTx      *tx;
+    va_list     args;
     cchar       *statusMsg;
+    char        *msg;
 
     mprAssert(msg && msg);
-    tx = conn->tx;
 
-    if (tx->flags & HTTP_TX_HEADERS_CREATED) {
-        mprError("Can't set response body if headers have already been created");
-        /* Connectors will detect this also and disconnect */
+    va_start(args, fmt);
+    msg = mprAsprintfv(fmt, args);
+    statusMsg = httpLookupStatus(conn->http, status);
+    if (scmp(conn->rx->accept, "text/plain") == 0) {
+        msg = sfmt("Access Error: %d -- %s\r\n%s\r\n", status, statusMsg, msg);
     } else {
-        httpDiscardTransmitData(conn);
-    }
-    tx->status = status;
-    if (tx->altBody == 0) {
-        statusMsg = httpLookupStatus(conn->http, status);
-        if (scmp(conn->rx->accept, "text/plain") == 0) {
-            httpFormatBody(conn, statusMsg, "Access Error: %d -- %s\r\n%s\r\n", status, statusMsg, msg);
-        } else {
-            httpFormatBody(conn, statusMsg, "<h2>Access Error: %d -- %s</h2>\r\n<pre>%s</pre>\r\n", status, statusMsg, 
-                mprEscapeHtml(msg));
-        }
+        msg = sfmt("<h2>Access Error: %d -- %s</h2>\r\n<pre>%s</pre>\r\n", status, statusMsg, mprEscapeHtml(msg));
     }
     httpDontCache(conn);
+    httpFormatBody(conn, statusMsg, "%s", msg);
+    va_end(args);
 }
 
 
@@ -322,11 +363,16 @@ void *httpGetQueueData(HttpConn *conn)
 }
 
 
-//  MOB - refactor how this is done
 void httpOmitBody(HttpConn *conn)
 {
     if (conn->tx) {
         conn->tx->flags |= HTTP_TX_NO_BODY;
+    }
+    if (conn->tx->flags & HTTP_TX_HEADERS_CREATED) {
+        mprError("Can't set response body if headers have already been created");
+        /* Connectors will detect this also and disconnect */
+    } else {
+        httpDiscardTransmitData(conn);
     }
 }
 
