@@ -305,11 +305,13 @@ static void setVars(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
 
+#if UNUSED
     if (tx->handler->flags & (HTTP_STAGE_CGI_VARS | HTTP_STAGE_FORM_VARS | HTTP_STAGE_QUERY_VARS)) {
         rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     }
-    if (tx->handler->flags & HTTP_STAGE_QUERY_VARS && rx->parsedUri->query) {
-        httpAddVars(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
+#endif
+    if (tx->handler->flags & HTTP_STAGE_QUERY_VARS) {
+        httpAddQueryVars(conn);
     }
     if (tx->handler->flags & HTTP_STAGE_CGI_VARS) {
         httpCreateCGIVars(conn);

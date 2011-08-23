@@ -93,8 +93,9 @@ void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
 
     mprAssert(conn);
     table = conn->rx->formVars;
-    mprAssert(table);
-
+    if (table == 0) {
+        table = conn->rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
+    }
     decoded = mprAlloc(len + 1);
     decoded[len] = '\0';
     memcpy(decoded, buf, len);
@@ -149,13 +150,28 @@ void httpAddVarsFromQueue(HttpQueue *q)
 }
 
 
+void httpAddQueryVars(HttpConn *conn) 
+{
+    HttpRx      *rx;
+
+    rx = conn->rx;
+    if (rx->parsedUri->query && !(rx->flags & HTTP_ADDED_QUERY_VARS)) {
+        httpAddVars(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
+        rx->flags |= HTTP_ADDED_QUERY_VARS;
+    }
+}
+
+
 void httpAddFormVars(HttpConn *conn)
 {
     HttpRx      *rx;
 
     rx = conn->rx;
     if (rx->form) {
-        httpAddVarsFromQueue(conn->readq);
+        if (!(rx->flags & HTTP_ADDED_FORM_VARS)) {
+            httpAddVarsFromQueue(conn->readq);
+            rx->flags |= HTTP_ADDED_FORM_VARS;
+        }
     }
 }
 

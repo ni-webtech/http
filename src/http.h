@@ -100,6 +100,7 @@ struct HttpUri;
 /*  
     Other constants
  */
+#define HTTP_TIME_LEVEL           7                 /**< Trace level for timing log messages */
 #define HTTP_DEFAULT_MAX_THREADS  10                /**< Default number of threads */
 #define HTTP_MAX_KEEP_ALIVE       100               /**< Maximum requests per connection */
 #define HTTP_MAX_PASS             64                /**< Size of password */
@@ -1307,7 +1308,7 @@ extern void httpManageTrace(HttpTrace *trace, int flags);
 #if BLD_DEBUG
 #define HTTP_TIME(conn, tag1, tag2, op) \
     if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, NULL) >= 0) { \
-        MPR_MEASURE(5, tag1, tag2, op); \
+        MPR_MEASURE(HTTP_TIME_LEVEL, tag1, tag2, op); \
     } else op
 #else
 #define HTTP_TIME(conn, tag1, tag2, op) op
@@ -1914,6 +1915,11 @@ typedef struct HttpRoute {
     char            *writeTarget;           /**< Write target text */
     int             responseStatus;         /**< Response status code */
 
+    char            *prefix;                /**< Simple route prefix */
+    ssize           prefixLen;              /**< Simple route prefix length */
+    char            *scriptName;            /**< Application scriptName prefix */
+    ssize           scriptNameLen;          /**< ScriptName length */
+
     char            *template;              /**< URI template for forming links based on this route */
     HttpStage       *handler;               /**< Fixed handler */
 
@@ -1948,8 +1954,8 @@ typedef struct HttpRoute {
     char            *scriptPath;            /**< Startup script path for handlers serving this route */
 
     MprHashTable    *methodHash;            /**< Matching HTTP methods */
-    MprList         *formFields;            /**< Matching form data values */
     MprList         *headers;               /**< Matching header values */
+    MprList         *queryFields;           /**< Matching query field data */
     MprList         *conditions;            /**< Route conditions */
     MprList         *updates;               /**< Route and request updates */
 
@@ -1959,8 +1965,8 @@ typedef struct HttpRoute {
     MprList         *tokens;                /**< Tokens in pattern, {name} */
 
     struct MprSsl   *ssl;                   /**< SSL configuration */
-
 } HttpRoute;
+
 
 typedef struct HttpRouteOp {
     char            *name;                  /* Name of route item */
@@ -1979,12 +1985,12 @@ typedef int (HttpRouteProc)(HttpConn *conn, HttpRoute *route, HttpRouteOp *item)
 extern void httpAddRouteErrorDocument(HttpRoute *route, cchar *code, cchar *url);
 extern void httpAddRouteExpiry(HttpRoute *route, MprTime when, cchar *extensions);
 extern void httpAddRouteExpiryByType(HttpRoute *route, MprTime when, cchar *mimeTypes);
-extern void httpAddRouteField(HttpRoute *route, cchar *field, cchar *value, int flags);
 extern int httpAddRouteFilter(HttpRoute *route, cchar *name, cchar *extensions, int direction);
 extern void httpAddRouteHeader(HttpRoute *route, cchar *header, cchar *value, int flags);
 extern void httpAddRouteLanguage(HttpRoute *route, cchar *lang, cchar *suffix, int before);
 extern void httpAddRouteLanguageRoot(HttpRoute *route, cchar *lang, cchar *path);
 extern int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions);
+extern void httpAddRouteQuery(HttpRoute *route, cchar *field, cchar *value, int flags);
 extern int httpAddRouteUpdate(HttpRoute *route, cchar *name, cchar *details, int flags);
 extern int httpAddRouteCondition(HttpRoute *route, cchar *name, int flags);
 extern void httpClearRouteStages(HttpRoute *route, int direction);
@@ -2025,7 +2031,10 @@ extern void httpSetRouteName(HttpRoute *route, cchar *name);
 extern void httpSetRoutePathVar(HttpRoute *route, cchar *token, cchar *value);
 extern void httpSetRoutePattern(HttpRoute *route, cchar *pattern, int flags);
 extern void httpSetRoutePrefix(HttpRoute *route, cchar *uri);
+//  MOB - who uses this?
 extern void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath);
+
+extern void httpSetRouteScriptName(HttpRoute *route, cchar *scriptName);
 extern void httpSetRouteSource(HttpRoute *route, cchar *source);
 extern void httpSetRouteWorkers(HttpRoute *route, int workers);
 extern int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details);
@@ -2067,6 +2076,8 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
 #define HTTP_CREATE_ENV         0x100       /**< Must create env for this request */
 #define HTTP_IF_MODIFIED        0x200       /**< If-[un]modified-since supplied */
 #define HTTP_CHUNKED            0x400       /**< Content is chunk encoded */
+#define HTTP_ADDED_QUERY_VARS   0x800       /**< Query vars added to formVars */
+#define HTTP_ADDED_FORM_VARS    0x1000      /**< Form body data added to formVars */
 
 /*  
     Incoming chunk encoding states
@@ -2312,6 +2323,7 @@ extern void httpAddVarsFromQueue(HttpQueue *q);
 
 //  DOC
 extern void httpAddFormVars(HttpConn *conn);
+extern void httpAddQueryVars(HttpConn *conn);
 
 /**
     Match a form variable with an expected value

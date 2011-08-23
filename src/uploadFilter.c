@@ -85,8 +85,10 @@ static bool matchUpload(HttpConn *conn, HttpStage *filter, int dir)
     len = strlen(pat);
     if (sncasecmp(rx->mimeType, pat, len) == 0) {
         rx->upload = 1;
+#if UNUSED
         mprAssert(rx->formVars == 0);
         rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
+#endif
         mprLog(5, "matchUpload for %s", rx->uri);
         return 1;
     }
