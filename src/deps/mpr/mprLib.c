@@ -1438,9 +1438,6 @@ static void marker(void *unused, MprThread *tp)
         MPR_MEASURE(7, "GC", "mark", mark());
     }
     heap->mustYield = 0;
-#if UNUSED
-    mprResumeThreads();
-#endif
     MPR->marker = 0;
 }
 
@@ -2760,7 +2757,6 @@ void mprDestroy(int how)
             break;
         }
 #if UNUSED && KEEP
-        //  MOB - cleanup
         printf("marker %d, eventing %d, busyThreads %d, threads %d\n", MPR->marker, MPR->eventing, 
                 MPR->workerService->busyThreads->length,
                 MPR->threadService->threads->length);
@@ -6257,7 +6253,7 @@ int startProcess(MprCmd *cmd)
     }
     program = mprGetPathBase(cmd->program);
     if (entryPoint == 0) {
-        program = mprTrimPathExtension(program);
+        program = mprTrimPathExt(program);
 #if BLD_HOST_CPU_ARCH == MPR_CPU_IX86 || BLD_HOST_CPU_ARCH == MPR_CPU_IX64
         entryPoint = sjoin("_", program, "Main", NULL);
 #else
@@ -7527,7 +7523,7 @@ static int getPathInfo(MprDiskFileSystem *fileSystem, cchar *path, MprPath *info
     info->isDir = (s.st_mode & S_IFDIR) != 0;
     info->isReg = (s.st_mode & S_IFREG) != 0;
     info->isLink = 0;
-    ext = mprGetPathExtension(path);
+    ext = mprGetPathExt(path);
     if (ext && strcmp(ext, "lnk") == 0) {
         info->isLink = 1;
     }
@@ -7552,7 +7548,7 @@ static int getPathInfo(MprDiskFileSystem *fileSystem, cchar *path, MprPath *info
     info->isDir = (s.st_mode & S_IFDIR) != 0;
     info->isReg = (s.st_mode & S_IFREG) != 0;
     info->isLink = 0;
-    ext = mprGetPathExtension(path);
+    ext = mprGetPathExt(path);
     if (ext && strcmp(ext, "lnk") == 0) {
         info->isLink = 1;
     }
@@ -9320,10 +9316,6 @@ static void manageEvent(MprEvent *event, int flags)
         mprMark(event->name);
         mprMark(event->dispatcher);
         mprMark(event->handler);
-#if UNUSED
-        mprMark(event->next);
-        mprMark(event->prev);
-#endif
         if (!(event->flags & MPR_EVENT_STATIC_DATA)) {
             mprMark(event->data);
         }
@@ -14838,7 +14830,7 @@ char *mprJoinPathExt(cchar *path, cchar *ext)
     if (cp && firstSep(fs, cp) == 0) {
         return sclone(path);
     }
-    if (ext[1] == '.') {
+    if (ext[0] == '.') {
         return sjoin(path, ext, NULL);
     } else {
         return sjoin(path, ".", ext, NULL);
@@ -15451,22 +15443,19 @@ ssize mprWritePath(cchar *path, cchar *buf, ssize len, int mode)
 
 
 
-/*
-    Return the extension portion of a pathname.
- */
 char *mprTrimPathExt(cchar *path)
 {
     MprFileSystem   *fs;
-    char            *cp, *ext;
+    char            *cp, *result;
 
     fs = mprLookupFileSystem(path);
-    ext = sclone(path);
-    if ((cp = srchr(ext, '.')) != NULL) {
+    result = sclone(path);
+    if ((cp = srchr(result, '.')) != NULL) {
         if (firstSep(fs, cp) == 0) {
             *cp = '\0';
         }
     } 
-    return ext;
+    return result;
 }
 
 
@@ -22939,7 +22928,6 @@ char *mprGetDate(char *fmt)
 
     mprDecodeLocalTime(&tm, mprGetTime());
     if (fmt == 0 || *fmt == '\0') {
-        // UNUSED fmt = MPR_LEGACY_DATE;
         fmt = MPR_DEFAULT_DATE;
     }
     return mprFormatTm(fmt, &tm);

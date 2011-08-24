@@ -316,7 +316,7 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *fmt, ...)
     HttpTx      *tx;
     cchar       *msg;
 
-    mprAssert(msg && msg);
+    mprAssert(fmt && fmt);
     tx = conn->tx;
 
     va_start(args, fmt);
@@ -338,7 +338,7 @@ void httpSetResponseError(HttpConn *conn, int status, cchar *fmt, ...)
     cchar       *statusMsg;
     char        *msg;
 
-    mprAssert(msg && msg);
+    mprAssert(fmt && fmt);
 
     va_start(args, fmt);
     msg = mprAsprintfv(fmt, args);
