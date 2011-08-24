@@ -1232,7 +1232,6 @@ extern void *httpLookupStageData(Http *http, cchar *name);
 extern void httpAddStage(Http *http, HttpStage *stage);
 extern int httpOpenNetConnector(Http *http);
 extern int httpOpenSendConnector(Http *http);
-extern int httpOpenAuthFilter(Http *http);
 extern int httpOpenChunkFilter(Http *http);
 extern int httpOpenPassHandler(Http *http);
 extern int httpOpenRangeFilter(Http *http);

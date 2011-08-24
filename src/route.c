@@ -1771,6 +1771,8 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
     route = rx->route;
     tx = conn->tx;
     buf = mprCreateBuf(-1, -1);
+    tok = 0;
+
     for (cp = str; cp && *cp; ) {
         if ((tok = strstr(cp, "${")) == 0) {
             break;
