@@ -989,15 +989,13 @@ extern void httpMarkQueueHead(HttpQueue *q);
 #define HTTP_STAGE_HANDLER        0x2000            /**< Stage is a handler  */
 #define HTTP_STAGE_FILTER         0x4000            /**< Stage is a filter  */
 #define HTTP_STAGE_MODULE         0x8000            /**< Stage is a filter  */
-#define HTTP_STAGE_FORM_VARS      0x10000           /**< Create formVars hash */
+#define HTTP_STAGE_QUERY_VARS     0x10000           /**< Create variables from URI query (implies FORM_VARS) */
 #define HTTP_STAGE_CGI_VARS       0x20000           /**< Create CGI variables (implies FORM_VARS) */
-#define HTTP_STAGE_QUERY_VARS     0x40000           /**< Create variables from URI query (implies FORM_VARS) */
-#define HTTP_STAGE_VIRTUAL        0x80000           /**< Handler serves virtual resources not the physical file system */
-#define HTTP_STAGE_EXTRA_PATH     0x100000          /**< Do extra path info (for CGI|PHP) */
-#define HTTP_STAGE_AUTO_DIR       0x200000          /**< Want auto directory redirection */
-#define HTTP_STAGE_UNLOADED       0x1000000         /**< Stage module library has been unloaded */
-#define HTTP_STAGE_RX             0x2000000         /**< Stage to be used in the Rx direction */
-#define HTTP_STAGE_TX             0x4000000         /**< Stage to be used in the Tx direction */
+#define HTTP_STAGE_EXTRA_PATH     0x40000           /**< Do extra path info (for CGI|PHP) */
+#define HTTP_STAGE_AUTO_DIR       0x80000           /**< Want auto directory redirection */
+#define HTTP_STAGE_UNLOADED       0x100000          /**< Stage module library has been unloaded */
+#define HTTP_STAGE_RX             0x200000          /**< Stage to be used in the Rx direction */
+#define HTTP_STAGE_TX             0x400000          /**< Stage to be used in the Tx direction */
 
 typedef int (*HttpParse)(Http *http, cchar *key, char *value, void *state);
 
@@ -2322,6 +2320,7 @@ extern void httpAddVars(HttpConn *conn, cchar *buf, ssize len);
 extern void httpAddVarsFromQueue(HttpQueue *q);
 
 //  DOC
+extern MprHashTable *httpGetFormVars(HttpConn *conn);
 extern void httpAddFormVars(HttpConn *conn);
 extern void httpAddQueryVars(HttpConn *conn);
 

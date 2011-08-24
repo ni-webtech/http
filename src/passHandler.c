@@ -65,7 +65,7 @@ int httpOpenPassHandler(Http *http)
 {
     HttpStage     *stage;
 
-    if ((stage = httpCreateHandler(http, "passHandler", HTTP_STAGE_ALL | HTTP_STAGE_VIRTUAL, NULL)) == 0) {
+    if ((stage = httpCreateHandler(http, "passHandler", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
     http->passHandler = stage;

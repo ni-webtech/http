@@ -743,13 +743,10 @@ bool httpFileExists(HttpConn *conn)
     HttpTx      *tx;
 
     tx = conn->tx;
-    if (!(tx->handler->flags & HTTP_STAGE_VIRTUAL)) {
-        if (!tx->fileInfo.checked) {
-            mprGetPathInfo(tx->filename, &tx->fileInfo);
-        }
-        return tx->fileInfo.valid;
+    if (!tx->fileInfo.checked) {
+        mprGetPathInfo(tx->filename, &tx->fileInfo);
     }
-    return 0;
+    return tx->fileInfo.valid;
 }
 
 

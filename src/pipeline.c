@@ -295,7 +295,7 @@ void httpDiscardTransmitData(HttpConn *conn)
 
 
 /*
-    Create the form variables based on the URI query. Also create formVars for CGI style programs (cgi | egi)
+    Create the form variables based on the URI query.
  */
 static void setVars(HttpConn *conn)
 {
@@ -305,11 +305,6 @@ static void setVars(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
 
-#if UNUSED
-    if (tx->handler->flags & (HTTP_STAGE_CGI_VARS | HTTP_STAGE_FORM_VARS | HTTP_STAGE_QUERY_VARS)) {
-        rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-    }
-#endif
     if (tx->handler->flags & HTTP_STAGE_QUERY_VARS) {
         httpAddQueryVars(conn);
     }

@@ -1252,6 +1252,7 @@ MprHashTable *httpGetHeaderHash(HttpConn *conn)
 }
 
 
+#if UNUSED
 MprHashTable *httpGetFormVars(HttpConn *conn)
 {
     if (conn->rx == 0) {
@@ -1260,6 +1261,7 @@ MprHashTable *httpGetFormVars(HttpConn *conn)
     }
     return conn->rx->formVars;
 }
+#endif
 
 
 cchar *httpGetQueryString(HttpConn *conn)
@@ -1680,7 +1682,7 @@ char *httpGetPathExt(HttpConn *conn, cchar *path)
         }
         *ep = '\0';
     }
-    return 0;
+    return ext;
 }
 
 

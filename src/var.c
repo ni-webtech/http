@@ -18,7 +18,7 @@ void httpCreateCGIVars(HttpConn *conn)
     HttpHost        *host;
     HttpUploadFile  *up;
     MprSocket       *sock;
-    MprHashTable    *table;
+    MprHashTable    *vars;
     MprHash         *hp;
     int             index;
 
@@ -26,52 +26,52 @@ void httpCreateCGIVars(HttpConn *conn)
     tx = conn->tx;
     host = conn->host;
     sock = conn->sock;
-    table = rx->formVars;
-    mprAssert(table);
+    vars = httpGetFormVars(conn);
+    mprAssert(vars);
 
-    mprAddKey(table, "AUTH_TYPE", rx->authType);
-    mprAddKey(table, "AUTH_USER", conn->authUser);
-    mprAddKey(table, "AUTH_GROUP", conn->authGroup);
-    mprAddKey(table, "AUTH_ACL", MPR->emptyString);
-    mprAddKey(table, "CONTENT_LENGTH", rx->contentLength);
-    mprAddKey(table, "CONTENT_TYPE", rx->mimeType);
-    mprAddKey(table, "DOCUMENT_ROOT", rx->route->dir);
-    mprAddKey(table, "GATEWAY_INTERFACE", sclone("CGI/1.1"));
-    mprAddKey(table, "QUERY_STRING", rx->parsedUri->query);
-    mprAddKey(table, "REMOTE_ADDR", conn->ip);
-    mprAddKeyFmt(table, "REMOTE_PORT", "%d", conn->port);
-    mprAddKey(table, "REMOTE_USER", conn->authUser);
-    mprAddKey(table, "REQUEST_METHOD", rx->method);
-    mprAddKey(table, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
-    mprAddKey(table, "SERVER_ADDR", sock->acceptIp);
-    mprAddKey(table, "SERVER_NAME", host->name);
-    mprAddKeyFmt(table, "SERVER_PORT", "%d", sock->acceptPort);
-    mprAddKey(table, "SERVER_PROTOCOL", conn->protocol);
-    mprAddKey(table, "SERVER_ROOT", host->home);
-    mprAddKey(table, "SERVER_SOFTWARE", conn->http->software);
-    mprAddKey(table, "REQUEST_URI", rx->originalUri);
+    mprAddKey(vars, "AUTH_TYPE", rx->authType);
+    mprAddKey(vars, "AUTH_USER", conn->authUser);
+    mprAddKey(vars, "AUTH_GROUP", conn->authGroup);
+    mprAddKey(vars, "AUTH_ACL", MPR->emptyString);
+    mprAddKey(vars, "CONTENT_LENGTH", rx->contentLength);
+    mprAddKey(vars, "CONTENT_TYPE", rx->mimeType);
+    mprAddKey(vars, "DOCUMENT_ROOT", rx->route->dir);
+    mprAddKey(vars, "GATEWAY_INTERFACE", sclone("CGI/1.1"));
+    mprAddKey(vars, "QUERY_STRING", rx->parsedUri->query);
+    mprAddKey(vars, "REMOTE_ADDR", conn->ip);
+    mprAddKeyFmt(vars, "REMOTE_PORT", "%d", conn->port);
+    mprAddKey(vars, "REMOTE_USER", conn->authUser);
+    mprAddKey(vars, "REQUEST_METHOD", rx->method);
+    mprAddKey(vars, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
+    mprAddKey(vars, "SERVER_ADDR", sock->acceptIp);
+    mprAddKey(vars, "SERVER_NAME", host->name);
+    mprAddKeyFmt(vars, "SERVER_PORT", "%d", sock->acceptPort);
+    mprAddKey(vars, "SERVER_PROTOCOL", conn->protocol);
+    mprAddKey(vars, "SERVER_ROOT", host->home);
+    mprAddKey(vars, "SERVER_SOFTWARE", conn->http->software);
+    mprAddKey(vars, "REQUEST_URI", rx->originalUri);
     /*  
         URIs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} 
         NOTE: For CGI|PHP, scriptName is empty and pathInfo has the script. PATH_INFO is stored in extraPath.
      */
-    mprAddKey(table, "PATH_INFO", rx->extraPath);
-    mprAddKey(table, "SCRIPT_NAME", rx->pathInfo);
-    mprAddKey(table, "SCRIPT_FILENAME", tx->filename);
+    mprAddKey(vars, "PATH_INFO", rx->extraPath);
+    mprAddKey(vars, "SCRIPT_NAME", rx->pathInfo);
+    mprAddKey(vars, "SCRIPT_FILENAME", tx->filename);
     if (rx->extraPath) {
         /*  
             Only set PATH_TRANSLATED if extraPath is set (CGI spec) 
          */
         mprAssert(rx->extraPath[0] == '/');
-        mprAddKey(table, "PATH_TRANSLATED", mprGetNormalizedPath(sfmt("%s%s", rx->route->dir, rx->extraPath)));
+        mprAddKey(vars, "PATH_TRANSLATED", mprGetNormalizedPath(sfmt("%s%s", rx->route->dir, rx->extraPath)));
     }
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextKey(conn->rx->files, hp)) != 0; index++) {
             up = (HttpUploadFile*) hp->data;
-            mprAddKey(table, mprAsprintf("FILE_%d_FILENAME", index), up->filename);
-            mprAddKey(table, mprAsprintf("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
-            mprAddKey(table, mprAsprintf("FILE_%d_CONTENT_TYPE", index), up->contentType);
-            mprAddKey(table, mprAsprintf("FILE_%d_NAME", index), hp->key);
-            mprAddKeyFmt(table, mprAsprintf("FILE_%d_SIZE", index), "%d", up->size);
+            mprAddKey(vars, mprAsprintf("FILE_%d_FILENAME", index), up->filename);
+            mprAddKey(vars, mprAsprintf("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
+            mprAddKey(vars, mprAsprintf("FILE_%d_CONTENT_TYPE", index), up->contentType);
+            mprAddKey(vars, mprAsprintf("FILE_%d_NAME", index), hp->key);
+            mprAddKeyFmt(vars, mprAsprintf("FILE_%d_SIZE", index), "%d", up->size);
         }
     }
     if (conn->http->envCallback) {
@@ -87,15 +87,12 @@ void httpCreateCGIVars(HttpConn *conn)
  */
 void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
 {
-    MprHashTable    *table;
+    MprHashTable    *vars;
     cchar           *oldValue;
     char            *newValue, *decoded, *keyword, *value, *tok;
 
     mprAssert(conn);
-    table = conn->rx->formVars;
-    if (table == 0) {
-        table = conn->rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-    }
+    vars = httpGetFormVars(conn);
     decoded = mprAlloc(len + 1);
     decoded[len] = '\0';
     memcpy(decoded, buf, len);
@@ -114,14 +111,14 @@ void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
             /*  
                 Append to existing keywords
              */
-            oldValue = mprLookupKey(table, keyword);
+            oldValue = mprLookupKey(vars, keyword);
             if (oldValue != 0 && *oldValue) {
                 if (*value) {
                     newValue = sjoin(oldValue, " ", value, NULL);
-                    mprAddKey(table, keyword, newValue);
+                    mprAddKey(vars, keyword, newValue);
                 }
             } else {
-                mprAddKey(table, keyword, sclone(value));
+                mprAddKey(vars, keyword, sclone(value));
             }
         }
         keyword = stok(0, "&", &tok);
@@ -176,13 +173,20 @@ void httpAddFormVars(HttpConn *conn)
 }
 
 
+MprHashTable *httpGetFormVars(HttpConn *conn)
+{ 
+    if (conn->rx->formVars == 0) {
+        conn->rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
+    }
+    return conn->rx->formVars;
+}
+
+
 int httpTestFormVar(HttpConn *conn, cchar *var)
 {
     MprHashTable    *vars;
     
-    if ((vars = conn->rx->formVars) == 0) {
-        return 0;
-    }
+    vars = httpGetFormVars(conn);
     return vars && mprLookupKey(vars, var) != 0;
 }
 
@@ -192,11 +196,9 @@ cchar *httpGetFormVar(HttpConn *conn, cchar *var, cchar *defaultValue)
     MprHashTable    *vars;
     cchar           *value;
     
-    if ((vars = conn->rx->formVars) != 0) {
-        value = mprLookupKey(vars, var);
-        return (value) ? value : defaultValue;
-    }
-    return defaultValue;
+    vars = httpGetFormVars(conn);
+    value = mprLookupKey(vars, var);
+    return (value) ? value : defaultValue;
 }
 
 
@@ -205,22 +207,17 @@ int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
     MprHashTable    *vars;
     cchar           *value;
     
-    if ((vars = conn->rx->formVars) != 0) {
-        value = mprLookupKey(vars, var);
-        return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
-    }
-    return defaultValue;
+    vars = httpGetFormVars(conn);
+    value = mprLookupKey(vars, var);
+    return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
 }
 
 
 void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value) 
 {
     MprHashTable    *vars;
-    
-    if ((vars = conn->rx->formVars) == 0) {
-        /* This is allowed. Upload filter uses this when uploading to the file handler */
-        return;
-    }
+
+    vars = httpGetFormVars(conn);
     mprAddKey(vars, var, sclone(value));
 }
 
@@ -229,9 +226,7 @@ void httpSetIntFormVar(HttpConn *conn, cchar *var, int value)
 {
     MprHashTable    *vars;
     
-    if ((vars = conn->rx->formVars) == 0) {
-        return;
-    }
+    vars = httpGetFormVars(conn);
     mprAddKey(vars, var, mprAsprintf("%d", value));
 }
 
@@ -240,9 +235,7 @@ bool httpMatchFormVar(HttpConn *conn, cchar *var, cchar *value)
 {
     MprHashTable    *vars;
     
-    if ((vars = conn->rx->formVars) == 0) {
-        return 0;
-    }
+    vars = httpGetFormVars(conn);
     if (strcmp(value, httpGetFormVar(conn, var, " __UNDEF__ ")) == 0) {
         return 1;
     }

@@ -113,12 +113,14 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->connector = parent->connector;
     route->defaultLanguage = parent->defaultLanguage;
     route->dir = parent->dir;
+    route->data = parent->data;
     route->errorDocuments = parent->errorDocuments;
     route->expires = parent->expires;
     route->expiresByType = parent->expiresByType;
     route->extensions = parent->extensions;
     route->fileTarget = parent->fileTarget;
     route->flags = parent->flags;
+    route->handler = parent->handler;
     route->handlers = parent->handlers;
     route->headers = parent->headers;
     route->http = MPR->httpService;
@@ -141,6 +143,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->responseStatus = parent->responseStatus;
     route->script = parent->script;
     route->scriptName = parent->scriptName;
+    route->scriptNameLen = parent->scriptNameLen;
     route->scriptPath = parent->scriptPath;
     route->searchPath = parent->searchPath;
     route->sourceName = parent->sourceName;
@@ -235,16 +238,24 @@ int httpMatchRoute(HttpConn *conn, HttpRoute *route)
 {
     HttpRx      *rx;
     char        *savePathInfo, *pathInfo;
+    ssize       len;
     int         rc;
 
     rx = conn->rx;
     savePathInfo = rx->pathInfo;
 
     if (route->scriptName) {
-        if (strncmp(rx->pathInfo, route->scriptName, route->scriptNameLen) != 0) {
+        mprAssert(rx->pathInfo[0] == '/');
+        len = route->scriptNameLen;
+        if (strncmp(&rx->pathInfo[1], route->scriptName, len) != 0) {
             return 0;
         }
-        pathInfo = &pathInfo[slen(route->scriptName)];
+        len++;
+        if (rx->pathInfo[len] && rx->pathInfo[len] != '/') {
+            return 0;
+        }
+
+        pathInfo = &rx->pathInfo[1 + slen(route->scriptName)];
         if (*pathInfo == '\0') {
             pathInfo = "/";
         }
@@ -416,7 +427,7 @@ static int mapFile(HttpConn *conn, HttpRoute *route)
     host = conn->host;
     mprAssert(tx->handler);
 
-    if (tx->handler->flags & HTTP_STAGE_VIRTUAL || route->flags & HTTP_ROUTE_MAPPED) {
+    if (route->flags & HTTP_ROUTE_MAPPED) {
         return HTTP_ROUTE_ACCEPTED;
     }
     route->flags |= HTTP_ROUTE_MAPPED;
@@ -1549,15 +1560,9 @@ static int cmdUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 static int fieldUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     HttpRx  *rx;
-    char    *value;
 
     rx = conn->rx;
-    value = expandPath(conn, op->value);
-    if (rx->formVars == 0) {
-        //  MOB - refactor
-        rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-    }
-    httpSetFormVar(conn, op->var, value);
+    httpSetFormVar(conn, op->var, expandPath(conn, op->value));
     return HTTP_ROUTE_ACCEPTED;
 }
 
