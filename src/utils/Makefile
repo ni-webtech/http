@@ -12,8 +12,8 @@ MAKE_IFLAGS		+= $(BLD_MPR_IFLAGS)
 compileExtra: $(TARGETS) 
 
 $(BLD_BIN_DIR)/http$(BLD_EXE): $(BLD_OBJ_DIR)/http$(BLD_OBJ) $(BLD_LIB_DIR)/libhttp$(BLD_LIB)
-	@bld --exe $(BLD_BIN_DIR)/http$(BLD_EXE) --search "$(BLD_MPR_LIBPATHS) $(BLD_SSL_LIBPATHS)" \
-		--libs "http $(BLD_MPR_LIBS) $(BLD_SSL_LIBS)" http
+	@bld --exe $(BLD_BIN_DIR)/http$(BLD_EXE) --search "$(BLD_SSL_LIBPATHS)" \
+		--libs "http $(BLD_HTTP_WITH_LIBS) $(BLD_SSL_LIBS)" http
 
 #
 #   Local variables:
