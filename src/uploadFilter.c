@@ -41,7 +41,7 @@ static char *getBoundary(void *buf, ssize bufLen, void *boundary, ssize boundary
 static void incomingUploadData(HttpQueue *q, HttpPacket *packet);
 static void manageHttpUploadFile(HttpUploadFile *file, int flags);
 static void manageUpload(Upload *up, int flags);
-static bool matchUpload(HttpConn *conn, HttpStage *filter, int dir);
+static bool matchUpload(HttpConn *conn, HttpRoute *route, int dir);
 static void openUpload(HttpQueue *q);
 static int  processContentBoundary(HttpQueue *q, char *line);
 static int  processContentHeader(HttpQueue *q, char *line);
@@ -68,7 +68,7 @@ int httpOpenUploadFilter(Http *http)
 /*  
     Match if this request needs the upload filter. Return true if needed.
  */
-static bool matchUpload(HttpConn *conn, HttpStage *filter, int dir)
+static bool matchUpload(HttpConn *conn, HttpRoute *route, int dir)
 {
     HttpRx  *rx;
     char    *pat;

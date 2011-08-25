@@ -100,22 +100,19 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
             if ((endpoint = httpCreateEndpoint(ip, port, NULL)) == 0) {
                 return 0;
             }
-            host = httpCreateHost();
-            httpSetHostName(host, ip, port);
-            httpAddHostToEndpoint(endpoint, host);
         }
     } else {
         if ((endpoint = httpCreateEndpoint(ip, port, NULL)) == 0) {
             return 0;
         }
-        host = httpCreateHost();
-        httpSetHostName(host, ip, port);
-        httpAddHostToEndpoint(endpoint, host);
     }
-    mprAssert(mprGetListLength(endpoint->hosts) == 1);
-    host = mprGetFirstItem(endpoint->hosts);
+    host = httpCreateHost();
+    httpSetHostIpAddr(host, ip, port);
+    httpAddHostToEndpoint(endpoint, host);
     httpSetHostHome(host, home);
+#if UNUSED
     httpSetRouteDir(host->route, documents);
+#endif
     if ((host->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
         host->mimeTypes = MPR->mimeTypes;
     }
@@ -423,7 +420,7 @@ void httpSetNamedVirtualEndpoint(HttpEndpoint *endpoint)
 }
 
 
-HttpHost *httpLookupHost(HttpEndpoint *endpoint, cchar *name)
+HttpHost *httpLookupHostOnEndpoint(HttpEndpoint *endpoint, cchar *name)
 {
     HttpHost    *host;
     char        *ip;

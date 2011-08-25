@@ -33,24 +33,10 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int dir, HttpQueue 
     if ((q = mprAllocObj(HttpQueue, manageQueue)) == 0) {
         return 0;
     }
+    q->conn = conn;
     httpInitQueue(conn, q, stage->name);
     httpInitSchedulerQueue(q);
-
-    q->conn = conn;
-    q->stage = stage;
-    q->close = stage->close;
-    q->open = stage->open;
-    q->start = stage->start;
-    q->direction = dir;
-
-    if (dir == HTTP_QUEUE_TX) {
-        q->put = stage->outgoingData;
-        q->service = stage->outgoingService;
-        
-    } else {
-        q->put = stage->incomingData;
-        q->service = stage->incomingService;
-    }
+    httpAssignQueue(q, stage, dir);
     if (prev) {
         httpInsertQueue(prev, q);
     }
@@ -82,6 +68,23 @@ static void manageQueue(HttpQueue *q, int flags)
             mprMark(q->nextQ);
         }
     }
+}
+
+
+void httpAssignQueue(HttpQueue *q, HttpStage *stage, int dir)
+{
+    q->stage = stage;
+    q->close = stage->close;
+    q->open = stage->open;
+    q->start = stage->start;
+    if (dir == HTTP_QUEUE_TX) {
+        q->put = stage->outgoingData;
+        q->service = stage->outgoingService;
+    } else {
+        q->put = stage->incomingData;
+        q->service = stage->incomingService;
+    }
+    q->owner = stage->name;
 }
 
 

@@ -41,12 +41,10 @@ static bool opPresent(MprList *list, HttpRouteOp *op);
 static void manageRoute(HttpRoute *route, int flags);
 static void manageLang(HttpLang *lang, int flags);
 static void manageRouteOp(HttpRouteOp *op, int flags);
-static int mapFile(HttpConn *conn, HttpRoute *route);
+static void mapFile(HttpConn *conn, HttpRoute *route);
 static int matchRoute(HttpConn *conn, HttpRoute *route);
-static int processDirectories(HttpConn *conn, HttpRoute *route);
 static int selectHandler(HttpConn *conn, HttpRoute *route);
 static int testCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *condition);
-static void trimExtraPath(HttpConn *conn);
 static char *trimQuotes(char *str);
 static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteOp *update);
 
@@ -66,6 +64,8 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     route->expiresByType = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     route->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
+
+    //  MOB - reconsider this
     route->flags = HTTP_ROUTE_HANDLER_SMART | HTTP_ROUTE_GZIP;
     route->handlers = mprCreateList(-1, 0);
     route->host = host;
@@ -90,6 +90,40 @@ HttpRoute *httpCreateDefaultRoute(HttpHost *host)
         return 0;
     }
     httpSetRouteName(route, "default");
+    httpFinalizeRoute(route);
+    return route;
+}
+
+
+HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
+{
+    HttpRoute   *route;
+    Http        *http;
+
+    /*
+        Create default incoming and outgoing pipelines. Order matters.
+     */
+    route = httpCreateRoute(host);
+    http = route->http;
+    httpAddRouteFilter(route, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
+    httpAddRouteFilter(route, http->chunkFilter->name, NULL, HTTP_STAGE_RX | HTTP_STAGE_TX);
+    if (serverSide) {
+        httpAddRouteFilter(route, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
+    }
+    return route;
+}
+
+
+HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *prefix, cchar *path, int status)
+{
+    HttpRoute   *route;
+
+    if ((route = httpCreateInheritedRoute(parent)) == 0) {
+        return 0;
+    }
+    httpSetRoutePattern(route, prefix, 0);
+    httpSetRouteDir(route, path);
+    route->responseStatus = status;
     return route;
 }
 
@@ -159,20 +193,6 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->virtualTarget = parent->virtualTarget;
     route->writeTarget = parent->writeTarget;
     route->workers = parent->workers;
-    return route;
-}
-
-
-HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *prefix, cchar *path, int status)
-{
-    HttpRoute   *route;
-
-    if ((route = httpCreateInheritedRoute(parent)) == 0) {
-        return 0;
-    }
-    httpSetRoutePattern(route, prefix, 0);
-    httpSetRouteDir(route, path);
-    route->responseStatus = status;
     return route;
 }
 
@@ -249,6 +269,9 @@ int httpMatchRoute(HttpConn *conn, HttpRoute *route)
     savePathInfo = rx->pathInfo;
 
     if (route->scriptName) {
+        /*
+            Rewrite the pathInfo and scriptName. If the route fails to match, restore below
+         */
         mprAssert(rx->pathInfo[0] == '/');
         len = route->scriptNameLen;
         if (strncmp(&rx->pathInfo[1], route->scriptName, len) != 0) {
@@ -267,7 +290,7 @@ int httpMatchRoute(HttpConn *conn, HttpRoute *route)
         rx->scriptName = route->scriptName;
         mprLog(5, "Route for script name: \"%s\", pathInfo: \"%s\"", rx->scriptName, rx->pathInfo);
     }
-    if ((rc = matchRoute(conn, route)) != HTTP_ROUTE_ACCEPTED) {
+    if ((rc = matchRoute(conn, route)) == 0) {
         rx->pathInfo = savePathInfo;
         rx->scriptName = 0;
     }
@@ -286,7 +309,6 @@ static int matchRoute(HttpConn *conn, HttpRoute *route)
 
     rx = conn->rx;
     tx = conn->tx;
-    route->flags &= ~HTTP_ROUTE_MAPPED;
 
     if (route->patternCompiled) {
         if (route->prefix && strncmp(rx->pathInfo, route->prefix, route->prefixLen) != 0) {
@@ -385,7 +407,7 @@ static int matchRoute(HttpConn *conn, HttpRoute *route)
         httpError(conn, -1, "Can't find route target name \"%s\"", route->targetOp);
         return 0;
     }
-    mprLog(0, "Run route target \"%s\" target \"%s\"", route->name, route->targetOp);
+    mprLog(4, "Selected route \"%s\" target \"%s\"", route->name, route->targetOp);
     return (*proc)(conn, route, 0);
 }
 
@@ -401,10 +423,10 @@ static int selectHandler(HttpConn *conn, HttpRoute *route)
         if (!tx->ext || (tx->handler = mprLookupKey(route->extensions, tx->ext)) == 0) {
             tx->handler = mprLookupKey(route->extensions, "");
         }
-        if (tx->handler && tx->handler->match) {
-            if (!tx->handler->match(conn, tx->handler, 0)) {
-                tx->handler = conn->http->passHandler;
-            }
+    }
+    if (tx->handler && tx->handler->match) {
+        if (!tx->handler->match(conn, route, 0)) {
+            tx->handler = 0;
         }
     }
     return tx->handler ? HTTP_ROUTE_ACCEPTED : 0;
@@ -412,82 +434,38 @@ static int selectHandler(HttpConn *conn, HttpRoute *route)
 
 
 /*
-    Map the fileTarget to physical storage. Sets tx->filename, tx->ext, tx->etag.
-    Also handles GZIP alternative content, trims extra path and language roots.
+    Map the fileTarget to physical storage. Sets tx->filename and tx->ext.
  */
-static int mapFile(HttpConn *conn, HttpRoute *route)
+static void mapFile(HttpConn *conn, HttpRoute *route)
 {
     HttpRx      *rx;
     HttpTx      *tx;
-    HttpHost    *host;
     HttpLang    *lang;
-    MprPath     *info, ginfo;
-    cchar       *ext;
-    char        *gfile, *filename;
-    int         rc;
+    MprPath     *info;
+    char        *filename;
 
     rx = conn->rx;
     tx = conn->tx;
-    host = conn->host;
+    lang = rx->lang;
     mprAssert(tx->handler);
 
-    if (route->flags & HTTP_ROUTE_MAPPED) {
-        return HTTP_ROUTE_ACCEPTED;
+    if (route->target) {
+        filename = expandPath(conn, route->fileTarget);
+    } else {
+        filename = &rx->pathInfo[1];
     }
-    route->flags |= HTTP_ROUTE_MAPPED;
-
-    filename = route->fileTarget ? expandPath(conn, route->fileTarget) : rx->pathInfo;
-    if (filename && filename[0] == '/') {
-        filename = sclone(&filename[1]);
-    }
-    if (route->languages) {
-        if ((lang = httpGetLanguage(conn, route->languages)) != 0) {
-            if (lang->path) {
-                tx->filename = mprJoinPath(lang->path, filename);
-            } else if (lang->suffix) {
-                if (lang->flags & HTTP_LANG_AFTER) {
-                    filename = sjoin(filename, ".", lang->suffix, 0);
-                } else if (lang->flags & HTTP_LANG_BEFORE) {
-                    ext = mprGetPathExt(filename);
-                    if (ext && *ext) {
-                        filename = sjoin(mprJoinPathExt(mprTrimPathExt(filename), lang->suffix), ".", ext, 0);
-                    } else {
-                        filename = mprJoinPathExt(mprTrimPathExt(filename), lang->suffix);
-                    }
-                }
-            }
-        }
+    if (lang && lang->path) {
+        tx->filename = mprJoinPath(lang->path, filename);
     }
     tx->filename = mprJoinPath(route->dir, filename);
     tx->ext = httpGetExt(conn);
     info = &tx->fileInfo;
     mprGetPathInfo(tx->filename, info);
-
-    if (info->isDir && (rc = processDirectories(conn, route)) != 0) {
-        return rc;
-    }
-    if (route->flags & HTTP_ROUTE_GZIP) {
-        if (!info->valid && rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
-            gfile = sfmt("%s.gz", tx->filename);
-            if (mprGetPathInfo(gfile, &ginfo) == 0) {
-                tx->filename = gfile;
-                tx->fileInfo = ginfo;
-                httpSetHeader(conn, "Content-Encoding", "gzip");
-            }
-        }
-    }
-//  MOB - where should this be placed?
-    if (tx->handler->flags & HTTP_STAGE_EXTRA_PATH) {
-        trimExtraPath(conn);
-    }
-    if (info->valid && !info->isDir) {
-        tx->etag = sfmt("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
-    }
     mprLog(5, "mapFile uri \"%s\", filename: \"%s\", extension: \"%s\"", rx->uri, tx->filename, tx->ext);
-    return HTTP_ROUTE_ACCEPTED;
 }
 
 
+#if UNUSED
 /*
     Manage file requests that resolve to directories. This will either do an external redirect back to the browser 
     or do an internal (transparent) redirection and serve different content back to the browser.
@@ -508,11 +486,11 @@ static int processDirectories(HttpConn *conn, HttpRoute *route)
     mprAssert(rx->pathInfo);
     mprAssert(tx->fileInfo.checked);
 
-    if (sends(rx->pathInfo, "/")) {
-        /*  
-            Internal directory redirections. Append index transparently to the client.
-         */
-        if (route->index && *route->index) {
+    if (route->index && *route->index) {
+        if (sends(rx->pathInfo, "/")) {
+            /*  
+                Internal directory redirections. Append index transparently to the client.
+             */
             path = mprJoinPath(tx->filename, route->index);
             if (mprPathExists(path, R_OK)) {
                 /*  
@@ -521,50 +499,27 @@ static int processDirectories(HttpConn *conn, HttpRoute *route)
                 pathInfo = mprJoinPath(rx->pathInfo, route->index);
                 uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
                 httpSetUri(conn, uri, 0);
+                tx->filename = path;
+                tx->ext = httpGetExt(conn);
+                mprGetPathInfo(tx->filename, &tx->fileInfo);
                 return HTTP_ROUTE_REROUTE;
+
+            } else {
             }
+        } else {
+            /* 
+               Append "/" and do an external redirect 
+             */
+            pathInfo = sjoin(rx->pathInfo, "/", NULL);
+            uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
+            httpRedirect(conn, HTTP_CODE_MOVED_PERMANENTLY, uri);
+            return HTTP_ROUTE_ACCEPTED;
         }
-    } else {
-        /* Must not append the index for the external redirect */
-        pathInfo = sjoin(rx->pathInfo, "/", NULL);
-        uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
-        httpRedirect(conn, HTTP_CODE_MOVED_PERMANENTLY, uri);
-        return HTTP_ROUTE_ACCEPTED;
     }
     return 0;
 }
+#endif
 
-
-/*
-    Trim extra path information after the uri/filename. This is used by CGI (only).
-    Strategy is to heuristically find the script name in the uri. This is assumed to be either:
-        - the original uri up to and including first path component containing a ".", or
-        - the entire original uri
-    Once found, set the scriptName and trim the extraPath from pathInfo.
-    WARNING: ExtraPath is an old, unreliable, CGI specific technique. Directories with "." will thwart this code.
- */
-static void trimExtraPath(HttpConn *conn)
-{
-    HttpRx      *rx;
-    cchar       *seps;
-    char        *cp, *extra, *start;
-    ssize       len;
-
-    rx = conn->rx;
-
-    //  MOB - this is not right. Circular logic. How can filename be right if it has extra path?
-    start = conn->tx->filename;
-    seps = mprGetPathSeparators(start);
-    if ((cp = strchr(start, '.')) != 0 && (extra = strchr(cp, seps[0])) != 0) {
-        len = extra - start;
-        if (0 < len && len < slen(rx->pathInfo)) {
-            *extra = '\0';
-            rx->extraPath = sclone(&rx->pathInfo[len]);
-            rx->pathInfo[len] = '\0';
-            return;
-        }
-    }
-}
 
 /************************************ API *************************************/
 
@@ -805,7 +760,7 @@ void httpAddRouteQuery(HttpRoute *route, cchar *field, cchar *value, int flags)
 
 
 /*
-    Add a route update record
+    Add a route update record. These run to modify a request.
     Update field var value
     kind == "cmd|field"
     details == "var value"
@@ -934,6 +889,8 @@ void httpSetRouteData(HttpRoute *route, cchar *key, void *data)
 {
     if (route->data == 0) {
         route->data = mprCreateHash(-1, 0);
+    } else {
+        GRADUATE_HASH(route, data);
     }
     mprAddKey(route->data, key, data);
 }
@@ -1341,7 +1298,7 @@ void httpSetRoutePathVar(HttpRoute *route, cchar *key, cchar *value)
  */
 char *httpMakePath(HttpRoute *route, cchar *file)
 {
-    char    *result, *path;
+    char    *path;
 
     mprAssert(file);
 
@@ -1349,11 +1306,9 @@ char *httpMakePath(HttpRoute *route, cchar *file)
         return 0;
     }
     if (mprIsRelPath(path)) {
-        result = mprJoinPath(route->host->home, path);
-    } else {
-        result = mprGetAbsPath(path);
+        path = mprJoinPath(route->host->home, path);
     }
-    return result;
+    return mprGetAbsPath(path);
 }
 
 /********************************* Language ***********************************/
@@ -1373,6 +1328,7 @@ void httpAddRouteLanguage(HttpRoute *route, cchar *lang, cchar *suffix, int flag
     } else {
         mprAddKey(route->languages, lang, createLangDef(0, suffix, flags));
     }
+    httpAddRouteUpdate(route, "lang", 0, 0);
 }
 
 
@@ -1476,13 +1432,14 @@ static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int directoryCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-    HttpRx      *rx;
+    HttpTx      *tx;
     MprPath     info;
     char        *path;
 
-    rx = conn->rx;
+    tx = conn->tx;
     mapFile(conn, route);
     path = mprJoinPath(route->dir, expandPath(conn, op->details));
+    tx->ext = tx->filename = 0;
     mprGetPathInfo(path, &info);
     if (info.isDir) {
         return HTTP_ROUTE_ACCEPTED;
@@ -1496,13 +1453,14 @@ static int directoryCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
  */
 static int existsCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-    HttpRx  *rx;
+    HttpTx  *tx;
     char    *path;
 
-    rx = conn->rx;
+    tx = conn->tx;
     /* Must have tx->filename set when expanding op->details, so map fileTarget now */
     mapFile(conn, route);
     path = mprJoinPath(route->dir, expandPath(conn, op->details));
+    tx->ext = tx->filename = 0;
     if (mprPathExists(path, R_OK)) {
         return HTTP_ROUTE_ACCEPTED;
     }
@@ -1569,6 +1527,39 @@ static int fieldUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     return HTTP_ROUTE_ACCEPTED;
 }
 
+
+static int langUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
+{
+    HttpUri     *prior;
+    HttpRx      *rx;
+    HttpLang    *lang;
+    char        *ext, *pathInfo, *uri;
+
+    rx = conn->rx;
+    prior = rx->parsedUri;
+    mprAssert(route->languages);
+
+    if ((lang = httpGetLanguage(conn, route->languages)) != 0) {
+        rx->lang = lang;
+        if (lang->suffix) {
+            if (lang->flags & HTTP_LANG_AFTER) {
+                pathInfo = sjoin(rx->pathInfo, ".", lang->suffix, 0);
+            } else if (lang->flags & HTTP_LANG_BEFORE) {
+                ext = httpGetExt(conn);
+                if (ext && *ext) {
+                    pathInfo = sjoin(mprJoinPathExt(mprTrimPathExt(pathInfo), lang->suffix), ".", ext, 0);
+                } else {
+                    pathInfo = mprJoinPathExt(mprTrimPathExt(pathInfo), lang->suffix);
+                }
+            }
+            uri = httpFormatUri(prior->scheme, prior->host, prior->port, pathInfo, prior->reference, prior->query, 0);
+            httpSetUri(conn, uri, 0);
+        }
+    }
+    return HTTP_ROUTE_ACCEPTED;
+}
+
+
 /*********************************** Targets **********************************/
 
 static int closeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
@@ -1583,13 +1574,8 @@ static int closeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int fileTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-    int     rc;
-
-    rc = mapFile(conn, route);
-    if (!conn->tx->fileInfo.valid && !(conn->rx->flags & HTTP_PUT)) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", conn->tx->filename);
-    }
-    return rc;
+    mapFile(conn, route);
+    return HTTP_ROUTE_ACCEPTED;
 }
 
 
@@ -1968,6 +1954,7 @@ void httpDefineRouteBuiltins()
 
     httpDefineRouteUpdate("field", fieldUpdate);
     httpDefineRouteUpdate("cmd", cmdUpdate);
+    httpDefineRouteUpdate("lang", langUpdate);
 
     httpDefineRouteTarget("close", closeTarget);
     httpDefineRouteTarget("file", fileTarget);

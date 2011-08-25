@@ -211,6 +211,7 @@ void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 }
 
 
+#if UNUSED
 /*
     Convenience routine to add Cache-Control header:
 
@@ -222,6 +223,7 @@ void httpDontCache(HttpConn *conn)
         conn->tx->flags |= HTTP_TX_DONT_CACHE;
     }
 }
+#endif
 
 
 void httpFinalize(HttpConn *conn)
@@ -348,7 +350,7 @@ void httpSetResponseError(HttpConn *conn, int status, cchar *fmt, ...)
     } else {
         msg = sfmt("<h2>Access Error: %d -- %s</h2>\r\n<pre>%s</pre>\r\n", status, statusMsg, mprEscapeHtml(msg));
     }
-    httpDontCache(conn);
+    httpAddHeaderString(conn, "Cache-Control", "no-cache");
     httpFormatBody(conn, statusMsg, "%s", msg);
     va_end(args);
 }
@@ -548,10 +550,13 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             }
         }
     }
+#if UNUSED
     if (tx->flags & HTTP_TX_DONT_CACHE) {
         httpAddHeaderString(conn, "Cache-Control", "no-cache");
 
-    } else if (rx->route) {
+    } else 
+#endif
+    if (rx->route && !mprLookupKey(tx->headers, "Cache-Control")) {
         expires = 0;
         if (tx->ext) {
             expires = PTOL(mprLookupKey(rx->route->expires, tx->ext));

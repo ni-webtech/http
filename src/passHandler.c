@@ -27,10 +27,11 @@ void httpHandleOptionsTrace(HttpQueue *q)
     if (rx->flags & HTTP_TRACE) {
         if (!conn->limits->enableTraceMethod) {
             tx->status = HTTP_CODE_NOT_ACCEPTABLE;
-            httpFormatBody(conn, "Trace Request Denied", "<p>The TRACE method is disabled on this server.</p>");
+            httpFormatBody(conn, "Trace Request Denied", "The TRACE method is disabled on this server.");
         } else {
-            tx->altBody = mprAsprintf("%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
+            httpFormatResponse(conn, "%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
         }
+        httpFinalize(conn);
 
     } else if (rx->flags & HTTP_OPTIONS) {
         flags = tx->traceMethods;
@@ -41,6 +42,8 @@ void httpHandleOptionsTrace(HttpQueue *q)
             (flags & HTTP_STAGE_POST) ? ",POST" : "",
             (flags & HTTP_STAGE_PUT) ? ",PUT" : "",
             (flags & HTTP_STAGE_DELETE) ? ",DELETE" : "");
+        httpOmitBody(conn);
+        httpFinalize(conn);
         tx->length = 0;
     }
 }

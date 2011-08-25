@@ -9,7 +9,7 @@
 
 /********************************** Forward ***********************************/
 
-static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir);
+static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir);
 static void openQueues(HttpConn *conn);
 static void pairQueues(HttpConn *conn);
 static void setVars(HttpConn *conn);
@@ -40,7 +40,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
 
     if (route->outputStages) {
         for (next = 0; (filter = mprGetNextItem(route->outputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter, HTTP_STAGE_TX)) {
+            if (matchFilter(conn, filter, route, HTTP_STAGE_TX)) {
                 mprAddItem(tx->outputPipeline, filter);
             }
         }
@@ -68,8 +68,12 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
 
     setVars(conn);
     pairQueues(conn);
-    openQueues(conn);
+    /*
+        Put the header before opening the queues incase an open routine actually services and completes the request
+        httpHandleOptionsTrace does this when called from openFile() in fileHandler.
+     */
     httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
+    openQueues(conn);
 }
 
 
@@ -92,7 +96,7 @@ void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
     rx->inputPipeline = mprCreateList(-1, 0);
     if (route) {
         for (next = 0; (filter = mprGetNextItem(route->inputStages, &next)) != 0; ) {
-            if (!matchFilter(conn, filter, HTTP_STAGE_RX)) {
+            if (!matchFilter(conn, filter, route, HTTP_STAGE_RX)) {
                 continue;
             }
             mprAddItem(rx->inputPipeline, filter);
@@ -314,16 +318,13 @@ static void setVars(HttpConn *conn)
 }
 
 
-/*
-    Match a filter by extension
- */
-static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir)
+static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir)
 {
     HttpTx      *tx;
 
     tx = conn->tx;
     if (filter->match) {
-        return filter->match(conn, filter, dir);
+        return filter->match(conn, route, dir);
     }
     if (filter->extensions && tx->ext) {
         return mprLookupKey(filter->extensions, tx->ext) != 0;

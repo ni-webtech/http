@@ -52,7 +52,8 @@ void httpCreateCGIVars(HttpConn *conn)
     mprAddKey(vars, "REQUEST_URI", rx->originalUri);
     /*  
         URIs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} 
-        NOTE: For CGI|PHP, scriptName is empty and pathInfo has the script. PATH_INFO is stored in extraPath.
+        NOTE: Appweb refers to pathInfo as the app relative URI and scriptName as the app address before the pathInfo.
+        In CGI|PHP terms, the scriptName is the appweb rx->pathInfo and the PATH_INFO is the extraPath. 
      */
     mprAddKey(vars, "PATH_INFO", rx->extraPath);
     mprAddKey(vars, "SCRIPT_NAME", rx->pathInfo);

@@ -72,7 +72,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->hostHeader);
         mprMark(rx->inputPipeline);
         mprMark(rx->inputRange);
-        mprMark(rx->language);
+        mprMark(rx->lang);
         mprMark(rx->method);
         mprMark(rx->mimeType);
         mprMark(rx->originalUri);
@@ -1721,8 +1721,8 @@ HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken)
     int         next;
 
     rx = conn->rx;
-    if (rx->language) {
-        return rx->language;
+    if (rx->lang) {
+        return rx->lang;
     }
     if (spoken == 0) {
         return 0;
@@ -1739,12 +1739,44 @@ HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken)
         mprSortList(list, compareLang);
         for (next = 0; (language = mprGetNextItem(list, &next)) != 0; ) {
             if ((lang = mprLookupKey(rx->route->languages, &language[4])) != 0) {
-                rx->language = lang;
+                rx->lang = lang;
                 return lang;
             }
         }
     }
     return 0;
+}
+
+
+/*
+    Trim extra path information after the uri extension. This is used by CGI and PHP only. The strategy is to 
+    heuristically find the script name in the uri. This is assumed to be the original uri up to and including 
+    first path component containing a "." Any path information after that is regarded as extra path.
+    WARNING: Extra path is an old, unreliable, CGI specific technique. Do not use directories with embedded periods.
+ */
+int httpTrimExtraPath(HttpConn *conn)
+{
+    HttpTx      *tx;
+    HttpRx      *rx;
+    cchar       *seps;
+    char        *cp, *extra, *start;
+    ssize       len;
+
+    rx = conn->rx;
+    tx = conn->tx;
+
+    if ((tx->handler && tx->handler->flags & HTTP_STAGE_EXTRA_PATH) && !(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) { 
+        start = rx->pathInfo;
+        seps = mprGetPathSeparators(start);
+        if ((cp = strchr(start, '.')) != 0 && (extra = strchr(cp, seps[0])) != 0) {
+            len = extra - start;
+            if (0 < len && len < slen(rx->pathInfo)) {
+                rx->extraPath = sclone(&rx->pathInfo[len]);
+                rx->pathInfo[len] = '\0';
+            }
+        }
+    }
+    return HTTP_ROUTE_ACCEPTED;
 }
 
 /*

@@ -364,6 +364,7 @@ extern void httpAddHost(Http *http, struct HttpHost *host);
 extern void httpRemoveHost(Http *http, struct HttpHost *host);
 extern void httpAddKey(cchar *key, cchar *value);
 extern void httpDefineRouteBuiltins();
+extern struct HttpHost *httpLookupHost(Http *http, cchar *name);
 
 /************************************* Limits *********************************/
 /** 
@@ -969,6 +970,7 @@ extern void httpInsertQueue(HttpQueue *prev, HttpQueue *q);
 extern int httpIsEof(struct HttpConn *conn);
 extern void httpJoinPackets(HttpQueue *q, ssize size);
 extern void httpMarkQueueHead(HttpQueue *q);
+extern void httpAssignQueue(HttpQueue *q, struct HttpStage *stage, int dir);
 
 /******************************** Pipeline Stages *****************************/
 /*
@@ -1031,7 +1033,7 @@ typedef struct HttpStage {
         @return True if the stage wishes to process this request.
         @ingroup HttpStage
       */
-    bool (*match)(struct HttpConn *conn, struct HttpStage *stage, int dir);
+    bool (*match)(struct HttpConn *conn, struct HttpRoute *route, int dir);
 
     /** 
         Open the queue
@@ -1885,7 +1887,6 @@ typedef struct HttpLang {
 #define HTTP_ROUTE_HANDLER_AFTER  0x400     /**< Start handler after content */
 #define HTTP_ROUTE_HANDLER_SMART  0x800     /**< Start handler after for forms and upload */
 #define HTTP_ROUTE_GZIP           0x1000    /**< Support gzipped conent */
-#define HTTP_ROUTE_MAPPED         0x2000    /**< Route has been mapped to storage */
 
 /**
     Route Control
@@ -2175,7 +2176,7 @@ typedef struct HttpRx {
         Misc
      */
     char            *formData;              /**< Cached form data as a string*/
-    HttpLang        *language;              /**< Selected language */
+    HttpLang        *lang;                  /**< Selected language */
 
     /*
         Routing info
@@ -2287,6 +2288,7 @@ extern cvoid *httpGetStageData(HttpConn *conn, cchar *key);
 
 
 /* Internal */
+//  MOB - some of these are not internal and need trimming
 extern HttpRx *httpCreateRx(HttpConn *conn);
 extern void httpCloseRx(struct HttpConn *conn);
 extern bool httpContentNotModified(HttpConn *conn);
@@ -2301,6 +2303,8 @@ extern void httpProcessWriteEvent(HttpConn *conn);
 extern bool httpProcessCompletion(HttpConn *conn);
 extern int  httpSetUri(HttpConn *conn, cchar *newUri, cchar *query);
 extern void httpSetEtag(HttpConn *conn, MprPath *info);
+extern int httpTrimExtraPath(HttpConn *conn);
+
 
 /**************************************** Env ***************************************/
 /**
@@ -2415,7 +2419,9 @@ extern void httpCreateCGIVars(HttpConn *conn);
 /*  
     Tx flags
  */
+#if UNUSED
 #define HTTP_TX_DONT_CACHE          0x1     /**< Add no-cache to the transmission */
+#endif
 #define HTTP_TX_NO_BODY             0x2     /**< No transmission body, only sent headers */
 #define HTTP_TX_HEADERS_CREATED     0x4     /**< Response headers have been created */
 #define HTTP_TX_SENDFILE            0x8     /**< Relay output via Send connector */
@@ -2540,6 +2546,7 @@ extern HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers);
 //  MOB DOC
 extern void httpDestroyTx(HttpTx *tx);
 
+#if UNUSED
 /** 
     Dont cache the transmission 
     @description Instruct the client not to cache the transmission body. This is done by setting the Cache-control Http
@@ -2548,6 +2555,7 @@ extern void httpDestroyTx(HttpTx *tx);
     @ingroup HttpTx
  */
 extern void httpDontCache(HttpConn *conn);
+#endif
 
 /** 
     Enable Multipart-Mime File Upload for this request. This will define a "Content-Type: multipart/form-data..."
@@ -2930,7 +2938,7 @@ extern void httpStopEndpoint(HttpEndpoint *endpoint);
 extern int httpSecureEndpoint(HttpEndpoint *endpoint, struct MprSsl *ssl);
 extern int httpSecureEndpointByName(cchar *name, struct MprSsl *ssl);
 extern void httpSetEndpointAddress(HttpEndpoint *endpoint, cchar *ip, int port);
-extern struct HttpHost *httpLookupHost(HttpEndpoint *endpoint, cchar *name);
+extern struct HttpHost *httpLookupHostOnEndpoint(HttpEndpoint *endpoint, cchar *name);
 
 extern HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar *ip, int port);
 
@@ -2968,7 +2976,9 @@ typedef struct HttpHost {
     MprList         *dirs;                  /**< List of Directory definitions */
     MprList         *routes;                /**< List of Route defintions */
     HttpLimits      *limits;                /**< Host resource limits */
+#if UNUSED
     HttpRoute       *route;                 /**< Default (and outermost) route */
+#endif
     MprHashTable    *mimeTypes;             /**< Hash table of mime types (key is extension) */
 
     char            *home;                  /**< Directory for configuration files */
@@ -3001,7 +3011,8 @@ extern HttpRoute *httpLookupBestRoute(HttpHost *host, cchar *uri);
 extern HttpRoute *httpLookupRoute(HttpHost *host, cchar *prefix);
 extern void httpResetRoutes(HttpHost *route);
 extern void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize);
-extern void httpSetHostName(HttpHost *host, cchar *ip, int port);
+extern void httpSetHostName(HttpHost *host, cchar *name);
+extern void httpSetHostIpAddr(HttpHost *host, cchar *ip, int port);
 extern void httpSetHostAddress(HttpHost *host, cchar *ip, int port);
 extern void httpSetHostProtocol(HttpHost *host, cchar *protocol);
 extern void httpSetHostTrace(HttpHost *host, int level, int mask);

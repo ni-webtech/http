@@ -27,7 +27,7 @@ void httpMatchHost(HttpConn *conn)
         return;
     }
     if (httpIsNamedVirtualEndpoint(endpoint)) {
-        host = httpLookupHost(endpoint, conn->rx->hostHeader);
+        host = httpLookupHostOnEndpoint(endpoint, conn->rx->hostHeader);
     } else {
         host = mprGetFirstItem(endpoint->hosts);
     }
@@ -68,6 +68,10 @@ void httpRouteRequest(HttpConn *conn)
             next = 0;
             rewrites++;
         }
+    }
+    if (rx->route == 0) {
+        httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't find route for request");
+        return;
     }
     if (conn->error || tx->redirected || tx->altBody) {
         tx->handler = conn->http->passHandler;

@@ -38,8 +38,10 @@ HttpHost *httpCreateHost()
     host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
-
+#if UNUSED
     host->route = httpCreateDefaultRoute(host);
+    //  MOB _ this 
+#endif
     httpAddHost(http, host);
     return host;
 }
@@ -58,7 +60,8 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->mutex = mprCreateLock();
 
     /*  
-        The dirs and routes are all copy-on-write
+        The dirs and routes are all copy-on-write.
+        Don't clone ip, port and name
      */
     host->parent = parent;
     host->dirs = parent->dirs;
@@ -68,8 +71,10 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->mimeTypes = parent->mimeTypes;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
     host->home = parent->home;
+#if UNUSED
     host->route = httpCreateInheritedRoute(parent->route);
     httpSetRouteHost(host->route, host);
+#endif
     host->traceMask = parent->traceMask;
     host->traceLevel = parent->traceLevel;
     host->traceMaxLength = parent->traceMaxLength;
@@ -92,7 +97,9 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->parent);
         mprMark(host->dirs);
         mprMark(host->routes);
+#if UNUSED
         mprMark(host->route);
+#endif
         mprMark(host->mimeTypes);
         mprMark(host->home);
         mprMark(host->traceInclude);
@@ -124,30 +131,38 @@ void httpSetHostHome(HttpHost *host, cchar *home)
 
 
 /*
-    Set the host name intelligently from the name specified by ip:port. Port may be set to -1 and ip may contain a port
-    specifier, ie. "address:port". This routines sets host->name and host->ip, host->port which is used for vhost matching.
+    IP may be null in which case the host is listening on all interfaces. Port may be set to -1 and ip may contain a port
+    specifier, ie. "address:port".
  */
-void httpSetHostName(HttpHost *host, cchar *ip, int port)
+void httpSetHostIpAddr(HttpHost *host, cchar *ip, int port)
 {
+    char    *pip;
+
     if (port < 0 && schr(ip, ':')) {
-        char *pip;
         mprParseIp(ip, &pip, &port, -1);
         ip = pip;
     }
-    if (ip) {
-        if (port > 0) {
-            host->name = mprAsprintf("%s:%d", ip, port);
+    host->ip = sclone(ip);
+    host->port = port;
+
+    if (!host->name) {
+        if (ip) {
+            if (port > 0) {
+                host->name = sfmt("%s:%d", ip, port);
+            } else {
+                host->name = sclone(ip);
+            }
         } else {
-            host->name = sclone(ip);
+            mprAssert(port > 0);
+            host->name = sfmt("*:%d", port);
         }
-    } else {
-        mprAssert(port > 0);
-        host->name = mprAsprintf("*:%d", port);
     }
-    if (scmp(ip, "default") != 0) {
-        host->ip = sclone(ip);
-        host->port = port;
-    }
+}
+
+
+void httpSetHostName(HttpHost *host, cchar *name)
+{
+    host->name = sclone(name);
 }
 
 
@@ -174,11 +189,15 @@ int httpAddRoute(HttpHost *host, HttpRoute *route)
 
 void httpResetRoutes(HttpHost *host)
 {
+#if UNUSED
     HttpRoute   *route;
-
+    //  MOB - is this right to preserve the last route?
     route = mprGetLastItem(host->routes);
+#endif
     host->routes = mprCreateList(-1, 0);
+#if UNUSED
     mprAddItem(host->routes, route);
+#endif
 }
 
 

@@ -210,6 +210,9 @@ HttpEndpoint *httpGetFirstEndpoint(Http *http)
 }
 
 
+/*
+    WARNING: this should not be called by users as httpCreateHost will automatically call this.
+ */
 void httpAddHost(Http *http, HttpHost *host)
 {
     mprAddItem(http->hosts, host);
@@ -222,22 +225,17 @@ void httpRemoveHost(Http *http, HttpHost *host)
 }
 
 
-HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
+HttpHost *httpLookupHost(Http *http, cchar *name)
 {
-    HttpRoute   *route;
-    Http        *http;
+    HttpHost    *host;
+    int         next;
 
-    /*
-        Create default incoming and outgoing pipelines. Order matters.
-     */
-    http = MPR->httpService;
-    route = httpCreateRoute(host);
-    httpAddRouteFilter(route, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
-    httpAddRouteFilter(route, http->chunkFilter->name, NULL, HTTP_STAGE_RX | HTTP_STAGE_TX);
-    if (serverSide) {
-        httpAddRouteFilter(route, http->uploadFilter->name, NULL, HTTP_STAGE_RX);
+    for (next = 0; (host = mprGetNextItem(http->hosts, &next)) != 0; ) {
+        if (smatch(name, host->name)) {
+            return host;
+        }
     }
-    return route;
+    return 0;
 }
 
 

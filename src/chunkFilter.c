@@ -11,7 +11,7 @@
 /********************************** Forwards **********************************/
 
 static void incomingChunkData(HttpQueue *q, HttpPacket *packet);
-static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir);
+static bool matchChunk(HttpConn *conn, HttpRoute *route, int dir);
 static void openChunk(HttpQueue *q);
 static void outgoingChunkService(HttpQueue *q);
 static void setChunkPrefix(HttpQueue *q, HttpPacket *packet);
@@ -37,7 +37,7 @@ int httpOpenChunkFilter(Http *http)
 }
 
 
-static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir)
+static bool matchChunk(HttpConn *conn, HttpRoute *route, int dir)
 {
     HttpTx  *tx;
 
