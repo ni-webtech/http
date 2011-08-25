@@ -179,7 +179,7 @@ int httpStartEndpoint(HttpEndpoint *endpoint)
     }
     proto = mprIsSocketSecure(endpoint->sock) ? "HTTPS" : "HTTP ";
     ip = *endpoint->ip ? endpoint->ip : "*";
-    mprLog(MPR_CONFIG, "Started %s endpoint on \"%s:%d\"", proto, ip, endpoint->port);
+    mprLog(MPR_CONFIG, "Started %s service on \"%s:%d\"", proto, ip, endpoint->port);
     return 0;
 }
 

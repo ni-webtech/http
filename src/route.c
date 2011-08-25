@@ -651,7 +651,7 @@ int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions)
 {
     Http            *http;
     HttpStage       *handler;
-    char            *extlist, *word, *tok;
+    char            *extlist, *word, *tok, *hostName;
 
     mprAssert(route);
 
@@ -660,10 +660,12 @@ int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions)
         mprError("Can't find stage %s", name); 
         return MPR_ERR_CANT_FIND;
     }
+    hostName = route->host->name ? route->host->name : "default"; 
     if (extensions && *extensions) {
-        mprLog(MPR_CONFIG, "Add handler \"%s\" for extensions: %s", name, extensions);
+        mprLog(MPR_CONFIG, "Add handler \"%s\" on host \"%s\" for extensions: %s", name, hostName, extensions);
     } else {
-        mprLog(MPR_CONFIG, "Add handler \"%s\" for route: \"%s\"", name, route->pattern);
+        mprLog(MPR_CONFIG, "Add handler \"%s\" on host \"%s\" for route: \"%s\"", name, hostName, 
+            mprJoinPath(route->scriptName, route->pattern));
     }
     GRADUATE_HASH(route, extensions);
 
