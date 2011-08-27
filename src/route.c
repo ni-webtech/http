@@ -1450,7 +1450,6 @@ static int allowDenyCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(op);
 
     rx = conn->rx;
     auth = rx->route->auth;
@@ -1497,7 +1496,6 @@ static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(op);
 
     rx = conn->rx;
     if (route->auth == 0 || route->auth->type == 0) {
@@ -1641,7 +1639,6 @@ static int langUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(op);
 
     rx = conn->rx;
     prior = rx->parsedUri;
@@ -1677,7 +1674,6 @@ static int closeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(op);
 
     httpError(conn, HTTP_CODE_RESET, "Route target \"close\" is closing request");
     if (scmp(route->closeTarget, "immediate") == 0) {
@@ -1706,7 +1702,6 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(op);
 
     rx = conn->rx;
     mprAssert(route->redirectTarget && *route->redirectTarget);
@@ -1745,7 +1740,6 @@ static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(op);
 
     str = route->writeTarget ? expandTokens(conn, route->writeTarget) : sclone(&conn->rx->pathInfo[1]);
     httpSetStatus(conn, route->responseStatus);
