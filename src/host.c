@@ -38,10 +38,6 @@ HttpHost *httpCreateHost()
     host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
-#if UNUSED
-    host->route = httpCreateDefaultRoute(host);
-    //  MOB _ this 
-#endif
     httpAddHost(http, host);
     return host;
 }
@@ -71,10 +67,6 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->mimeTypes = parent->mimeTypes;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
     host->home = parent->home;
-#if UNUSED
-    host->route = httpCreateInheritedRoute(parent->route);
-    httpSetRouteHost(host->route, host);
-#endif
     host->traceMask = parent->traceMask;
     host->traceLevel = parent->traceLevel;
     host->traceMaxLength = parent->traceMaxLength;
@@ -97,9 +89,6 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->parent);
         mprMark(host->dirs);
         mprMark(host->routes);
-#if UNUSED
-        mprMark(host->route);
-#endif
         mprMark(host->mimeTypes);
         mprMark(host->home);
         mprMark(host->traceInclude);
@@ -189,15 +178,7 @@ int httpAddRoute(HttpHost *host, HttpRoute *route)
 
 void httpResetRoutes(HttpHost *host)
 {
-#if UNUSED
-    HttpRoute   *route;
-    //  MOB - is this right to preserve the last route?
-    route = mprGetLastItem(host->routes);
-#endif
     host->routes = mprCreateList(-1, 0);
-#if UNUSED
-    mprAddItem(host->routes, route);
-#endif
 }
 
 

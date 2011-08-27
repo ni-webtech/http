@@ -178,12 +178,9 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->redirectTarget = parent->redirectTarget;
     route->responseStatus = parent->responseStatus;
     route->script = parent->script;
-    route->scriptName = parent->scriptName;
-    route->scriptNameLen = parent->scriptNameLen;
+    route->prefix = parent->prefix;
+    route->prefixLen = parent->prefixLen;
     route->scriptPath = parent->scriptPath;
-#if UNUSED
-    route->searchPath = parent->searchPath;
-#endif
     route->sourceName = parent->sourceName;
     route->sourcePath = parent->sourcePath;
     route->ssl = parent->ssl;
@@ -235,7 +232,7 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->queryFields);
         mprMark(route->redirectTarget);
         mprMark(route->script);
-        mprMark(route->scriptName);
+        mprMark(route->prefix);
         mprMark(route->scriptPath);
         mprMark(route->sourceName);
         mprMark(route->sourcePath);
@@ -267,24 +264,24 @@ int httpMatchRoute(HttpConn *conn, HttpRoute *route)
     rx = conn->rx;
     savePathInfo = rx->pathInfo;
 
-    if (route->scriptName) {
+    if (route->prefix) {
         /*
-            Rewrite the pathInfo and scriptName. If the route fails to match, restore below
+            Rewrite the pathInfo and prefix. If the route fails to match, restore below
          */
         mprAssert(rx->pathInfo[0] == '/');
-        len = route->scriptNameLen;
-        if (strncmp(rx->pathInfo, route->scriptName, len) != 0) {
+        len = route->prefixLen;
+        if (strncmp(rx->pathInfo, route->prefix, len) != 0) {
             return 0;
         }
         if (rx->pathInfo[len] && rx->pathInfo[len] != '/') {
             return 0;
         }
-        pathInfo = &rx->pathInfo[route->scriptNameLen];
+        pathInfo = &rx->pathInfo[route->prefixLen];
         if (*pathInfo == '\0') {
             pathInfo = "/";
         }
         rx->pathInfo = sclone(pathInfo);
-        rx->scriptName = route->scriptName;
+        rx->scriptName = route->prefix;
         mprLog(5, "Route for script name: \"%s\", pathInfo: \"%s\"", rx->scriptName, rx->pathInfo);
     }
     if ((rc = matchRoute(conn, route)) == 0) {
@@ -608,7 +605,7 @@ int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions)
         mprLog(MPR_CONFIG, "Add handler \"%s\" on host \"%s\" for extensions: %s", name, hostName, extensions);
     } else {
         mprLog(MPR_CONFIG, "Add handler \"%s\" on host \"%s\" for route: \"%s\"", name, hostName, 
-            mprJoinPath(route->scriptName, route->pattern));
+            mprJoinPath(route->prefix, route->pattern));
     }
     GRADUATE_HASH(route, extensions);
 
@@ -910,10 +907,10 @@ void httpSetRoutePattern(HttpRoute *route, cchar *pattern, int flags)
 }
 
 
-void httpSetRouteScriptName(HttpRoute *route, cchar *scriptName)
+void httpSetRoutePrefix(HttpRoute *route, cchar *prefix)
 {
-    route->scriptName = sclone(scriptName);
-    route->scriptNameLen = slen(scriptName);
+    route->prefix = sclone(prefix);
+    route->prefixLen = slen(prefix);
     if (route->pattern) {
         finalizePattern(route);
     }
@@ -1064,12 +1061,12 @@ static void finalizePattern(HttpRoute *route)
     params = mprCreateBuf(-1, -1);
 
     /*
-        Remove the scriptName from the start of the compiled pattern and then create an optimized 
+        Remove the route prefix from the start of the compiled pattern and then create an optimized 
         simple literal pattern from the remainder to optimize route rejection.
      */
     startPattern = route->pattern[0] == '^' ? &route->pattern[1] : route->pattern;
-    if (route->scriptName && sstarts(startPattern, route->scriptName)) {
-        startPattern = sclone(&startPattern[route->scriptNameLen]);
+    if (route->prefix && sstarts(startPattern, route->prefix)) {
+        startPattern = sclone(&startPattern[route->prefixLen]);
     }
     len = strcspn(startPattern, "^$*+?.(|{[\\");
     if (len) {
@@ -1669,14 +1666,6 @@ static HttpLang *createLangDef(cchar *path, cchar *suffix, int flags)
     if (suffix) {
         lang->suffix = sclone(suffix);
     }
-#if UNUSED
-    /*
-        Do not do this as users may use ${Request:language} to manually add the suffix
-     */
-    if (flags == 0) {
-        flags |= HTTP_LANG_BEFORE;
-    }
-#endif
     lang->flags = flags;
     return lang;
 }
@@ -1816,6 +1805,9 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
 
             } else if (smatch(value, "pathInfo")) {
                 mprPutStringToBuf(buf, rx->pathInfo);
+
+            } else if (smatch(value, "prefix")) {
+                mprPutStringToBuf(buf, route->prefix);
 
             } else if (smatch(value, "query")) {
                 mprPutStringToBuf(buf, rx->parsedUri->query);

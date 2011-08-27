@@ -211,21 +211,6 @@ void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 }
 
 
-#if UNUSED
-/*
-    Convenience routine to add Cache-Control header:
-
-    httpAddHeaderString(conn, "Cache-Control", "no-cache");
- */
-void httpDontCache(HttpConn *conn)
-{
-    if (conn->tx) {
-        conn->tx->flags |= HTTP_TX_DONT_CACHE;
-    }
-}
-#endif
-
-
 void httpFinalize(HttpConn *conn)
 {
     HttpTx      *tx;
@@ -550,12 +535,6 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             }
         }
     }
-#if UNUSED
-    if (tx->flags & HTTP_TX_DONT_CACHE) {
-        httpAddHeaderString(conn, "Cache-Control", "no-cache");
-
-    } else 
-#endif
     if (rx->route && !mprLookupKey(tx->headers, "Cache-Control")) {
         expires = 0;
         if (tx->ext) {

@@ -110,9 +110,6 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
     httpSetHostIpAddr(host, ip, port);
     httpAddHostToEndpoint(endpoint, host);
     httpSetHostHome(host, home);
-#if UNUSED
-    httpSetRouteDir(host->route, documents);
-#endif
     if ((host->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
         host->mimeTypes = MPR->mimeTypes;
     }
@@ -433,14 +430,6 @@ HttpHost *httpLookupHostOnEndpoint(HttpEndpoint *endpoint, cchar *name)
         if (smatch(host->name, name)) {
             return host;
         }
-#if UNUSED
-        mprParseIp(name, &ip, &port, -1);
-        if (host->port <= 0 || port <= 0 || host->port == port) {
-            if (*host->ip == '\0' || *ip == '\0' || scmp(host->ip, ip) == 0) {
-                return host;
-            }
-        }
-#endif
     }
     return 0;
 }
