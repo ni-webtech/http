@@ -1823,8 +1823,6 @@ static HttpLang *createLangDef(cchar *path, cchar *suffix, int flags)
 {
     HttpLang    *lang;
 
-    mprAssert(path && *path);
-
     if ((lang = mprAllocObj(HttpLang, manageLang)) == 0) {
         return 0;
     }
