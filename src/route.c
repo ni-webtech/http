@@ -1363,13 +1363,16 @@ char *httpMakePath(HttpRoute *route, cchar *file)
 }
 
 /********************************* Language ***********************************/
-
+/*
+    Language can be an empty string
+ */
 int httpAddRouteLanguage(HttpRoute *route, cchar *language, cchar *suffix, int flags)
 {
     HttpLang    *lp;
 
     mprAssert(route);
-    mprAssert(language && *language);
+    mprAssert(language);
+    mprAssert(suffix && *suffix);
 
     if (route->languages == 0) {
         route->languages = mprCreateHash(-1, 0);
