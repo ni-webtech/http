@@ -1733,7 +1733,6 @@ static int virtualTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(op);
 
     conn->rx->targetKey = route->virtualTarget ? expandTokens(conn, route->virtualTarget) : sclone(&conn->rx->pathInfo[1]);
     return HTTP_ROUTE_ACCEPTED;
