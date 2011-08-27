@@ -54,6 +54,7 @@ HttpRoute *httpCreateRoute(HttpHost *host)
 {
     HttpRoute  *route;
 
+    mprAssert(host);
     if ((route = mprAllocObj(HttpRoute, manageRoute)) == 0) {
         return 0;
     }
@@ -86,6 +87,7 @@ HttpRoute *httpCreateDefaultRoute(HttpHost *host)
 {
     HttpRoute   *route;
 
+    mprAssert(host);
     if ((route = httpCreateRoute(host)) == 0) {
         return 0;
     }
@@ -103,6 +105,7 @@ HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
     /*
         Create default incoming and outgoing pipelines. Order matters.
      */
+    mprAssert(host);
     route = httpCreateRoute(host);
     http = route->http;
     httpAddRouteFilter(route, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
@@ -117,6 +120,9 @@ HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
 HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *pattern, cchar *path, int status)
 {
     HttpRoute   *route;
+
+    mprAssert(parent);
+    mprAssert(pattern && *pattern);
 
     if ((route = httpCreateInheritedRoute(parent)) == 0) {
         return 0;
@@ -261,6 +267,9 @@ int httpMatchRoute(HttpConn *conn, HttpRoute *route)
     ssize       len;
     int         rc;
 
+    mprAssert(conn);
+    mprAssert(route);
+
     rx = conn->rx;
     savePathInfo = rx->pathInfo;
 
@@ -301,6 +310,8 @@ static int matchRoute(HttpConn *conn, HttpRoute *route)
     cchar           *token, *value, *header, *field;
     int             next, rc, matched[HTTP_MAX_ROUTE_MATCHES * 2], count;
 
+    mprAssert(conn);
+    mprAssert(route);
     rx = conn->rx;
     tx = conn->tx;
 
@@ -410,6 +421,9 @@ static int selectHandler(HttpConn *conn, HttpRoute *route)
 {
     HttpTx      *tx;
 
+    mprAssert(conn);
+    mprAssert(route);
+
     tx = conn->tx;
     if (route->handler) {
         tx->handler = route->handler;
@@ -436,6 +450,9 @@ static void mapFile(HttpConn *conn, HttpRoute *route)
     HttpTx      *tx;
     HttpLang    *lang;
     MprPath     *info;
+
+    mprAssert(conn);
+    mprAssert(route);
 
     rx = conn->rx;
     tx = conn->tx;
@@ -469,6 +486,9 @@ int httpAddRouteCondition(HttpRoute *route, cchar *condition, int flags)
     cchar       *errMsg;
     char        *name, *pattern, *details;
     int         column;
+
+    mprAssert(route);
+    mprAssert(condition && *condition);
 
     GRADUATE_LIST(route, conditions);
     if (!httpTokenize(route, condition, "%S ?*", &name, &details)) {
@@ -513,6 +533,8 @@ void httpAddRouteExpiry(HttpRoute *route, MprTime when, cchar *extensions)
 {
     char    *types, *ext, *tok;
 
+    mprAssert(route);
+
     if (extensions && *extensions) {
         GRADUATE_HASH(route, expires);
         types = sclone(extensions);
@@ -528,6 +550,8 @@ void httpAddRouteExpiry(HttpRoute *route, MprTime when, cchar *extensions)
 void httpAddRouteExpiryByType(HttpRoute *route, MprTime when, cchar *mimeTypes)
 {
     char    *types, *mime, *tok;
+
+    mprAssert(route);
 
     if (mimeTypes && *mimeTypes) {
         GRADUATE_HASH(route, expiresByType);
@@ -703,15 +727,18 @@ void httpAddRouteQuery(HttpRoute *route, cchar *field, cchar *value, int flags)
 
 /*
     Add a route update record. These run to modify a request.
-    Update field var value
-    kind == "cmd|field"
-    details == "var value"
+        Update field var value
+        kind == "cmd|field"
+        details == "var value"
     Value can contain pattern and request tokens.
  */
 int httpAddRouteUpdate(HttpRoute *route, cchar *kind, cchar *details, int flags)
 {
     HttpRouteOp *op;
     char        *value;
+
+    mprAssert(route);
+    mprAssert(kind && *kind);
 
     GRADUATE_LIST(route, updates);
     if ((op = createRouteOp(kind, flags)) == 0) {
@@ -739,6 +766,8 @@ int httpAddRouteUpdate(HttpRoute *route, cchar *kind, cchar *details, int flags)
 
 void httpClearRouteStages(HttpRoute *route, int direction)
 {
+    mprAssert(route);
+
     if (direction & HTTP_STAGE_RX) {
         route->inputStages = mprCreateList(-1, 0);
     }
@@ -750,24 +779,36 @@ void httpClearRouteStages(HttpRoute *route, int direction)
 
 void httpDefineRouteTarget(cchar *key, HttpRouteProc *proc)
 {
+    mprAssert(key && *key);
+    mprAssert(proc);
+
     mprAddKey(((Http*) MPR->httpService)->routeTargets, key, proc);
 }
 
 
 void httpDefineRouteCondition(cchar *key, HttpRouteProc *proc)
 {
+    mprAssert(key && *key);
+    mprAssert(proc);
+
     mprAddKey(((Http*) MPR->httpService)->routeConditions, key, proc);
 }
 
 
 void httpDefineRouteUpdate(cchar *key, HttpRouteProc *proc)
 {
+    mprAssert(key && *key);
+    mprAssert(proc);
+
     mprAddKey(((Http*) MPR->httpService)->routeUpdates, key, proc);
 }
 
 
 void *httpGetRouteData(HttpRoute *route, cchar *key)
 {
+    mprAssert(route);
+    mprAssert(key && *key);
+
     if (!route->data) {
         return 0;
     }
@@ -777,6 +818,8 @@ void *httpGetRouteData(HttpRoute *route, cchar *key)
 
 void httpResetRoutePipeline(HttpRoute *route)
 {
+    mprAssert(route);
+
     if (route->parent == 0) {
         route->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
         route->expires = mprCreateHash(0, MPR_HASH_STATIC_VALUES);
@@ -791,24 +834,28 @@ void httpResetRoutePipeline(HttpRoute *route)
 
 void httpResetHandlers(HttpRoute *route)
 {
+    mprAssert(route);
     route->handlers = mprCreateList(-1, 0);
 }
 
 
 void httpSetRouteAuth(HttpRoute *route, HttpAuth *auth)
 {
+    mprAssert(route);
     route->auth = auth;
 }
 
 
 void httpSetRouteAutoDelete(HttpRoute *route, int enable)
 {
+    mprAssert(route);
     route->autoDelete = enable;
 }
 
 
 void httpSetRouteCompression(HttpRoute *route, int flags)
 {
+    mprAssert(route);
     route->flags &= (HTTP_ROUTE_GZIP);
     route->flags |= (HTTP_ROUTE_GZIP & flags);
 }
@@ -833,6 +880,10 @@ int httpSetRouteConnector(HttpRoute *route, cchar *name)
 
 void httpSetRouteData(HttpRoute *route, cchar *key, void *data)
 {
+    mprAssert(route);
+    mprAssert(key && *key);
+    mprAssert(data);
+
     if (route->data == 0) {
         route->data = mprCreateHash(-1, 0);
     } else {
@@ -844,6 +895,7 @@ void httpSetRouteData(HttpRoute *route, cchar *key, void *data)
 
 void httpSetRouteFlags(HttpRoute *route, int flags)
 {
+    mprAssert(route);
     route->flags = flags;
 }
 
@@ -853,6 +905,7 @@ int httpSetRouteHandler(HttpRoute *route, cchar *name)
     HttpStage     *handler;
 
     mprAssert(route);
+    mprAssert(name && *name);
     
     if ((handler = httpLookupStage(route->http, name)) == 0) {
         mprError("Can't find handler %s", name); 
@@ -865,6 +918,9 @@ int httpSetRouteHandler(HttpRoute *route, cchar *name)
 
 void httpSetRouteDir(HttpRoute *route, cchar *path)
 {
+    mprAssert(route);
+    mprAssert(path && *path);
+    
     route->dir = httpMakePath(route, path);
     httpSetRoutePathVar(route, "DOCUMENT_ROOT", route->dir);
 }
@@ -872,6 +928,9 @@ void httpSetRouteDir(HttpRoute *route, cchar *path)
 
 void httpSetRouteHost(HttpRoute *route, HttpHost *host)
 {
+    mprAssert(route);
+    mprAssert(host);
+    
     route->host = host;
     defineHostVars(route);
 }
@@ -879,6 +938,9 @@ void httpSetRouteHost(HttpRoute *route, HttpHost *host)
 
 void httpSetRouteIndex(HttpRoute *route, cchar *index)
 {
+    mprAssert(route);
+    mprAssert(index && *index);
+    
     route->index = sclone(index);
 }
 
@@ -895,12 +957,18 @@ void httpSetRouteMethods(HttpRoute *route, cchar *methods)
 
 void httpSetRouteName(HttpRoute *route, cchar *name)
 {
+    mprAssert(route);
+    mprAssert(name && *name);
+    
     route->name = sclone(name);
 }
 
 
 void httpSetRoutePattern(HttpRoute *route, cchar *pattern, int flags)
 {
+    mprAssert(route);
+    mprAssert(pattern && *pattern);
+    
     route->flags |= (flags & HTTP_ROUTE_NOT);
     route->pattern = sclone(pattern);
     finalizePattern(route);
@@ -909,6 +977,9 @@ void httpSetRoutePattern(HttpRoute *route, cchar *pattern, int flags)
 
 void httpSetRoutePrefix(HttpRoute *route, cchar *prefix)
 {
+    mprAssert(route);
+    mprAssert(prefix && *prefix);
+    
     route->prefix = sclone(prefix);
     route->prefixLen = slen(prefix);
     if (route->pattern) {
@@ -928,10 +999,14 @@ void httpSetRouteSource(HttpRoute *route, cchar *source)
 
 void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath)
 {
+    mprAssert(route);
+    
     if (script) {
+        mprAssert(*script);
         route->script = sclone(script);
     }
     if (scriptPath) {
+        mprAssert(*scriptPath);
         route->scriptPath = sclone(scriptPath);
     }
 }
@@ -992,12 +1067,14 @@ int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
 
 void httpSetRouteWorkers(HttpRoute *route, int workers)
 {
+    mprAssert(route);
     route->workers = workers;
 }
 
 
 void httpAddRouteErrorDocument(HttpRoute *route, cchar *code, cchar *url)
 {
+    mprAssert(route);
     GRADUATE_HASH(route, errorDocuments);
     mprAddKey(route->errorDocuments, code, sclone(url));
 }
@@ -1007,6 +1084,7 @@ cchar *httpLookupRouteErrorDocument(HttpRoute *route, int code)
 {
     char        numBuf[16];
 
+    mprAssert(route);
     if (route->errorDocuments == 0) {
         return 0;
     }
@@ -1020,6 +1098,7 @@ static void finalizeMethods(HttpRoute *route)
 {
     char    *method, *methods, *tok;
 
+    mprAssert(route);
     methods = route->methods;
     if (methods && *methods && !scasematch(route->methods, "ALL") && !smatch(route->methods, "*")) {
         if ((route->methodHash = mprCreateHash(-1, 0)) == 0) {
@@ -1052,6 +1131,7 @@ static void finalizePattern(HttpRoute *route)
     ssize       len;
     int         column, submatch;
 
+    mprAssert(route);
     route->tokens = mprCreateList(-1, 0);
     pattern = mprCreateBuf(-1, -1);
 
@@ -1154,6 +1234,9 @@ static char *finalizeReplacement(HttpRoute *route, cchar *str)
     cchar       *tok, *cp, *ep, *token;
     int         next, braced;
 
+    mprAssert(route);
+    mprAssert(str);
+
     /*
         Prepare a replacement string. Change $token to $N
      */
@@ -1231,6 +1314,7 @@ int httpFinalizeRoute(HttpRoute *route)
         will be from the inside out. This ensures that nested routes are defined BEFORE outer/enclosing routes.
         This is important as requests process routes in-order.
      */
+    mprAssert(route);
     httpAddRoute(route->host, route);
 #if BLD_FEATURE_SSL
     mprConfigureSsl(route->ssl);
@@ -1243,6 +1327,7 @@ int httpFinalizeRoute(HttpRoute *route)
 
 void httpSetRoutePathVar(HttpRoute *route, cchar *key, cchar *value)
 {
+    mprAssert(route);
     mprAssert(key);
     mprAssert(value);
 
@@ -1262,6 +1347,7 @@ char *httpMakePath(HttpRoute *route, cchar *file)
 {
     char    *path;
 
+    mprAssert(route);
     mprAssert(file);
 
     if ((path = stemplate(file, route->pathVars)) == 0) {
@@ -1275,38 +1361,45 @@ char *httpMakePath(HttpRoute *route, cchar *file)
 
 /********************************* Language ***********************************/
 
-int httpAddRouteLanguage(HttpRoute *route, cchar *lang, cchar *suffix, int flags)
+int httpAddRouteLanguage(HttpRoute *route, cchar *language, cchar *suffix, int flags)
 {
     HttpLang    *lp;
+
+    mprAssert(route);
+    mprAssert(language && *language);
 
     if (route->languages == 0) {
         route->languages = mprCreateHash(-1, 0);
     } else {
         GRADUATE_HASH(route, languages);
     }
-    if ((lp = mprLookupKey(route->languages, lang)) != 0) {
+    if ((lp = mprLookupKey(route->languages, language)) != 0) {
         lp->suffix = sclone(suffix);
         lp->flags = flags;
     } else {
-        mprAddKey(route->languages, lang, createLangDef(0, suffix, flags));
+        mprAddKey(route->languages, language, createLangDef(0, suffix, flags));
     }
     return httpAddRouteUpdate(route, "lang", 0, 0);
 }
 
 
-int httpAddRouteLanguageRoot(HttpRoute *route, cchar *lang, cchar *path)
+int httpAddRouteLanguageRoot(HttpRoute *route, cchar *language, cchar *path)
 {
     HttpLang    *lp;
+
+    mprAssert(route);
+    mprAssert(language && *language);
+    mprAssert(path && *path);
 
     if (route->languages == 0) {
         route->languages = mprCreateHash(-1, 0);
     } else {
         GRADUATE_HASH(route, languages);
     }
-    if ((lp = mprLookupKey(route->languages, lang)) != 0) {
+    if ((lp = mprLookupKey(route->languages, language)) != 0) {
         lp->path = sclone(path);
     } else {
-        mprAddKey(route->languages, lang, createLangDef(path, 0, 0));
+        mprAddKey(route->languages, language, createLangDef(path, 0, 0));
     }
     return httpAddRouteUpdate(route, "lang", 0, 0);
 }
@@ -1314,6 +1407,9 @@ int httpAddRouteLanguageRoot(HttpRoute *route, cchar *lang, cchar *path)
 
 void httpSetRouteDefaultLanguage(HttpRoute *route, cchar *language)
 {
+    mprAssert(route);
+    mprAssert(language && *language);
+
     route->defaultLanguage = sclone(language);
 }
 
@@ -1323,6 +1419,10 @@ void httpSetRouteDefaultLanguage(HttpRoute *route, cchar *language)
 static int testCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *condition)
 {
     HttpRouteProc   *proc;
+
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(condition);
 
     if ((proc = mprLookupKey(conn->http->routeConditions, condition->name)) == 0) {
         httpError(conn, -1, "Can't find route condition name %s", condition->name);
@@ -1341,6 +1441,10 @@ static int allowDenyCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     HttpRx      *rx;
     HttpAuth    *auth;
     int         allow, deny;
+
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
 
     rx = conn->rx;
     auth = rx->route->auth;
@@ -1385,6 +1489,10 @@ static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     HttpRx      *rx;
 
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
+
     rx = conn->rx;
     if (route->auth == 0 || route->auth->type == 0) {
         return HTTP_ROUTE_ACCEPTED;
@@ -1398,6 +1506,10 @@ static int directoryCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     HttpTx      *tx;
     MprPath     info;
     char        *path;
+
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
 
     tx = conn->tx;
     mapFile(conn, route);
@@ -1419,8 +1531,14 @@ static int existsCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     HttpTx  *tx;
     char    *path;
 
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
+
+    /* 
+        Must have tx->filename set when expanding op->details, so map fileTarget now 
+     */
     tx = conn->tx;
-    /* Must have tx->filename set when expanding op->details, so map fileTarget now */
     mapFile(conn, route);
     path = mprJoinPath(route->dir, expandTokens(conn, op->details));
     tx->ext = tx->filename = 0;
@@ -1436,6 +1554,10 @@ static int matchCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     HttpRx      *rx;
     char        *str;
     int         matched[HTTP_MAX_ROUTE_MATCHES * 2], count;
+
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
 
     rx = conn->rx;
     str = expandTokens(conn, op->details);
@@ -1453,6 +1575,10 @@ static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     HttpRouteProc   *proc;
 
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
+
     if ((proc = mprLookupKey(conn->http->routeUpdates, op->name)) == 0) {
         httpError(conn, -1, "Can't find route update name %s", op->name);
         return 0;
@@ -1468,6 +1594,10 @@ static int cmdUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     MprCmd  *cmd;
     char    *command, *out, *err;
     int     status;
+
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
 
     rx = conn->rx;
     command = expandTokens(conn, op->details);
@@ -1486,6 +1616,10 @@ static int fieldUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     HttpRx  *rx;
 
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
+
     rx = conn->rx;
     httpSetFormVar(conn, op->var, expandTokens(conn, op->value));
     return HTTP_ROUTE_ACCEPTED;
@@ -1498,6 +1632,10 @@ static int langUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     HttpRx      *rx;
     HttpLang    *lang;
     char        *ext, *pathInfo, *uri;
+
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
 
     rx = conn->rx;
     prior = rx->parsedUri;
@@ -1531,6 +1669,10 @@ static int langUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int closeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
+
     httpError(conn, HTTP_CODE_RESET, "Route target \"close\" is closing request");
     if (scmp(route->closeTarget, "immediate") == 0) {
         httpDisconnect(conn);
@@ -1541,6 +1683,10 @@ static int closeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int fileTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
+
     mapFile(conn, route);
     return HTTP_ROUTE_ACCEPTED;
 }
@@ -1552,6 +1698,10 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     HttpUri     *dest, *prior;
     cchar       *scheme, *host, *query, *reference, *uri, *target;
     int         port;
+
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
 
     rx = conn->rx;
     mprAssert(route->redirectTarget && *route->redirectTarget);
@@ -1576,6 +1726,10 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int virtualTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
+
     conn->rx->targetKey = route->virtualTarget ? expandTokens(conn, route->virtualTarget) : sclone(&conn->rx->pathInfo[1]);
     return HTTP_ROUTE_ACCEPTED;
 }
@@ -1584,6 +1738,10 @@ static int virtualTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     char    *str;
+
+    mprAssert(conn);
+    mprAssert(route);
+    mprAssert(op);
 
     str = route->writeTarget ? expandTokens(conn, route->writeTarget) : sclone(&conn->rx->pathInfo[1]);
     httpSetStatus(conn, route->responseStatus);
@@ -1599,6 +1757,8 @@ static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 static HttpRouteOp *createRouteOp(cchar *name, int flags)
 {
     HttpRouteOp   *op;
+
+    mprAssert(name && *name);
 
     if ((op = mprAllocObj(HttpRouteOp, manageRouteOp)) == 0) {
         return 0;
@@ -1647,6 +1807,9 @@ static bool opPresent(MprList *list, HttpRouteOp *op)
 
 static void addUniqueItem(MprList *list, HttpRouteOp *op)
 {
+    mprAssert(list);
+    mprAssert(op);
+
     if (!opPresent(list, op)) {
         mprAddItem(list, op);
     }
@@ -1656,6 +1819,8 @@ static void addUniqueItem(MprList *list, HttpRouteOp *op)
 static HttpLang *createLangDef(cchar *path, cchar *suffix, int flags)
 {
     HttpLang    *lang;
+
+    mprAssert(path && *path);
 
     if ((lang = mprAllocObj(HttpLang, manageLang)) == 0) {
         return 0;
@@ -1682,6 +1847,8 @@ static void manageLang(HttpLang *lang, int flags)
 
 static void definePathVars(HttpRoute *route)
 {
+    mprAssert(route);
+
     mprAddKey(route->pathVars, "PRODUCT", sclone(BLD_PRODUCT));
     mprAddKey(route->pathVars, "OS", sclone(BLD_OS));
     mprAddKey(route->pathVars, "VERSION", sclone(BLD_VERSION));
@@ -1694,6 +1861,7 @@ static void definePathVars(HttpRoute *route)
 
 static void defineHostVars(HttpRoute *route) 
 {
+    mprAssert(route);
     mprAddKey(route->pathVars, "DOCUMENT_ROOT", route->dir);
     mprAddKey(route->pathVars, "SERVER_ROOT", route->host->home);
 }
@@ -1702,6 +1870,9 @@ static void defineHostVars(HttpRoute *route)
 static char *expandTokens(HttpConn *conn, cchar *str)
 {
     HttpRx      *rx;
+
+    mprAssert(conn);
+    mprAssert(str);
 
     rx = conn->rx;
     return expandRequestTokens(conn, expandPatternTokens(rx->pathInfo, str, rx->matches, rx->matchCount));
@@ -1719,6 +1890,9 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
     MprBuf      *buf;
     HttpLang    *lang;
     char        *tok, *cp, *key, *value, *field, *header, *defaultValue;
+
+    mprAssert(conn);
+    mprAssert(str);
 
     rx = conn->rx;
     route = rx->route;
@@ -1857,6 +2031,10 @@ static char *expandPatternTokens(cchar *str, cchar *replacement, int *matches, i
     cchar   *end, *cp, *lastReplace;
     int     submatch;
 
+    mprAssert(str);
+    mprAssert(replacement);
+    mprAssert(matches);
+
     if (matchCount <= 0) {
         return MPR->emptyString;
     }
@@ -1953,6 +2131,10 @@ bool httpTokenize(HttpRoute *route, cchar *line, cchar *fmt, ...)
     va_list     args;
     bool        rc;
 
+    mprAssert(route);
+    mprAssert(line);
+    mprAssert(fmt);
+
     va_start(args, fmt);
     rc =  httpTokenizev(route, line, fmt, args);
     va_end(args);
@@ -1966,6 +2148,10 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
     cchar       *f;
     char        *tok, *etok, *value, *word, *end;
     int         quote;
+
+    mprAssert(route);
+    mprAssert(line);
+    mprAssert(fmt);
 
     tok = sclone(line);
     end = &tok[slen(line)];
@@ -2108,6 +2294,7 @@ static char *trimQuotes(char *str)
 {
     ssize   len;
 
+    mprAssert(str);
     len = slen(str);
     if (*str == '\"' && str[len - 1] == '\"' && len > 2 && str[1] != '\"') {
         return snclone(&str[1], len - 2);
