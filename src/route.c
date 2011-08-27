@@ -49,12 +49,13 @@ static char *trimQuotes(char *str);
 static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteOp *update);
 
 /************************************ Code ************************************/
-
+/*
+    Host may be null
+ */
 HttpRoute *httpCreateRoute(HttpHost *host)
 {
     HttpRoute  *route;
 
-    mprAssert(host);
     if ((route = mprAllocObj(HttpRoute, manageRoute)) == 0) {
         return 0;
     }
@@ -97,6 +98,9 @@ HttpRoute *httpCreateDefaultRoute(HttpHost *host)
 }
 
 
+/*
+    Host may be null
+ */
 HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
 {
     HttpRoute   *route;
@@ -105,7 +109,6 @@ HttpRoute *httpCreateConfiguredRoute(HttpHost *host, int serverSide)
     /*
         Create default incoming and outgoing pipelines. Order matters.
      */
-    mprAssert(host);
     route = httpCreateRoute(host);
     http = route->http;
     httpAddRouteFilter(route, http->rangeFilter->name, NULL, HTTP_STAGE_TX);
