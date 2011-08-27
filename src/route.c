@@ -1691,7 +1691,6 @@ static int fileTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(op);
 
     mapFile(conn, route);
     return HTTP_ROUTE_ACCEPTED;
