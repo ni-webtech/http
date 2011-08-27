@@ -423,20 +423,24 @@ void httpSetNamedVirtualEndpoint(HttpEndpoint *endpoint)
 HttpHost *httpLookupHostOnEndpoint(HttpEndpoint *endpoint, cchar *name)
 {
     HttpHost    *host;
-    char        *ip;
-    int         next, port;
+    int         next;
 
-    if (name == 0) {
+    if (name == 0 || *name == '\0') {
         return mprGetFirstItem(endpoint->hosts);
     }
-    mprParseIp(name, &ip, &port, -1);
 
     for (next = 0; (host = mprGetNextItem(endpoint->hosts, &next)) != 0; ) {
+        if (smatch(host->name, name)) {
+            return host;
+        }
+#if UNUSED
+        mprParseIp(name, &ip, &port, -1);
         if (host->port <= 0 || port <= 0 || host->port == port) {
             if (*host->ip == '\0' || *ip == '\0' || scmp(host->ip, ip) == 0) {
                 return host;
             }
         }
+#endif
     }
     return 0;
 }

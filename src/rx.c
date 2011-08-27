@@ -1711,7 +1711,7 @@ static int compareLang(char **s1, char **s2)
 }
 
 
-HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken)
+HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken, cchar *defaultLang)
 {
     HttpRx      *rx;
     HttpLang    *lang;
@@ -1743,6 +1743,10 @@ HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken)
                 return lang;
             }
         }
+    }
+    if (defaultLang && (lang = mprLookupKey(rx->route->languages, defaultLang)) != 0) {
+        rx->lang = lang;
+        return lang;
     }
     return 0;
 }

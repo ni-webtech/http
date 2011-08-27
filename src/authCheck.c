@@ -28,11 +28,11 @@ typedef struct AuthData
 
 static int calcDigest(char **digest, cchar *userName, cchar *password, cchar *realm, cchar *uri, 
     cchar *nonce, cchar *qop, cchar *nc, cchar *cnonce, cchar *method);
-static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *etag, cchar *realm);
+static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *realm);
 static void decodeBasicAuth(HttpConn *conn, AuthData *ad);
 static int  decodeDigestDetails(HttpConn *conn, AuthData *ad);
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg);
-static int parseDigestNonce(char *nonce, cchar **secret, cchar **etag, cchar **realm, MprTime *when);
+static int parseDigestNonce(char *nonce, cchar **secret, cchar **realm, MprTime *when);
 
 /*********************************** Code *************************************/
 
@@ -42,17 +42,19 @@ int httpCheckAuth(HttpConn *conn)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpAuth    *auth;
+    HttpRoute   *route;
     AuthData    *ad;
     MprTime     when;
     cchar       *requiredPassword;
     char        *msg, *requiredDigest;
-    cchar       *secret, *etag, *realm;
+    cchar       *secret, *realm;
     int         actualAuthType;
 
     rx = conn->rx;
     tx = conn->tx;
     http = conn->http;
-    auth = rx->route->auth;
+    route = rx->route;
+    auth = route->auth;
 
     if (!conn->endpoint || auth == 0 || auth->type == 0) {
         return 0;
@@ -107,9 +109,9 @@ int httpCheckAuth(HttpConn *conn)
         /*
             Validate the nonce value - prevents replay attacks
          */
-        when = 0; secret = 0; etag = 0; realm = 0;
-        parseDigestNonce(ad->nonce, &secret, &etag, &realm, &when);
-        if (scmp(secret, http->secret) != 0 || scmp(etag, tx->etag) != 0 || scmp(realm, auth->requiredRealm) != 0) {
+        when = 0; secret = 0; realm = 0;
+        parseDigestNonce(ad->nonce, &secret, &realm, &when);
+        if (scmp(secret, http->secret) != 0 || scmp(realm, auth->requiredRealm) != 0) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, authentication error", "Nonce mismatch");
         } else if ((when + (5 * 60 * MPR_TICKS_PER_SEC)) < http->now) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, authentication error", "Nonce is stale");
@@ -264,7 +266,7 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
         case 'u':
             if (scasecmp(key, "uri") == 0) {
                 ad->uri = sclone(value);
-            } else if (scasecmp(key, "user") == 0) {
+            } else if (scasecmp(key, "username") == 0 || scasecmp(key, "user") == 0) {
                 ad->userName = sclone(value);
             }
             break;
@@ -303,7 +305,7 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg)
 {
     HttpTx  *tx;
-    char    *qopClass, *nonce, *etag;
+    char    *qopClass, *nonce;
 
     tx = conn->tx;
     if (logMsg == 0) {
@@ -316,19 +318,18 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
 
     } else if (auth->type == HTTP_AUTH_DIGEST) {
         qopClass = auth->qop;
-        etag = tx->etag ? tx->etag : "";
-        nonce = createDigestNonce(conn, conn->http->secret, etag, auth->requiredRealm);
+        nonce = createDigestNonce(conn, conn->http->secret, auth->requiredRealm);
         mprAssert(conn->host);
 
         if (scmp(qopClass, "auth") == 0) {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", domain=\"%s\", "
                 "qop=\"auth\", nonce=\"%s\", opaque=\"%s\", algorithm=\"MD5\", stale=\"FALSE\"", 
-                auth->requiredRealm, conn->host->name, nonce, etag);
+                auth->requiredRealm, conn->host->name, nonce, "");
 
         } else if (scmp(qopClass, "auth-int") == 0) {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", domain=\"%s\", "
                 "qop=\"auth\", nonce=\"%s\", opaque=\"%s\", algorithm=\"MD5\", stale=\"FALSE\"", 
-                auth->requiredRealm, conn->host->name, nonce, etag);
+                auth->requiredRealm, conn->host->name, nonce, "");
 
         } else {
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", nonce=\"%s\"", auth->requiredRealm, nonce);
@@ -342,38 +343,33 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
 /*
     Create a nonce value for digest authentication (RFC 2617)
  */ 
-static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *etag, cchar *realm)
+static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *realm)
 {
-    MprTime     now;
-    char        nonce[256];
+    MprTime      now;
+    char         nonce[256];
+    static int64 next = 0;
 
     mprAssert(realm && *realm);
 
     now = conn->http->now;
-    mprSprintf(nonce, sizeof(nonce), "%s:%s:%s:%Lx", secret, etag, realm, now);
+    mprSprintf(nonce, sizeof(nonce), "%s:%s:%Lx:%Lx", secret, realm, now, next++);
     return mprEncode64(nonce);
 }
 
 
-static int parseDigestNonce(char *nonce, cchar **secret, cchar **etag, cchar **realm, MprTime *when)
+static int parseDigestNonce(char *nonce, cchar **secret, cchar **realm, MprTime *when)
 {
-    char    *tok, *decoded, *whenStr;
+    char    *tok, *decoded, *whenStr, *junk;
 
     if ((decoded = mprDecode64(nonce)) == 0) {
         return MPR_ERR_CANT_READ;
     }
     *secret = stok(decoded, ":", &tok);
-    *etag = stok(NULL, ":", &tok);
     *realm = stok(NULL, ":", &tok);
     whenStr = stok(NULL, ":", &tok);
     *when = (MprTime) stoi(whenStr, 16, NULL); 
+    junk = stok(NULL, ":", &tok);
     return 0;
-}
-
-
-static char *md5(cchar *string)
-{
-    return mprGetMD5Hash(string, slen(string), NULL);
 }
 
 
@@ -396,14 +392,14 @@ static int calcDigest(char **digest, cchar *userName, cchar *password, cchar *re
         ha1 = sclone(password);
     } else {
         mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", userName, realm, password);
-        ha1 = md5(a1Buf);
+        ha1 = mprGetMD5(a1Buf);
     }
 
     /*
         HA2
      */ 
     mprSprintf(a2Buf, sizeof(a2Buf), "%s:%s", method, uri);
-    ha2 = md5(a2Buf);
+    ha2 = mprGetMD5(a2Buf);
 
     /*
         H(HA1:nonce:HA2)
@@ -417,7 +413,7 @@ static int calcDigest(char **digest, cchar *userName, cchar *password, cchar *re
     } else {
         mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, nonce, ha2);
     }
-    *digest = md5(digestBuf);
+    *digest = mprGetMD5(digestBuf);
     return 0;
 }
 

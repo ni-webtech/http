@@ -38,14 +38,12 @@ bool httpValidateNativeCredentials(HttpAuth *auth, cchar *realm, cchar *user, cc
     char **msg)
 {
     char    passbuf[HTTP_MAX_PASS * 2], *hashedPassword;
-    ssize   len;
 
     hashedPassword = 0;
     
     if (auth->type == HTTP_AUTH_BASIC) {
         mprSprintf(passbuf, sizeof(passbuf), "%s:%s:%s", user, realm, password);
-        len = strlen(passbuf);
-        hashedPassword = mprGetMD5Hash(passbuf, len, NULL);
+        hashedPassword = mprGetMD5(passbuf);
         password = hashedPassword;
     }
     if (!isUserValid(auth, realm, user)) {
