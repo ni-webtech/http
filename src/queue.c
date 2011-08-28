@@ -562,7 +562,7 @@ ssize httpWrite(HttpQueue *q, cchar *fmt, ...)
     char        *buf;
     
     va_start(vargs, fmt);
-    buf = mprAsprintfv(fmt, vargs);
+    buf = sfmtv(fmt, vargs);
     va_end(vargs);
     return httpWriteString(q, buf);
 }

@@ -221,7 +221,7 @@ static void createRangeBoundary(HttpConn *conn)
     tx = conn->tx;
     mprAssert(tx->rangeBoundary == 0);
     when = (int) conn->http->now;
-    tx->rangeBoundary = mprAsprintf("%08X%08X", PTOI(tx) + PTOI(conn) * when, when);
+    tx->rangeBoundary = sfmt("%08X%08X", PTOI(tx) + PTOI(conn) * when, when);
 }
 
 

@@ -12,7 +12,7 @@
 void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
     if (conn->errorMsg == 0) {
-        conn->errorMsg = mprAsprintfv(fmt, args);
+        conn->errorMsg = sfmtv(fmt, args);
         if (status) {
             if (status < 0) {
                 status = HTTP_CODE_INTERNAL_SERVER_ERROR;

@@ -68,11 +68,11 @@ void httpCreateCGIVars(HttpConn *conn)
     if (rx->files) {
         for (index = 0, hp = 0; (hp = mprGetNextKey(conn->rx->files, hp)) != 0; index++) {
             up = (HttpUploadFile*) hp->data;
-            mprAddKey(vars, mprAsprintf("FILE_%d_FILENAME", index), up->filename);
-            mprAddKey(vars, mprAsprintf("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
-            mprAddKey(vars, mprAsprintf("FILE_%d_CONTENT_TYPE", index), up->contentType);
-            mprAddKey(vars, mprAsprintf("FILE_%d_NAME", index), hp->key);
-            mprAddKeyFmt(vars, mprAsprintf("FILE_%d_SIZE", index), "%d", up->size);
+            mprAddKey(vars, sfmt("FILE_%d_FILENAME", index), up->filename);
+            mprAddKey(vars, sfmt("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
+            mprAddKey(vars, sfmt("FILE_%d_CONTENT_TYPE", index), up->contentType);
+            mprAddKey(vars, sfmt("FILE_%d_NAME", index), hp->key);
+            mprAddKeyFmt(vars, sfmt("FILE_%d_SIZE", index), "%d", up->size);
         }
     }
     if (conn->http->envCallback) {
@@ -228,7 +228,7 @@ void httpSetIntFormVar(HttpConn *conn, cchar *var, int value)
     MprHashTable    *vars;
     
     vars = httpGetFormVars(conn);
-    mprAddKey(vars, var, mprAsprintf("%d", value));
+    mprAddKey(vars, var, sfmt("%d", value));
 }
 
 

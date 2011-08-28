@@ -115,7 +115,7 @@ void httpAddHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     mprAssert(fmt && *fmt);
 
     va_start(vargs, fmt);
-    value = mprAsprintfv(fmt, vargs);
+    value = sfmtv(fmt, vargs);
     va_end(vargs);
 
     if (!mprLookupKey(conn->tx->headers, key)) {
@@ -152,12 +152,12 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     mprAssert(fmt && *fmt);
 
     va_start(vargs, fmt);
-    value = mprAsprintfv(fmt, vargs);
+    value = sfmtv(fmt, vargs);
     va_end(vargs);
 
     oldValue = mprLookupKey(conn->tx->headers, key);
     if (oldValue) {
-        addHeader(conn, key, mprAsprintf("%s, %s", oldValue, value));
+        addHeader(conn, key, sfmt("%s, %s", oldValue, value));
     } else {
         addHeader(conn, key, value);
     }
@@ -177,7 +177,7 @@ void httpAppendHeaderString(HttpConn *conn, cchar *key, cchar *value)
 
     oldValue = mprLookupKey(conn->tx->headers, key);
     if (oldValue) {
-        addHeader(conn, key, mprAsprintf("%s, %s", oldValue, value));
+        addHeader(conn, key, sfmt("%s, %s", oldValue, value));
     } else {
         addHeader(conn, key, value);
     }
@@ -196,7 +196,7 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
     mprAssert(fmt && *fmt);
 
     va_start(vargs, fmt);
-    value = mprAsprintfv(fmt, vargs);
+    value = sfmtv(fmt, vargs);
     va_end(vargs);
     addHeader(conn, key, value);
 }
@@ -250,7 +250,7 @@ ssize httpFormatResponsev(HttpConn *conn, cchar *fmt, va_list args)
     char        *body;
 
     tx = conn->tx;
-    body = mprAsprintfv(fmt, args);
+    body = sfmtv(fmt, args);
     tx->altBody = body;
     tx->responded = 1;
     httpOmitBody(conn);
@@ -279,11 +279,11 @@ ssize httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
     tx = conn->tx;
     va_start(args, fmt);
 
-    body = mprAsprintfv(fmt, args);
+    body = sfmtv(fmt, args);
     if (scmp(conn->rx->accept, "text/plain") == 0) {
         msg = body;
     } else {
-        msg = mprAsprintf(
+        msg = sfmt(
             "<!DOCTYPE html>\r\n"
             "<html><head><title>%s</title></head>\r\n"
             "<body>\r\n%s\r\n</body>\r\n</html>\r\n",
@@ -307,7 +307,7 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *fmt, ...)
     tx = conn->tx;
 
     va_start(args, fmt);
-    msg = mprAsprintfv(fmt, args);
+    msg = sfmtv(fmt, args);
     tx->status = status;
     if (tx->altBody == 0) {
         httpFormatBody(conn, httpLookupStatus(conn->http, status), "%s", msg);
@@ -328,7 +328,7 @@ void httpSetResponseError(HttpConn *conn, int status, cchar *fmt, ...)
     mprAssert(fmt && fmt);
 
     va_start(args, fmt);
-    msg = mprAsprintfv(fmt, args);
+    msg = sfmtv(fmt, args);
     statusMsg = httpLookupStatus(conn->http, status);
     if (scmp(conn->rx->accept, "text/plain") == 0) {
         msg = sfmt("Access Error: %d -- %s\r\n%s\r\n", status, statusMsg, msg);
@@ -418,7 +418,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
     httpSetHeader(conn, "Location", "%s", targetUri);
     mprAssert(tx->altBody == 0);
     msg = httpLookupStatus(conn->http, status);
-    tx->altBody = mprAsprintf(
+    tx->altBody = sfmt(
         "<!DOCTYPE html>\r\n"
         "<html><head><title>%s</title></head>\r\n"
         "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p>\r\n"
