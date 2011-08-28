@@ -40,7 +40,7 @@ MAIN(testMain, int argc, char *argv[])
     /*
         These platforms pass an arg string in via the argc value. Assumes 32-bit.
      */
-    mprMakeArgv("testHttp", &argc, &argv, MPR_ARGV_ARGS_ONLY);
+    argc = mprMakeArgv("testHttp", &argv, MPR_ARGV_ARGS_ONLY);
 #endif
 
     ts = mprCreateTestService(mpr);
