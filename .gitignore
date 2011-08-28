@@ -46,3 +46,4 @@ mob.*
 .embedthis
 .publisher
 src/test/appweb/trace.txt
+.DS_Store
