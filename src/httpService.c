@@ -78,10 +78,13 @@ Http *httpCreate()
     Http            *http;
     HttpStatusCode  *code;
 
+    if (MPR->httpService) {
+        return MPR->httpService;
+    }
     if ((http = mprAllocObj(Http, manageHttp)) == 0) {
         return 0;
     }
-    mprGetMpr()->httpService = http;
+    MPR->httpService = http;
     http->software = sclone(HTTP_NAME);
     http->protocol = sclone("HTTP/1.1");
     http->mutex = mprCreateLock(http);
@@ -239,7 +242,7 @@ HttpHost *httpLookupHost(Http *http, cchar *name)
 }
 
 
-void httpInitLimits(HttpLimits *limits, int serverSide)
+void httpInitLimits(HttpLimits *limits, bool serverSide)
 {
     memset(limits, 0, sizeof(HttpLimits));
     limits->chunkSize = HTTP_MAX_CHUNK;
@@ -347,10 +350,12 @@ void httpSetListenCallback(Http *http, HttpListenCallback fn)
 }
 
 
+#if UNUSED
 void httpSetMatchCallback(Http *http, HttpMatchCallback fn)
 {
     http->matchCallback = fn;
 }
+#endif
 
 
 /*  

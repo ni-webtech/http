@@ -94,9 +94,48 @@ HttpPacket *httpCreateHeaderPacket()
 }
 
 
-/* 
-   Get the next packet from the queue
- */
+HttpPacket *httpClonePacket(HttpPacket *orig)
+{
+    HttpPacket  *packet;
+
+    if ((packet = httpCreatePacket(0)) == 0) {
+        return 0;
+    }
+    if (orig->content) {
+        packet->content = mprCloneBuf(orig->content);
+    }
+    if (orig->prefix) {
+        packet->prefix = mprCloneBuf(orig->prefix);
+    }
+    packet->flags = orig->flags;
+    packet->esize = orig->esize;
+    packet->epos = orig->epos;
+    packet->fill = orig->fill;
+    return packet;
+}
+
+
+void httpAdjustPacketStart(HttpPacket *packet, MprOff size)
+{
+    if (packet->esize) {
+        packet->epos += size;
+        packet->esize -= size;
+    } else if (packet->content) {
+        mprAdjustBufStart(packet->content, (ssize) size);
+    }
+}
+
+
+void httpAdjustPacketEnd(HttpPacket *packet, MprOff size)
+{
+    if (packet->esize) {
+        packet->esize += size;
+    } else if (packet->content) {
+        mprAdjustBufEnd(packet->content, (ssize) size);
+    }
+}
+
+
 HttpPacket *httpGetPacket(HttpQueue *q)
 {
     HttpQueue     *prev;
@@ -217,6 +256,37 @@ void httpJoinPackets(HttpQueue *q, ssize size)
 }
 
 
+void httpPutPacket(HttpQueue *q, HttpPacket *packet)
+{
+    mprAssert(packet);
+    mprAssert(q->put);
+
+    q->put(q, packet);
+}
+
+
+/*  
+    Pass to the next queue
+ */
+void httpPutPacketToNext(HttpQueue *q, HttpPacket *packet)
+{
+    mprAssert(packet);
+    mprAssert(q->nextQ->put);
+
+    q->nextQ->put(q->nextQ, packet);
+}
+
+
+void httpPutPackets(HttpQueue *q)
+{
+    HttpPacket    *packet;
+
+    for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
+        httpPutPacketToNext(q, packet);
+    }
+}
+
+
 /*  
     Put the packet back at the front of the queue
  */
@@ -297,61 +367,6 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, ssize size)
 }
 
 
-HttpPacket *httpClonePacket(HttpPacket *orig)
-{
-    HttpPacket  *packet;
-
-    if ((packet = httpCreatePacket(0)) == 0) {
-        return 0;
-    }
-    if (orig->content) {
-        packet->content = mprCloneBuf(orig->content);
-    }
-    if (orig->prefix) {
-        packet->prefix = mprCloneBuf(orig->prefix);
-    }
-    packet->flags = orig->flags;
-    packet->esize = orig->esize;
-    packet->epos = orig->epos;
-    packet->fill = orig->fill;
-    return packet;
-}
-
-
-/*  
-    Pass to a queue
- */
-void httpSendPacket(HttpQueue *q, HttpPacket *packet)
-{
-    mprAssert(packet);
-    mprAssert(q->put);
-
-    q->put(q, packet);
-}
-
-
-/*  
-    Pass to the next queue
- */
-void httpSendPacketToNext(HttpQueue *q, HttpPacket *packet)
-{
-    mprAssert(packet);
-    mprAssert(q->nextQ->put);
-
-    q->nextQ->put(q->nextQ, packet);
-}
-
-
-void httpSendPackets(HttpQueue *q)
-{
-    HttpPacket    *packet;
-
-    for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
-        httpSendPacketToNext(q, packet);
-    }
-}
-
-
 /*  
     Split a packet at a given offset and return a new packet containing the data after the offset.
     The prefix data remains with the original packet. 
@@ -388,27 +403,6 @@ HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
     }
     packet->flags = orig->flags;
     return packet;
-}
-
-
-void httpAdjustPacketStart(HttpPacket *packet, MprOff size)
-{
-    if (packet->esize) {
-        packet->epos += size;
-        packet->esize -= size;
-    } else if (packet->content) {
-        mprAdjustBufStart(packet->content, (ssize) size);
-    }
-}
-
-
-void httpAdjustPacketEnd(HttpPacket *packet, MprOff size)
-{
-    if (packet->esize) {
-        packet->esize += size;
-    } else if (packet->content) {
-        mprAdjustBufEnd(packet->content, (ssize) size);
-    }
 }
 
 

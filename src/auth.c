@@ -82,12 +82,12 @@ static void manageAuth(HttpAuth *auth, int flags)
 }
 
 
-void httpSetAuthAllow(HttpAuth *auth, cchar *client)
+void httpSetAuthAllow(HttpAuth *auth, cchar *allow)
 {
     if (auth->allow == 0) {
         auth->allow = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
     }
-    mprAddKey(auth->allow, sclone(client), "");
+    mprAddKey(auth->allow, sclone(allow), "");
 }
 
 
@@ -107,10 +107,12 @@ void httpSetAuthDeny(HttpAuth *auth, cchar *client)
 }
 
 
+#if UNUSED
 void httpSetAuthGroup(HttpConn *conn, cchar *group)
 {
     conn->authGroup = sclone(group);
 }
+#endif
 
 
 void httpSetAuthOrder(HttpAuth *auth, int order)
@@ -168,7 +170,7 @@ static bool validateCred(HttpAuth *auth, cchar *realm, char *user, cchar *passwo
     if (0) {
 #if BLD_FEATURE_AUTH_FILE
     } else if (auth->backend == HTTP_AUTH_METHOD_FILE) {
-        return httpValidateNativeCredentials(auth, realm, user, password, requiredPass, msg);
+        return httpValidateFileCredentials(auth, realm, user, password, requiredPass, msg);
 #endif
 #if BLD_FEATURE_AUTH_PAM
     } else if (auth->backend == HTTP_AUTH_METHOD_PAM) {
@@ -192,7 +194,7 @@ static cchar *getPassword(HttpAuth *auth, cchar *realm, cchar *user)
     if (0) {
 #if BLD_FEATURE_AUTH_FILE
     } else if (auth->backend == HTTP_AUTH_METHOD_FILE) {
-        return httpGetNativePassword(auth, realm, user);
+        return httpGetFilePassword(auth, realm, user);
 #endif
 #if BLD_FEATURE_AUTH_PAM
     } else if (auth->backend == HTTP_AUTH_METHOD_PAM) {

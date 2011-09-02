@@ -17,7 +17,7 @@ static void manageUser(HttpUser *user, int flags);
 
 /*********************************** Code *************************************/
 
-cchar *httpGetNativePassword(HttpAuth *auth, cchar *realm, cchar *user)
+cchar *httpGetFilePassword(HttpAuth *auth, cchar *realm, cchar *user)
 {
     HttpUser    *up;
     char        *key;
@@ -34,7 +34,7 @@ cchar *httpGetNativePassword(HttpAuth *auth, cchar *realm, cchar *user)
 }
 
 
-bool httpValidateNativeCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, cchar *requiredPassword, 
+bool httpValidateFileCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, cchar *requiredPassword, 
     char **msg)
 {
     char    passbuf[HTTP_MAX_PASS * 2], *hashedPassword;
@@ -255,7 +255,7 @@ int httpAddUsersToGroup(HttpAuth *auth, cchar *group, cchar *userList)
     }
     tok = NULL;
     users = sclone(userList);
-    user = stok(users, " \t", &tok);
+    user = stok(users, " ,\t", &tok);
     while (user) {
         /* Ignore already exists errors */
         httpAddUserToGroup(auth, gp, user);
@@ -446,6 +446,7 @@ int httpRemoveUser(HttpAuth *auth, cchar *realm, cchar *user)
 }
 
 
+//  MOB - inconsistent. This takes a "group" string. httpRemoveUserFromGroup takes a "gp"
 int httpRemoveUsersFromGroup(HttpAuth *auth, cchar *group, cchar *userList)
 {
     HttpGroup   *gp;
@@ -500,7 +501,7 @@ int httpRemoveUserFromGroup(HttpGroup *gp, cchar *user)
 }
 
 
-int httpReadGroupFile(Http *http, HttpAuth *auth, char *path)
+int httpReadGroupFile(HttpAuth *auth, char *path)
 {
     MprFile     *file;
     HttpAcl     acl;
@@ -534,7 +535,7 @@ int httpReadGroupFile(Http *http, HttpAuth *auth, char *path)
 }
 
 
-int httpReadUserFile(Http *http, HttpAuth *auth, char *path)
+int httpReadUserFile(HttpAuth *auth, char *path)
 {
     MprFile     *file;
     char        *buf;
@@ -569,7 +570,7 @@ int httpReadUserFile(Http *http, HttpAuth *auth, char *path)
 }
 
 
-int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
+int httpWriteUserFile(HttpAuth *auth, char *path)
 {
     MprFile         *file;
     MprHash         *hp;
@@ -599,7 +600,7 @@ int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
 }
 
 
-int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
+int httpWriteGroupFile(HttpAuth *auth, char *path)
 {
     MprHash         *hp;
     MprFile         *file;

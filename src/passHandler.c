@@ -13,14 +13,12 @@
 
 /*********************************** Code *************************************/
 
-void httpHandleOptionsTrace(HttpQueue *q)
+void httpHandleOptionsTrace(HttpConn *conn)
 {
     HttpRx      *rx;
     HttpTx      *tx;
-    HttpConn    *conn;
     int         flags;
 
-    conn = q->conn;
     tx = conn->tx;
     rx = conn->rx;
 
@@ -53,7 +51,7 @@ static void openPass(HttpQueue *q)
 {
     mprLog(5, "Open passHandler");
     if (q->conn->rx->flags & (HTTP_OPTIONS | HTTP_TRACE)) {
-        httpHandleOptionsTrace(q);
+        httpHandleOptionsTrace(q->conn);
     }
 }
 

@@ -40,7 +40,9 @@ TITLE="${BLD_NAME} Library Source" combo ${HTTP_SOURCES} | egrep -v '#inc.*http'
 
 cp ${S}/utils/http.c ${SRC}/http.c
 
+cp ${BLD_TOP}/doc/api/http.html ${DOC}/api
 cp ${BLD_TOP}/doc/api/httpBare.html ${DOC}/api
+cp ${BLD_TOP}/doc/api/http.tags ${DOC}/api
 cp ${BLD_TOP}/doc/man/*.1 ${DOC}/man
 
 #

@@ -64,7 +64,7 @@ int httpCheckAuth(HttpConn *conn)
     }
     if (rx->authDetails == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     if (scasecmp(rx->authType, "basic") == 0) {
         decodeBasicAuth(conn, ad);
@@ -73,7 +73,7 @@ int httpCheckAuth(HttpConn *conn)
     } else if (scasecmp(rx->authType, "digest") == 0) {
         if (decodeDigestDetails(conn, ad) < 0) {
             httpError(conn, 400, "Bad authorization header");
-            return HTTP_ROUTE_ACCEPTED;
+            return HTTP_ROUTE_OK;
         }
         actualAuthType = HTTP_AUTH_DIGEST;
     } else {
@@ -83,11 +83,11 @@ int httpCheckAuth(HttpConn *conn)
 
     if (ad->userName == 0) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing user name", 0);
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     if (auth->type != actualAuthType) {
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Wrong authentication protocol", 0);
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     /*  
         Some backend methods can't return the password and will simply do everything in validateCred. 
@@ -100,7 +100,7 @@ int httpCheckAuth(HttpConn *conn)
     if (auth->type == HTTP_AUTH_DIGEST) {
         if (scmp(ad->qop, auth->qop) != 0) {
             formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied. Protection quality does not match", 0);
-            return HTTP_ROUTE_ACCEPTED;
+            return HTTP_ROUTE_OK;
         }
         calcDigest(&requiredDigest, 0, requiredPassword, ad->realm, rx->pathInfo, ad->nonce, ad->qop, ad->nc, 
             ad->cnonce, rx->method);
@@ -121,7 +121,7 @@ int httpCheckAuth(HttpConn *conn)
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access denied, incorrect username/password", msg);
     }
     rx->authenticated = 1;
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 

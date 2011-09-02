@@ -92,7 +92,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
     rx = conn->rx;
 
     if (!(rx->flags & HTTP_CHUNKED)) {
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
         return;
     }
     buf = packet->content;
@@ -155,7 +155,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
         mprAssert(httpGetPacketLength(packet) <= rx->chunkSize);
         mprLog(5, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), 
             rx->remainingContent);
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
         if (rx->remainingContent == 0) {
             rx->chunkState = HTTP_CHUNK_START;
             rx->remainingContent = HTTP_BUFSIZE;
@@ -164,7 +164,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
 
     case HTTP_CHUNK_EOF:
         mprAssert(httpGetPacketLength(packet) == 0);
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
         mprLog(5, "chunkFilter: last chunk");
         break;    
 
@@ -223,7 +223,7 @@ static void outgoingChunkService(HttpQueue *q)
             if (!(packet->flags & HTTP_PACKET_HEADER)) {
                 setChunkPrefix(q, packet);
             }
-            httpSendPacketToNext(q, packet);
+            httpPutPacketToNext(q, packet);
         }
     }
 }

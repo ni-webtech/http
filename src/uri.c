@@ -328,27 +328,27 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
 
     uri = target.relative(base)
  */
-HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int dup)
+HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int clone)
 {
     HttpUri     *uri;
     char        *basePath, *bp, *cp, *tp, *startDiff;
     int         i, baseSegments, commonSegments;
 
     if (target == 0) {
-        return (dup) ? httpCloneUri(base, 0) : base;
+        return (clone) ? httpCloneUri(base, 0) : base;
     }
     if (!(target->path && target->path[0] == '/') || !((base->path && base->path[0] == '/'))) {
         /* If target is relative, just use it. If base is relative, can't use it because we don't know where it is */
-        return (dup) ? httpCloneUri(target, 0) : target;
+        return (clone) ? httpCloneUri(target, 0) : target;
     }
     if (base->scheme && target->scheme && scmp(base->scheme, target->scheme) != 0) {
-        return (dup) ? httpCloneUri(target, 0) : target;
+        return (clone) ? httpCloneUri(target, 0) : target;
     }
     if (base->host && target->host && (base->host && scmp(base->host, target->host) != 0)) {
-        return (dup) ? httpCloneUri(target, 0) : target;
+        return (clone) ? httpCloneUri(target, 0) : target;
     }
     if (getPort(base) != getPort(target)) {
-        return (dup) ? httpCloneUri(target, 0) : target;
+        return (clone) ? httpCloneUri(target, 0) : target;
     }
     basePath = httpNormalizeUriPath(base->path);
 
@@ -560,7 +560,7 @@ char *httpNormalizeUriPath(cchar *pathArg)
 }
 
 
-HttpUri *httpResolveUri(HttpUri *base, int argc, HttpUri **others, int local)
+HttpUri *httpResolveUri(HttpUri *base, int argc, HttpUri **others, bool local)
 {
     HttpUri     *current, *other;
     int         i;

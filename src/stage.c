@@ -55,7 +55,7 @@ static void incomingData(HttpQueue *q, HttpPacket *packet)
     mprAssert(packet);
     
     if (q->nextQ->put) {
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
     } else {
         /* This queue is the last queue in the pipeline */
         //  TODO - should this call WillAccept?
@@ -80,7 +80,7 @@ void httpDefaultOutgoingServiceStage(HttpQueue *q)
             httpPutBackPacket(q, packet);
             return;
         }
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
     }
 }
 

@@ -43,7 +43,7 @@ void httpMatchHost(HttpConn *conn)
 
 
 /*
-    Find the matching handler for a request. If any errors occur, the pass handler is used to pass errors onto the 
+    Find the matching route and handler for a request. If any errors occur, the pass handler is used to pass errors onto the 
     net/sendfile connectors to send to the client. This routine may rewrite the request URI and may redirect the request.
  */
 void httpRouteRequest(HttpConn *conn)
@@ -60,7 +60,7 @@ void httpRouteRequest(HttpConn *conn)
         if ((route = mprGetNextItem(conn->host->routes, &next)) == 0) {
             break;
         }
-        if ((match = httpMatchRoute(conn, route)) == HTTP_ROUTE_ACCEPTED) {
+        if ((match = httpMatchRoute(conn, route)) == HTTP_ROUTE_OK) {
             rx->route = route;
             mprAssert(tx->handler);
             break;

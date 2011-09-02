@@ -97,7 +97,9 @@ static void manageConn(HttpConn *conn, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(conn->authCnonce);
         mprMark(conn->authDomain);
+#if UNUSED
         mprMark(conn->authGroup);
+#endif
         mprMark(conn->authNonce);
         mprMark(conn->authOpaque);
         mprMark(conn->authPassword);
@@ -230,7 +232,7 @@ void httpPrepServerConn(HttpConn *conn)
 }
 
 
-void httpPrepClientConn(HttpConn *conn, int keepHeaders)
+void httpPrepClientConn(HttpConn *conn, bool keepHeaders)
 {
     MprHashTable    *headers;
 
@@ -400,7 +402,7 @@ void httpUsePrimary(HttpConn *conn)
 }
 
 
-//  TODO - refactor
+//  TODO MOB - refactor
 void httpEnableConnEvents(HttpConn *conn)
 {
     HttpTx      *tx;

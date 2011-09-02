@@ -937,7 +937,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             LOG(7, "processContent: Split packet of %d at %d", httpGetPacketLength(packet), nbytes);
             conn->input = httpSplitPacket(packet, nbytes);
         }
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
     } else {
         conn->input = 0;
     }
@@ -971,7 +971,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     if (conn->connError || 
             (rx->remainingContent == 0 && (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF)))) {
         rx->eof = 1;
-        httpSendPacketToNext(q, httpCreateEndPacket());
+        httpPutPacketToNext(q, httpCreateEndPacket());
         if (rx->startAfterContent) {
             httpStartPipeline(conn);
         }
@@ -1659,7 +1659,7 @@ char *httpGetFormData(HttpConn *conn)
 }
 
 
-char *httpGetPathExt(HttpConn *conn, cchar *path)
+char *httpGetPathExt(cchar *path)
 {
     char    *ep, *ext;
 
@@ -1684,9 +1684,9 @@ char *httpGetExt(HttpConn *conn)
     char    *ext;
 
     rx = conn->rx;
-    if ((ext = httpGetPathExt(conn, rx->pathInfo)) == 0) {
+    if ((ext = httpGetPathExt(rx->pathInfo)) == 0) {
         if (conn->tx->filename) {
-            ext = httpGetPathExt(conn, conn->tx->filename);
+            ext = httpGetPathExt(conn->tx->filename);
         }
     }
     return ext;
@@ -1766,7 +1766,7 @@ int httpTrimExtraPath(HttpConn *conn)
             }
         }
     }
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 /*

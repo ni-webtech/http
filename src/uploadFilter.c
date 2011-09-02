@@ -193,7 +193,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
         if (up->contentState != HTTP_UPLOAD_CONTENT_END) {
             httpError(conn, HTTP_CODE_BAD_REQUEST, "Client supplied insufficient upload data");
         }
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
         return;
     }
     mprLog(5, "uploadIncomingData: %d bytes", httpGetPacketLength(packet));
@@ -571,7 +571,7 @@ static int processContentData(HttpQueue *q)
         up->clientFilename = 0;
     }
     if (packet) {
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
     }
     up->contentState = HTTP_UPLOAD_BOUNDARY;
     return 1;

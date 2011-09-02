@@ -341,7 +341,7 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
 }
 
 
-int httpIsEof(HttpConn *conn) 
+bool httpIsEof(HttpConn *conn) 
 {
     return conn->rx == 0 || conn->rx->eof;
 }

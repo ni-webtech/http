@@ -440,7 +440,7 @@ static int selectHandler(HttpConn *conn, HttpRoute *route)
             tx->handler = 0;
         }
     }
-    return tx->handler ? HTTP_ROUTE_ACCEPTED : 0;
+    return tx->handler ? HTTP_ROUTE_OK : 0;
 }
 
 
@@ -483,20 +483,17 @@ static void mapFile(HttpConn *conn, HttpRoute *route)
 
 /************************************ API *************************************/
 
-int httpAddRouteCondition(HttpRoute *route, cchar *condition, int flags)
+int httpAddRouteCondition(HttpRoute *route, cchar *name, cchar *condition, int flags)
 {
     HttpRouteOp *op;
     cchar       *errMsg;
-    char        *name, *pattern, *details;
+    char        *pattern, *details;
     int         column;
 
     mprAssert(route);
     mprAssert(condition && *condition);
 
     GRADUATE_LIST(route, conditions);
-    if (!httpTokenize(route, condition, "%S ?*", &name, &details)) {
-        return MPR_ERR_BAD_SYNTAX;
-    }
     if ((op = createRouteOp(name, flags)) == 0) {
         return MPR_ERR_MEMORY;
     }
@@ -1018,10 +1015,11 @@ void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath)
 /*
     Target names are extensible and hashed in http->routeTargets. 
 
-        Target close [immediate]
+        Target close
         Target file ${DOCUMENT_ROOT}/${request:uri}.gz
-        Target redirect [status] URI 
+        Target redirect status URI 
         Target virtual ${controller}-${name} 
+        Target write [-r] status "Hello World\r\n"
  */
 int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
 {
@@ -1037,14 +1035,8 @@ int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
         route->closeTarget = route->target;
 
     } else if (scasematch(kind, "redirect")) {
-        if (isdigit(route->target[0])) {
-            if (!httpTokenize(route, route->target, "%N %S", &route->responseStatus, &target)) {
-                return MPR_ERR_BAD_SYNTAX;
-            }
-        } else {
-            if (!httpTokenize(route, route->target, "%S", &target)) {
-                return MPR_ERR_BAD_SYNTAX;
-            }
+        if (!httpTokenize(route, route->target, "%N %S", &route->responseStatus, &target)) {
+            return MPR_ERR_BAD_SYNTAX;
         }
         route->redirectTarget = finalizeReplacement(route, target);
         return 0;
@@ -1056,6 +1048,13 @@ int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
         route->virtualTarget = finalizeReplacement(route, route->target);
 
     } else if (scasematch(kind, "write")) {
+        /*
+            Write [-r] status Message
+         */
+        if (sncmp(target, "-r", 2) == 0) {
+            route->flags |= HTTP_ROUTE_RAW;
+            target = &target[2];
+        }
         if (!httpTokenize(route, route->target, "%N %S", &route->responseStatus, &target)) {
             return MPR_ERR_BAD_SYNTAX;
         }
@@ -1075,10 +1074,13 @@ void httpSetRouteWorkers(HttpRoute *route, int workers)
 }
 
 
-void httpAddRouteErrorDocument(HttpRoute *route, cchar *code, cchar *url)
+void httpAddRouteErrorDocument(HttpRoute *route, int status, cchar *url)
 {
+    char    code[32];
+
     mprAssert(route);
     GRADUATE_HASH(route, errorDocuments);
+    itos(code, sizeof(code), status, 10);
     mprAddKey(route->errorDocuments, code, sclone(url));
 }
 
@@ -1310,7 +1312,7 @@ static char *finalizeReplacement(HttpRoute *route, cchar *str)
 }
 
 
-int httpFinalizeRoute(HttpRoute *route)
+void httpFinalizeRoute(HttpRoute *route)
 {
     /*
         Add the route to the owning host. When using an Appweb configuration file, the order of route finalization 
@@ -1322,7 +1324,6 @@ int httpFinalizeRoute(HttpRoute *route)
 #if BLD_FEATURE_SSL
     mprConfigureSsl(route->ssl);
 #endif
-    return 0;
 }
 
 
@@ -1454,7 +1455,7 @@ static int allowDenyCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     rx = conn->rx;
     auth = rx->route->auth;
     if (auth == 0) {
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     allow = 0;
     deny = 0;
@@ -1486,7 +1487,7 @@ static int allowDenyCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
             return 0;
         }
     }
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -1499,7 +1500,7 @@ static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     rx = conn->rx;
     if (route->auth == 0 || route->auth->type == 0) {
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     return httpCheckAuth(conn);
 }
@@ -1521,7 +1522,7 @@ static int directoryCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     tx->ext = tx->filename = 0;
     mprGetPathInfo(path, &info);
     if (info.isDir) {
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     return 0;
 }
@@ -1547,7 +1548,7 @@ static int existsCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     path = mprJoinPath(route->dir, expandTokens(conn, op->details));
     tx->ext = tx->filename = 0;
     if (mprPathExists(path, R_OK)) {
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     return 0;
 }
@@ -1567,7 +1568,7 @@ static int matchCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     str = expandTokens(conn, op->details);
     count = pcre_exec(op->mdata, NULL, str, (int) slen(str), 0, 0, matched, sizeof(matched) / sizeof(int)); 
     if (count > 0) {
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     return 0;
 }
@@ -1612,7 +1613,7 @@ static int cmdUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
         mprError("%s", conn->errorMsg);
         return 0;
     }
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -1626,7 +1627,7 @@ static int fieldUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     rx = conn->rx;
     httpSetFormVar(conn, op->var, expandTokens(conn, op->value));
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -1664,7 +1665,7 @@ static int langUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
             }
         }
     }
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -1676,10 +1677,8 @@ static int closeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(route);
 
     httpError(conn, HTTP_CODE_RESET, "Route target \"close\" is closing request");
-    if (scmp(route->closeTarget, "immediate") == 0) {
-        httpDisconnect(conn);
-    }
-    return HTTP_ROUTE_ACCEPTED;
+    httpDisconnect(conn);
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -1689,7 +1688,7 @@ static int fileTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(route);
 
     mapFile(conn, route);
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -1709,7 +1708,7 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     target = expandTokens(conn, route->redirectTarget);
     if (route->responseStatus) {
         httpRedirect(conn, route->responseStatus, target);
-        return HTTP_ROUTE_ACCEPTED;
+        return HTTP_ROUTE_OK;
     }
     prior = rx->parsedUri;
     dest = httpCreateUri(route->redirectTarget, 0);
@@ -1730,7 +1729,7 @@ static int virtualTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(route);
 
     conn->rx->targetKey = route->virtualTarget ? expandTokens(conn, route->virtualTarget) : sclone(&conn->rx->pathInfo[1]);
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -1742,9 +1741,12 @@ static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(route);
 
     str = route->writeTarget ? expandTokens(conn, route->writeTarget) : sclone(&conn->rx->pathInfo[1]);
+    if (!(route->flags & HTTP_ROUTE_RAW)) {
+        str = mprEscapeHtml(str);
+    }
     httpSetStatus(conn, route->responseStatus);
     httpFormatResponse(conn, "%s", str);
-    return HTTP_ROUTE_ACCEPTED;
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -1998,7 +2000,7 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
             } else if (smatch(value, "serverAddress")) {
                 mprPutStringToBuf(buf, conn->sock->acceptIp);
 
-            } else if (smatch(value, "serverAddress")) {
+            } else if (smatch(value, "serverPort")) {
                 mprPutIntToBuf(buf, conn->sock->acceptPort);
 
             } else if (smatch(value, "uri")) {

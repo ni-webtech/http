@@ -85,13 +85,13 @@ static void outgoingRangeService(HttpQueue *q)
                 Send headers and end packet downstream
              */
             if (packet->flags & HTTP_PACKET_END && tx->rangeBoundary) {
-                httpSendPacketToNext(q, createFinalRangePacket(conn));
+                httpPutPacketToNext(q, createFinalRangePacket(conn));
             }
             if (!httpWillNextQueueAcceptPacket(q, packet)) {
                 httpPutBackPacket(q, packet);
                 return;
             }
-            httpSendPacketToNext(q, packet);
+            httpPutPacketToNext(q, packet);
         }
     }
 }
@@ -152,9 +152,9 @@ static bool applyRange(HttpQueue *q, HttpPacket *packet)
                 return 0;
             }
             if (tx->rangeBoundary) {
-                httpSendPacketToNext(q, createRangePacket(conn, range));
+                httpPutPacketToNext(q, createRangePacket(conn, range));
             }
-            httpSendPacketToNext(q, packet);
+            httpPutPacketToNext(q, packet);
             packet = 0;
             tx->rangePos += count;
         }
