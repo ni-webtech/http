@@ -1270,8 +1270,6 @@ char *httpGetStatusMessage(HttpConn *conn)
 }
 
 
-
-
 int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
 {
     HttpRx      *rx;
@@ -1746,7 +1744,7 @@ HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken, cchar *defaultLa
     first path component containing a "." Any path information after that is regarded as extra path.
     WARNING: Extra path is an old, unreliable, CGI specific technique. Do not use directories with embedded periods.
  */
-int httpTrimExtraPath(HttpConn *conn)
+void httpTrimExtraPath(HttpConn *conn)
 {
     HttpTx      *tx;
     HttpRx      *rx;
@@ -1766,7 +1764,6 @@ int httpTrimExtraPath(HttpConn *conn)
             }
         }
     }
-    return HTTP_ROUTE_OK;
 }
 
 /*

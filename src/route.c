@@ -816,6 +816,14 @@ void *httpGetRouteData(HttpRoute *route, cchar *key)
 }
 
 
+cchar *httpGetRouteDir(HttpRoute *route)
+{
+    mprAssert(route);
+
+    return route->dir;
+}
+
+
 void httpResetRoutePipeline(HttpRoute *route)
 {
     mprAssert(route);
@@ -825,7 +833,6 @@ void httpResetRoutePipeline(HttpRoute *route)
         route->expires = mprCreateHash(0, MPR_HASH_STATIC_VALUES);
         route->extensions = mprCreateHash(0, MPR_HASH_CASELESS);
         route->handlers = mprCreateList(-1, 0);
-        route->inputStages = mprCreateList(-1, 0);
         route->inputStages = mprCreateList(-1, 0);
     }
     route->outputStages = mprCreateList(-1, 0);
@@ -846,7 +853,7 @@ void httpSetRouteAuth(HttpRoute *route, HttpAuth *auth)
 }
 
 
-void httpSetRouteAutoDelete(HttpRoute *route, int enable)
+void httpSetRouteAutoDelete(HttpRoute *route, bool enable)
 {
     mprAssert(route);
     route->autoDelete = enable;
@@ -926,6 +933,9 @@ void httpSetRouteDir(HttpRoute *route, cchar *path)
 }
 
 
+/*
+    WARNING: internal API only. 
+ */
 void httpSetRouteHost(HttpRoute *route, HttpHost *host)
 {
     mprAssert(route);

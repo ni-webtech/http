@@ -43,6 +43,8 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 </div>
 </div>
 <div class="header">
+  <div class="summary">
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle">
 <h1>HttpUploadFile</h1>  </div>
 </div>
@@ -51,11 +53,128 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <p>Upload File Each uploaded file has an HttpUploadedFile entry.  
 <a href="#_details">More...</a></p>
 <table class="memberdecls">
+<tr><td colspan="2"><h2><a name="func-members"></a>
+Functions</h2></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_upload_file.html#gae80cebe62ea47eaf3e45d9a09c14bec4">httpAddUploadFile</a> (HttpConn *conn, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *id, HttpUploadFile *file)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Add an Uploaded file.  <a href="#gae80cebe62ea47eaf3e45d9a09c14bec4"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_upload_file.html#gaf0783c034eabeefdde3e194e7f773711">httpRemoveAllUploadedFiles</a> (HttpConn *conn)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Remove all uploaded files.  <a href="#gaf0783c034eabeefdde3e194e7f773711"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_upload_file.html#ga4bb0929fd70a3247ea1f0d13a57cfc19">httpRemoveUploadFile</a> (HttpConn *conn, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *id)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Remove an uploaded file.  <a href="#ga4bb0929fd70a3247ea1f0d13a57cfc19"></a><br/></td></tr>
 </table>
+<hr/><a name="_details"></a><h2>Detailed Description</h2>
 <p>Upload File Each uploaded file has an HttpUploadedFile entry. </p>
 <p>This is managed by the upload handler. </p>
 <dl class="user"><dt><b><b>API</b> Stability:</b></dt><dd>Evolving</dd></dl>
-<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http_upload_file.html" title="Upload File Each uploaded file has an HttpUploadedFile entry.">HttpUploadFile</a> </dd></dl>
+<dl class="see"><dt><b>See also:</b></dt><dd></dd></dl>
+<hr/><h2>Function Documentation</h2>
+<a class="anchor" id="gae80cebe62ea47eaf3e45d9a09c14bec4"></a><!-- doxytag: member="http.h::httpAddUploadFile" ref="gae80cebe62ea47eaf3e45d9a09c14bec4" args="(HttpConn *conn, cchar *id, HttpUploadFile *file)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void httpAddUploadFile </td>
+          <td>(</td>
+          <td class="paramtype">HttpConn *&#160;</td>
+          <td class="paramname"><em>conn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *&#160;</td>
+          <td class="paramname"><em>id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">HttpUploadFile *&#160;</td>
+          <td class="paramname"><em>file</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Add an Uploaded file. </p>
+<dl class="user"><dt><b><b>Description</b>:</b></dt><dd>Add an uploaded file to the Rx.files collection. </dd></dl>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>HttpConn connection object created via $httpCreateConn </td></tr>
+    <tr><td class="paramname">id</td><td>Unique identifier for the file </td></tr>
+    <tr><td class="paramname">file</td><td>Instance of HttpUploadFile </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a class="anchor" id="gaf0783c034eabeefdde3e194e7f773711"></a><!-- doxytag: member="http.h::httpRemoveAllUploadedFiles" ref="gaf0783c034eabeefdde3e194e7f773711" args="(HttpConn *conn)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void httpRemoveAllUploadedFiles </td>
+          <td>(</td>
+          <td class="paramtype">HttpConn *&#160;</td>
+          <td class="paramname"><em>conn</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Remove all uploaded files. </p>
+<dl class="user"><dt><b><b>Description</b>:</b></dt><dd>Remove all uploaded files from the temporary file store </dd></dl>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>HttpConn connection object created via $httpCreateConn </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a class="anchor" id="ga4bb0929fd70a3247ea1f0d13a57cfc19"></a><!-- doxytag: member="http.h::httpRemoveUploadFile" ref="ga4bb0929fd70a3247ea1f0d13a57cfc19" args="(HttpConn *conn, cchar *id)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void httpRemoveUploadFile </td>
+          <td>(</td>
+          <td class="paramtype">HttpConn *&#160;</td>
+          <td class="paramname"><em>conn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *&#160;</td>
+          <td class="paramname"><em>id</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Remove an uploaded file. </p>
+<dl class="user"><dt><b><b>Description</b>:</b></dt><dd>Remove an uploaded file from the temporary file store </dd></dl>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>HttpConn connection object created via $httpCreateConn </td></tr>
+    <tr><td class="paramname">id</td><td>Identifier used with <a class="el" href="group___http_upload_file.html#gae80cebe62ea47eaf3e45d9a09c14bec4" title="Add an Uploaded file.">httpAddUploadFile</a> for the file </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 </div>
 <!--- window showing the filter options -->
 <div id="MSearchSelectWindow"
@@ -71,7 +190,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 </iframe>
 </div>
 
-<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 13:23:23 for http by&#160;
+<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 17:12:03 for http by&#160;
 <a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.7.3 </small></address>
 </body>

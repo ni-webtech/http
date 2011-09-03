@@ -56,27 +56,27 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <table class="memberdecls">
 <tr><td colspan="2"><h2><a name="typedef-members"></a>
 Typedefs</h2></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">typedef <a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#gab3ccaf14fc20ba8e592a2ea3a54ab900">HttpFillProc</a> )(struct HttpQueue *q, struct HttpPacket *packet, <a class="elRef" href="mpr.html#aa6887458d0a070b3665166af590089d8">MprOff</a> pos, <a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">typedef <a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#gab3ccaf14fc20ba8e592a2ea3a54ab900">HttpFillProc</a> )(struct HttpQueue *q, struct HttpPacket *packet, <a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a> pos, <a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback procedure to fill a packet with data.  <a href="#gab3ccaf14fc20ba8e592a2ea3a54ab900"></a><br/></td></tr>
 <tr><td colspan="2"><h2><a name="func-members"></a>
 Functions</h2></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga58a9502d7353a0cc11d43a5881d562cc">httpClonePacket</a> (HttpPacket *orig)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Clone a packet.  <a href="#ga58a9502d7353a0cc11d43a5881d562cc"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#gad491733e89bee8b1b64b47fa0e798931">httpCreateDataPacket</a> (<a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#gad491733e89bee8b1b64b47fa0e798931">httpCreateDataPacket</a> (<a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a data packet.  <a href="#gad491733e89bee8b1b64b47fa0e798931"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga5dd04a1c7f834f9acb5aa74488da5aad">httpCreateEndPacket</a> ()</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Create an eof packet.  <a href="#ga5dd04a1c7f834f9acb5aa74488da5aad"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga5af4bd1a1d534e61d11ed1753c5f4a67">httpCreateEntityPacket</a> (<a class="elRef" href="mpr.html#aa6887458d0a070b3665166af590089d8">MprOff</a> pos, <a class="elRef" href="mpr.html#aa6887458d0a070b3665166af590089d8">MprOff</a> size, <a class="el" href="group___http_packet.html#gab3ccaf14fc20ba8e592a2ea3a54ab900">HttpFillProc</a> fill)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga5af4bd1a1d534e61d11ed1753c5f4a67">httpCreateEntityPacket</a> (<a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a> pos, <a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a> size, <a class="el" href="group___http_packet.html#gab3ccaf14fc20ba8e592a2ea3a54ab900">HttpFillProc</a> fill)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Create an entity data packet.  <a href="#ga5af4bd1a1d534e61d11ed1753c5f4a67"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga24b80ddbcd324b10ac430c4465823190">httpCreateHeaderPacket</a> ()</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a response header packet.  <a href="#ga24b80ddbcd324b10ac430c4465823190"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga736f27036a2f3752bc3aa5580f75eef7">httpCreatePacket</a> (<a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga736f27036a2f3752bc3aa5580f75eef7">httpCreatePacket</a> (<a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a data packet.  <a href="#ga736f27036a2f3752bc3aa5580f75eef7"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga76c32ea617916aed4174ef232df26fc3">httpGetPacketLength</a> (HttpPacket *packet)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga76c32ea617916aed4174ef232df26fc3">httpGetPacketLength</a> (HttpPacket *packet)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the length of the packet data contents.  <a href="#ga76c32ea617916aed4174ef232df26fc3"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga6c9a2e1da5b57252b7cf2e1958dcdc96">httpJoinPacket</a> (HttpPacket *packet, HttpPacket *other)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Join two packets.  <a href="#ga6c9a2e1da5b57252b7cf2e1958dcdc96"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga99ecd872c756327114f8470650da5af9">httpSplitPacket</a> (HttpPacket *packet, <a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> offset)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">HttpPacket *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_packet.html#ga99ecd872c756327114f8470650da5af9">httpSplitPacket</a> (HttpPacket *packet, <a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> offset)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Split a data packet.  <a href="#ga99ecd872c756327114f8470650da5af9"></a><br/></td></tr>
 </table>
 <hr/><a name="_details"></a><h2>Detailed Description</h2>
@@ -92,7 +92,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">typedef <a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>(* <a class="el" href="group___http_packet.html#gab3ccaf14fc20ba8e592a2ea3a54ab900">HttpFillProc</a>)(struct HttpQueue *q, struct HttpPacket *packet, <a class="elRef" href="mpr.html#aa6887458d0a070b3665166af590089d8">MprOff</a> pos, <a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td>
+          <td class="memname">typedef <a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>(* <a class="el" href="group___http_packet.html#gab3ccaf14fc20ba8e592a2ea3a54ab900">HttpFillProc</a>)(struct HttpQueue *q, struct HttpPacket *packet, <a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a> pos, <a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td>
         </tr>
       </table>
 </div>
@@ -146,7 +146,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">HttpPacket* httpCreateDataPacket </td>
           <td>(</td>
-          <td class="paramtype"><a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td>
+          <td class="paramtype"><a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td>
           <td class="paramname"><em>size</em></td><td>)</td>
           <td></td>
         </tr>
@@ -193,13 +193,13 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">HttpPacket* httpCreateEntityPacket </td>
           <td>(</td>
-          <td class="paramtype"><a class="elRef" href="mpr.html#aa6887458d0a070b3665166af590089d8">MprOff</a>&#160;</td>
+          <td class="paramtype"><a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a>&#160;</td>
           <td class="paramname"><em>pos</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="elRef" href="mpr.html#aa6887458d0a070b3665166af590089d8">MprOff</a>&#160;</td>
+          <td class="paramtype"><a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a>&#160;</td>
           <td class="paramname"><em>size</em>, </td>
         </tr>
         <tr>
@@ -258,7 +258,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">HttpPacket* httpCreatePacket </td>
           <td>(</td>
-          <td class="paramtype"><a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td>
+          <td class="paramtype"><a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td>
           <td class="paramname"><em>size</em></td><td>)</td>
           <td></td>
         </tr>
@@ -283,7 +283,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> httpGetPacketLength </td>
+          <td class="memname"><a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> httpGetPacketLength </td>
           <td>(</td>
           <td class="paramtype">HttpPacket *&#160;</td>
           <td class="paramname"><em>packet</em></td><td>)</td>
@@ -356,7 +356,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="elRef" href="mpr.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td>
+          <td class="paramtype"><a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td>
           <td class="paramname"><em>offset</em>&#160;</td>
         </tr>
         <tr>
@@ -396,7 +396,7 @@ Functions</h2></td></tr>
 </iframe>
 </div>
 
-<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 13:23:23 for http by&#160;
+<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 17:12:02 for http by&#160;
 <a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.7.3 </small></address>
 </body>

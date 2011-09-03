@@ -179,8 +179,6 @@ struct HttpUri;
 
 /**
     Lookup password callback
-    MOB test #mprBreakpoint
-    MOB more #httpCreateConn
     @param auth HttpAuth object
     @param realm Http authentication realm
     @param user User name for whom to retrieve the password
@@ -1476,6 +1474,26 @@ extern HttpStage *httpCreateHandler(Http *http, cchar *name, int flags, MprModul
  */
 extern void httpDefaultOutgoingServiceStage(HttpQueue *q);
 
+/**
+    Get stage data   
+    @description Stages can store extra configuration information indexed by key. This is used by handlers, filters,
+        connectors and and handlers.
+    @param conn HttpConn connection object
+    @param key Key index into the stage data
+    @return A reference to the stage data. Otherwise return null if the route data for the given key was not found.
+    @ingroup HttpRx
+ */
+extern cvoid *httpGetStageData(struct HttpConn *conn, cchar *key);
+
+/**
+    Handle a Http Trace or Options method request
+    @description This call responds to a Trace or Options HTTP method request and generates an appropriate response
+        to the client
+    @param conn HttpConn object created via $httpCreateConn
+    @ingroup HttpStage
+ */
+extern void httpHandleOptionsTrace(struct HttpConn *conn);
+
 /** 
     Lookup stage data
     @description This looks up the stage by name and returns the private stage data.
@@ -1487,13 +1505,15 @@ extern void httpDefaultOutgoingServiceStage(HttpQueue *q);
 extern void *httpLookupStageData(Http *http, cchar *name);
 
 /**
-    Handle a Http Trace or Options method request
-    @description This call responds to a Trace or Options HTTP method request and generates an appropriate response
-        to the client
-    @param conn HttpConn object created via $httpCreateConn
-    @ingroup HttpStage
+    Set stage data   
+    @description Stages can store extra configuration information indexed by key. This is used by handlers, filters,
+        connectors and and handlers.
+    @param conn HttpConn connection object
+    @param key Key index into the stage data
+    @param data Reference to custom data allocated via mprAlloc.
+    @ingroup HttpRoute
  */
-extern void httpHandleOptionsTrace(struct HttpConn *conn);
+extern void httpSetStageData(struct HttpConn *conn, cchar *key, cvoid *data);
 
 /* Internal APIs */
 extern void httpAddStage(Http *http, HttpStage *stage);
@@ -2746,6 +2766,18 @@ typedef struct HttpLang {
     int         flags;                      /**< Control suffix position */
 } HttpLang;
 
+/**
+    Get the language to use for the request
+    @description This call tests if the file content to be served has been modified since the client last
+        requested this resource. The client must provide an Etag and Since or If-Modified headers.
+    @param conn HttpConn connection object
+    @param spoken Hash table of HttpLang records. This is typically route->languages. 
+    @param defaultLang Default language to use if none specified in the request Accept-Language header.
+    @return A HttpLang reference, or null if no language requested or no language found in the spoken table.
+    @ingroup HttpRoute
+ */
+extern HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken, cchar *defaultLang);
+
 /********************************** HttpRoute  *********************************/
 /*
     Misc route API flags
@@ -2891,6 +2923,46 @@ typedef int (HttpRouteProc)(HttpConn *conn, HttpRoute *route, HttpRouteOp *item)
 extern int httpAddRouteCondition(HttpRoute *route, cchar *name, cchar *details, int flags);
 
 /**
+    Add an error document
+    @description This defines an error document to be used when the reuqested document cannot be found. 
+        This definition is used by some handlers for error processing.
+    @param route Route to modify
+    @param status The HTTP status code to use with the error document.
+    @param url URL describing the error document
+    @ingroup HttpRoute
+ */
+extern void httpAddRouteErrorDocument(HttpRoute *route, int status, cchar *url);
+
+/**
+    Cache response content in the client by extension.
+    @description This configures default caching lifespans for documents with various extensions. This call causes
+        a Cache-Control header to be sent with the response instructing the client to cache the response content.
+        This is most useful for client caching static web content. For example: to cache "png" graphic files, use: 
+        httpAddRouteExpiry(route, when, "png");
+    @param route Route to modify
+    @param when Time to expire the item. Use mprGetTime() + milliseconds.
+    @param extensions Space or comman separated list of request extensions for which the content should be 
+        cached in the client.
+    @ingroup HttpRoute
+ */
+extern void httpAddRouteExpiry(HttpRoute *route, MprTime when, cchar *extensions);
+
+/**
+    Cache response content in the client by mime type.
+    Add client cache expiry definitions to the route
+    @description This configures default caching lifespans for documents with various mime types. This call causes
+        a Cache-Control header to be sent with the response instructing the client to cache the response content.
+        This is most useful for client caching static web content. For example: to cache "png" graphic files, use: 
+        httpAddRouteExpiry(route, when, "png");
+    @param route Route to modify
+    @param when Time to expire the item. Use mprGetTime() + milliseconds.
+    @param mimeTypes Space or command separated list of response mime types for which the content should be cached 
+        in the client.
+    @ingroup HttpRoute
+ */
+extern void httpAddRouteExpiryByType(HttpRoute *route, MprTime when, cchar *mimeTypes);
+
+/**
     Add a route filter
     @description This configures the route pipeline by adding processing filters for a request.
         must match. Route conditions are builtin rules that can be applied to routes.
@@ -2915,6 +2987,17 @@ extern int httpAddRouteFilter(HttpRoute *route, cchar *name, cchar *extensions, 
     @ingroup HttpRoute
  */
 extern int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions);
+
+/**
+    Add a route header check
+    @description This configures the route to match a request only if the specified header field matches a specific value.
+    @param route Route to modify
+    @param header Header field to interrogate
+    @param value Header value that will match
+    @param flags Set to HTTP_ROUTE_NOT to negate the header test
+    @ingroup HttpRoute
+ */
+extern void httpAddRouteHeader(HttpRoute *route, cchar *header, cchar *value, int flags);
 
 /**
     Add a route language
@@ -2943,6 +3026,28 @@ extern int httpAddRouteLanguage(HttpRoute *route, cchar *language, cchar *suffix
 extern int httpAddRouteLanguageRoot(HttpRoute *route, cchar *language, cchar *path);
 
 /**
+    MOB - complete
+    @description 
+    @param route Route to modify
+    @param name 
+    @param path 
+    @ingroup HttpRoute
+    @internal
+ */
+extern void httpAddRouteLoad(HttpRoute *route, cchar *name, cchar *path);
+
+/**
+    Add a route query check
+    @description This configures the route to match a request only if the specified query field matches a specific value.
+    @param route Route to modify
+    @param field Query field to interrogate
+    @param value Header value that will match
+    @param flags Set to HTTP_ROUTE_NOT to negate the query test
+    @ingroup HttpRoute
+ */
+extern void httpAddRouteQuery(HttpRoute *route, cchar *field, cchar *value, int flags);
+
+/**
     Add a route update rule
     @description This configures the route pipeline by adding processing update rules for a request.
         Updates are builtin rules that can be applied to routes.
@@ -2961,6 +3066,15 @@ extern int httpAddRouteLanguageRoot(HttpRoute *route, cchar *language, cchar *pa
     @ingroup HttpRoute
  */
 extern int httpAddRouteUpdate(HttpRoute *route, cchar *name, cchar *details, int flags);
+
+/**
+    Clear the pipline stages for the route
+    @description This resets the configured pipeline stages for the route.
+    @param route Route to modify
+    @param direction Set to HTTP_STAGE_TX for transmit direction and HTTP_STAGE_RX for receive data flow.
+    @ingroup HttpRoute
+ */
+extern void httpClearRouteStages(HttpRoute *route, int direction);
 
 /**
     Create a route suitable for use as an alias
@@ -3014,12 +3128,152 @@ extern HttpRoute *httpCreateInheritedRoute(HttpRoute *route);
 extern HttpRoute *httpCreateRoute(struct HttpHost *host);
 
 /**
+    Define a route condition rule
+    @description This creates a new condition rule.
+    @param name Condition name 
+    @param proc Condition function to process the condition during route matching.
+    @ingroup HttpRoute
+ */
+extern void httpDefineRouteCondition(cchar *name, HttpRouteProc *proc);
+
+/**
+    Define a route target rule
+    @description This creates a new target rule.
+    @param name Target name 
+    @param proc Target function to process the target during route matching.
+    @ingroup HttpRoute
+ */
+extern void httpDefineRouteTarget(cchar *name, HttpRouteProc *proc);
+
+/**
+    Define a route update rule
+    @description This creates a new update rule.
+    @param name Update name 
+    @param proc Update function to process the update during route matching.
+    @ingroup HttpRoute
+ */
+extern void httpDefineRouteUpdate(cchar *name, HttpRouteProc *proc);
+
+/**
     Finalize a route
     @description A route must be finalized to add it to its owning hosts list of routes.
     @param route Route to modify
     @ingroup HttpRoute
  */
 extern void httpFinalizeRoute(HttpRoute *route);
+
+/**
+    Get extra route data
+    @description Routes can store extra configuration information indexed by key. This is used by handlers, filters,
+        connectors and updates to store additional information on a per-route basis.
+    @param route Route to modify
+    @param key Unique string key to identify the data.
+    @return A reference to the route data. Otherwise return null if the route data for the given key was not found.
+    @see httpGetRouteData
+    @ingroup HttpRoute
+ */
+extern void *httpGetRouteData(HttpRoute *route, cchar *key);
+
+/**
+    Get the route directory
+    @description Routes can define a default directory for documents to serve. This value may be used by
+        target rules to calculate the response filename.
+    @param route Route to modify
+    @return The route documents directory pathname.
+    @ingroup HttpRoute
+ */
+extern cchar *httpGetRouteDir(HttpRoute *route);
+
+/** 
+    Create a URI link. The target parameter may contain partial or complete URI information. The missing parts 
+    are supplied using the current request and route tables. The resulting URI is a normalized, server-local 
+    URI (begins with "/"). The URI will include any defined scriptName, but will not include scheme, host or 
+    port components.
+    @param route Route to modify
+    @param target The URI target. The target parameter can be a URI string or object hash of components. If the 
+        target is a string, it is may contain an absolute or relative URI. If the target has an absolute URI path, 
+        that path is used unmodified. If the target is a relative URI, it is appended to the current request URI 
+        path.  The target can also be an object hash of URI components: scheme, host, port, path, reference and
+        query. If these component properties are supplied, these will be combined to create a URI.
+
+        The URI will be created according to the route URI template. The template may be explicitly specified
+        via a "route" target property. Otherwise, if an "action" property is specified, the route of the same
+        name will be used. If these don't result in a usable route, the "default" route will be used. See the
+        Router for more details.
+       
+        If the target is a string that begins with "{AT}" it will be interpreted as a controller/action pair of the 
+        form "{AT}Controller/action". If the "controller/" portion is absent, the current controller is used. If 
+        the action component is missing, the "index" action is used. A bare "{AT}" refers to the "index" action 
+        of the current controller.
+
+    @param options MOB
+        Lastly, the target object hash may contain an override "uri" property. If specified, the value of the 
+        "uri" property will be returned and all other properties will be ignored.
+        <ul>
+            <li>scheme String URI scheme portion</li>
+            <li>host String URI host portion</li>
+            <li>port Number URI port number</li>
+            <li>path String URI path portion</li>
+            <li>reference String URI path reference. Does not include "#"</li>
+            <li>query String URI query parameters. Does not include "?"</li>
+            <li>controller String Controller name if using a Controller-based route. This can also be specified via
+                the action option.</li>
+            <li>action String Action to invoke. This can be a URI string or a Controller action of the form
+                {AT}Controller/action.</li>
+            <li>route String Route name to use for the URI template</li>
+    @return A normalized, server-local Uri object.
+    MOB - revise
+    Given a current request of http://example.com/samples/demo" and "r" == the current request:
+
+    r.link("images/splash.png")                  # "/samples/images/splash.png"
+    r.link("images/splash.png").complete(r.uri)  # "http://example.com/samples/images/splash.png"
+    r.link("images/splash.png").relative(r.uri)  # "images/splash.png"
+
+    r.link("http://example.com/index.html")
+    r.link("/path/to/index.html")
+    r.link("{AT}Controller/checkout")
+    r.link("{AT}Controller/")
+    r.link("{AT}checkout")
+    r.link("{AT}")
+    r.link({action: "checkout")
+    r.link({action: "logout", controller: "Admin")
+    r.link({action: "Admin/logout")
+    r.link({action: "{AT}Admin/logout")
+    r.link({uri: "http://example.com/checkout"})
+    r.link({route: "default", action: "{AT}checkout")
+    r.link({product: "candy", quantity: "10", template: "/cart/{product}/{quantity}")
+*/
+extern void httpLink(HttpRoute *route, cchar *target, cchar *options);
+
+/**
+    Lookup an error document by HTTP status code
+    @description This looks up error documents configured via #httpAddRouteErrorDocument
+    @param route Route to modify
+    @param status HTTP status code integer 
+    @return URI associated with the error document for the requested status.
+    @ingroup HttpRoute
+ */
+extern cchar *httpLookupRouteErrorDocument(HttpRoute *route, int status);
+
+/**
+    Make a filename path
+    @description This makes a filename by expanding the tokens "${token}" and then normalizing the path and converting
+        to an absolute path name. The supported tokens are:
+        <ul>  
+            <li>PRODUCT - for the product name</li>
+            <li>OS - for the operating system name. E.g. LINUX, MACOSX, VXWORKS, or WIN</li>
+            <li>VERSION - for the product version. E.g. 4.0.2</li>
+            <li>LIBDIR - for the library directory. E.g. /usr/lib/appweb </li>
+            <li>DOCUMENT_ROOT - for the default directory containing documents to serve</li>
+            <li>SERVER_ROOT - for the directory containing the web server configuration files</li>
+        </ul>  
+        Additional tokens can be defined via #httpSetRoutePathVar.
+    @param route Route to modify
+    @param path Path name to examine
+    @return An absolute file name.
+    @ingroup HttpRoute
+ */
+extern char *httpMakePath(HttpRoute *route, cchar *path);
 
 /**
     Match a route against the current request 
@@ -3034,6 +3288,45 @@ extern void httpFinalizeRoute(HttpRoute *route);
 extern int httpMatchRoute(HttpConn *conn, HttpRoute *route);
 
 /**
+    Reset the route pipeline
+    @description This completely resets the pipeline and discards inherited pipeline configuration. This resets the
+        error documents, expiry cache values, extensions, handlers, input and output stage configuration.
+    @param route Route to modify
+    @ingroup HttpRoute
+ */
+extern void httpResetRoutePipeline(HttpRoute *route);
+
+/**
+    Set the route authentication
+    @description This defines the authentication configuration for basic and digest authentication for the route.
+    @param route Route to modify
+    @param auth Authentication object
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteAuth(HttpRoute *route, HttpAuth *auth);
+
+/**
+    Control file upload auto delete
+    @description This controls whether files are auto-deleted after the handler runs to service a request.
+    @param route Route to modify
+    @param on Set to true to enable auto-delete. Auto-delete is enabled by default.
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteAutoDelete(HttpRoute *route, bool on);
+
+/**
+    Contol content compression for the route
+    @description This configures content compression for the route. Some handlers observe the content compression status
+        and will attempt to use or compress content before transmitting to the client. The fileHandler is currently
+        the only handler that uses this capability.
+    @param route Route to modify
+    @param flags Set to HTTP_ROUTE_GZIP to enable the fileHandler to serve eqivalent compressed content with a "gz"
+        extension.
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteCompression(HttpRoute *route, int flags);
+
+/**
     Set the connector to use for a route
     @param route Route to modify
     @param name Connector name to use for this route
@@ -3041,6 +3334,38 @@ extern int httpMatchRoute(HttpConn *conn, HttpRoute *route);
     @ingroup HttpRoute
  */
 extern int httpSetRouteConnector(HttpRoute *route, cchar *name);
+
+/**
+    Set route data
+    @description Routes can store extra configuration information indexed by key. This is used by handlers, filters,
+        connectors and updates to store additional information on a per-route basis.
+    @param route Route to modify
+    @param key Unique string to identify the data
+    @param data Data object. This must be allocated via mprAlloc.
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteData(HttpRoute *route, cchar *key, void *data);
+
+/**
+    Set the default language for the route
+    @description This call defines the default language to serve if the client does not provide an Accept HTTP header
+        with language preference instructions.
+    @param route Route to modify
+    @param language Language symbolic name. For example: "en" for english.
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteDefaultLanguage(HttpRoute *route, cchar *language);
+
+/**
+    Set the route directory
+    @description Routes can define a default directory for documents to serve. This value may be used by
+        target rules to calculate the response filename.
+    @param route Route to modify
+    @param dir Directory path name for the route content
+    @return The route documents directory pathname.
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteDir(HttpRoute *route, cchar *dir);
 
 /**
     Set the handler to use for a route
@@ -3054,20 +3379,120 @@ extern int httpSetRouteConnector(HttpRoute *route, cchar *name);
 extern int httpSetRouteHandler(HttpRoute *route, cchar *name);
 
 /**
+    Update the route flags
+    @description Low level routine to manipulate the route flags
+    @param route Route to modify
+    @param flags Flags mask 
+    @ingroup HttpRoute
+    @internal
+ */
+extern void httpSetRouteFlags(HttpRoute *route, int flags);
+
+/*
+    Define the owning host for a route.
+    @description WARNING: this should not be called by users.
+    @param route Route to modify
+    @param host HttpHost object
+    @internal
+ */
+extern void httpSetRouteHost(HttpRoute *route, struct HttpHost *host);
+
+/**
+    Set the route index document
+    @description Set the name of the index document to serve. Index documents may be served when the request corresponds
+        to a directory on the file system.
+    @param route Route to modify
+    @param path Path name to the index document. If the path is a relative path, it may be joined to the route 
+        directory to create an absolute path.
+    @return A reference to the route data. Otherwise return null if the route data for the given key was not found.
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteIndex(HttpRoute *route, cchar *path);
+
+/**
+    Define the methods for the route
+    @description This defines the set of valid HTTP methods for requests to match this route
+    @param route Route to modify
+    @param methods Set to a comma or space separated list of methods. Can also set to "All" or "*" for all possible 
+        methods.  Standard methods include: "DELETE, GET, OPTIONS, POST, PUT, TRACE".
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteMethods(HttpRoute *route, cchar *methods);
+
+/**
+    Set the route name
+    @description Symbolic route names are used by httpLink and when displaying route tables.
+    @param route Route to modify
+    @param name Unique symbolic name for the route. If a name is not defined, the route pattern will be used as the name. 
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteName(HttpRoute *route, cchar *name);
+
+/**
+    Define a path token variable
+    @description The #httpMakePath routine and route conditions, updates, headers, fields and targets will expand 
+        tokenized expressions "${token}". Additional tokens can be defined via this API.
+    @param route Route to modify
+    @param token Name of the token to define 
+    @param value Value of the token
+    @ingroup HttpRoute
+ */
+extern void httpSetRoutePathVar(HttpRoute *route, cchar *token, cchar *value);
+
+/**
+    Set the route pattern
+    @description This call defines the route regular expression pattern that is used to match against the request URI.
+        The route pattern is an enhanced JavaScript-compatibile regular expression. It is enhanced by optionally 
+        embedding braced tokens "{name}" in the patter. During request URI matching, these tokens are extracted and
+        defined in the request form vars and are available to the request. The normal regular expression repeat syntax 
+        also uses "{}". To use the traditional (uncommon) repeat syntax, back quote with "\\".
+        Sub-expressions and token expressions are also available in various rules as numbered tokens "$1". For example:
+        the pattern "/app/(.*)(\.html)$" will permit a file target "$1.${request.Language=fr}.$2".
+    @param route Route to modify
+    @param pattern Route regular expression pattern 
+    @param flags Set to HTTP_ROUTE_NOT to negate the pattern match result
+    @ingroup HttpRoute
+ */
+extern void httpSetRoutePattern(HttpRoute *route, cchar *pattern, int flags);
+
+/**
+    Set the route prefix
+    @description Routes may have a prefix which will be stripped from the request URI if the request matches.
+        The prefix is made available as the "${request:prefix}" token and also as the ScriptName via some handlers.
+    @param route Route to modify
+    @param prefix URI prefix to define for the route. 
+    @ingroup HttpRoute
+ */
+extern void httpSetRoutePrefix(HttpRoute *route, cchar *prefix);
+
+/**
+    MOB - todo
+    @description 
+    @param route Route to modify
+    @param script 
+    @param scriptPath
+    @ingroup HttpRoute
+    @internal
+ */
+extern void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath);
+
+/**
+    Set the source code module for the route
+    @description Some handlers can dynamically load web applications and controllers to serve requests.
+    @param route Route to modify
+    @param source Source path or description 
+    @ingroup HttpRoute
+ */
+extern void httpSetRouteSource(HttpRoute *route, cchar *source);
+
+/**
     Set a route target
     @description This configures the route pipeline by defining a route target. The route target is interpreted by
         the selected route handler to process the request. 
-        Route targets can contain symbolic tokens "${tokens}" that are expanded at run-time with their corresponding
-        values. The supported tokens are:
-        <ul>  
-            <li>PRODUCT - for the product name</li>
-            <li>OS - for the operating system name. E.g. LINUX, MACOSX, VXWORKS, or WIN</li>
-            <li>VERSION - for the product version. E.g. 4.0.2</li>
-            <li>LIBDIR - for the library directory. E.g. /usr/lib/appweb </li>
-            <li>DOCUMENT_ROOT - for the default directory containing documents to serve</li>
-            <li>SERVER_ROOT - for the directory containing the web server configuration files</li>
-        </ul>  
-        The tokens can also contain request key/name pairs. These supported keys include:
+        Route targets can contain symbolic tokens that are expanded at run-time with their corresponding values. Tokens
+        are of the form: "${family:name=defaultValue}". The family defines a set of values. If the named field is not 
+        present, an optional default value "=defaultValue" will be used instead.
+        These supported token families are:
         <ul>  
             <li>header - for request HTTP header values</li>
             <li>field - for request form field values</li>
@@ -3099,6 +3524,7 @@ extern int httpSetRouteHandler(HttpRoute *route, cchar *name);
             <li>serverPort - The server port number</li>
             <li>uri - The full request URI. May be modified by routes, handlers and filters</li>
         </ul>
+        Also see #httpMakePath for additional tokens (DOCUMENT_ROOT, LIBDIR, PRODUCT, OS, SERVER_ROOT, VERSION).
     @param route Route to modify
     @param name Target rule to add. Supported update rules include:
         "close", "file" and "redirect", "virtual" and "write". 
@@ -3131,62 +3557,48 @@ extern int httpSetRouteHandler(HttpRoute *route, cchar *name);
 extern int httpSetRouteTarget(HttpRoute *route, cchar *name, cchar *details);
 
 /**
-    Get extra route data
-    @description Routes can store extra configuration information indexed by key. This is used by handlers, filters,
-        connectors and updates to store additional information on a per-route basis.
+    Define the maximum number of workers for a route
     @param route Route to modify
-    @param key 
-    @return A reference to the route data. Otherwise return null if the route data for the given key was not found.
+    @param workers Maximum number of workers for this route
     @ingroup HttpRoute
+    @internal
  */
-extern void *httpGetRouteData(HttpRoute *route, cchar *key);
+extern void httpSetRouteWorkers(HttpRoute *route, int workers);
 
 /**
-    Add an error document
-    @description This defines an error document to be used when the reuqested document cannot be found. 
-        This definition is used by some handlers for error processing.
+    Tokenize a string based on route data
+    @description This is a utility routine to parse a string into tokens given a format specifier. 
+    Mandatory tokens can be specified with "%" format specifier. Optional tokens are specified with "?" format. 
+    Supported tokens:
+    <ul>
+    <li>%B - Boolean. Parses: on/off, true/false, yes/no.</li>
+    <li>%N - Number. Parses numbers in base 10.</li>
+    <li>%S - String. Removes quotes.</li>
+    <li>%P - Path string. Removes quotes and expands ${PathVars}. Resolved relative to host->dir (ServerRoot).</li>
+    <li>%W - Parse words into a list</li>
+    <li>%! - Optional negate. Set value to HTTP_ROUTE_NOT present, otherwise zero.</li>
+    </ul>
+    Values wrapped in quotes will have the outermost quotes trimmed.
     @param route Route to modify
-    @param status The HTTP status code to use with the error document.
-    @param url URL describing the error document
+    @param str String to expand
+    @param fmt Format string specifier
+    @return True if the string can be successfully parsed.
     @ingroup HttpRoute
  */
-extern void httpAddRouteErrorDocument(HttpRoute *route, int status, cchar *url);
+extern bool httpTokenize(HttpRoute *route, cchar *str, cchar *fmt, ...);
 
-extern void httpAddRouteExpiry(HttpRoute *route, MprTime when, cchar *extensions);
-extern void httpAddRouteExpiryByType(HttpRoute *route, MprTime when, cchar *mimeTypes);
-extern void httpAddRouteHeader(HttpRoute *route, cchar *header, cchar *value, int flags);
-extern void httpAddRouteQuery(HttpRoute *route, cchar *field, cchar *value, int flags);
-extern void httpClearRouteStages(HttpRoute *route, int direction);
-extern void httpDefineRouteCondition(cchar *key, HttpRouteProc *proc);
-extern void httpDefineRouteTarget(cchar *key, HttpRouteProc *proc);
-extern void httpDefineRouteUpdate(cchar *key, HttpRouteProc *proc);
-extern cchar *httpLookupRouteErrorDocument(HttpRoute *route, int code);
-extern char *httpMakePath(HttpRoute *route, cchar *file);
-extern void httpResetRoutePipeline(HttpRoute *route);
-extern void httpSetRouteAuth(HttpRoute *route, HttpAuth *auth);
-extern void httpSetRouteAutoDelete(HttpRoute *route, int enable);
-extern void httpSetRouteCompression(HttpRoute *route, int flags);
-extern void httpSetRouteCondition(HttpRoute *route, cchar *source, int flags);
-extern void httpSetRouteData(HttpRoute *route, cchar *key, void *data);
-extern void httpSetRouteDefaultLanguage(HttpRoute *route, cchar *lang);
-extern void httpSetRouteDir(HttpRoute *route, cchar *dir);
-extern void httpSetRouteField(HttpRoute *route, cchar *key, cchar *value, int flags);
-extern void httpSetRouteFlags(HttpRoute *route, int flags);
-extern void httpSetRouteHeader(HttpRoute *route, cchar *key, cchar *value, int flags);
-extern void httpSetRouteHost(HttpRoute *route, struct HttpHost *host);
-extern void httpSetRouteIndex(HttpRoute *route, cchar *filename);
-extern void httpSetRouteLoad(HttpRoute *route, cchar *name, cchar *path);
-extern void httpSetRouteMethods(HttpRoute *route, cchar *methods);
-extern void httpSetRouteName(HttpRoute *route, cchar *name);
-extern void httpSetRoutePathVar(HttpRoute *route, cchar *token, cchar *value);
-extern void httpSetRoutePattern(HttpRoute *route, cchar *pattern, int flags);
-extern void httpSetRoutePrefix(HttpRoute *route, cchar *prefix);
-extern void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath);
-extern void httpSetRouteSource(HttpRoute *route, cchar *source);
-extern void httpSetRouteUpdate(HttpRoute *route, cchar *name, int flags);
-extern void httpSetRouteWorkers(HttpRoute *route, int workers);
-extern bool httpTokenize(HttpRoute *route, cchar *line, cchar *fmt, ...);
-extern bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args);
+/**
+    Tokenize a string based on route data
+    @description This is a utility routine to parse a string into tokens given a format specifier. 
+    This call is similar to #httpTokenize but uses a va_list argument.
+    @param route Route to modify
+    @param str String to expand
+    @param fmt Format string specifier
+    @param args Varargs argument list
+    @return True if the string can be successfully parsed.
+    @ingroup HttpRoute
+ */
+extern bool httpTokenizev(HttpRoute *route, cchar *str, cchar *fmt, va_list args);
 
 /********************************** HttpUploadFile *********************************/
 /**
@@ -3194,18 +3606,44 @@ extern bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list arg
     Each uploaded file has an HttpUploadedFile entry. This is managed by the upload handler.
     @stability Evolving
     @defgroup HttpUploadFile HttpUploadFile
-    @see HttpUploadFile
+    @see 
  */
 typedef struct HttpUploadFile {
-    cchar           *filename;              /* Local (temp) name of the file */
-    cchar           *clientFilename;        /* Client side name of the file */
-    cchar           *contentType;           /* Content type */
-    ssize           size;                   /* Uploaded file size */
+    cchar           *filename;              /**< Local (temp) name of the file */
+    cchar           *clientFilename;        /**< Client side name of the file */
+    cchar           *contentType;           /**< Content type */
+    ssize           size;                   /**< Uploaded file size */
 } HttpUploadFile;
 
-//  MOB doc
+
+/**
+    Add an Uploaded file
+    @description Add an uploaded file to the Rx.files collection.
+    @param conn HttpConn connection object created via $httpCreateConn
+    @param id Unique identifier for the file  
+    @param file Instance of HttpUploadFile
+    @ingroup HttpUploadFile
+    @internal
+ */
 extern void httpAddUploadFile(HttpConn *conn, cchar *id, HttpUploadFile *file);
+
+/**
+    Remove all uploaded files
+    @description Remove all uploaded files from the temporary file store
+    @param conn HttpConn connection object created via $httpCreateConn
+    @ingroup HttpUploadFile
+    @internal
+ */
 extern void httpRemoveAllUploadedFiles(HttpConn *conn);
+
+/**
+    Remove an uploaded file
+    @description Remove an uploaded file from the temporary file store
+    @param conn HttpConn connection object created via $httpCreateConn
+    @param id Identifier used with #httpAddUploadFile for the file
+    @ingroup HttpUploadFile
+    @internal
+ */
 extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
 
 /********************************** HttpRx *********************************/
@@ -3241,10 +3679,9 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
     @stability Evolving
     @defgroup HttpRx HttpRx
     @see HttpRx HttpConn HttpTx httpSetWriteBlocked httpGetCookies httpGetQueryString
-//  MOB more see
  */
 typedef struct HttpRx {
-    /* Ordered fro debugging */
+    /* Ordered for debugging */
     char            *method;                /**< Request method */
     char            *uri;                   /**< Current URI (not decoded, may be rewritten) */
     char            *pathInfo;              /**< Path information after the scriptName (Decoded and normalized) */
@@ -3337,6 +3774,16 @@ typedef struct HttpRx {
 } HttpRx;
 
 
+/**
+    Test if the content has not been modified
+    @description This call tests if the file content to be served has been modified since the client last
+        requested this resource. The client must provide an Etag and Since or If-Modified headers.
+    @param conn HttpConn connection object
+    @return True if the content is current and has not been modified.
+    @ingroup HttpRx
+ */
+extern bool httpContentNotModified(HttpConn *conn);
+
 /** 
     Get a rx content length
     @description Get the length of the rx body content (if any). This is used in servers to get the length of posted
@@ -3385,7 +3832,13 @@ extern char *httpGetHeaders(HttpConn *conn);
  */
 extern MprHashTable *httpGetHeaderHash(HttpConn *conn);
 
-//  MOB doc
+/**
+    Get the form vars for the current request
+    @description This returns the hash table containing the query and request body form data.
+    @param conn HttpConn connection object
+    @return The form var hash table
+    @ingroup HttpRx
+ */
 extern MprHashTable *httpGetFormVars(HttpConn *conn);
 
 /** 
@@ -3434,30 +3887,46 @@ extern ssize httpRead(HttpConn *conn, char *buffer, ssize size);
  */
 extern char *httpReadString(HttpConn *conn);
 
-//  MOB DOC
-extern void httpSetStageData(HttpConn *conn, cchar *key, cvoid *data);
-extern cvoid *httpGetStageData(HttpConn *conn, cchar *key);
+/**
+    Set a new URI for processing
+    @description This modifies the request URI to alter request processing. The original URI is preserved in
+        the HttpRx.originalUri field. This is only useful to do before request routing has matched a route.
+    @param conn HttpConn connection object
+    @param uri New URI to use. The URI can be fully qualified starting with a scheme ("http") or it can be 
+        a partial/relative URI. Missing portions of the URI will be completed with equivalent portions from the
+        current URI. For example: if the current request URI was http://example.com:7777/index.html, then
+        a call to httpSetUri(conn, "/new.html", 0)  will set the request URI to http://example.com:7777/new.html.
+        The request script name will be reset and the pathInfo will be set to the path portion of the URI.
+    @param query Optional query string to define with the new URI. If query is null, any query string defined
+        with the previous URI will be used. If query is set to the empty string, a previous query will be discarded.
+    @return True if the content is current and has not been modified.
+    @ingroup HttpRx
+ */
+extern int  httpSetUri(HttpConn *conn, cchar *uri, cchar *query);
 
+/**
+    Trim extra path from the URI
+    @description This call trims extra path information after the uri extension. This is used by CGI and PHP. 
+    The strategy is to heuristically find the script name in the uri. This is assumed to be the original uri 
+    up to and including first path component containing a "." Any path information after that is regarded as 
+    extra path.  WARNING: Extra path is an old, unreliable, CGI specific technique. Do not use directories 
+    with embedded periods.
+    @param conn HttpConn connection object
+    @ingroup HttpRx
+ */
+extern void httpTrimExtraPath(HttpConn *conn);
 
-//  MOB review
 /* Internal */
-//  MOB - some of these are not internal and need trimming
-extern HttpRx *httpCreateRx(HttpConn *conn);
 extern void httpCloseRx(struct HttpConn *conn);
-extern bool httpContentNotModified(HttpConn *conn);
 extern HttpRange *httpCreateRange(HttpConn *conn, MprOff start, MprOff end);
+extern HttpRx *httpCreateRx(HttpConn *conn);
 extern void httpDestroyRx(HttpRx *rx);
-extern HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken, cchar *defaultLanguage);
 extern char *httpGetFormData(HttpConn *conn);
 extern bool httpMatchEtag(HttpConn *conn, char *requestedEtag);
 extern bool httpMatchModified(HttpConn *conn, MprTime time);
 extern void httpProcess(HttpConn *conn, HttpPacket *packet);
-extern void httpProcessWriteEvent(HttpConn *conn);
 extern bool httpProcessCompletion(HttpConn *conn);
-extern int  httpSetUri(HttpConn *conn, cchar *newUri, cchar *query);
-extern void httpSetEtag(HttpConn *conn, MprPath *info);
-extern int httpTrimExtraPath(HttpConn *conn);
-
+extern void httpProcessWriteEvent(HttpConn *conn);
 
 /**************************************** Env ***************************************/
 /**
