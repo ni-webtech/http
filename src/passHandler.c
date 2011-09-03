@@ -25,7 +25,7 @@ void httpHandleOptionsTrace(HttpConn *conn)
     if (rx->flags & HTTP_TRACE) {
         if (!conn->limits->enableTraceMethod) {
             tx->status = HTTP_CODE_NOT_ACCEPTABLE;
-            httpFormatBody(conn, "Trace Request Denied", "The TRACE method is disabled on this server.");
+            httpFormatResponseBody(conn, "Trace Request Denied", "The TRACE method is disabled on this server.");
         } else {
             httpFormatResponse(conn, "%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
         }

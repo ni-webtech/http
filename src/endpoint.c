@@ -82,6 +82,7 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
     Http            *http;
     HttpHost        *host;
     HttpEndpoint    *endpoint;
+    HttpRoute       *route;
 
     http = MPR->httpService;
 
@@ -106,13 +107,20 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
             return 0;
         }
     }
-    host = httpCreateHost();
+    if ((route = httpCreateRoute(host)) == 0) {
+        return 0;
+    }
+    if ((host = httpCreateHost()) == 0) {
+        return 0;
+    }
     httpSetHostIpAddr(host, ip, port);
     httpAddHostToEndpoint(endpoint, host);
     httpSetHostHome(host, home);
     if ((host->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
         host->mimeTypes = MPR->mimeTypes;
     }
+    httpSetRouteDir(route, documents);
+    httpFinalizeRoute(route);
     return endpoint;
 }
 
@@ -188,7 +196,7 @@ void httpStopEndpoint(HttpEndpoint *endpoint)
 }
 
 
-int httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
+bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
 {
     HttpLimits      *limits;
     int             count;
@@ -405,15 +413,19 @@ void httpAddHostToEndpoint(HttpEndpoint *endpoint, HttpHost *host)
 }
 
 
-bool httpIsNamedVirtualEndpoint(HttpEndpoint *endpoint)
+bool httpHasNamedVirtualHosts(HttpEndpoint *endpoint)
 {
     return endpoint->flags & HTTP_NAMED_VHOST;
 }
 
 
-void httpSetNamedVirtualEndpoint(HttpEndpoint *endpoint)
+void httpSetHasNamedVirtualHosts(HttpEndpoint *endpoint, bool on)
 {
-    endpoint->flags |= HTTP_NAMED_VHOST;
+    if (on) {
+        endpoint->flags |= HTTP_NAMED_VHOST;
+    } else {
+        endpoint->flags &= ~HTTP_NAMED_VHOST;
+    }
 }
 
 
@@ -435,7 +447,7 @@ HttpHost *httpLookupHostOnEndpoint(HttpEndpoint *endpoint, cchar *name)
 }
 
 
-int httpSetNamedVirtualEndpoints(Http *http, cchar *ip, int port)
+int httpConfigureNamedVirtualEndpoints(Http *http, cchar *ip, int port)
 {
     HttpEndpoint    *endpoint;
     int             next, count;
@@ -447,7 +459,7 @@ int httpSetNamedVirtualEndpoints(Http *http, cchar *ip, int port)
         if (endpoint->port <= 0 || port <= 0 || endpoint->port == port) {
             mprAssert(endpoint->ip);
             if (*endpoint->ip == '\0' || *ip == '\0' || scmp(endpoint->ip, ip) == 0) {
-                httpSetNamedVirtualEndpoint(endpoint);
+                httpSetHasNamedVirtualHosts(endpoint, 1);
                 count++;
             }
         }

@@ -101,6 +101,7 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->limits);
 
     } else if (flags & MPR_MANAGE_FREE) {
+        /* The http->hosts list is static. ie. The hosts won't be marked via http->hosts */
         httpRemoveHost(MPR->httpService, host);
     }
 }
@@ -222,6 +223,7 @@ void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *ex
 }
 
 
+#if UNUSED
 int httpSetupTrace(HttpHost *host, cchar *ext)
 {
     if (ext) {
@@ -234,6 +236,7 @@ int httpSetupTrace(HttpHost *host, cchar *ext)
     }
     return host->traceMask;
 }
+#endif
 
 
 /*

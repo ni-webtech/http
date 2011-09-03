@@ -26,7 +26,7 @@ void httpMatchHost(HttpConn *conn)
         mprCloseSocket(conn->sock, 0);
         return;
     }
-    if (httpIsNamedVirtualEndpoint(endpoint)) {
+    if (httpHasNamedVirtualHosts(endpoint)) {
         host = httpLookupHostOnEndpoint(endpoint, conn->rx->hostHeader);
     } else {
         host = mprGetFirstItem(endpoint->hosts);

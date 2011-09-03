@@ -244,6 +244,10 @@ void httpFlush(HttpConn *conn)
 }
 
 
+/*
+    This formats a response and sets the altBody. The response is not HTML escaped.
+    This is the lowest level for formatResponse.
+ */
 ssize httpFormatResponsev(HttpConn *conn, cchar *fmt, va_list args)
 {
     HttpTx      *tx;
@@ -258,6 +262,9 @@ ssize httpFormatResponsev(HttpConn *conn, cchar *fmt, va_list args)
 }
 
 
+/*
+    This formats a response and sets the altBody. The response is not HTML escaped.
+ */
 ssize httpFormatResponse(HttpConn *conn, cchar *fmt, ...)
 {
     va_list     args;
@@ -270,7 +277,11 @@ ssize httpFormatResponse(HttpConn *conn, cchar *fmt, ...)
 }
 
 
-ssize httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
+/*
+    This formats a complete response. Depending on the Accept header, the response will be either HTML or plain text.
+    The response is not HTML escaped.  This calls httpFormatResponse.
+ */
+ssize httpFormatResponseBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
 {
     HttpTx      *tx;
     va_list     args;
@@ -294,6 +305,7 @@ ssize httpFormatBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
 }
 
 
+#if UNUSED
 /*
     The message is NOT html escaped
  */
@@ -310,16 +322,17 @@ void httpSetResponseBody(HttpConn *conn, int status, cchar *fmt, ...)
     msg = sfmtv(fmt, args);
     tx->status = status;
     if (tx->altBody == 0) {
-        httpFormatBody(conn, httpLookupStatus(conn->http, status), "%s", msg);
+        httpFormatResponseBody(conn, httpLookupStatus(conn->http, status), "%s", msg);
     }
     va_end(args);
 }
-
+#endif
 
 /*
     Create an alternate body response. Typically used for error responses. The message is HTML escaped.
+    NOTE: this is an internal API. Users should use httpFormatError
  */
-void httpSetResponseError(HttpConn *conn, int status, cchar *fmt, ...)
+void httpFormatResponseError(HttpConn *conn, int status, cchar *fmt, ...)
 {
     va_list     args;
     cchar       *statusMsg;
@@ -336,7 +349,7 @@ void httpSetResponseError(HttpConn *conn, int status, cchar *fmt, ...)
         msg = sfmt("<h2>Access Error: %d -- %s</h2>\r\n<pre>%s</pre>\r\n", status, statusMsg, mprEscapeHtml(msg));
     }
     httpAddHeaderString(conn, "Cache-Control", "no-cache");
-    httpFormatBody(conn, statusMsg, "%s", msg);
+    httpFormatResponseBody(conn, statusMsg, "%s", msg);
     va_end(args);
 }
 

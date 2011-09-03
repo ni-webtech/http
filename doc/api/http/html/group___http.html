@@ -61,6 +61,12 @@ Functions</h2></td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Create the Http secret data for crypto.  <a href="#ga6daf4768a6774bccd5fe172e54eda049"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http.html#ga9df88d0ef0b9493ddcd78c2c2e0df18e">httpDestroy</a> (Http *http)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Destroy the Http service object.  <a href="#ga9df88d0ef0b9493ddcd78c2c2e0df18e"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http.html#ga3cc41b779426b19d2140ab24810fadb9">httpGetContext</a> (Http *http)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the http context object.  <a href="#ga3cc41b779426b19d2140ab24810fadb9"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http.html#ga27b90151605da08a154b87961e2a9e60">httpGetDateString</a> (MprPath *sbuf)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the time as an ISO date string.  <a href="#ga27b90151605da08a154b87961e2a9e60"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http.html#ga32b6dc607dee33e788e2c921314c72df">httpLoadSsl</a> (Http *http)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Load SSL.  <a href="#ga32b6dc607dee33e788e2c921314c72df"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">struct HttpHost *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http.html#ga6d402e9d1748650913482396ace16b27">httpLookupHost</a> (Http *http, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *name)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Lookup a host by name.  <a href="#ga6d402e9d1748650913482396ace16b27"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http.html#ga80762b506890fb154336ceba54be6e7f">httpLookupStatus</a> (Http *http, int status)</td></tr>
@@ -71,7 +77,7 @@ Functions</h2></td></tr>
 <hr/><a name="_details"></a><h2>Detailed Description</h2>
 <p>Http service object The Http service is managed by a single service object. </p>
 <dl class="user"><dt><b><b>API</b> Stability:</b></dt><dd>Evolving</dd></dl>
-<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http.html" title="Http service object The Http service is managed by a single service object.">Http</a> <a class="el" href="group___http_conn.html" title="Http Connections.">HttpConn</a> <a class="el" href="group___http_endpoint.html" title="Listening endpoints.">HttpEndpoint</a> <a class="el" href="group___http.html#ga995a8e6f658f5eb6628371f62cf78d66" title="Create a Http service object.">httpCreate</a> <a class="el" href="group___http.html#ga6daf4768a6774bccd5fe172e54eda049" title="Create the Http secret data for crypto.">httpCreateSecret</a> httpGetContext httpGetDateString httpSetContext httpSetDefaultHost httpSetDefaultPort <a class="el" href="group___http.html#ga7c0a123b785f897d3d3cc5cebcc971db" title="Define a Http proxy host to use for all client connect requests.">httpSetProxy</a> </dd></dl>
+<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http.html" title="Http service object The Http service is managed by a single service object.">Http</a> <a class="el" href="group___http_conn.html" title="Http Connections.">HttpConn</a> <a class="el" href="group___http_endpoint.html" title="Listening endpoints.">HttpEndpoint</a> <a class="el" href="group___http.html#ga995a8e6f658f5eb6628371f62cf78d66" title="Create a Http service object.">httpCreate</a> <a class="el" href="group___http.html#ga6daf4768a6774bccd5fe172e54eda049" title="Create the Http secret data for crypto.">httpCreateSecret</a> <a class="el" href="group___http.html#ga3cc41b779426b19d2140ab24810fadb9" title="Get the http context object.">httpGetContext</a> <a class="el" href="group___http.html#ga27b90151605da08a154b87961e2a9e60" title="Get the time as an ISO date string.">httpGetDateString</a> httpSetContext httpSetDefaultHost httpSetDefaultPort <a class="el" href="group___http.html#ga7c0a123b785f897d3d3cc5cebcc971db" title="Define a Http proxy host to use for all client connect requests.">httpSetProxy</a> </dd></dl>
 <hr/><h2>Function Documentation</h2>
 <a class="anchor" id="ga995a8e6f658f5eb6628371f62cf78d66"></a><!-- doxytag: member="http.h::httpCreate" ref="ga995a8e6f658f5eb6628371f62cf78d66" args="()" -->
 <div class="memitem">
@@ -142,6 +148,85 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a class="anchor" id="ga3cc41b779426b19d2140ab24810fadb9"></a><!-- doxytag: member="http.h::httpGetContext" ref="ga3cc41b779426b19d2140ab24810fadb9" args="(Http *http)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void* httpGetContext </td>
+          <td>(</td>
+          <td class="paramtype">Http *&#160;</td>
+          <td class="paramname"><em>http</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Get the http context object. </p>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">http</td><td>Http service object. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="return"><dt><b>Returns:</b></dt><dd>The http context object defined via httpSetContext </dd></dl>
+
+</div>
+</div>
+<a class="anchor" id="ga27b90151605da08a154b87961e2a9e60"></a><!-- doxytag: member="http.h::httpGetDateString" ref="ga27b90151605da08a154b87961e2a9e60" args="(MprPath *sbuf)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char* httpGetDateString </td>
+          <td>(</td>
+          <td class="paramtype">MprPath *&#160;</td>
+          <td class="paramname"><em>sbuf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Get the time as an ISO date string. </p>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">sbuf</td><td>Optional path buffer. If supplied, the modified time of the path is used. If NULL, then the current time is used. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="return"><dt><b>Returns:</b></dt><dd>RFC822 formatted date string. </dd></dl>
+
+</div>
+</div>
+<a class="anchor" id="ga32b6dc607dee33e788e2c921314c72df"></a><!-- doxytag: member="http.h::httpLoadSsl" ref="ga32b6dc607dee33e788e2c921314c72df" args="(Http *http)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int httpLoadSsl </td>
+          <td>(</td>
+          <td class="paramtype">Http *&#160;</td>
+          <td class="paramname"><em>http</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Load SSL. </p>
+<dl class="user"><dt><b><b>Description</b>:</b></dt><dd>This loads the configured SSL provider. SSL providers are configured when the product is built from source. </dd></dl>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">http</td><td>Http object created via <a class="el" href="group___http.html#ga995a8e6f658f5eb6628371f62cf78d66" title="Create a Http service object.">httpCreate</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="return"><dt><b>Returns:</b></dt><dd>Zero if SSL can be successfully loaded. Otherwise return a negative MPR error code. </dd></dl>
 
 </div>
 </div>
@@ -279,7 +364,7 @@ Functions</h2></td></tr>
 </iframe>
 </div>
 
-<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 17:12:02 for http by&#160;
+<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 22:48:19 for http by&#160;
 <a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.7.3 </small></address>
 </body>
