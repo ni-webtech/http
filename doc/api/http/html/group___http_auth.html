@@ -45,6 +45,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
+<a href="#typedef-members">Typedefs</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle">
 <h1>HttpAuth</h1>  </div>
@@ -60,6 +61,12 @@ Data Structures</h2></td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Group Authorization.  <a href="struct_http_group.html#_details">More...</a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_http_user.html">HttpUser</a></td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">User Authorization File based authorization backend.  <a href="struct_http_user.html#_details">More...</a><br/></td></tr>
+<tr><td colspan="2"><h2><a name="typedef-members"></a>
+Typedefs</h2></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">typedef <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_auth.html#ga5bbf4e68ceb995ae825f8085345ad3c5">HttpGetPassword</a> )(struct HttpAuth *auth, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *realm, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *user)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Lookup password callback.  <a href="#ga5bbf4e68ceb995ae825f8085345ad3c5"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">typedef <a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a>(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_auth.html#ga2ce91e0f714a88e88910ef1243750d89">HttpValidateCred</a> )(struct HttpAuth *auth, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *realm, char *user, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *pass, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *required, char **msg)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Validate user credentials callback.  <a href="#ga2ce91e0f714a88e88910ef1243750d89"></a><br/></td></tr>
 <tr><td colspan="2"><h2><a name="func-members"></a>
 Functions</h2></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_auth.html#gaf877cc386a86e4c8fd81a203efc6921e">httpAddGroup</a> (HttpAuth *auth, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *group, HttpAcl acl, <a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a> enabled)</td></tr>
@@ -141,7 +148,59 @@ Functions</h2></td></tr>
 <p>Authorization HttpAuth is the foundation authorization object and is used by HttpRoute. </p>
 <p>It stores the authorization configuration information required to determine if a client request should be permitted access to a given resource. </p>
 <dl class="user"><dt><b><b>API</b> Stability:</b></dt><dd>Evolving</dd></dl>
-<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http_auth.html" title="Authorization HttpAuth is the foundation authorization object and is used by HttpRoute.">HttpAuth</a> <a class="el" href="struct_http_user.html" title="User Authorization File based authorization backend.">HttpUser</a> <a class="el" href="struct_http_group.html" title="Group Authorization.">HttpGroup</a> </dd></dl>
+<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http_auth.html" title="Authorization HttpAuth is the foundation authorization object and is used by HttpRoute.">HttpAuth</a> <a class="el" href="group___http_auth.html#ga5bbf4e68ceb995ae825f8085345ad3c5" title="Lookup password callback.">HttpGetPassword</a> <a class="el" href="struct_http_group.html" title="Group Authorization.">HttpGroup</a> <a class="el" href="struct_http_user.html" title="User Authorization File based authorization backend.">HttpUser</a> <a class="el" href="group___http_auth.html#ga2ce91e0f714a88e88910ef1243750d89" title="Validate user credentials callback.">HttpValidateCred</a> <a class="el" href="group___http_auth.html#gaf877cc386a86e4c8fd81a203efc6921e" title="Add a group.">httpAddGroup</a> <a class="el" href="group___http_auth.html#ga872a72c969cd2fb33d924d6b4c26e38f" title="Add a user.">httpAddUser</a> <a class="el" href="group___http_auth.html#gab2de031bd49e5605d4567901e3cde1b0" title="Add a user to a group.">httpAddUserToGroup</a> <a class="el" href="group___http_auth.html#ga9a35d18a0a3af75014aff73994d3b0a4" title="Add users to a group.">httpAddUsersToGroup</a> <a class="el" href="group___http_auth.html#ga9b67b82baec4f1a4fd9d17d8a25e0d07" title="Create an authentication object.">httpCreateAuth</a> <a class="el" href="group___http_auth.html#ga260229840ddc04ccf251d54c7a312cdc" title="Create a new group.">httpCreateGroup</a> <a class="el" href="group___http_auth.html#gac4f458f5ed27de39fc717232bebc9c2f" title="Create a new user.">httpCreateUser</a> <a class="el" href="group___http_auth.html#ga792fdaa0dc8231b3d613ef50029aee26" title="Disable a group.">httpDisableGroup</a> <a class="el" href="group___http_auth.html#gace85af94e891a86012a71a58684756b8" title="Disable a user.">httpDisableUser</a> <a class="el" href="group___http_auth.html#gacbf1e5849472f95d0e02360b34f77f05" title="Enable a group.">httpEnableGroup</a> <a class="el" href="group___http_auth.html#ga97d0e19d67e65addc448fd20df3fa792" title="Enable a user.">httpEnableUser</a> <a class="el" href="group___http_auth.html#ga8e89eb365b497fa2a2fa600baf02de62" title="Get the password for a user from a file based authentication database.">httpGetFilePassword</a> <a class="el" href="group___http_auth.html#ga665a0abc5437502359a83efdb658eba3" title="Get the group ACL.">httpGetGroupAcl</a> httpGetPamPassword <a class="el" href="group___http_auth.html#ga4934282cd05644d028f35fc5e38bcdb6" title="Test if an authentication group is enabled.">httpIsGroupEnabled</a> <a class="el" href="group___http_auth.html#gad69d6f5fbc1be61598af8e64c216cb88" title="Test if a user is enabled.">httpIsUserEnabled</a> <a class="el" href="group___http_auth.html#ga294d8572a162e42a210273c66a9a2eeb" title="Parse an access control list.">httpParseAcl</a> <a class="el" href="group___http_auth.html#ga563d6a65e3d3c3c5f275e4f1a7a48541" title="Read an authentication group file.">httpReadGroupFile</a> <a class="el" href="group___http_auth.html#ga25aef6d69fb5672bcee9a014aa729006" title="Remove an authentication user file.">httpReadUserFile</a> <a class="el" href="group___http_auth.html#ga2965e5fbaad026ae5718fe6263ca7b3f" title="Remove a group.">httpRemoveGroup</a> <a class="el" href="group___http_auth.html#ga31a42865c355bebd86f5fe1cea5a2c62" title="Remove a user.">httpRemoveUser</a> <a class="el" href="group___http_auth.html#ga0b4e8d9e09acc1409ed5f14597822529" title="Remove user from a group.">httpRemoveUserFromGroup</a> <a class="el" href="group___http_auth.html#ga343482ad37f86771caa93f70f2e62489" title="Remove users from a group.">httpRemoveUsersFromGroup</a> <a class="el" href="group___http_auth.html#ga1e3860c07cf1b53066349912ba604c11" title="Allow access by any valid user.">httpSetAuthAnyValidUser</a> <a class="el" href="group___http_auth.html#gadd70a294ddb8a46ab57c8461fc60e6ea" title="Deny access by a client.">httpSetAuthDeny</a> <a class="el" href="group___http_auth.html#gaca051ee0de660c150b2fe37572cb8526" title="Set the auth allow/deny order.">httpSetAuthOrder</a> <a class="el" href="group___http_auth.html#ga9695c6e6ecdafb77dd70b192edbddcd5" title="Set the required quality of service for digest authentication.">httpSetAuthQop</a> <a class="el" href="group___http_auth.html#gaf068156faee2f2be74fe08455a715187" title="Set the required realm for basic or digest authentication.">httpSetAuthRealm</a> <a class="el" href="group___http_auth.html#ga8715694996cb1d74fafd96e16a5f5c0c" title="Define the set of required groups for basic or digest authentication.">httpSetAuthRequiredGroups</a> <a class="el" href="group___http_auth.html#gaffc8805599851f0f5143db772ad1210f" title="Define the set of required users for basic or digest authentication.">httpSetAuthRequiredUsers</a> <a class="el" href="group___http_auth.html#ga9ac890a605979911662e093491fa91e0" title="Set the required user for basic or digest authentication.">httpSetAuthUser</a> <a class="el" href="group___http_auth.html#ga957b436a5672ee0dbfecb1f7171a2f20" title="Set the group access control list.">httpSetGroupAcl</a> <a class="el" href="group___http_auth.html#gab7df1e6f6778a7d17697039db8b822f7" title="Set the required access control list for the authentication object.">httpSetRequiredAcl</a> <a class="el" href="group___http_auth.html#ga3034c02c2c1be90a38bffbfb368075f4" title="Update the user access control list.">httpUpdateUserAcls</a> <a class="el" href="group___http_auth.html#gad2d2dba24e204850cc70360db41d63cd" title="Validate credentials using a file based authentication database.">httpValidateFileCredentials</a> httpValidatePamCredentials <a class="el" href="group___http_auth.html#ga2600d0e353cd1ab7c1c881238b8da4df" title="Write out the group authentication database.">httpWriteGroupFile</a> <a class="el" href="group___http_auth.html#ga8d3fd1f24cf3a3883e0289143518047c" title="Write out the user authentication database.">httpWriteUserFile</a> </dd></dl>
+<hr/><h2>Typedef Documentation</h2>
+<a class="anchor" id="ga5bbf4e68ceb995ae825f8085345ad3c5"></a><!-- doxytag: member="http.h::HttpGetPassword" ref="ga5bbf4e68ceb995ae825f8085345ad3c5" args=")(struct HttpAuth *auth, cchar *realm, cchar *user)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a>*(* <a class="el" href="group___http_auth.html#ga5bbf4e68ceb995ae825f8085345ad3c5">HttpGetPassword</a>)(struct HttpAuth *auth, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *realm, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *user)</td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Lookup password callback. </p>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">auth</td><td>HttpAuth object </td></tr>
+    <tr><td class="paramname">realm</td><td>Http authentication realm </td></tr>
+    <tr><td class="paramname">user</td><td>User name for whom to retrieve the password </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="return"><dt><b>Returns:</b></dt><dd>The user password </dd></dl>
+
+</div>
+</div>
+<a class="anchor" id="ga2ce91e0f714a88e88910ef1243750d89"></a><!-- doxytag: member="http.h::HttpValidateCred" ref="ga2ce91e0f714a88e88910ef1243750d89" args=")(struct HttpAuth *auth, cchar *realm, char *user, cchar *pass, cchar *required, char **msg)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef <a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a>(* <a class="el" href="group___http_auth.html#ga2ce91e0f714a88e88910ef1243750d89">HttpValidateCred</a>)(struct HttpAuth *auth, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *realm, char *user, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *pass, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *required, char **msg)</td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Validate user credentials callback. </p>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">auth</td><td>HttpAuth object </td></tr>
+    <tr><td class="paramname">realm</td><td>Http authentication realm </td></tr>
+    <tr><td class="paramname">user</td><td>User name for whom to retrieve the password </td></tr>
+    <tr><td class="paramname">pass</td><td>User password </td></tr>
+    <tr><td class="paramname">required</td><td>Authentication "required" field. Set to "user", "group" or "valid". </td></tr>
+    <tr><td class="paramname">msg</td><td>Output parameter to contain any appropriate error message </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="return"><dt><b>Returns:</b></dt><dd>True if the user credentials can be validated and accepted </dd></dl>
+
+</div>
+</div>
 <hr/><h2>Function Documentation</h2>
 <a class="anchor" id="gaf877cc386a86e4c8fd81a203efc6921e"></a><!-- doxytag: member="http.h::httpAddGroup" ref="gaf877cc386a86e4c8fd81a203efc6921e" args="(HttpAuth *auth, cchar *group, HttpAcl acl, bool enabled)" -->
 <div class="memitem">
@@ -1650,7 +1709,7 @@ Functions</h2></td></tr>
 </iframe>
 </div>
 
-<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 23:26:16 for http by&#160;
+<hr class="footer"/><address class="footer"><small>Generated on Sun Sep 4 2011 00:47:55 for http by&#160;
 <a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.7.3 </small></address>
 </body>

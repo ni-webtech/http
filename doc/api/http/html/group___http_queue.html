@@ -65,12 +65,16 @@ Functions</h2></td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the next packet from a queue.  <a href="#ga289893521c40788edc06280530167a85"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_queue.html#ga141d826d025030d4d8c6b3e29cc82b54">httpGetQueueRoom</a> (HttpQueue *q)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the room in the queue.  <a href="#ga141d826d025030d4d8c6b3e29cc82b54"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_queue.html#ga0312ce08a79bdfb49854b0693480b661">httpIsEof</a> (struct HttpConn *conn)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Test is the connection has received all incoming content.  <a href="#ga0312ce08a79bdfb49854b0693480b661"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_queue.html#gafb4d0f9b9d5caa21b605e015154de36e">httpIsPacketTooBig</a> (struct HttpQueue *q, HttpPacket *packet)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Test if a packet is too big.  <a href="#gafb4d0f9b9d5caa21b605e015154de36e"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_queue.html#gacd6cd97710d608b988e9169637dec43c">httpIsQueueEmpty</a> (HttpQueue *q)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Determine if the queue is empty.  <a href="#gacd6cd97710d608b988e9169637dec43c"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_queue.html#ga7ca69588fa498e117f23b73956ae66f0">httpJoinPacketForService</a> (struct HttpQueue *q, HttpPacket *packet, <a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a> serviceQ)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Join a packet onto the service queue.  <a href="#ga7ca69588fa498e117f23b73956ae66f0"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_queue.html#ga476c8e99e1c02292781748edd59190dc">httpJoinPackets</a> (HttpQueue *q, <a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a> size)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Join the packets together.  <a href="#ga476c8e99e1c02292781748edd59190dc"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_queue.html#ga8bdb0b39ec10ee344c8e65179800836b">httpPutBackPacket</a> (struct HttpQueue *q, HttpPacket *packet)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Put a packet back onto a queue.  <a href="#ga8bdb0b39ec10ee344c8e65179800836b"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_queue.html#ga34d9cc6e8919398d18a1359ae72a821c">httpPutForService</a> (struct HttpQueue *q, HttpPacket *packet, <a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a> serviceQ)</td></tr>
@@ -110,7 +114,7 @@ Functions</h2></td></tr>
 <br/>
  If a queue does not define a put() method, the default put method will be used which queues data onto the service queue. The default incoming put() method joins incoming packets into a single packet on the service queue. </dd></dl>
 <dl class="user"><dt><b><b>API</b> Stability:</b></dt><dd>Evolving</dd></dl>
-<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http_queue.html" title="Queue object.">HttpQueue</a> <a class="el" href="group___http_packet.html" title="Packet object.">HttpPacket</a> <a class="el" href="group___http_conn.html" title="Http Connections.">HttpConn</a> <a class="el" href="group___http_queue.html#gab1edc4220fc6d43c9f3890a791203d2c" title="Discard all data from the queue.">httpDiscardData</a> httpGet <a class="el" href="group___http_queue.html#ga7ca69588fa498e117f23b73956ae66f0" title="Join a packet onto the service queue.">httpJoinPacketForService</a> <a class="el" href="group___http_queue.html#ga34d9cc6e8919398d18a1359ae72a821c" title="Put a packet onto the service queue.">httpPutForService</a> httpDefaultPut <a class="el" href="group___http_queue.html#ga9148e04c9f1e0be26f5c05fa069671db" title="Disable a queue.">httpDisableQueue</a> <a class="el" href="group___http_queue.html#ga346146f107faba9923caa9e003c4d3a1" title="Enable a queue.">httpEnableQueue</a> <a class="el" href="group___http_queue.html#ga141d826d025030d4d8c6b3e29cc82b54" title="Get the room in the queue.">httpGetQueueRoom</a> <a class="el" href="group___http_queue.html#gacd6cd97710d608b988e9169637dec43c" title="Determine if the queue is empty.">httpIsQueueEmpty</a> <a class="el" href="group___http_queue.html#gafb4d0f9b9d5caa21b605e015154de36e" title="Test if a packet is too big.">httpIsPacketTooBig</a> httpPut httpPutBack <a class="el" href="group___http_queue.html#ga34d9cc6e8919398d18a1359ae72a821c" title="Put a packet onto the service queue.">httpPutForService</a> <a class="el" href="group___http_queue.html#gaf2897449db2b3cb92cd701a14a0a0a02" title="Remove a queue.">httpRemoveQueue</a> <a class="el" href="group___http_queue.html#gafea79ab1e8d1bc8b9827594c4c1d2e56" title="Resize a packet.">httpResizePacket</a> <a class="el" href="group___http_queue.html#ga3ea3dc316a3c5b968eac6e5b6069ccf5" title="Schedule a queue.">httpScheduleQueue</a> httpSendPacket <a class="el" href="group___http_queue.html#gacbccba013b170c147cb39efea2344f0b" title="Send all queued packets.">httpSendPackets</a> <a class="el" href="group___http_queue.html#ga78e8c0627028e112f31392ab3b49b64a" title="Send an end packet.">httpSendEndPacket</a> <a class="el" href="group___http_queue.html#ga5ed409b0c87172597fa7f928df1e7e77" title="Service a queue.">httpServiceQueue</a> httpWillNextQueueAccept <a class="el" href="group___http_queue.html#ga5599a178a2bab73929795952231d6e6a" title="Write a formatted string.">httpWrite</a> <a class="el" href="group___http_queue.html#gae1b8876619f533e26837e38cf5a6575d" title="Write a block of data to the queue.">httpWriteBlock</a> httpWriteBody <a class="el" href="group___http_queue.html#gad062a99a5fe2d4a79753b71d4be891d7" title="Write a string of data to the queue.">httpWriteString</a> </dd></dl>
+<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http_conn.html" title="Http Connections.">HttpConn</a> <a class="el" href="group___http_packet.html" title="Packet object.">HttpPacket</a> <a class="el" href="group___http_queue.html" title="Queue object.">HttpQueue</a> <a class="el" href="group___http_queue.html#ga9148e04c9f1e0be26f5c05fa069671db" title="Disable a queue.">httpDisableQueue</a> <a class="el" href="group___http_queue.html#gab1edc4220fc6d43c9f3890a791203d2c" title="Discard all data from the queue.">httpDiscardData</a> <a class="el" href="group___http_queue.html#ga346146f107faba9923caa9e003c4d3a1" title="Enable a queue.">httpEnableQueue</a> httpFlushQueue <a class="el" href="group___http_queue.html#ga141d826d025030d4d8c6b3e29cc82b54" title="Get the room in the queue.">httpGetQueueRoom</a> <a class="el" href="group___http_queue.html#ga0312ce08a79bdfb49854b0693480b661" title="Test is the connection has received all incoming content.">httpIsEof</a> <a class="el" href="group___http_queue.html#gafb4d0f9b9d5caa21b605e015154de36e" title="Test if a packet is too big.">httpIsPacketTooBig</a> <a class="el" href="group___http_queue.html#gacd6cd97710d608b988e9169637dec43c" title="Determine if the queue is empty.">httpIsQueueEmpty</a> <a class="el" href="group___http_queue.html#ga7ca69588fa498e117f23b73956ae66f0" title="Join a packet onto the service queue.">httpJoinPacketForService</a> <a class="el" href="group___http_queue.html#ga476c8e99e1c02292781748edd59190dc" title="Join the packets together.">httpJoinPackets</a> httpOpenQueue <a class="el" href="group___http_queue.html#ga8bdb0b39ec10ee344c8e65179800836b" title="Put a packet back onto a queue.">httpPutBackPacket</a> <a class="el" href="group___http_queue.html#ga34d9cc6e8919398d18a1359ae72a821c" title="Put a packet onto the service queue.">httpPutForService</a> <a class="el" href="group___http_queue.html#gac4ad79496f9054044a6c999384669d6a" title="Put a packet onto a queue.">httpPutPacket</a> <a class="el" href="group___http_queue.html#ga15c957cd47313affb413d681767a4763" title="Put a packet onto the next queue.">httpPutPacketToNext</a> <a class="el" href="group___http_queue.html#gaf2897449db2b3cb92cd701a14a0a0a02" title="Remove a queue.">httpRemoveQueue</a> <a class="el" href="group___http_queue.html#gafea79ab1e8d1bc8b9827594c4c1d2e56" title="Resize a packet.">httpResizePacket</a> <a class="el" href="group___http_queue.html#ga3ea3dc316a3c5b968eac6e5b6069ccf5" title="Schedule a queue.">httpScheduleQueue</a> <a class="el" href="group___http_queue.html#ga78e8c0627028e112f31392ab3b49b64a" title="Send an end packet.">httpSendEndPacket</a> <a class="el" href="group___http_queue.html#gacbccba013b170c147cb39efea2344f0b" title="Send all queued packets.">httpSendPackets</a> <a class="el" href="group___http_queue.html#ga5ed409b0c87172597fa7f928df1e7e77" title="Service a queue.">httpServiceQueue</a> httpWillNextQueueAccept <a class="el" href="group___http_queue.html#ga1cc3389ca2a476dda61904b46d939740" title="Determine if the downstream queue will accept a certain amount of data.">httpWillNextQueueAcceptSize</a> <a class="el" href="group___http_queue.html#ga5599a178a2bab73929795952231d6e6a" title="Write a formatted string.">httpWrite</a> <a class="el" href="group___http_queue.html#gae1b8876619f533e26837e38cf5a6575d" title="Write a block of data to the queue.">httpWriteBlock</a> httpWriteBody <a class="el" href="group___http_queue.html#gad062a99a5fe2d4a79753b71d4be891d7" title="Write a string of data to the queue.">httpWriteString</a> </dd></dl>
 <hr/><h2>Function Documentation</h2>
 <a class="anchor" id="ga9148e04c9f1e0be26f5c05fa069671db"></a><!-- doxytag: member="http.h::httpDisableQueue" ref="ga9148e04c9f1e0be26f5c05fa069671db" args="(HttpQueue *q)" -->
 <div class="memitem">
@@ -255,6 +259,33 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="ga0312ce08a79bdfb49854b0693480b661"></a><!-- doxytag: member="http.h::httpIsEof" ref="ga0312ce08a79bdfb49854b0693480b661" args="(struct HttpConn *conn)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="elRef" href="mpr_8h.html#a1062901a7428fdd9c7f180f5e01ea056">bool</a> httpIsEof </td>
+          <td>(</td>
+          <td class="paramtype">struct HttpConn *&#160;</td>
+          <td class="paramname"><em>conn</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Test is the connection has received all incoming content. </p>
+<dl class="user"><dt><b><b>Description</b>:</b></dt><dd>This tests if the connection is at an "End of File condition. </dd></dl>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>HttpConn object created via $httpCreateConn </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="return"><dt><b>Returns:</b></dt><dd>True if all receive content has been received </dd></dl>
+
+</div>
+</div>
 <a class="anchor" id="gafb4d0f9b9d5caa21b605e015154de36e"></a><!-- doxytag: member="http.h::httpIsPacketTooBig" ref="gafb4d0f9b9d5caa21b605e015154de36e" args="(struct HttpQueue *q, HttpPacket *packet)" -->
 <div class="memitem">
 <div class="memproto">
@@ -358,6 +389,43 @@ Functions</h2></td></tr>
     <tr><td class="paramname">q</td><td>Queue reference </td></tr>
     <tr><td class="paramname">packet</td><td>Packet to join to the queue </td></tr>
     <tr><td class="paramname">serviceQ</td><td>If true, schedule the queue for service </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a class="anchor" id="ga476c8e99e1c02292781748edd59190dc"></a><!-- doxytag: member="http.h::httpJoinPackets" ref="ga476c8e99e1c02292781748edd59190dc" args="(HttpQueue *q, ssize size)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void httpJoinPackets </td>
+          <td>(</td>
+          <td class="paramtype">HttpQueue *&#160;</td>
+          <td class="paramname"><em>q</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Join the packets together. </p>
+<dl class="user"><dt><b><b>Description</b>:</b></dt><dd>This call joins data packets on the given queue up together up to the given maximum size. The maximum size is also limited by the downstream queue maximum packet size. </dd></dl>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">q</td><td>Queue to examine </td></tr>
+    <tr><td class="paramname">size</td><td>The maximum sized packet that will be created by joining queue packets is the minimum of the given size and the downstream queues maximum packet size. </td></tr>
   </table>
   </dd>
 </dl>
@@ -913,7 +981,7 @@ Functions</h2></td></tr>
 </iframe>
 </div>
 
-<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 23:26:16 for http by&#160;
+<hr class="footer"/><address class="footer"><small>Generated on Sun Sep 4 2011 00:47:55 for http by&#160;
 <a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.7.3 </small></address>
 </body>

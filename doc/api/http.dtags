@@ -325,6 +325,13 @@
     </member>
     <member kind="function">
       <type>bool</type>
+      <name>httpIsEof</name>
+      <anchorfile>group___http_queue.html</anchorfile>
+      <anchor>ga0312ce08a79bdfb49854b0693480b661</anchor>
+      <arglist>(struct HttpConn *conn)</arglist>
+    </member>
+    <member kind="function">
+      <type>bool</type>
       <name>httpIsPacketTooBig</name>
       <anchorfile>group___http_queue.html</anchorfile>
       <anchor>gafb4d0f9b9d5caa21b605e015154de36e</anchor>
@@ -343,6 +350,13 @@
       <anchorfile>group___http_queue.html</anchorfile>
       <anchor>ga7ca69588fa498e117f23b73956ae66f0</anchor>
       <arglist>(struct HttpQueue *q, HttpPacket *packet, bool serviceQ)</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>httpJoinPackets</name>
+      <anchorfile>group___http_queue.html</anchorfile>
+      <anchor>ga476c8e99e1c02292781748edd59190dc</anchor>
+      <arglist>(HttpQueue *q, ssize size)</arglist>
     </member>
     <member kind="function">
       <type>void</type>
@@ -593,11 +607,25 @@
       <arglist>)(struct HttpConn *conn)</arglist>
     </member>
     <member kind="typedef">
+      <type>void(*</type>
+      <name>HttpIOCallback</name>
+      <anchorfile>group___http_conn.html</anchorfile>
+      <anchor>ga90233a1163fa6772c60c86588b01e803</anchor>
+      <arglist>)(struct HttpConn *conn, MprEvent *event)</arglist>
+    </member>
+    <member kind="typedef">
       <type>int(*</type>
       <name>HttpListenCallback</name>
       <anchorfile>group___http_conn.html</anchorfile>
       <anchor>ga4d060d366219e2deac858ac50ee5f7f3</anchor>
       <arglist>)(struct HttpEndpoint *endpoint)</arglist>
+    </member>
+    <member kind="typedef">
+      <type>void(*</type>
+      <name>HttpNotifier</name>
+      <anchorfile>group___http_conn.html</anchorfile>
+      <anchor>gad5d7822d12ff6e38328fcdd92539fcd9</anchor>
+      <arglist>)(struct HttpConn *conn, int state, int flags)</arglist>
     </member>
     <member kind="typedef">
       <type>cchar *(*</type>
@@ -902,6 +930,20 @@
     </member>
     <member kind="function">
       <type>void</type>
+      <name>httpSetHeadersCallback</name>
+      <anchorfile>group___http_conn.html</anchorfile>
+      <anchor>ga5407927519c3619f8b3173a19c7cab31</anchor>
+      <arglist>(struct HttpConn *conn, HttpHeadersCallback fn, void *arg)</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>httpSetIOCallback</name>
+      <anchorfile>group___http_conn.html</anchorfile>
+      <anchor>ga8f6d4ce201a094c8a0f185d1d592b439</anchor>
+      <arglist>(struct HttpConn *conn, HttpIOCallback fn)</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
       <name>httpSetKeepAliveCount</name>
       <anchorfile>group___http_conn.html</anchorfile>
       <anchor>ga5050ac505b4e8701f6247db9242a4249</anchor>
@@ -950,13 +992,6 @@
       <arglist>(HttpConn *conn, int requestTimeout, int inactivityTimeout)</arglist>
     </member>
     <member kind="function">
-      <type>void</type>
-      <name>httpSetWriteBlocked</name>
-      <anchorfile>group___http_conn.html</anchorfile>
-      <anchor>gac8760dad727f97e824e5abdb06d1cd99</anchor>
-      <arglist>(HttpConn *conn)</arglist>
-    </member>
-    <member kind="function">
       <type>int</type>
       <name>httpShouldTrace</name>
       <anchorfile>group___http_conn.html</anchorfile>
@@ -991,6 +1026,20 @@
     <filename>group___http_auth.html</filename>
     <class kind="struct">HttpGroup</class>
     <class kind="struct">HttpUser</class>
+    <member kind="typedef">
+      <type>cchar *(*</type>
+      <name>HttpGetPassword</name>
+      <anchorfile>group___http_auth.html</anchorfile>
+      <anchor>ga5bbf4e68ceb995ae825f8085345ad3c5</anchor>
+      <arglist>)(struct HttpAuth *auth, cchar *realm, cchar *user)</arglist>
+    </member>
+    <member kind="typedef">
+      <type>bool(*</type>
+      <name>HttpValidateCred</name>
+      <anchorfile>group___http_auth.html</anchorfile>
+      <anchor>ga2ce91e0f714a88e88910ef1243750d89</anchor>
+      <arglist>)(struct HttpAuth *auth, cchar *realm, char *user, cchar *pass, cchar *required, char **msg)</arglist>
+    </member>
     <member kind="function">
       <type>int</type>
       <name>httpAddGroup</name>
@@ -1411,13 +1460,6 @@
       <arglist>(HttpRoute *route)</arglist>
     </member>
     <member kind="function">
-      <type>HttpLang *</type>
-      <name>httpGetLanguage</name>
-      <anchorfile>group___http_route.html</anchorfile>
-      <anchor>ga40ace36a56eb8cf00d41db117401104f</anchor>
-      <arglist>(HttpConn *conn, MprHashTable *spoken, cchar *defaultLang)</arglist>
-    </member>
-    <member kind="function">
       <type>void *</type>
       <name>httpGetRouteData</name>
       <anchorfile>group___http_route.html</anchorfile>
@@ -1690,7 +1732,7 @@
       <type>cchar *</type>
       <name>httpGetCookies</name>
       <anchorfile>group___http_rx.html</anchorfile>
-      <anchor>ga1a20b6772955c290773ffd0de04e7407</anchor>
+      <anchor>gab765b374148bc401f8c2b88a92732421</anchor>
       <arglist>(HttpConn *conn)</arglist>
     </member>
     <member kind="function">
@@ -1704,7 +1746,7 @@
       <type>MprHashTable *</type>
       <name>httpGetFormVars</name>
       <anchorfile>group___http_rx.html</anchorfile>
-      <anchor>gab7bb9ebbd9b09d251122b2d34f8a65bd</anchor>
+      <anchor>gaaa6b58cb7d64e76fc61e5018622c68c5</anchor>
       <arglist>(HttpConn *conn)</arglist>
     </member>
     <member kind="function">
@@ -1736,10 +1778,17 @@
       <arglist>(HttpConn *conn, cchar *var, int defaultValue)</arglist>
     </member>
     <member kind="function">
+      <type>HttpLang *</type>
+      <name>httpGetLanguage</name>
+      <anchorfile>group___http_rx.html</anchorfile>
+      <anchor>ga40ace36a56eb8cf00d41db117401104f</anchor>
+      <arglist>(HttpConn *conn, MprHashTable *spoken, cchar *defaultLang)</arglist>
+    </member>
+    <member kind="function">
       <type>cchar *</type>
       <name>httpGetQueryString</name>
       <anchorfile>group___http_rx.html</anchorfile>
-      <anchor>ga1bd36d37059b4d431dd597016f9983de</anchor>
+      <anchor>ga1b77e1b5b3f6a24f691f80c0278cecd9</anchor>
       <arglist>(HttpConn *conn)</arglist>
     </member>
     <member kind="function">
@@ -2019,6 +2068,13 @@
       <anchorfile>group___http_tx.html</anchorfile>
       <anchor>gab965a17de1c0a823eec176bdf95b2bee</anchor>
       <arglist>(HttpConn *conn, int status)</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>httpSetWriteBlocked</name>
+      <anchorfile>group___http_tx.html</anchorfile>
+      <anchor>gac8760dad727f97e824e5abdb06d1cd99</anchor>
+      <arglist>(HttpConn *conn)</arglist>
     </member>
     <member kind="function">
       <type>int</type>

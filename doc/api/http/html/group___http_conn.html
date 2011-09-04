@@ -58,8 +58,12 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 Typedefs</h2></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga2e2bbf16b2266d475a349187e735827d">HttpEnvCallback</a> )(struct HttpConn *conn)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Set environment vars callback.  <a href="#ga2e2bbf16b2266d475a349187e735827d"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga90233a1163fa6772c60c86588b01e803">HttpIOCallback</a> )(struct HttpConn *conn, MprEvent *event)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">I/O callback for connections.  <a href="#ga90233a1163fa6772c60c86588b01e803"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">typedef int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga4d060d366219e2deac858ac50ee5f7f3">HttpListenCallback</a> )(struct HttpEndpoint *endpoint)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Listen callback.  <a href="#ga4d060d366219e2deac858ac50ee5f7f3"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gad5d7822d12ff6e38328fcdd92539fcd9">HttpNotifier</a> )(struct HttpConn *conn, int state, int flags)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Connection Http state change notification callback.  <a href="#gad5d7822d12ff6e38328fcdd92539fcd9"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">typedef <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga92e83045579e22719e2092667dd97bd8">HttpRedirectCallback</a> )(struct HttpConn *conn, int *code, struct HttpUri *uri)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define an callback for IO events on this connection.  <a href="#ga92e83045579e22719e2092667dd97bd8"></a><br/></td></tr>
 <tr><td colspan="2"><h2><a name="func-members"></a>
@@ -134,7 +138,7 @@ Functions</h2></td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the connection context object.  <a href="#ga39282985fac34e40c0497453463a6fa0"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gab61d7700aca88dca556c6a128bb7c9f8">httpSetConnHost</a> (HttpConn *conn, void *host)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the connection host object.  <a href="#gab61d7700aca88dca556c6a128bb7c9f8"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gaa2583067b73bfb6b79019f21bec6b43d">httpSetConnNotifier</a> (HttpConn *conn, HttpNotifier fn)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gaa2583067b73bfb6b79019f21bec6b43d">httpSetConnNotifier</a> (HttpConn *conn, <a class="el" href="group___http_conn.html#gad5d7822d12ff6e38328fcdd92539fcd9">HttpNotifier</a> fn)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define a notifier callback for this connection.  <a href="#gaa2583067b73bfb6b79019f21bec6b43d"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga6ddf505606e2c7e5341cb383e843267d">httpSetContentLength</a> (HttpConn *conn, <a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a> length)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define a content length header in the transmission.  <a href="#ga6ddf505606e2c7e5341cb383e843267d"></a><br/></td></tr>
@@ -144,10 +148,14 @@ Functions</h2></td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define a default client host.  <a href="#ga4e9c864aef59a820497577657d1364ba"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gae06679e424c64e4c663cf5237733b59c">httpSetDefaultClientPort</a> (Http *http, int port)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define a default client port.  <a href="#gae06679e424c64e4c663cf5237733b59c"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga5bd47c988eb934173a7ac411ed2e58b0">httpSetEndpointNotifier</a> (HttpEndpoint *endpoint, HttpNotifier fn)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga5bd47c988eb934173a7ac411ed2e58b0">httpSetEndpointNotifier</a> (HttpEndpoint *endpoint, <a class="el" href="group___http_conn.html#gad5d7822d12ff6e38328fcdd92539fcd9">HttpNotifier</a> fn)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define a notifier callback for this endpoint.  <a href="#ga5bd47c988eb934173a7ac411ed2e58b0"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga7dbccd2e9b5782a0f2bd802f73b058e6">httpSetForkCallback</a> (struct Http *http, <a class="elRef" href="group___mpr_cmd.html#gaa20a5cafff87c96ba20526367622c885">MprForkCallback</a> proc, void *arg)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the fork callback.  <a href="#ga7dbccd2e9b5782a0f2bd802f73b058e6"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga5407927519c3619f8b3173a19c7cab31">httpSetHeadersCallback</a> (struct HttpConn *conn, HttpHeadersCallback fn, void *arg)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define a headers callback.  <a href="#ga5407927519c3619f8b3173a19c7cab31"></a><br/></td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga8f6d4ce201a094c8a0f185d1d592b439">httpSetIOCallback</a> (struct HttpConn *conn, <a class="el" href="group___http_conn.html#ga90233a1163fa6772c60c86588b01e803">HttpIOCallback</a> fn)</td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define an I/O callback for connections.  <a href="#ga8f6d4ce201a094c8a0f185d1d592b439"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga5050ac505b4e8701f6247db9242a4249">httpSetKeepAliveCount</a> (HttpConn *conn, int count)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Control Http Keep-Alive for the connection.  <a href="#ga5050ac505b4e8701f6247db9242a4249"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gaec77afe5b161d9f8708f58bd0dab1183">httpSetPipelineHandler</a> (HttpConn *conn, HttpStage *handler)</td></tr>
@@ -162,12 +170,10 @@ Functions</h2></td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the connection state and invoke notifiers.  <a href="#ga94b63eed8385fd7c6c5db45a0a4ca768"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga62a6f4aec1892bd682d7a661d1aae4ee">httpSetTimeout</a> (HttpConn *conn, int requestTimeout, int inactivityTimeout)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the Http inactivity timeout.  <a href="#ga62a6f4aec1892bd682d7a661d1aae4ee"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gac8760dad727f97e824e5abdb06d1cd99">httpSetWriteBlocked</a> (HttpConn *conn)</td></tr>
-<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicate that the transmission socket is blocked.  <a href="#gac8760dad727f97e824e5abdb06d1cd99"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga9ed05242455c9da79ad164ea85ec7427">httpShouldTrace</a> (HttpConn *conn, int dir, int item, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *ext)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Test if the item should be traced.  <a href="#ga9ed05242455c9da79ad164ea85ec7427"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga4bc751046420a19e3a2fa04beb93fba0">httpStartPipeline</a> (HttpConn *conn)</td></tr>
-<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Process the pipeline.  <a href="#ga4bc751046420a19e3a2fa04beb93fba0"></a><br/></td></tr>
+<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Start the pipeline.  <a href="#ga4bc751046420a19e3a2fa04beb93fba0"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gaa501324b7558c1bf27a658020fe8ecea">httpWritable</a> (HttpConn *conn)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Inform notifiers that the connection is now writable.  <a href="#gaa501324b7558c1bf27a658020fe8ecea"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top"><a class="elRef" href="mpr_8h.html#a7d08ccc1e981eb4d5a238641ac4ccfc1">ssize</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga952ec74db373dc7994cfa238905f5244">httpWriteUploadData</a> (HttpConn *conn, MprList *formData, MprList *fileData)</td></tr>
@@ -177,7 +183,7 @@ Functions</h2></td></tr>
 <p>Http Connections. </p>
 <dl class="user"><dt><b><b>Description</b>:</b></dt><dd>The HttpConn object represents a TCP/IP connection to the client. A connection object is created for each socket connection initiated by the client. One HttpConn object may service many Http requests due to HTTP/1.1 keep-alive. </dd></dl>
 <dl class="user"><dt><b><b>API</b> Stability:</b></dt><dd>Evolving</dd></dl>
-<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http_conn.html" title="Http Connections.">HttpConn</a> <a class="el" href="group___http_rx.html" title="Http Rx.">HttpRx</a> <a class="el" href="group___http_rx.html" title="Http Rx.">HttpRx</a> <a class="el" href="group___http_tx.html" title="Http Tx.">HttpTx</a> <a class="el" href="group___http_queue.html" title="Queue object.">HttpQueue</a> <a class="el" href="group___http_stage.html" title="Pipeline Stages.">HttpStage</a> <a class="el" href="group___http_conn.html#ga0523a9be63f479ce193073c1de0b1cfa" title="Create a connection object Most interactions with the Http library are via a connection object...">httpCreateConn</a> <a class="el" href="group___http_conn.html#ga6072cd1886d95bf7d4c7e5953ca1d14f" title="Close a connection.">httpCloseConn</a> <a class="el" href="group___http_conn.html#ga896df993abcb869baf1650e2e3c1014a" title="Signal the request is complete.">httpCompleteRequest</a> <a class="el" href="group___http_conn.html#ga5dc8b0a31873a12c7661e16ca8769d66" title="Create the receive request pipeline.">httpCreateRxPipeline</a> <a class="el" href="group___http_conn.html#gaee426d7d2aaad28a62b4d8bb0c909a37" title="Destroy the pipeline.">httpDestroyPipeline</a> <a class="el" href="group___http_conn.html#ga4774437a4633faa3a5e8739c56488963" title="Discard buffered transmit pipeline data.">httpDiscardTransmitData</a> <a class="el" href="group___http_conn.html#ga9f730354501b53a97b7678a91273a3be" title="Error handling for the connection.">httpError</a> <a class="el" href="group___http_conn.html#gaf9174526ff9a050731b6949351085ba9" title="Get the async mode value for the connection.">httpGetAsync</a> <a class="el" href="group___http_conn.html#ga1b290e206ee150c531a0bee0e8dece5d" title="Get the connection context object.">httpGetConnContext</a> <a class="el" href="group___http_conn.html#ga62003481a3b7f89618f1bd5f2c19016e" title="Get the error message associated with the last request.">httpGetError</a> <a class="el" href="group___http_conn.html#gaa2099f58db09458014bab94511635438" title="Get the count of Keep-Alive requests that will be used for this connection object.">httpGetKeepAliveCount</a> httpPrepConn <a class="el" href="group___http_conn.html#ga20b15c995cff80e798753e43b3ac676e" title="Run the process pipeline stage.">httpProcessPipeline</a> httpServiceQueues <a class="el" href="group___http_conn.html#ga16da6b1da5602c6a7c249669a48da4dc" title="Set the async mode value for the connection.">httpSetAsync</a> <a class="el" href="group___http_conn.html#gaa5e60e413456e688bb7286e238b50948" title="Set the Http credentials.">httpSetCredentials</a> <a class="el" href="group___http_conn.html#ga39282985fac34e40c0497453463a6fa0" title="Set the connection context object.">httpSetConnContext</a> <a class="el" href="group___http_conn.html#gaa2583067b73bfb6b79019f21bec6b43d" title="Define a notifier callback for this connection.">httpSetConnNotifier</a> <a class="el" href="group___http_conn.html#ga5050ac505b4e8701f6247db9242a4249" title="Control Http Keep-Alive for the connection.">httpSetKeepAliveCount</a> <a class="el" href="group___http_conn.html#gabfb77d6aba161b2641177d85de86b559" title="Set the Http protocol variant for this connection.">httpSetProtocol</a> <a class="el" href="group___http_conn.html#ga43fe43a026149b074825c886a9d1fba1" title="Set the Http retry count.">httpSetRetries</a> <a class="el" href="group___http_conn.html#ga94b63eed8385fd7c6c5db45a0a4ca768" title="Set the connection state and invoke notifiers.">httpSetState</a> <a class="el" href="group___http_conn.html#ga62a6f4aec1892bd682d7a661d1aae4ee" title="Set the Http inactivity timeout.">httpSetTimeout</a> <a class="el" href="group___http_conn.html#ga4bc751046420a19e3a2fa04beb93fba0" title="Process the pipeline.">httpStartPipeline</a> <a class="el" href="group___http_conn.html#gaa501324b7558c1bf27a658020fe8ecea" title="Inform notifiers that the connection is now writable.">httpWritable</a> <a class="el" href="group___http_conn.html#ga2e2bbf16b2266d475a349187e735827d" title="Set environment vars callback.">HttpEnvCallback</a> <a class="el" href="group___http_conn.html#ga92e83045579e22719e2092667dd97bd8" title="Define an callback for IO events on this connection.">HttpRedirectCallback</a> <a class="el" href="group___http_conn.html#ga4d060d366219e2deac858ac50ee5f7f3" title="Listen callback.">HttpListenCallback</a> </dd></dl>
+<dl class="see"><dt><b>See also:</b></dt><dd><a class="el" href="group___http_conn.html" title="Http Connections.">HttpConn</a> <a class="el" href="group___http_conn.html#ga2e2bbf16b2266d475a349187e735827d" title="Set environment vars callback.">HttpEnvCallback</a> <a class="el" href="group___http_auth.html#ga5bbf4e68ceb995ae825f8085345ad3c5" title="Lookup password callback.">HttpGetPassword</a> <a class="el" href="group___http_conn.html#ga4d060d366219e2deac858ac50ee5f7f3" title="Listen callback.">HttpListenCallback</a> <a class="el" href="group___http_conn.html#gad5d7822d12ff6e38328fcdd92539fcd9" title="Connection Http state change notification callback.">HttpNotifier</a> <a class="el" href="group___http_queue.html" title="Queue object.">HttpQueue</a> <a class="el" href="group___http_conn.html#ga92e83045579e22719e2092667dd97bd8" title="Define an callback for IO events on this connection.">HttpRedirectCallback</a> <a class="el" href="group___http_rx.html" title="Http Rx.">HttpRx</a> <a class="el" href="group___http_stage.html" title="Pipeline Stages.">HttpStage</a> <a class="el" href="group___http_tx.html" title="Http Tx.">HttpTx</a> HtttpListenCallback <a class="el" href="group___http_conn.html#ga79c3904ac79edd205ceb769cc7a9b14f" title="Call httpEvent with the given event mask.">httpCallEvent</a> <a class="el" href="group___http_conn.html#ga6072cd1886d95bf7d4c7e5953ca1d14f" title="Close a connection.">httpCloseConn</a> <a class="el" href="group___http_conn.html#ga896df993abcb869baf1650e2e3c1014a" title="Signal the request is complete.">httpCompleteRequest</a> <a class="el" href="group___http_conn.html#gae16e0c22553b4ae418823f3a8b324078" title="Signal writing transmission body is complete.">httpCompleteWriting</a> <a class="el" href="group___http_conn.html#ga4036c3e7d17f9757a3fa83a91de54629" title="Signal a connection timeout on a connection.">httpConnTimeout</a> <a class="el" href="group___http_conn.html#gaccd6b761a2e2210659c1cf5cde049883" title="Consume left over data from the last request.">httpConsumeLastRequest</a> <a class="el" href="group___http_conn.html#ga0523a9be63f479ce193073c1de0b1cfa" title="Create a connection object Most interactions with the Http library are via a connection object...">httpCreateConn</a> <a class="el" href="group___http_conn.html#ga5dc8b0a31873a12c7661e16ca8769d66" title="Create the receive request pipeline.">httpCreateRxPipeline</a> <a class="el" href="group___http_conn.html#ga41b6211f9fc174ea4e70281363696722" title="Create the transmit request pipeline.">httpCreateTxPipeline</a> <a class="el" href="group___http_conn.html#gab86627c7d6a6e9b513f54cbf01c56ab9" title="Destroy the connection object.">httpDestroyConn</a> <a class="el" href="group___http_conn.html#gaee426d7d2aaad28a62b4d8bb0c909a37" title="Destroy the pipeline.">httpDestroyPipeline</a> <a class="el" href="group___http_conn.html#ga4774437a4633faa3a5e8739c56488963" title="Discard buffered transmit pipeline data.">httpDiscardTransmitData</a> <a class="el" href="group___http_conn.html#ga1051c82d629ad9f36daa48746398ed2b" title="Disconnect the connection&#39;s socket.">httpDisconnect</a> <a class="el" href="group___http_conn.html#gab8bf67adeb5cf8484998dd818f98e9c0" title="Enable Multipart-Mime File Upload for this request.">httpEnableUpload</a> <a class="el" href="group___http_conn.html#ga9f730354501b53a97b7678a91273a3be" title="Error handling for the connection.">httpError</a> <a class="el" href="group___http_conn.html#ga11f9e50765d2cc174c40aa50d378eeaf" title="Http I/O event handler.">httpEvent</a> <a class="el" href="group___http_conn.html#gaf9174526ff9a050731b6949351085ba9" title="Get the async mode value for the connection.">httpGetAsync</a> <a class="el" href="group___http_conn.html#ga450dd7b36119bc30ee4060d5916deb31" title="Get the preferred chunked size for transfer chunk encoding.">httpGetChunkSize</a> <a class="el" href="group___http_conn.html#ga1b290e206ee150c531a0bee0e8dece5d" title="Get the connection context object.">httpGetConnContext</a> <a class="el" href="group___http_conn.html#ga7c1aa954d3f4c1b09cebb2a46c6ef42a" title="Get the connection host object.">httpGetConnHost</a> <a class="el" href="group___http_conn.html#ga62003481a3b7f89618f1bd5f2c19016e" title="Get the error message associated with the last request.">httpGetError</a> <a class="el" href="group___http_conn.html#ga1f813846717d49e0cde05f8a196fcf61" title="Get a URI extension.">httpGetExt</a> <a class="el" href="group___http_conn.html#gaa2099f58db09458014bab94511635438" title="Get the count of Keep-Alive requests that will be used for this connection object.">httpGetKeepAliveCount</a> <a class="el" href="group___http_conn.html#ga989b6ee0325e432a5aa86f288fce23d0" title="Match the HttpHost object that should serve this request.">httpMatchHost</a> <a class="el" href="group___http_conn.html#ga375dce8ba63d90a2fb4e8eb573b52366" title="Signal a memory allocation error.">httpMemoryError</a> <a class="el" href="group___http_conn.html#gae24ec30899bb6b77e4840e6090aa2289" title="Prepare a client connection for a new request.">httpPrepClientConn</a> <a class="el" href="group___http_conn.html#gabfeb308d38f76b57e733459151ae1280" title="Prepare a connection for a new request.">httpPrepServerConn</a> <a class="el" href="group___http_conn.html#ga20b15c995cff80e798753e43b3ac676e" title="Run the process pipeline stage.">httpProcessPipeline</a> <a class="el" href="group___http_conn.html#gafc31fb0e49b2f9ecad11297fe6a3d616" title="Reset the current security credentials.">httpResetCredentials</a> <a class="el" href="group___http_conn.html#ga38b4d85fd8306384270ad7385bdd3fe4" title="Route the request and select that matching route and handle to process the request.">httpRouteRequest</a> httpServiceQueues <a class="el" href="group___http_conn.html#ga16da6b1da5602c6a7c249669a48da4dc" title="Set the async mode value for the connection.">httpSetAsync</a> <a class="el" href="group___http_conn.html#ga5340e1fa6a075c9c2fe98c0aae8b83a7" title="Set the chunk size for transfer chunked encoding.">httpSetChunkSize</a> <a class="el" href="group___http_conn.html#ga39282985fac34e40c0497453463a6fa0" title="Set the connection context object.">httpSetConnContext</a> <a class="el" href="group___http_conn.html#gab61d7700aca88dca556c6a128bb7c9f8" title="Set the connection host object.">httpSetConnHost</a> <a class="el" href="group___http_conn.html#gaa2583067b73bfb6b79019f21bec6b43d" title="Define a notifier callback for this connection.">httpSetConnNotifier</a> <a class="el" href="group___http_conn.html#gaa5e60e413456e688bb7286e238b50948" title="Set the Http credentials.">httpSetCredentials</a> <a class="el" href="group___http_conn.html#ga5050ac505b4e8701f6247db9242a4249" title="Control Http Keep-Alive for the connection.">httpSetKeepAliveCount</a> <a class="el" href="group___http_conn.html#gaec77afe5b161d9f8708f58bd0dab1183" title="Set the handler to process a client request.">httpSetPipelineHandler</a> <a class="el" href="group___http_conn.html#gabfb77d6aba161b2641177d85de86b559" title="Set the Http protocol variant for this connection.">httpSetProtocol</a> <a class="el" href="group___http_conn.html#ga43fe43a026149b074825c886a9d1fba1" title="Set the Http retry count.">httpSetRetries</a> <a class="el" href="group___http_conn.html#gadb0ffcb5cdc970539e2ef83c5050024b" title="Set the &quot;Send&quot; connector to process the request.">httpSetSendConnector</a> <a class="el" href="group___http_conn.html#ga94b63eed8385fd7c6c5db45a0a4ca768" title="Set the connection state and invoke notifiers.">httpSetState</a> <a class="el" href="group___http_conn.html#ga62a6f4aec1892bd682d7a661d1aae4ee" title="Set the Http inactivity timeout.">httpSetTimeout</a> <a class="el" href="group___http_conn.html#ga9ed05242455c9da79ad164ea85ec7427" title="Test if the item should be traced.">httpShouldTrace</a> <a class="el" href="group___http_conn.html#ga4bc751046420a19e3a2fa04beb93fba0" title="Start the pipeline.">httpStartPipeline</a> <a class="el" href="group___http_conn.html#gaa501324b7558c1bf27a658020fe8ecea" title="Inform notifiers that the connection is now writable.">httpWritable</a> </dd></dl>
 <hr/><h2>Typedef Documentation</h2>
 <a class="anchor" id="ga2e2bbf16b2266d475a349187e735827d"></a><!-- doxytag: member="http.h::HttpEnvCallback" ref="ga2e2bbf16b2266d475a349187e735827d" args=")(struct HttpConn *conn)" -->
 <div class="memitem">
@@ -195,6 +201,28 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="ga90233a1163fa6772c60c86588b01e803"></a><!-- doxytag: member="http.h::HttpIOCallback" ref="ga90233a1163fa6772c60c86588b01e803" args=")(struct HttpConn *conn, MprEvent *event)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef void(* <a class="el" href="group___http_conn.html#ga90233a1163fa6772c60c86588b01e803">HttpIOCallback</a>)(struct HttpConn *conn, MprEvent *event)</td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>I/O callback for connections. </p>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>HttpConn object created via $httpCreateConn </td></tr>
+    <tr><td class="paramname">event</td><td>Event object describing the I/O event </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a class="anchor" id="ga4d060d366219e2deac858ac50ee5f7f3"></a><!-- doxytag: member="http.h::HttpListenCallback" ref="ga4d060d366219e2deac858ac50ee5f7f3" args=")(struct HttpEndpoint *endpoint)" -->
 <div class="memitem">
 <div class="memproto">
@@ -209,6 +237,29 @@ Functions</h2></td></tr>
 <p>Listen callback. </p>
 <p>Invoked after listening on a socket endpoint </p>
 <dl class="return"><dt><b>Returns:</b></dt><dd>Zero if the listening endpoint can be opened for service. Otherwise, return a negative MPR error code. </dd></dl>
+
+</div>
+</div>
+<a class="anchor" id="gad5d7822d12ff6e38328fcdd92539fcd9"></a><!-- doxytag: member="http.h::HttpNotifier" ref="gad5d7822d12ff6e38328fcdd92539fcd9" args=")(struct HttpConn *conn, int state, int flags)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef void(* <a class="el" href="group___http_conn.html#gad5d7822d12ff6e38328fcdd92539fcd9">HttpNotifier</a>)(struct HttpConn *conn, int state, int flags)</td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Connection Http state change notification callback. </p>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>HttpConn connection object created via $httpCreateConn </td></tr>
+    <tr><td class="paramname">state</td><td>Http state </td></tr>
+    <tr><td class="paramname">flags</td><td>Additional http state information </td></tr>
+  </table>
+  </dd>
+</dl>
 
 </div>
 </div>
@@ -1294,7 +1345,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">HttpNotifier&#160;</td>
+          <td class="paramtype"><a class="el" href="group___http_conn.html#gad5d7822d12ff6e38328fcdd92539fcd9">HttpNotifier</a>&#160;</td>
           <td class="paramname"><em>fn</em>&#160;</td>
         </tr>
         <tr>
@@ -1486,7 +1537,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">HttpNotifier&#160;</td>
+          <td class="paramtype"><a class="el" href="group___http_conn.html#gad5d7822d12ff6e38328fcdd92539fcd9">HttpNotifier</a>&#160;</td>
           <td class="paramname"><em>fn</em>&#160;</td>
         </tr>
         <tr>
@@ -1547,6 +1598,87 @@ Functions</h2></td></tr>
     <tr><td class="paramname">http</td><td>Http service object. </td></tr>
     <tr><td class="paramname">proc</td><td>Fork callback procedure </td></tr>
     <tr><td class="paramname">arg</td><td>Argument to supply when the callback is invoked. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a class="anchor" id="ga5407927519c3619f8b3173a19c7cab31"></a><!-- doxytag: member="http.h::httpSetHeadersCallback" ref="ga5407927519c3619f8b3173a19c7cab31" args="(struct HttpConn *conn, HttpHeadersCallback fn, void *arg)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void httpSetHeadersCallback </td>
+          <td>(</td>
+          <td class="paramtype">struct HttpConn *&#160;</td>
+          <td class="paramname"><em>conn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">HttpHeadersCallback&#160;</td>
+          <td class="paramname"><em>fn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>arg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Define a headers callback. </p>
+<dl class="user"><dt><b><b>Description</b>:</b></dt><dd>The headers callback will run before the standard response headers are generated. This gives an opportunity to pre-populate the response headers. </dd></dl>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>HttpConn object created via $httpCreateConn </td></tr>
+    <tr><td class="paramname">fn</td><td>Callback function to invoke </td></tr>
+    <tr><td class="paramname">arg</td><td>Argument to provide when invoking the headers callback </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a class="anchor" id="ga8f6d4ce201a094c8a0f185d1d592b439"></a><!-- doxytag: member="http.h::httpSetIOCallback" ref="ga8f6d4ce201a094c8a0f185d1d592b439" args="(struct HttpConn *conn, HttpIOCallback fn)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void httpSetIOCallback </td>
+          <td>(</td>
+          <td class="paramtype">struct HttpConn *&#160;</td>
+          <td class="paramname"><em>conn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group___http_conn.html#ga90233a1163fa6772c60c86588b01e803">HttpIOCallback</a>&#160;</td>
+          <td class="paramname"><em>fn</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+<p>Define an I/O callback for connections. </p>
+<dl class="user"><dt><b><b>Description</b>:</b></dt><dd>The I/O callback is invoked when I/O events are detected on the connection. The default I/O callback is <a class="el" href="group___http_conn.html#ga11f9e50765d2cc174c40aa50d378eeaf" title="Http I/O event handler.">httpEvent</a>. </dd></dl>
+<dl><dt><b>Parameters:</b></dt><dd>
+  <table class="params">
+    <tr><td class="paramname">conn</td><td>HttpConn object created via $httpCreateConn </td></tr>
+    <tr><td class="paramname">fn</td><td>Callback function to invoke </td></tr>
   </table>
   </dd>
 </dl>
@@ -1818,31 +1950,6 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a class="anchor" id="gac8760dad727f97e824e5abdb06d1cd99"></a><!-- doxytag: member="http.h::httpSetWriteBlocked" ref="gac8760dad727f97e824e5abdb06d1cd99" args="(HttpConn *conn)" -->
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void httpSetWriteBlocked </td>
-          <td>(</td>
-          <td class="paramtype">HttpConn *&#160;</td>
-          <td class="paramname"><em>conn</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div>
-<div class="memdoc">
-
-<p>Indicate that the transmission socket is blocked. </p>
-<dl><dt><b>Parameters:</b></dt><dd>
-  <table class="params">
-    <tr><td class="paramname">conn</td><td>Http connection object created via $httpCreateConn </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a class="anchor" id="ga9ed05242455c9da79ad164ea85ec7427"></a><!-- doxytag: member="http.h::httpShouldTrace" ref="ga9ed05242455c9da79ad164ea85ec7427" args="(HttpConn *conn, int dir, int item, cchar *ext)" -->
 <div class="memitem">
 <div class="memproto">
@@ -1909,15 +2016,7 @@ Functions</h2></td></tr>
 </div>
 <div class="memdoc">
 
-<p>Process the pipeline. </p>
-<p>Start the pipeline.</p>
-<p>This starts invokes the process method of the request handler. This is called when all incoming data has been received. </p>
-<dl><dt><b>Parameters:</b></dt><dd>
-  <table class="params">
-    <tr><td class="paramname">conn</td><td>HttpConn object created via $httpCreateConn</td></tr>
-  </table>
-  </dd>
-</dl>
+<p>Start the pipeline. </p>
 <p>This starts the request handler. </p>
 <dl><dt><b>Parameters:</b></dt><dd>
   <table class="params">
@@ -2013,7 +2112,7 @@ Functions</h2></td></tr>
 </iframe>
 </div>
 
-<hr class="footer"/><address class="footer"><small>Generated on Fri Sep 2 2011 23:26:16 for http by&#160;
+<hr class="footer"/><address class="footer"><small>Generated on Sun Sep 4 2011 00:47:55 for http by&#160;
 <a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.7.3 </small></address>
 </body>

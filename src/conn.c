@@ -621,6 +621,7 @@ void httpSetChunkSize(HttpConn *conn, ssize size)
 }
 
 
+//  MOB - why not define this on the host or endpoint?
 void httpSetHeadersCallback(HttpConn *conn, HttpHeadersCallback fn, void *arg)
 {
     conn->headersCallback = fn;
