@@ -483,15 +483,15 @@ static void mapFile(HttpConn *conn, HttpRoute *route)
 
 /************************************ API *************************************/
 
-int httpAddRouteCondition(HttpRoute *route, cchar *name, cchar *condition, int flags)
+int httpAddRouteCondition(HttpRoute *route, cchar *name, cchar *details, int flags)
 {
     HttpRouteOp *op;
     cchar       *errMsg;
-    char        *pattern, *details;
+    char        *pattern;
     int         column;
 
     mprAssert(route);
-    mprAssert(condition && *condition);
+    mprAssert(details && *details);
 
     GRADUATE_LIST(route, conditions);
     if ((op = createRouteOp(name, flags)) == 0) {
@@ -1061,9 +1061,9 @@ int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
         /*
             Write [-r] status Message
          */
-        if (sncmp(target, "-r", 2) == 0) {
+        if (sncmp(route->target, "-r", 2) == 0) {
             route->flags |= HTTP_ROUTE_RAW;
-            target = &target[2];
+            route->target = sclone(&route->target[2]);
         }
         if (!httpTokenize(route, route->target, "%N %S", &route->responseStatus, &target)) {
             return MPR_ERR_BAD_SYNTAX;

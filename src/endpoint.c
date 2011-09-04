@@ -107,10 +107,10 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
             return 0;
         }
     }
-    if ((route = httpCreateRoute(host)) == 0) {
+    if ((host = httpCreateHost()) == 0) {
         return 0;
     }
-    if ((host = httpCreateHost()) == 0) {
+    if ((route = httpCreateRoute(host)) == 0) {
         return 0;
     }
     httpSetHostIpAddr(host, ip, port);
