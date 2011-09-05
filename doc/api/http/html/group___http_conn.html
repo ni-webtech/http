@@ -140,8 +140,6 @@ Functions</h2></td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the connection host object.  <a href="#gab61d7700aca88dca556c6a128bb7c9f8"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gaa2583067b73bfb6b79019f21bec6b43d">httpSetConnNotifier</a> (HttpConn *conn, <a class="el" href="group___http_conn.html#gad5d7822d12ff6e38328fcdd92539fcd9">HttpNotifier</a> fn)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define a notifier callback for this connection.  <a href="#gaa2583067b73bfb6b79019f21bec6b43d"></a><br/></td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga6ddf505606e2c7e5341cb383e843267d">httpSetContentLength</a> (HttpConn *conn, <a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a> length)</td></tr>
-<tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Define a content length header in the transmission.  <a href="#ga6ddf505606e2c7e5341cb383e843267d"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#gaa5e60e413456e688bb7286e238b50948">httpSetCredentials</a> (HttpConn *conn, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *user, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *password)</td></tr>
 <tr><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the Http credentials.  <a href="#gaa5e60e413456e688bb7286e238b50948"></a><br/></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___http_conn.html#ga4e9c864aef59a820497577657d1364ba">httpSetDefaultClientHost</a> (Http *http, <a class="elRef" href="mpr_8h.html#a0f128c3e0c83721af0220c00554e9c4e">cchar</a> *host)</td></tr>
@@ -1369,43 +1367,6 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a class="anchor" id="ga6ddf505606e2c7e5341cb383e843267d"></a><!-- doxytag: member="http.h::httpSetContentLength" ref="ga6ddf505606e2c7e5341cb383e843267d" args="(HttpConn *conn, MprOff length)" -->
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void httpSetContentLength </td>
-          <td>(</td>
-          <td class="paramtype">HttpConn *&#160;</td>
-          <td class="paramname"><em>conn</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="elRef" href="mpr_8h.html#aa6887458d0a070b3665166af590089d8">MprOff</a>&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div>
-<div class="memdoc">
-
-<p>Define a content length header in the transmission. </p>
-<p>This will define a "Content-Length: NNN" request header. </p>
-<dl><dt><b>Parameters:</b></dt><dd>
-  <table class="params">
-    <tr><td class="paramname">conn</td><td>HttpConn connection object created via $httpCreateConn </td></tr>
-    <tr><td class="paramname">length</td><td>Numeric value for the content length header. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a class="anchor" id="gaa5e60e413456e688bb7286e238b50948"></a><!-- doxytag: member="http.h::httpSetCredentials" ref="gaa5e60e413456e688bb7286e238b50948" args="(HttpConn *conn, cchar *user, cchar *password)" -->
 <div class="memitem">
 <div class="memproto">
@@ -2112,7 +2073,7 @@ Functions</h2></td></tr>
 </iframe>
 </div>
 
-<hr class="footer"/><address class="footer"><small>Generated on Sun Sep 4 2011 00:47:55 for http by&#160;
+<hr class="footer"/><address class="footer"><small>Generated on Mon Sep 5 2011 12:19:39 for http by&#160;
 <a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.7.3 </small></address>
 </body>
