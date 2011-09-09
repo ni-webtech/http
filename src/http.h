@@ -2187,13 +2187,12 @@ extern void httpWritable(HttpConn *conn);
 /** Internal APIs */
 extern struct HttpConn *httpAccept(struct HttpEndpoint *endpoint);
 extern void httpEnableConnEvents(HttpConn *conn);
-extern void httpUsePrimary(HttpConn *conn);
-extern void httpUseWorker(HttpConn *conn, MprDispatcher *dispatcher, MprEvent *event);
-
 extern void httpInitTrace(HttpTrace *trace);
+extern HttpLimits *httpSetUniqueConnLimits(HttpConn *conn);
 extern int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext);
 extern void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, MprOff total);
-extern HttpLimits *httpSetUniqueConnLimits(HttpConn *conn);
+extern void httpUsePrimary(HttpConn *conn);
+extern void httpUseWorker(HttpConn *conn, MprDispatcher *dispatcher, MprEvent *event);
 
 /********************************** HttpAuth *********************************/
 /*  
@@ -4939,7 +4938,7 @@ extern char *httpGetPathExt(cchar *path);
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http: *www.embedthis.com/downloads/gplLicense.html
+    details at: http: *embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -4948,7 +4947,7 @@ extern char *httpGetPathExt(cchar *path);
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http: *www.embedthis.com
+    Software at http: *embedthis.com
 
     Local variables:
     tab-width: 4

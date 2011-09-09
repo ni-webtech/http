@@ -481,7 +481,7 @@ static void showUsage()
         "  --chunk size          # Request response data to use this chunk size.\n"
         "  --continue            # Continue on errors.\n"
         "  --cookie CookieString # Define a cookie header. Multiple uses okay.\n"
-        "  --data                # Body data to send with PUT or POST.\n"
+        "  --data bodyData       # Body data to send with PUT or POST.\n"
         "  --debugger            # Disable timeouts to make running in a debugger easier.\n"
         "  --delete              # Use the DELETE method. Shortcut for --method DELETE..\n"
         "  --form string         # Form data. Must already be form-www-urlencoded.\n"
@@ -504,8 +504,8 @@ static void showUsage()
         "  --showHeaders         # Output response headers.\n"
         "  --showStatus          # Output the Http response status code.\n"
         "  --single              # Single step. Pause for input between requests.\n"
-        "  --timeout secs        # Request timeout period in seconds.\n"
         "  --threads count       # Number of thread instances to spawn.\n"
+        "  --timeout secs        # Request timeout period in seconds.\n"
         "  --upload              # Use multipart mime upload.\n"
         "  --user name           # User name for authentication.\n"
         "  --verbose             # Verbose operation. Trace progress.\n"
@@ -1266,7 +1266,7 @@ int _exit() {
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -1275,7 +1275,7 @@ int _exit() {
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4
