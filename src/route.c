@@ -460,7 +460,6 @@ static void mapFile(HttpConn *conn, HttpRoute *route)
     rx = conn->rx;
     tx = conn->tx;
     lang = rx->lang;
-    mprAssert(tx->handler);
 
     if (route->target && *route->target) {
         tx->filename = expandTokens(conn, route->fileTarget);
