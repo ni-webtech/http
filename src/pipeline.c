@@ -66,7 +66,6 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
     conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
     conn->connq = tx->queue[HTTP_QUEUE_TX]->prevQ;
 
-    setVars(conn);
     pairQueues(conn);
     /*
         Put the header before opening the queues incase an open routine actually services and completes the request
@@ -74,6 +73,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
      */
     httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
     openQueues(conn);
+    setVars(conn);
 }
 
 

@@ -2833,14 +2833,17 @@ typedef struct HttpRoute {
     char            *pattern;               /**< Original matching URI pattern for the route */
     char            *params;                /**< Params to define. Extracted from pattern. (compiled) */
     char            *processedPattern;      /**< Expanded {tokens} => $N */
-    char            *target;                /**< Original route target details */
-    char            *targetOp;              /**< Target operation */
+    char            *targetRule;            /**< Target rule */
+    char            *target;                /**< Route target details */
 
+#if UNUSED
     char            *fileTarget;            /**< File target path */
     char            *redirectTarget;        /**< Redirect target URI */
     char            *closeTarget;           /**< Close target parameters */
     char            *virtualTarget;         /**< Virtual target key */
     char            *writeTarget;           /**< Write target text */
+#else
+#endif
     int             responseStatus;         /**< Response status code */
 
     char            *literalPattern;        /**< Starting literal segment of pattern */
@@ -3295,6 +3298,14 @@ extern cchar *httpLookupRouteErrorDocument(HttpRoute *route, int status);
 extern char *httpMakePath(HttpRoute *route, cchar *path);
 
 /**
+    Map the request URI and route target to a filename
+    @description This sets the HttpTx filename, ext, etag and info fields.
+    @param conn HttpConn connection object 
+    @param route Route to modify
+ */
+extern void httpMapFile(HttpConn *conn, HttpRoute *route);
+
+/**
     Match a route against the current request 
     @description This tests if a route matches the current request on a connection. This call is automatically called
         by #httpRouteRequest for incoming requests to a server.
@@ -3508,18 +3519,28 @@ extern void httpSetRouteSource(HttpRoute *route, cchar *source);
     Set a route target
     @description This configures the route pipeline by defining a route target. The route target is interpreted by
         the selected route handler to process the request. 
-        Route targets can contain symbolic tokens that are expanded at run-time with their corresponding values. Tokens
-        are of the form: "${family:name=defaultValue}". The family defines a set of values. If the named field is not 
-        present, an optional default value "=defaultValue" will be used instead.
-        These supported token families are:
+        Route targets can contain symbolic tokens that are expanded at run-time with their corresponding values. There are 
+        three classes of tokens:
+        <ul>  
+            <li>System varibles - such as DOCUMENT_ROOT, LIBDIR, PRODUCT, OS, SERVER_ROOT, VERSION.</li>
+            <li>Route URI tokens - these are the braced tokens in the route pattern.</li>
+            <li>Request fields - these are request state and property values.</li>
+        </ul>
+        System and URI tokens are of the form: "${token}" where "token" is the name of the variable or URI token. 
+        Request fields are of the form: "${family:name=defaultValue}" where the family defines a set of values. 
+        If the named field is not present, an optional default value "=defaultValue" will be used instead.
+        These supported request field families are:
         <ul>  
             <li>header - for request HTTP header values</li>
             <li>field - for request form field values</li>
             <li>query - for request query field values</li>
             <li>request - for request details</li>
+            <li>Any URI pattern  token</li>
         </ul>
-        For example: "file ${header:User-Agent}" to select the client's browser string passed in the HTTP headers.
-        For example: "file ${field:name}" to select the client's browser string passed in the HTTP headers.
+        For example: "run ${header:User-Agent}" to select the client's browser string passed in the HTTP headers.
+        For example: "run ${field:name}" to select the client's browser string passed in the HTTP headers.
+        For example: "run ${name}.html" where {name} was a token in the route pattern.
+        For example: "run ${name}.html" where {name} was a token in the route pattern.
         The supported request key names are:
         <ul>
             <li>clientAddress - The client IP address</li>
@@ -3546,20 +3567,18 @@ extern void httpSetRouteSource(HttpRoute *route, cchar *source);
         Also see #httpMakePath for additional tokens (DOCUMENT_ROOT, LIBDIR, PRODUCT, OS, SERVER_ROOT, VERSION).
     @param route Route to modify
     @param name Target rule to add. Supported update rules include:
-        "close", "file" and "redirect", "virtual" and "write". 
+        "close", "redirect", "run" and "write". 
         \n\n
         The "close" rule is used to do abortive closes for the request. This is useful for ward off known security attackers.
         For example: "close immediate". The "close" rule takes no addition parameters. 
         \n\n
-        The "file" target is used to create a physical filename to serve for the request.
-        For example: "file ${DOCUMENT_ROOT}/${request.uri}.gz". 
         \n\n
         The "redirect" rule is used to redirect the request to a new resource. For example: "redirect 302 /tryAgain.html". 
         The "redirect" takes the form: "redirect status URI". The status code is used as the HTTP response
         code. The URI can be a fully qualified URI beginning with "http" or it can be a relative URI.
         \n\n
-        The "virtual" rule is used by handlers to process requests that serve dynamic content that does not come 
-        from a physical file. 
+        The "run" target is used to run the configured handler to respond to the request.
+        For example: "file ${DOCUMENT_ROOT}/${request.uri}.gz". 
         \n\n
         The "write" rule is used to write literal data back to the client. For example: "write 200 Hello World\r\n". 
         The "write" rule takes the form: "write [-r] status message". Write data is by default HTML encoded to help
@@ -3791,7 +3810,7 @@ typedef struct HttpRx {
     /*
         Routing info
      */
-    char            *targetKey;             /**< Route target key */
+    char            *target;                /**< Route target */
     int             matches[HTTP_MAX_ROUTE_MATCHES * 2];
     int             matchCount;
 } HttpRx;

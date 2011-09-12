@@ -41,7 +41,6 @@ static bool opPresent(MprList *list, HttpRouteOp *op);
 static void manageRoute(HttpRoute *route, int flags);
 static void manageLang(HttpLang *lang, int flags);
 static void manageRouteOp(HttpRouteOp *op, int flags);
-static void mapFile(HttpConn *conn, HttpRoute *route);
 static int matchRoute(HttpConn *conn, HttpRoute *route);
 static int selectHandler(HttpConn *conn, HttpRoute *route);
 static int testCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *condition);
@@ -77,7 +76,7 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->outputStages = mprCreateList(-1, 0);
     route->pathVars = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->pattern = MPR->emptyString;
-    route->targetOp = sclone("file");
+    route->targetRule = sclone("run");
     route->workers = -1;
     definePathVars(route);
     return route;
@@ -153,7 +152,6 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->parent = parent;
     route->auth = httpCreateInheritedAuth(parent->auth);
     route->autoDelete = parent->autoDelete;
-    route->closeTarget = parent->closeTarget;
     route->conditions = parent->conditions;
     route->connector = parent->connector;
     route->defaultLanguage = parent->defaultLanguage;
@@ -163,7 +161,6 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->expires = parent->expires;
     route->expiresByType = parent->expiresByType;
     route->extensions = parent->extensions;
-    route->fileTarget = parent->fileTarget;
     route->flags = parent->flags;
     route->handler = parent->handler;
     route->handlers = parent->handlers;
@@ -173,7 +170,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->inputStages = parent->inputStages;
     route->index = parent->index;
     route->languages = parent->languages;
-    route->targetOp = parent->targetOp;
+    route->targetRule = parent->targetRule;
     route->methodHash = parent->methodHash;
     route->methods = parent->methods;
     route->outputStages = parent->outputStages;
@@ -184,7 +181,6 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->patternCompiled = parent->patternCompiled;
     route->processedPattern = parent->processedPattern;
     route->queryFields = parent->queryFields;
-    route->redirectTarget = parent->redirectTarget;
     route->responseStatus = parent->responseStatus;
     route->script = parent->script;
     route->prefix = parent->prefix;
@@ -198,8 +194,6 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->tokens = parent->tokens;
     route->updates = parent->updates;
     route->uploadDir = parent->uploadDir;
-    route->virtualTarget = parent->virtualTarget;
-    route->writeTarget = parent->writeTarget;
     route->workers = parent->workers;
     return route;
 }
@@ -209,7 +203,6 @@ static void manageRoute(HttpRoute *route, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(route->auth);
-        mprMark(route->closeTarget);
         mprMark(route->conditions);
         mprMark(route->connector);
         mprMark(route->context);
@@ -220,7 +213,6 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->expires);
         mprMark(route->expiresByType);
         mprMark(route->extensions);
-        mprMark(route->fileTarget);
         mprMark(route->handler);
         mprMark(route->handlers);
         mprMark(route->headers);
@@ -239,7 +231,6 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->pattern);
         mprMark(route->processedPattern);
         mprMark(route->queryFields);
-        mprMark(route->redirectTarget);
         mprMark(route->script);
         mprMark(route->prefix);
         mprMark(route->scriptPath);
@@ -247,13 +238,10 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->sourcePath);
         mprMark(route->ssl);
         mprMark(route->target);
-        mprMark(route->targetOp);
-        mprMark(route->redirectTarget);
+        mprMark(route->targetRule);
         mprMark(route->tokens);
         mprMark(route->updates);
         mprMark(route->uploadDir);
-        mprMark(route->virtualTarget);
-        mprMark(route->writeTarget);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (route->patternCompiled) {
@@ -377,9 +365,6 @@ static int matchRoute(HttpConn *conn, HttpRoute *route)
             }
         }
     }
-    if (!selectHandler(conn, route)) {
-        return 0;
-    }
     if (route->conditions) {
         for (next = 0; (condition = mprGetNextItem(route->conditions, &next)) != 0; ) {
             mprLog(6, "Test route \"%s\" condition \"%s\"", route->name, condition->name);
@@ -405,17 +390,20 @@ static int matchRoute(HttpConn *conn, HttpRoute *route)
             }
         }
     }
+    if (!selectHandler(conn, route)) {
+        return 0;
+    }
     if (route->params) {
         for (next = 0; (token = mprGetNextItem(route->tokens, &next)) != 0; ) {
             value = snclone(&rx->pathInfo[rx->matches[next * 2]], rx->matches[(next * 2) + 1] - rx->matches[(next * 2)]);
             httpSetFormVar(conn, token, value);
         }
     }
-    if ((proc = mprLookupKey(conn->http->routeTargets, route->targetOp)) == 0) {
-        httpError(conn, -1, "Can't find route target name \"%s\"", route->targetOp);
+    if ((proc = mprLookupKey(conn->http->routeTargets, route->targetRule)) == 0) {
+        httpError(conn, -1, "Can't find route target rule \"%s\"", route->targetRule);
         return 0;
     }
-    mprLog(4, "Selected route \"%s\" target \"%s\"", route->name, route->targetOp);
+    mprLog(4, "Selected route \"%s\" target \"%s\"", route->name, route->targetRule);
     return (*proc)(conn, route, 0);
 }
 
@@ -445,9 +433,9 @@ static int selectHandler(HttpConn *conn, HttpRoute *route)
 
 
 /*
-    Map the fileTarget to physical storage. Sets tx->filename and tx->ext.
+    Map the target to physical storage. Sets tx->filename and tx->ext.
  */
-static void mapFile(HttpConn *conn, HttpRoute *route)
+void httpMapFile(HttpConn *conn, HttpRoute *route)
 {
     HttpRx      *rx;
     HttpTx      *tx;
@@ -461,11 +449,7 @@ static void mapFile(HttpConn *conn, HttpRoute *route)
     tx = conn->tx;
     lang = rx->lang;
 
-    if (route->target && *route->target) {
-        tx->filename = expandTokens(conn, route->fileTarget);
-    } else {
-        tx->filename = &rx->pathInfo[1];
-    }
+    tx->filename = rx->target;
     if (lang && lang->path) {
         tx->filename = mprJoinPath(lang->path, tx->filename);
     }
@@ -726,32 +710,32 @@ void httpAddRouteQuery(HttpRoute *route, cchar *field, cchar *value, int flags)
 /*
     Add a route update record. These run to modify a request.
         Update field var value
-        kind == "cmd|field"
+        rule == "cmd|field"
         details == "var value"
     Value can contain pattern and request tokens.
  */
-int httpAddRouteUpdate(HttpRoute *route, cchar *kind, cchar *details, int flags)
+int httpAddRouteUpdate(HttpRoute *route, cchar *rule, cchar *details, int flags)
 {
     HttpRouteOp *op;
     char        *value;
 
     mprAssert(route);
-    mprAssert(kind && *kind);
+    mprAssert(rule && *rule);
 
     GRADUATE_LIST(route, updates);
-    if ((op = createRouteOp(kind, flags)) == 0) {
+    if ((op = createRouteOp(rule, flags)) == 0) {
         return MPR_ERR_MEMORY;
     }
-    if (scasematch(kind, "cmd")) {
+    if (scasematch(rule, "cmd")) {
         op->details = sclone(details);
 
-    } else if (scasematch(kind, "field")) {
+    } else if (scasematch(rule, "field")) {
         if (!httpTokenize(route, details, "%S %S", &op->var, &value)) {
             return MPR_ERR_BAD_SYNTAX;
         }
         op->value = finalizeReplacement(route, value);
     
-    } else if (scasematch(kind, "lang")) {
+    } else if (scasematch(rule, "lang")) {
         /* Nothing to do */;
 
     } else {
@@ -1024,49 +1008,46 @@ void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath)
     Target names are extensible and hashed in http->routeTargets. 
 
         Target close
-        Target file ${DOCUMENT_ROOT}/${request:uri}.gz
         Target redirect status URI 
-        Target virtual ${controller}-${name} 
+        Target run ${DOCUMENT_ROOT}/${request:uri}.gz
+        Target run ${controller}-${name} 
         Target write [-r] status "Hello World\r\n"
  */
-int httpSetRouteTarget(HttpRoute *route, cchar *kind, cchar *details)
+int httpSetRouteTarget(HttpRoute *route, cchar *rule, cchar *details)
 {
-    char    *target;
+    char    *redirect, *msg;
 
     mprAssert(route);
-    mprAssert(kind && *kind);
+    mprAssert(rule && *rule);
 
-    route->targetOp = sclone(kind);
+    route->targetRule = sclone(rule);
     route->target = sclone(details);
 
-    if (scasematch(kind, "close")) {
-        route->closeTarget = route->target;
+    if (scasematch(rule, "close")) {
+        route->target = sclone(details);
 
-    } else if (scasematch(kind, "redirect")) {
-        if (!httpTokenize(route, route->target, "%N %S", &route->responseStatus, &target)) {
+    } else if (scasematch(rule, "redirect")) {
+        if (!httpTokenize(route, details, "%N %S", &route->responseStatus, &redirect)) {
             return MPR_ERR_BAD_SYNTAX;
         }
-        route->redirectTarget = finalizeReplacement(route, target);
+        route->target = finalizeReplacement(route, redirect);
         return 0;
 
-    } else if (scasematch(kind, "file")) {
-        route->fileTarget = finalizeReplacement(route, route->target);
+    } else if (scasematch(rule, "run")) {
+        route->target = finalizeReplacement(route, details);
 
-    } else if (scasematch(kind, "virtual")) {
-        route->virtualTarget = finalizeReplacement(route, route->target);
-
-    } else if (scasematch(kind, "write")) {
+    } else if (scasematch(rule, "write")) {
         /*
             Write [-r] status Message
          */
-        if (sncmp(route->target, "-r", 2) == 0) {
+        if (sncmp(details, "-r", 2) == 0) {
             route->flags |= HTTP_ROUTE_RAW;
-            route->target = sclone(&route->target[2]);
+            details = &details[2];
         }
-        if (!httpTokenize(route, route->target, "%N %S", &route->responseStatus, &target)) {
+        if (!httpTokenize(route, details, "%N %S", &route->responseStatus, &msg)) {
             return MPR_ERR_BAD_SYNTAX;
         }
-        route->writeTarget = finalizeReplacement(route, target);
+        route->target = finalizeReplacement(route, msg);
 
     } else {
         return MPR_ERR_BAD_SYNTAX;
@@ -1441,7 +1422,7 @@ static int testCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *conditio
     mprAssert(condition);
 
     if ((proc = mprLookupKey(conn->http->routeConditions, condition->name)) == 0) {
-        httpError(conn, -1, "Can't find route condition name %s", condition->name);
+        httpError(conn, -1, "Can't find route condition rule %s", condition->name);
         return 0;
     }
     mprLog(0, "run condition on route %s condition %s", route->name, condition->name);
@@ -1526,7 +1507,11 @@ static int directoryCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(op);
 
     tx = conn->tx;
-    mapFile(conn, route);
+
+    /* 
+        Must have tx->filename set when expanding op->details, so map target now 
+     */
+    httpMapFile(conn, route);
     path = mprJoinPath(route->dir, expandTokens(conn, op->details));
     tx->ext = tx->filename = 0;
     mprGetPathInfo(path, &info);
@@ -1549,11 +1534,12 @@ static int existsCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(route);
     mprAssert(op);
 
-    /* 
-        Must have tx->filename set when expanding op->details, so map fileTarget now 
-     */
     tx = conn->tx;
-    mapFile(conn, route);
+
+    /* 
+        Must have tx->filename set when expanding op->details, so map target now 
+     */
+    httpMapFile(conn, route);
     path = mprJoinPath(route->dir, expandTokens(conn, op->details));
     tx->ext = tx->filename = 0;
     if (mprPathExists(path, R_OK)) {
@@ -1594,7 +1580,7 @@ static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(op);
 
     if ((proc = mprLookupKey(conn->http->routeUpdates, op->name)) == 0) {
-        httpError(conn, -1, "Can't find route update name %s", op->name);
+        httpError(conn, -1, "Can't find route update rule %s", op->name);
         return 0;
     }
     mprLog(0, "run update on route %s update %s", route->name, op->name);
@@ -1691,16 +1677,6 @@ static int closeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 }
 
 
-static int fileTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
-{
-    mprAssert(conn);
-    mprAssert(route);
-
-    mapFile(conn, route);
-    return HTTP_ROUTE_OK;
-}
-
-
 static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     HttpRx      *rx;
@@ -1710,17 +1686,17 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     mprAssert(conn);
     mprAssert(route);
+    mprAssert(route->target && *route->target);
 
     rx = conn->rx;
-    mprAssert(route->redirectTarget && *route->redirectTarget);
 
-    target = expandTokens(conn, route->redirectTarget);
+    target = expandTokens(conn, route->target);
     if (route->responseStatus) {
         httpRedirect(conn, route->responseStatus, target);
         return HTTP_ROUTE_OK;
     }
     prior = rx->parsedUri;
-    dest = httpCreateUri(route->redirectTarget, 0);
+    dest = httpCreateUri(route->target, 0);
     scheme = dest->scheme ? dest->scheme : prior->scheme;
     host = dest->host ? dest->host : prior->host;
     port = dest->port ? dest->port : prior->port;
@@ -1732,12 +1708,12 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 }
 
 
-static int virtualTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
+static int runTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
     mprAssert(conn);
     mprAssert(route);
 
-    conn->rx->targetKey = route->virtualTarget ? expandTokens(conn, route->virtualTarget) : sclone(&conn->rx->pathInfo[1]);
+    conn->rx->target = route->target ? expandTokens(conn, route->target) : sclone(&conn->rx->pathInfo[1]);
     return HTTP_ROUTE_OK;
 }
 
@@ -1749,7 +1725,7 @@ static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(conn);
     mprAssert(route);
 
-    str = route->writeTarget ? expandTokens(conn, route->writeTarget) : sclone(&conn->rx->pathInfo[1]);
+    str = route->target ? expandTokens(conn, route->target) : sclone(&conn->rx->pathInfo[1]);
     if (!(route->flags & HTTP_ROUTE_RAW)) {
         str = mprEscapeHtml(str);
     }
@@ -2115,9 +2091,8 @@ void httpDefineRouteBuiltins()
     httpDefineRouteUpdate("lang", langUpdate);
 
     httpDefineRouteTarget("close", closeTarget);
-    httpDefineRouteTarget("file", fileTarget);
     httpDefineRouteTarget("redirect", redirectTarget);
-    httpDefineRouteTarget("virtual", virtualTarget);
+    httpDefineRouteTarget("run", runTarget);
     httpDefineRouteTarget("write", writeTarget);
 }
 
