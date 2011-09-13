@@ -223,7 +223,7 @@ void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *ex
 }
 
 
-#if UNUSED
+#if UNUSED && KEEP
 int httpSetupTrace(HttpHost *host, cchar *ext)
 {
     if (ext) {

@@ -205,6 +205,10 @@ void httpStartPipeline(HttpConn *conn)
     HttpTx      *tx;
     
     tx = conn->tx;
+    if (tx->started) {
+        return;
+    }
+    tx->started = 1;
 
     if (conn->rx->needInputPipeline) {
         qhead = tx->queue[HTTP_QUEUE_RX];
@@ -233,7 +237,6 @@ void httpStartPipeline(HttpConn *conn)
         q->flags |= HTTP_QUEUE_STARTED;
         HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
     }
-
     if (!conn->error && !conn->writeComplete && conn->rx->remainingContent > 0) {
         /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
         httpWritable(conn);
@@ -295,27 +298,6 @@ void httpDiscardTransmitData(HttpConn *conn)
     }
 }
 
-
-#if UNUSED
-/*
-    Create the form variables based on the URI query.
- */
-static void setVars(HttpConn *conn)
-{
-    HttpRx      *rx;
-    HttpTx      *tx;
-
-    rx = conn->rx;
-    tx = conn->tx;
-
-    if (tx->handler->flags & HTTP_STAGE_PARAMS) {
-        httpAddParams(conn);
-    }
-    if (tx->handler->flags & HTTP_STAGE_CGI_PARAMS) {
-        httpCreateCGIParams(conn);
-    }
-}
-#endif
 
 static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir)
 {

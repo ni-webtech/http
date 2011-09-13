@@ -107,7 +107,7 @@ void httpSetAuthDeny(HttpAuth *auth, cchar *client)
 }
 
 
-#if UNUSED
+#if UNUSED && KEEP
 void httpSetAuthGroup(HttpConn *conn, cchar *group)
 {
     conn->authGroup = sclone(group);

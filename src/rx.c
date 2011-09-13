@@ -213,8 +213,13 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpSetState(conn, HTTP_STATE_PARSED);        
         if (!rx->form) {
             routeRequest(conn);
+        }
+#if UNUSED
+        if (!(rx->form || rx->upload)) {
+            /* Forms and upload need to wait for all rx data */
             httpStartPipeline(conn);
         }
+#endif
 
     } else if (!(100 <= rx->status && rx->status < 200)) {
         httpSetState(conn, HTTP_STATE_PARSED);        
@@ -233,10 +238,6 @@ static void routeRequest(HttpConn *conn)
     httpRouteRequest(conn);  
     httpCreateRxPipeline(conn, rx->route);
     httpCreateTxPipeline(conn, rx->route);
-#if UNUSED
-    rx->startAfterContent = (route->flags & HTTP_ROUTE_HANDLER_AFTER || 
-         ((rx->form || rx->upload) && route->flags & HTTP_ROUTE_HANDLER_SMART));
-#endif
 }
 
 
@@ -550,6 +551,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             } else if (strcmp(key, "content-type") == 0) {
                 rx->mimeType = sclone(value);
                 rx->form = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "application/x-www-form-urlencoded", -1);
+                rx->upload = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "multipart/form-data", -1);
 
             } else if (strcmp(key, "cookie") == 0) {
                 if (rx->cookie && *rx->cookie) {
@@ -708,6 +710,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 *value++ = '\0';
                 conn->authType = slower(conn->authType);
+                // MOB - move this into the auth filter
                 if (!parseAuthenticate(conn, value)) {
                     httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad Authentication header");
                     break;
@@ -736,6 +739,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
 /*  
     Parse an authentication response (client side only)
+    MOB - move this into the auth filter
  */
 static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 {
@@ -878,13 +882,11 @@ static bool processParsed(HttpConn *conn)
     HttpRx      *rx;
 
     rx = conn->rx;
-#if UNUSED
-    if (!conn->rx->startAfterContent) {
+    if (!(rx->form || rx->upload)) {
         httpStartPipeline(conn);
     }
-#endif
     httpSetState(conn, HTTP_STATE_CONTENT);
-    if (conn->workerEvent && !(rx->form || rx->upload) /* UNUSED !conn->rx->startAfterContent */) {
+    if (conn->workerEvent && !(rx->form || rx->upload)) {
         if (conn->connError || conn->rx->remainingContent <= 0) {
             httpSetState(conn, HTTP_STATE_RUNNING);
         }
@@ -1001,14 +1003,9 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
             }
         }
         httpPutPacketToNext(q, httpCreateEndPacket());
-        if (rx->form) {
+        if (rx->form || rx->upload) {
             httpStartPipeline(conn);
         }
-#if UNUSED
-        if (rx->startAfterContent) {
-            httpStartPipeline(conn);
-        }
-#endif
         httpSetState(conn, HTTP_STATE_RUNNING);
         return conn->workerEvent ? 0 : 1;
     }

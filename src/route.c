@@ -67,7 +67,7 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
 
     //  MOB - reconsider this GZIP
-    route->flags = /* UNUSED HTTP_ROUTE_HANDLER_SMART | */ HTTP_ROUTE_GZIP;
+    route->flags = HTTP_ROUTE_GZIP;
     route->handlers = mprCreateList(-1, 0);
     route->host = host;
     route->http = MPR->httpService;
@@ -173,9 +173,6 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->methods = parent->methods;
     route->methodSpec = parent->methodSpec;
     route->outputStages = parent->outputStages;
-#if UNUSED
-    route->params = parent->params;
-#endif
     route->params = parent->params;
     route->parent = parent;
     route->pathTokens = parent->pathTokens;
@@ -227,9 +224,6 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->methodSpec);
         mprMark(route->name);
         mprMark(route->outputStages);
-#if UNUSED
-        mprMark(route->params);
-#endif
         mprMark(route->params);
         mprMark(route->parent);
         mprMark(route->pathTokens);
@@ -400,11 +394,6 @@ static int matchRoute(HttpConn *conn, HttpRoute *route)
     if (tx->handler->flags & HTTP_STAGE_PARAMS) {
         httpAddParams(conn);
     }
-#if UNUSED
-    if (tx->handler->flags & HTTP_STAGE_CGI_PARAMS) {
-        httpCreateCGIParams(conn);
-    }
-#endif
     if (route->tokens) {
         for (next = 0; (token = mprGetNextItem(route->tokens, &next)) != 0; ) {
             value = snclone(&rx->pathInfo[rx->matches[next * 2]], rx->matches[(next * 2) + 1] - rx->matches[(next * 2)]);
@@ -1139,9 +1128,6 @@ static void finalizeMethods(HttpRoute *route)
         - Change "\~" to "~"
         - Change "(~ PAT ~)" to "(?: PAT )?"
         - Extract the tokens and change tokens: "{word}" to "([^/]*)"
-#if UNUSED
-        - Create a params RE replacement string of the form "$1:$2:$3" for the {tokens}
-#endif
  */
 static void finalizePattern(HttpRoute *route)
 {
@@ -1158,9 +1144,6 @@ static void finalizePattern(HttpRoute *route)
     if (route->name == 0) {
         route->name = route->pattern;
     }
-#if UNUSED
-    params = mprCreateBuf(-1, -1);
-#endif
 
     /*
         Remove the route prefix from the start of the compiled pattern and then create an optimized 
@@ -1179,7 +1162,7 @@ static void finalizePattern(HttpRoute *route)
         route->literalPattern = 0;
         route->literalPatternLen = 0;
     }
-    for (/* UNUSED submatch = 0, */ cp = startPattern; *cp; cp++) {
+    for (cp = startPattern; *cp; cp++) {
         /* Alias for optional, non-capturing pattern:  "(?: PAT )?" */
         if (*cp == '(' && cp[1] == '~') {
             mprPutStringToBuf(pattern, "(?:");
@@ -1187,9 +1170,6 @@ static void finalizePattern(HttpRoute *route)
 
         } else if (*cp == '(') {
             mprPutCharToBuf(pattern, *cp);
-#if UNUSED
-            ++submatch;
-#endif
         } else if (*cp == '~' && cp[1] == ')') {
             mprPutStringToBuf(pattern, ")?");
             cp++;
@@ -1213,11 +1193,6 @@ static void finalizePattern(HttpRoute *route)
                     mprPutStringToBuf(pattern, field);
                     mprAddItem(route->tokens, token);
                     /* Params ends up looking like "$1:$2:$3:$4" */
-#if UNUSED
-                    mprPutCharToBuf(params, '$');
-                    mprPutIntToBuf(params, ++submatch);
-                    mprPutCharToBuf(params, ':');
-#endif
                     cp = ep;
                 }
             }
@@ -1229,20 +1204,7 @@ static void finalizePattern(HttpRoute *route)
         }
     }
     mprAddNullToBuf(pattern);
-#if UNUSED
-    mprAddNullToBuf(params);
-#endif
     route->processedPattern = sclone(mprGetBufStart(pattern));
-
-#if UNUSED
-    /* Trim last ":" from params */
-    if (mprGetBufLength(params) > 0) {
-        route->params = sclone(mprGetBufStart(params));
-        route->params[slen(route->params) - 1] = '\0';
-    } else {
-        route->params = 0;
-    }
-#endif
     if (mprGetListLength(route->tokens) == 0) {
         route->tokens = 0;
     }

@@ -352,14 +352,6 @@ void httpSetListenCallback(Http *http, HttpListenCallback fn)
 }
 
 
-#if UNUSED
-void httpSetMatchCallback(Http *http, HttpMatchCallback fn)
-{
-    http->matchCallback = fn;
-}
-#endif
-
-
 /*  
     Start the http timer. This may create multiple timers -- no worry. httpAddConn does its best to only schedule one.
  */

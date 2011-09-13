@@ -305,29 +305,6 @@ ssize httpFormatResponseBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
 }
 
 
-#if UNUSED
-/*
-    The message is NOT html escaped
- */
-void httpSetResponseBody(HttpConn *conn, int status, cchar *fmt, ...)
-{
-    va_list     args;
-    HttpTx      *tx;
-    cchar       *msg;
-
-    mprAssert(fmt && fmt);
-    tx = conn->tx;
-
-    va_start(args, fmt);
-    msg = sfmtv(fmt, args);
-    tx->status = status;
-    if (tx->altBody == 0) {
-        httpFormatResponseBody(conn, httpLookupStatus(conn->http, status), "%s", msg);
-    }
-    va_end(args);
-}
-#endif
-
 /*
     Create an alternate body response. Typically used for error responses. The message is HTML escaped.
     NOTE: this is an internal API. Users should use httpFormatError

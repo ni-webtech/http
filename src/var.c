@@ -31,9 +31,6 @@ void httpCreateCGIParams(HttpConn *conn)
 
     mprAddKey(vars, "AUTH_TYPE", rx->authType);
     mprAddKey(vars, "AUTH_USER", conn->authUser);
-#if UNUSED
-    mprAddKey(vars, "AUTH_GROUP", conn->authGroup);
-#endif
     mprAddKey(vars, "AUTH_ACL", MPR->emptyString);
     mprAddKey(vars, "CONTENT_LENGTH", rx->contentLength);
     mprAddKey(vars, "CONTENT_TYPE", rx->mimeType);

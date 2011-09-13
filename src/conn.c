@@ -97,7 +97,7 @@ static void manageConn(HttpConn *conn, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(conn->authCnonce);
         mprMark(conn->authDomain);
-#if UNUSED
+#if UNUSED && KEEP
         mprMark(conn->authGroup);
 #endif
         mprMark(conn->authNonce);
@@ -206,7 +206,9 @@ static void commonPrep(HttpConn *conn)
     conn->canProceed = 1;
     conn->error = 0;
     conn->errorMsg = 0;
+#if UNUSED
     conn->flags = 0;
+#endif
     conn->state = 0;
     conn->writeComplete = 0;
     conn->lastActivity = conn->http->now;
