@@ -11,7 +11,7 @@
 /*
     Define standard CGI variables
  */
-void httpCreateCGIVars(HttpConn *conn)
+void httpCreateCGIParams(HttpConn *conn)
 {
     HttpRx          *rx;
     HttpTx          *tx;
@@ -26,7 +26,7 @@ void httpCreateCGIVars(HttpConn *conn)
     tx = conn->tx;
     host = conn->host;
     sock = conn->sock;
-    vars = httpGetFormVars(conn);
+    vars = httpGetParams(conn);
     mprAssert(vars);
 
     mprAddKey(vars, "AUTH_TYPE", rx->authType);
@@ -88,14 +88,15 @@ void httpCreateCGIVars(HttpConn *conn)
     Make variables for each keyword in a query string. The buffer must be url encoded (ie. key=value&key2=value2..., 
     spaces converted to '+' and all else should be %HEX encoded).
  */
-void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
+//  MOB - rename and remove http
+static void httpAddParamsFromBuf(HttpConn *conn, cchar *buf, ssize len)
 {
     MprHashTable    *vars;
     cchar           *oldValue;
     char            *newValue, *decoded, *keyword, *value, *tok;
 
     mprAssert(conn);
-    vars = httpGetFormVars(conn);
+    vars = httpGetParams(conn);
     decoded = mprAlloc(len + 1);
     decoded[len] = '\0';
     memcpy(decoded, buf, len);
@@ -129,7 +130,8 @@ void httpAddVars(HttpConn *conn, cchar *buf, ssize len)
 }
 
 
-void httpAddVarsFromQueue(HttpQueue *q)
+//  MOB - rename and remove http
+static void httpAddParamsFromQueue(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpRx      *rx;
@@ -145,101 +147,111 @@ void httpAddVarsFromQueue(HttpQueue *q)
         content = q->first->content;
         mprAddNullToBuf(content);
         mprLog(6, "Form body data: length %d, \"%s\"", mprGetBufLength(content), mprGetBufStart(content));
-        httpAddVars(conn, mprGetBufStart(content), mprGetBufLength(content));
+        httpAddParamsFromBuf(conn, mprGetBufStart(content), mprGetBufLength(content));
     }
 }
 
 
-void httpAddQueryVars(HttpConn *conn) 
+//  MOB - rename and remove http
+static void httpAddQueryParams(HttpConn *conn) 
 {
     HttpRx      *rx;
 
     rx = conn->rx;
-    if (rx->parsedUri->query && !(rx->flags & HTTP_ADDED_QUERY_VARS)) {
-        httpAddVars(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
-        rx->flags |= HTTP_ADDED_QUERY_VARS;
+    if (rx->parsedUri->query && !(rx->flags & HTTP_ADDED_QUERY_PARAMS)) {
+        httpAddParamsFromBuf(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
+        rx->flags |= HTTP_ADDED_QUERY_PARAMS;
     }
 }
 
 
-void httpAddFormVars(HttpConn *conn)
+//  MOB - rename and remove http
+static void httpAddBodyParams(HttpConn *conn)
 {
     HttpRx      *rx;
 
     rx = conn->rx;
     if (rx->form) {
-        if (!(rx->flags & HTTP_ADDED_FORM_VARS)) {
-            httpAddVarsFromQueue(conn->readq);
-            rx->flags |= HTTP_ADDED_FORM_VARS;
+        if (!(rx->flags & HTTP_ADDED_FORM_PARAMS)) {
+            conn->readq = conn->tx->queue[HTTP_QUEUE_RX]->prevQ;
+            httpAddParamsFromQueue(conn->readq);
+            rx->flags |= HTTP_ADDED_FORM_PARAMS;
         }
     }
 }
 
 
-MprHashTable *httpGetFormVars(HttpConn *conn)
-{ 
-    if (conn->rx->formVars == 0) {
-        conn->rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-    }
-    return conn->rx->formVars;
+void httpAddParams(HttpConn *conn)
+{
+    httpAddQueryParams(conn);
+    httpAddBodyParams(conn);
 }
 
 
-int httpTestFormVar(HttpConn *conn, cchar *var)
+MprHashTable *httpGetParams(HttpConn *conn)
+{ 
+    if (conn->rx->params == 0) {
+        conn->rx->params = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
+    }
+    return conn->rx->params;
+}
+
+
+int httpTestParam(HttpConn *conn, cchar *var)
 {
     MprHashTable    *vars;
     
-    vars = httpGetFormVars(conn);
+    vars = httpGetParams(conn);
     return vars && mprLookupKey(vars, var) != 0;
 }
 
 
-cchar *httpGetFormVar(HttpConn *conn, cchar *var, cchar *defaultValue)
+cchar *httpGetParam(HttpConn *conn, cchar *var, cchar *defaultValue)
 {
     MprHashTable    *vars;
     cchar           *value;
     
-    vars = httpGetFormVars(conn);
+    vars = httpGetParams(conn);
     value = mprLookupKey(vars, var);
     return (value) ? value : defaultValue;
 }
 
 
-int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
+int httpGetIntParam(HttpConn *conn, cchar *var, int defaultValue)
 {
     MprHashTable    *vars;
     cchar           *value;
     
-    vars = httpGetFormVars(conn);
+    vars = httpGetParams(conn);
     value = mprLookupKey(vars, var);
     return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
 }
 
 
-void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value) 
+void httpSetParam(HttpConn *conn, cchar *var, cchar *value) 
 {
     MprHashTable    *vars;
 
-    vars = httpGetFormVars(conn);
+    vars = httpGetParams(conn);
     mprAddKey(vars, var, sclone(value));
 }
 
 
-void httpSetIntFormVar(HttpConn *conn, cchar *var, int value) 
+void httpSetIntParam(HttpConn *conn, cchar *var, int value) 
 {
     MprHashTable    *vars;
     
-    vars = httpGetFormVars(conn);
+    vars = httpGetParams(conn);
     mprAddKey(vars, var, sfmt("%d", value));
 }
 
 
-bool httpMatchFormVar(HttpConn *conn, cchar *var, cchar *value)
+bool httpMatchParam(HttpConn *conn, cchar *var, cchar *value)
 {
     MprHashTable    *vars;
     
-    vars = httpGetFormVars(conn);
-    if (strcmp(value, httpGetFormVar(conn, var, " __UNDEF__ ")) == 0) {
+    vars = httpGetParams(conn);
+    if (strcmp(value, httpGetParam(conn, var, " __UNDEF__ ")) == 0) {
         return 1;
     }
     return 0;

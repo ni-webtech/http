@@ -12,7 +12,6 @@
 static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir);
 static void openQueues(HttpConn *conn);
 static void pairQueues(HttpConn *conn);
-static void setVars(HttpConn *conn);
 
 /*********************************** Code *************************************/
 
@@ -73,7 +72,6 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
      */
     httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
     openQueues(conn);
-    setVars(conn);
 }
 
 
@@ -298,6 +296,7 @@ void httpDiscardTransmitData(HttpConn *conn)
 }
 
 
+#if UNUSED
 /*
     Create the form variables based on the URI query.
  */
@@ -309,14 +308,14 @@ static void setVars(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
 
-    if (tx->handler->flags & HTTP_STAGE_QUERY_VARS) {
-        httpAddQueryVars(conn);
+    if (tx->handler->flags & HTTP_STAGE_PARAMS) {
+        httpAddParams(conn);
     }
-    if (tx->handler->flags & HTTP_STAGE_CGI_VARS) {
-        httpCreateCGIVars(conn);
+    if (tx->handler->flags & HTTP_STAGE_CGI_PARAMS) {
+        httpCreateCGIParams(conn);
     }
 }
-
+#endif
 
 static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir)
 {

@@ -130,7 +130,7 @@ static void openUpload(HttpQueue *q)
         httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad boundary");
         return;
     }
-    httpSetFormVar(conn, "UPLOAD_DIR", rx->uploadDir);
+    httpSetParam(conn, "UPLOAD_DIR", rx->uploadDir);
 }
 
 
@@ -426,16 +426,16 @@ static void defineFileFields(HttpQueue *q, Upload *up)
     up = q->queueData;
     file = up->currentFile;
     key = sjoin("FILE_CLIENT_FILENAME_", up->id, NULL);
-    httpSetFormVar(conn, key, file->clientFilename);
+    httpSetParam(conn, key, file->clientFilename);
 
     key = sjoin("FILE_CONTENT_TYPE_", up->id, NULL);
-    httpSetFormVar(conn, key, file->contentType);
+    httpSetParam(conn, key, file->contentType);
 
     key = sjoin("FILE_FILENAME_", up->id, NULL);
-    httpSetFormVar(conn, key, file->filename);
+    httpSetParam(conn, key, file->filename);
 
     key = sjoin("FILE_SIZE_", up->id, NULL);
-    httpSetIntFormVar(conn, key, (int) file->size);
+    httpSetIntParam(conn, key, (int) file->size);
 }
 
 
@@ -545,7 +545,7 @@ static int processContentData(HttpQueue *q)
             mprLog(5, "uploadFilter: form[%s] = %s", up->id, data);
             key = mprUriDecode(up->id);
             data = mprUriDecode(data);
-            httpSetFormVar(conn, key, data);
+            httpSetParam(conn, key, data);
 
             if (packet == 0) {
                 packet = httpCreatePacket(HTTP_BUFSIZE);

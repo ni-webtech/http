@@ -24,6 +24,7 @@ static bool processCompletion(HttpConn *conn);
 static bool processContent(HttpConn *conn, HttpPacket *packet);
 static bool processParsed(HttpConn *conn);
 static bool processRunning(HttpConn *conn);
+static void routeRequest(HttpConn *conn);
 
 /*********************************** Code *************************************/
 
@@ -66,7 +67,6 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->extraPath);
         mprMark(rx->files);
         mprMark(rx->formData);
-        mprMark(rx->formVars);
         mprMark(rx->headerPacket);
         mprMark(rx->headers);
         mprMark(rx->hostHeader);
@@ -76,6 +76,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->method);
         mprMark(rx->mimeType);
         mprMark(rx->originalUri);
+        mprMark(rx->params);
         mprMark(rx->parsedUri);
         mprMark(rx->pathInfo);
         mprMark(rx->pragma);
@@ -157,7 +158,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     HttpTx      *tx;
-    HttpRoute   *route;
     ssize       len;
     char        *start, *end;
 
@@ -197,6 +197,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         parseResponseLine(conn, packet);
     }
     parseHeaders(conn, packet);
+
     if (conn->endpoint) {
         httpMatchHost(conn);
         if (httpSetUri(conn, rx->uri, "") < 0) {
@@ -210,25 +211,32 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         rx->parsedUri->port = conn->sock->listenSock->port;
         rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
         httpSetState(conn, HTTP_STATE_PARSED);        
+        if (!rx->form) {
+            routeRequest(conn);
+            httpStartPipeline(conn);
+        }
 
-        mprAssert(!tx->handler);
-        httpRouteRequest(conn);  
-
-        /* Clients have already created their Tx pipeline */
-
-        route = rx->route;
-        mprAssert(route);
-        httpCreateRxPipeline(conn, route);
-        httpCreateTxPipeline(conn, route);
-        rx->startAfterContent = (route->flags & HTTP_ROUTE_HANDLER_AFTER || 
-             ((rx->form || rx->upload) && route->flags & HTTP_ROUTE_HANDLER_SMART));
-
-    //  MOB - what happens if server responds to client with other status
     } else if (!(100 <= rx->status && rx->status < 200)) {
         httpSetState(conn, HTTP_STATE_PARSED);        
+        /* Clients have already created their Tx pipeline */
         httpCreateRxPipeline(conn, conn->http->clientRoute);
     }
     return 1;
+}
+
+
+static void routeRequest(HttpConn *conn)
+{
+    HttpRx  *rx;
+
+    rx = conn->rx;
+    httpRouteRequest(conn);  
+    httpCreateRxPipeline(conn, rx->route);
+    httpCreateTxPipeline(conn, rx->route);
+#if UNUSED
+    rx->startAfterContent = (route->flags & HTTP_ROUTE_HANDLER_AFTER || 
+         ((rx->form || rx->upload) && route->flags & HTTP_ROUTE_HANDLER_SMART));
+#endif
 }
 
 
@@ -867,11 +875,16 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
  */
 static bool processParsed(HttpConn *conn)
 {
+    HttpRx      *rx;
+
+    rx = conn->rx;
+#if UNUSED
     if (!conn->rx->startAfterContent) {
         httpStartPipeline(conn);
     }
+#endif
     httpSetState(conn, HTTP_STATE_CONTENT);
-    if (conn->workerEvent && !conn->rx->startAfterContent) {
+    if (conn->workerEvent && !(rx->form || rx->upload) /* UNUSED !conn->rx->startAfterContent */) {
         if (conn->connError || conn->rx->remainingContent <= 0) {
             httpSetState(conn, HTTP_STATE_RUNNING);
         }
@@ -927,6 +940,11 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
                 "Request body of %Ld bytes is too big. Limit %Ld", rx->bytesRead, conn->limits->receiveBodySize);
             return 1;
         }
+        if (rx->form && rx->length >= conn->limits->receiveFormSize) {
+            httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, 
+                "Request form of %Ld bytes is too big. Limit %Ld", rx->bytesRead, conn->limits->receiveFormSize);
+            return 1;
+        }
         if (packet == rx->headerPacket) {
             /* Preserve headers if more data to come. Otherwise handlers may free the packet and destory the headers */
             packet = httpSplitPacket(packet, 0);
@@ -937,7 +955,12 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
             LOG(7, "processContent: Split packet of %d at %d", httpGetPacketLength(packet), nbytes);
             conn->input = httpSplitPacket(packet, nbytes);
         }
-        httpPutPacketToNext(q, packet);
+        if (rx->form) {
+            //  MOB - need limit on form data size
+            httpPutForService(q, packet, 0);
+        } else {
+            httpPutPacketToNext(q, packet);
+        }
     } else {
         conn->input = 0;
     }
@@ -971,10 +994,21 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     if (conn->connError || 
             (rx->remainingContent == 0 && (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF)))) {
         rx->eof = 1;
+        if (rx->form) {
+            routeRequest(conn);
+            while ((packet = httpGetPacket(q)) != 0) {
+                httpPutPacketToNext(q, packet);
+            }
+        }
         httpPutPacketToNext(q, httpCreateEndPacket());
+        if (rx->form) {
+            httpStartPipeline(conn);
+        }
+#if UNUSED
         if (rx->startAfterContent) {
             httpStartPipeline(conn);
         }
+#endif
         httpSetState(conn, HTTP_STATE_RUNNING);
         return conn->workerEvent ? 0 : 1;
     }
@@ -1619,7 +1653,7 @@ static int sortForm(MprHash **h1, MprHash **h2)
 char *httpGetFormData(HttpConn *conn)
 {
     HttpRx          *rx;
-    MprHashTable    *formVars;
+    MprHashTable    *params;
     MprHash         *hp;
     MprList         *list;
     char            *buf, *cp;
@@ -1631,10 +1665,10 @@ char *httpGetFormData(HttpConn *conn)
     rx = conn->rx;
 
     if (rx->formData == 0) {
-        if ((formVars = conn->rx->formVars) != 0) {
-            if ((list = mprCreateList(mprGetHashLength(formVars), 0)) != 0) {
+        if ((params = conn->rx->params) != 0) {
+            if ((list = mprCreateList(mprGetHashLength(params), 0)) != 0) {
                 len = 0;
-                for (hp = 0; (hp = mprGetNextKey(formVars, hp)) != NULL; ) {
+                for (hp = 0; (hp = mprGetNextKey(params, hp)) != NULL; ) {
                     mprAddItem(list, hp);
                     len += slen(hp->key) + slen(hp->data) + 2;
                 }
@@ -1754,7 +1788,7 @@ void httpTrimExtraPath(HttpConn *conn)
     rx = conn->rx;
     tx = conn->tx;
 
-    if ((tx->handler && tx->handler->flags & HTTP_STAGE_EXTRA_PATH) && !(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) { 
+    if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) { 
         start = rx->pathInfo;
         if ((cp = strchr(start, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
             len = extra - start;
