@@ -85,6 +85,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->requestData);
         mprMark(rx->route);
         mprMark(rx->scriptName);
+        mprMark(rx->securityToken);
         mprMark(rx->statusMessage);
         mprMark(rx->target);
         mprMark(rx->uploadDir);

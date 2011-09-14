@@ -996,8 +996,9 @@ void httpSetRoutePrefix(HttpRoute *route, cchar *prefix)
 void httpSetRouteSource(HttpRoute *route, cchar *source)
 {
     mprAssert(route);
-    mprAssert(source && *source);
+    mprAssert(source);
 
+    /* Source can be empty */
     route->sourceName = sclone(source);
 }
 

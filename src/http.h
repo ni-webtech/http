@@ -3759,6 +3759,7 @@ typedef struct HttpRx {
     char            *originalUri;           /**< Original URI passed by the client */
     char            *redirect;              /**< Redirect route header */
     char            *referrer;              /**< Refering URL */
+    char            *securityToken;         /**< Security form token */
     char            *userAgent;             /**< User-Agent header */
 
     MprHashTable    *params;                /**< Request params (Query and post data variables) */
