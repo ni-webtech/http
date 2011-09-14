@@ -52,7 +52,7 @@ EXPORTS
   mprCompactBuf
   mprCompareTime
   mprConnectSocket
-  mprCopyList
+  mprCopyListContents
   mprCopyName
   mprCopyPath
   mprCopyright

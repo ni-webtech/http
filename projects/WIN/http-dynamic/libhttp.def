@@ -5,13 +5,12 @@ EXPORTS
   httpAcceptConn
   httpAddConn
   httpAddEndpoint
-  httpAddFormVars
   httpAddGroup
   httpAddHeader
   httpAddHeaderString
   httpAddHost
   httpAddHostToEndpoint
-  httpAddQueryVars
+  httpAddParams
   httpAddRoute
   httpAddRouteCondition
   httpAddRouteErrorDocument
@@ -20,18 +19,16 @@ EXPORTS
   httpAddRouteFilter
   httpAddRouteHandler
   httpAddRouteHeader
-  httpAddRouteLanguage
-  httpAddRouteLanguageRoot
+  httpAddRouteLanguageDir
+  httpAddRouteLanguageSuffix
   httpAddRouteLoad
-  httpAddRouteQuery
+  httpAddRouteParam
   httpAddRouteUpdate
   httpAddStage
   httpAddUploadFile
   httpAddUser
   httpAddUserToGroup
   httpAddUsersToGroup
-  httpAddVars
-  httpAddVarsFromQueue
   httpAdjustPacketEnd
   httpAdjustPacketStart
   httpAppendHeader
@@ -49,6 +46,7 @@ EXPORTS
   httpCloseRx
   httpCompleteUri
   httpCompleteWriting
+  httpConfigureNamedVirtualEndpoints
   httpConnTimeout
   httpConnect
   httpConsumeLastRequest
@@ -56,7 +54,7 @@ EXPORTS
   httpCreate
   httpCreateAliasRoute
   httpCreateAuth
-  httpCreateCGIVars
+  httpCreateCGIParams
   httpCreateConfiguredEndpoint
   httpCreateConfiguredRoute
   httpCreateConn
@@ -121,10 +119,11 @@ EXPORTS
   httpFlush
   httpFlushQueue
   httpFollowRedirects
-  httpFormatBody
   httpFormatError
   httpFormatErrorV
   httpFormatResponse
+  httpFormatResponseBody
+  httpFormatResponseError
   httpFormatResponsev
   httpFormatUri
   httpGetAsync
@@ -141,29 +140,32 @@ EXPORTS
   httpGetEndpointContext
   httpGetError
   httpGetExt
+  httpGetFilePassword
   httpGetFirstEndpoint
   httpGetFormData
-  httpGetFormVar
-  httpGetFormVars
   httpGetGroupAcl
   httpGetHeader
   httpGetHeaderHash
   httpGetHeaders
-  httpGetIntFormVar
+  httpGetIntParam
   httpGetLanguage
-  httpGetNativePassword
   httpGetNextQueueForService
   httpGetPacket
+  httpGetParam
+  httpGetParams
   httpGetPathExt
   httpGetQueryString
   httpGetQueueData
   httpGetQueueRoom
   httpGetRelativeUri
   httpGetRouteData
+  httpGetRouteDir
+  httpGetRouteMethods
   httpGetStageData
   httpGetStatus
   httpGetStatusMessage
   httpHandleOptionsTrace
+  httpHasNamedVirtualHosts
   httpInitAuth
   httpInitLimits
   httpInitQueue
@@ -173,7 +175,6 @@ EXPORTS
   httpIsEof
   httpIsFinalized
   httpIsGroupEnabled
-  httpIsNamedVirtualEndpoint
   httpIsPacketTooBig
   httpIsQueueEmpty
   httpIsUserEnabled
@@ -193,10 +194,11 @@ EXPORTS
   httpMakePath
   httpMakeUriLocal
   httpManageTrace
+  httpMapFile
   httpMatchEtag
-  httpMatchFormVar
   httpMatchHost
   httpMatchModified
+  httpMatchParam
   httpMatchRoute
   httpMemoryError
   httpNeedRetry
@@ -217,6 +219,9 @@ EXPORTS
   httpProcessPipeline
   httpPutBackPacket
   httpPutForService
+  httpPutPacket
+  httpPutPacketToNext
+  httpPutPackets
   httpRead
   httpReadGroupFile
   httpReadString
@@ -245,16 +250,12 @@ EXPORTS
   httpSecureEndpointByName
   httpSendOpen
   httpSendOutgoingService
-  httpSendPacket
-  httpSendPacketToNext
-  httpSendPackets
   httpServiceQueue
   httpServiceQueues
   httpSetAsync
   httpSetAuthAllow
   httpSetAuthAnyValidUser
   httpSetAuthDeny
-  httpSetAuthGroup
   httpSetAuthOrder
   httpSetAuthQop
   httpSetAuthRealm
@@ -278,8 +279,8 @@ EXPORTS
   httpSetEndpointNotifier
   httpSetEntityLength
   httpSetForkCallback
-  httpSetFormVar
   httpSetGroupAcl
+  httpSetHasNamedVirtualHosts
   httpSetHeader
   httpSetHeaderString
   httpSetHeadersCallback
@@ -291,19 +292,15 @@ EXPORTS
   httpSetHostTrace
   httpSetHostTraceFilter
   httpSetIOCallback
-  httpSetIntFormVar
+  httpSetIntParam
   httpSetKeepAliveCount
   httpSetListenCallback
-  httpSetMatchCallback
-  httpSetNamedVirtualEndpoint
-  httpSetNamedVirtualEndpoints
+  httpSetParam
   httpSetPipelineHandler
   httpSetProtocol
   httpSetProxy
   httpSetRequiredAcl
   httpSetResponded
-  httpSetResponseBody
-  httpSetResponseError
   httpSetRetries
   httpSetRouteAuth
   httpSetRouteAutoDelete
@@ -334,13 +331,12 @@ EXPORTS
   httpSetUniqueConnLimits
   httpSetUri
   httpSetWriteBlocked
-  httpSetupTrace
   httpShouldTrace
   httpSplitPacket
   httpStartEndpoint
   httpStartPipeline
   httpStopEndpoint
-  httpTestFormVar
+  httpTestParam
   httpTokenize
   httpTokenizev
   httpTraceContent
@@ -349,8 +345,8 @@ EXPORTS
   httpUriToString
   httpUsePrimary
   httpUseWorker
+  httpValidateFileCredentials
   httpValidateLimits
-  httpValidateNativeCredentials
   httpWait
   httpWillNextQueueAcceptPacket
   httpWillNextQueueAcceptSize
