@@ -20255,14 +20255,14 @@ char *itos(int64 value, int radix)
 
 char *itosbuf(char *buf, ssize size, int64 value, int radix)
 {
-    char    *cp;
+    char    *cp, *end;
     char    digits[] = "0123456789ABCDEF";
     int     negative;
 
     if ((radix != 10 && radix != 16) || size < 2) {
         return 0;
     }
-    cp = &buf[size];
+    end = cp = &buf[size];
     *--cp = '\0';
 
     if (value < 0) {
@@ -20284,7 +20284,8 @@ char *itosbuf(char *buf, ssize size, int64 value, int radix)
         *--cp = '-';
     }
     if (buf < cp) {
-        memmove(buf, cp, strlen(cp));
+        /* Move the null too */
+        memmove(buf, cp, end - cp + 1);
     }
     return buf;
 }
