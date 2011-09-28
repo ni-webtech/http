@@ -11,7 +11,7 @@
 /********************************** Forwards **********************************/
 
 static void incomingChunkData(HttpQueue *q, HttpPacket *packet);
-static bool matchChunk(HttpConn *conn, HttpRoute *route, int dir);
+static int matchChunk(HttpConn *conn, HttpRoute *route, int dir);
 static void openChunk(HttpQueue *q);
 static void outgoingChunkService(HttpQueue *q);
 static void setChunkPrefix(HttpQueue *q, HttpPacket *packet);
@@ -37,7 +37,7 @@ int httpOpenChunkFilter(Http *http)
 }
 
 
-static bool matchChunk(HttpConn *conn, HttpRoute *route, int dir)
+static int matchChunk(HttpConn *conn, HttpRoute *route, int dir)
 {
     HttpTx  *tx;
 
@@ -47,14 +47,17 @@ static bool matchChunk(HttpConn *conn, HttpRoute *route, int dir)
             size to zero. Also remove if the response length is already known.
          */
         tx = conn->tx;
-        return (tx->length < 0 && tx->chunkSize != 0) ? 1 : 0;
+        if (tx->length < 0 && tx->chunkSize != 0) {
+            return HTTP_ROUTE_OK;
+        }
+        return HTTP_ROUTE_REJECT;
 
     }
     /* 
         Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
         know what the response data looks like (chunked or not).
      */
-    return 1;
+    return HTTP_ROUTE_OK;
 }
 
 

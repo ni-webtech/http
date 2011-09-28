@@ -18,8 +18,8 @@ void httpCreateCGIParams(HttpConn *conn)
     HttpHost        *host;
     HttpUploadFile  *up;
     MprSocket       *sock;
-    MprHashTable    *vars;
-    MprHash         *hp;
+    MprHash         *vars;
+    MprKey          *kp;
     int             index;
 
     rx = conn->rx;
@@ -55,7 +55,11 @@ void httpCreateCGIParams(HttpConn *conn)
         In CGI|PHP terms, the scriptName is the appweb rx->pathInfo and the PATH_INFO is the extraPath. 
      */
     mprAddKey(vars, "PATH_INFO", rx->extraPath);
+#if UNUSED
     mprAddKey(vars, "SCRIPT_NAME", rx->pathInfo);
+#else
+    mprAddKeyFmt(vars, "SCRIPT_NAME", "%s%s", rx->scriptName, rx->pathInfo);
+#endif
     mprAddKey(vars, "SCRIPT_FILENAME", tx->filename);
     if (rx->extraPath) {
         /*  
@@ -65,12 +69,12 @@ void httpCreateCGIParams(HttpConn *conn)
         mprAddKey(vars, "PATH_TRANSLATED", mprGetNormalizedPath(sfmt("%s%s", rx->route->dir, rx->extraPath)));
     }
     if (rx->files) {
-        for (index = 0, hp = 0; (hp = mprGetNextKey(conn->rx->files, hp)) != 0; index++) {
-            up = (HttpUploadFile*) hp->data;
+        for (index = 0, kp = 0; (kp = mprGetNextKey(conn->rx->files, kp)) != 0; index++) {
+            up = (HttpUploadFile*) kp->data;
             mprAddKey(vars, sfmt("FILE_%d_FILENAME", index), up->filename);
             mprAddKey(vars, sfmt("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
             mprAddKey(vars, sfmt("FILE_%d_CONTENT_TYPE", index), up->contentType);
-            mprAddKey(vars, sfmt("FILE_%d_NAME", index), hp->key);
+            mprAddKey(vars, sfmt("FILE_%d_NAME", index), kp->key);
             mprAddKeyFmt(vars, sfmt("FILE_%d_SIZE", index), "%d", up->size);
         }
     }
@@ -88,9 +92,9 @@ void httpCreateCGIParams(HttpConn *conn)
 //  MOB - rename and remove http
 static void httpAddParamsFromBuf(HttpConn *conn, cchar *buf, ssize len)
 {
-    MprHashTable    *vars;
-    cchar           *oldValue;
-    char            *newValue, *decoded, *keyword, *value, *tok;
+    MprHash     *vars;
+    cchar       *oldValue;
+    char        *newValue, *decoded, *keyword, *value, *tok;
 
     mprAssert(conn);
     vars = httpGetParams(conn);
@@ -185,7 +189,7 @@ void httpAddParams(HttpConn *conn)
 }
 
 
-MprHashTable *httpGetParams(HttpConn *conn)
+MprHash *httpGetParams(HttpConn *conn)
 { 
     if (conn->rx->params == 0) {
         conn->rx->params = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
@@ -196,7 +200,7 @@ MprHashTable *httpGetParams(HttpConn *conn)
 
 int httpTestParam(HttpConn *conn, cchar *var)
 {
-    MprHashTable    *vars;
+    MprHash    *vars;
     
     vars = httpGetParams(conn);
     return vars && mprLookupKey(vars, var) != 0;
@@ -205,8 +209,8 @@ int httpTestParam(HttpConn *conn, cchar *var)
 
 cchar *httpGetParam(HttpConn *conn, cchar *var, cchar *defaultValue)
 {
-    MprHashTable    *vars;
-    cchar           *value;
+    MprHash     *vars;
+    cchar       *value;
     
     vars = httpGetParams(conn);
     value = mprLookupKey(vars, var);
@@ -216,8 +220,8 @@ cchar *httpGetParam(HttpConn *conn, cchar *var, cchar *defaultValue)
 
 int httpGetIntParam(HttpConn *conn, cchar *var, int defaultValue)
 {
-    MprHashTable    *vars;
-    cchar           *value;
+    MprHash     *vars;
+    cchar       *value;
     
     vars = httpGetParams(conn);
     value = mprLookupKey(vars, var);
@@ -227,7 +231,7 @@ int httpGetIntParam(HttpConn *conn, cchar *var, int defaultValue)
 
 void httpSetParam(HttpConn *conn, cchar *var, cchar *value) 
 {
-    MprHashTable    *vars;
+    MprHash     *vars;
 
     vars = httpGetParams(conn);
     mprAddKey(vars, var, sclone(value));
@@ -236,7 +240,7 @@ void httpSetParam(HttpConn *conn, cchar *var, cchar *value)
 
 void httpSetIntParam(HttpConn *conn, cchar *var, int value) 
 {
-    MprHashTable    *vars;
+    MprHash     *vars;
     
     vars = httpGetParams(conn);
     mprAddKey(vars, var, sfmt("%d", value));
@@ -245,7 +249,7 @@ void httpSetIntParam(HttpConn *conn, cchar *var, int value)
 
 bool httpMatchParam(HttpConn *conn, cchar *var, cchar *value)
 {
-    MprHashTable    *vars;
+    MprHash     *vars;
     
     vars = httpGetParams(conn);
     if (strcmp(value, httpGetParam(conn, var, " __UNDEF__ ")) == 0) {
@@ -286,12 +290,12 @@ void httpRemoveAllUploadedFiles(HttpConn *conn)
 {
     HttpRx          *rx;
     HttpUploadFile  *upfile;
-    MprHash         *hp;
+    MprKey          *kp;
 
     rx = conn->rx;
 
-    for (hp = 0; rx->files && (hp = mprGetNextKey(rx->files, hp)) != 0; ) {
-        upfile = (HttpUploadFile*) hp->data;
+    for (kp = 0; rx->files && (kp = mprGetNextKey(rx->files, kp)) != 0; ) {
+        upfile = (HttpUploadFile*) kp->data;
         if (upfile->filename) {
             mprDeletePath(upfile->filename);
             upfile->filename = 0;

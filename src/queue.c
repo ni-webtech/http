@@ -515,7 +515,7 @@ ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
     tx->responded = 1;
 
     for (written = 0; size > 0; ) {
-        LOG(6, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);
+        LOG(7, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);
         if (conn->state >= HTTP_STATE_COMPLETE) {
             return MPR_ERR_CANT_WRITE;
         }

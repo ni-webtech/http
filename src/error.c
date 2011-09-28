@@ -44,13 +44,15 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
     int         status;
 
     mprAssert(fmt);
-    tx = conn->tx;
 
     if (flags & HTTP_ABORT) {
         conn->connError = 1;
     }
+    tx = conn->tx;
+    if (tx) {
+        tx->responded = 1;
+    }
     conn->error = 1;
-    tx->responded = 1;
     status = flags & HTTP_CODE_MASK;
     httpFormatErrorV(conn, status, fmt, args);
 

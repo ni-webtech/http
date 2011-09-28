@@ -567,6 +567,15 @@ typedef int64 MprTime;
     #define LD_LIBRARY_PATH "LD_LIBRARY_PATH"
 #endif
 
+#if VXWORKS
+/*
+    Old VxWorks can't do array[]
+ */
+#define MPR_FLEX 0
+#else
+#define MPR_FLEX
+#endif
+
 
 #if BLD_UNIX_LIKE || VXWORKS
     #define MPR_TEXT        ""
@@ -940,8 +949,8 @@ struct  MprEventService;
 struct  MprFile;
 struct  MprFileSystem;
 struct  MprHash;
-struct  MprHashTable;
 struct  MprHeap;
+struct  MprKey;
 struct  MprModule;
 struct  MprMutex;
 struct  MprOsService;
@@ -2447,26 +2456,35 @@ extern int  mprSyncThreads(MprTime timeout);
     @description The MPR provides a suite of safe ascii string manipulation routines to help prevent buffer overflows
         and other potential security traps.
     @defgroup MprString MprString
-    @see MprString itos mprPrintf mprPrintfError mprSprintf scasecmp scasematch schr sclone scmp scontains scopy sends 
-        sfmt sfmtv shash shashlower sjoin sjoinv slen slower smatch sncasecmp snclone sncmp sncopy snumber spbrk 
-        srchr srejoin srejoinv sreplace sspn sstarts ssub stemplate stoi stok strim supper 
+    @see MprString itos mprPrintf mprPrintfError mprSprintf scamel scasecmp scasematch schr sclone scmp scontains 
+        scopy sends sfmt sfmtv shash shashlower sjoin sjoinv slen slower smatch sncasecmp snclone sncmp sncopy 
+        snumber spascal spbrk srchr srejoin srejoinv sreplace sspn sstarts ssub stemplate stoi stok strim supper 
         mprFprintf mprSprintfv
  */
 typedef struct MprString { void *dummy; } MprString;
 
-//  MOB - better char *itos(int64 value, int radix);
 /**
     Convert an integer to a string.
+    @description This call converts the supplied 64 bit integer to a string according to the specified radix.
+    @param value Integer value to convert
+    @param radix The base radix to use when encoding the number
+    @return An allocated string with the converted number.
+    @ingroup MprString
+ */
+extern char *itos(int64 value, int radix);
+
+/**
+    Convert an integer to a string buffer.
     @description This call converts the supplied 64 bit integer into a string formatted into the supplied buffer according
         to the specified radix.
     @param buf Pointer to the buffer that will hold the string.
     @param size Size of the buffer.
     @param value Integer value to convert
     @param radix The base radix to use when encoding the number
-    @return Returns the number of characters in an allocated string.
+    @return Returns a reference to the string.
     @ingroup MprString
  */
-extern char *itos(char *buf, ssize size, int64 value, int radix);
+extern char *itosbuf(char *buf, ssize size, int64 value, int radix);
 
 /**
     Compare strings ignoring case. This is a safe replacement for strcasecmp. It can handle NULL args.
@@ -2488,6 +2506,15 @@ extern int scasecmp(cchar *s1, cchar *s2);
     @ingroup MprString
  */
 extern bool scasematch(cchar *s1, cchar *s2);
+
+/**
+    Create a camel case version of the string
+    @description Copy a string into a newly allocated block and make the first character lower case
+    @param str Pointer to the block to duplicate.
+    @return Returns a newly allocated string.
+    @ingroup MprMem
+ */
+extern char *scamel(cchar *str);
 
 /**
    Find a character in a string. 
@@ -2705,6 +2732,15 @@ extern ssize sncopy(char *dest, ssize destMax, cchar *src, ssize len);
 extern bool snumber(cchar *s);
 
 /**
+    Create a Pascal case version of the string
+    @description Copy a string into a newly allocated block and make the first character upper case
+    @param str Pointer to the block to duplicate.
+    @return Returns a newly allocated string.
+    @ingroup MprMem
+ */
+extern char *spascal(cchar *str);
+
+/**
     Locate the a character in a string.
     @description This locates in the string the first occurence of any character from a given set of characters.
     @param str String to examine
@@ -2780,7 +2816,7 @@ extern int sstarts(cchar *str, cchar *prefix);
     @param tokens Hash table of token values to use
     @return An expanded string. May return the original string if no "$" references are present.
   */
-extern char *stemplate(cchar *str, struct MprHashTable *tokens);
+extern char *stemplate(cchar *str, struct MprHash *tokens);
 
 /**
     Convert a string to an integer.
@@ -3751,6 +3787,7 @@ typedef struct MprList {
     Macros
  */
 #define MPR_GET_ITEM(list, index) list->items[index]
+#define ITERATE_ITEMS(list, item, next) next = 0; (item = mprGetNextItem(list, &next)) != 0; 
 
 /**
     List comparison procedure for sorting
@@ -4007,7 +4044,7 @@ extern int mprSetListLimits(MprList *list, int initialSize, int maxSize);
 extern void mprSortList(MprList *list, void *compare);
 
 /**
-    Key value pairs for use with MprList or MprHash
+    Key value pairs for use with MprList or MprKey
     @ingroup MprList
  */
 typedef struct MprKeyValue {
@@ -4225,18 +4262,23 @@ extern int print(cchar *fmt, ...);
     Hash table entry structure.
     @description The hash structure supports growable hash tables with high performance, collision resistant hashes.
     Each hash entry has a descriptor entry. This is used to manage the hash table link chains.
-    @see MprHash MprHashProc MprHashTable mprAddDuplicateHash mprAddKey mprAddKeyFmt mprCloneHash mprCreateHash 
-        mprGetFirstKey mprGetHashLength mprGetNextKey mprLookupKey mprLookupKeyEntry mprRemoveKey 
+    @see MprKey MprHashProc MprHash mprAddDuplicateHash mprAddKey mprAddKeyFmt mprCloneHash mprCreateHash 
+        mprGetFirstKey mprGetHashLength mprGetKeyBits mprGetNextKey mprLookupKey mprLookupKeyEntry mprRemoveKey 
+        mprSetKeyBits mprBlendHash
     @stability Evolving.
     @defgroup MprHash MprHash
  */
-typedef struct MprHash {
-    struct MprHash *next;               /**< Next symbol in hash chain */
+typedef struct MprKey {
+    struct MprKey *next;               /**< Next symbol in hash chain */
     char            *key;               /**< Hash key */
     cvoid           *data;              /**< Pointer to symbol data */
+#if UNUSED
+    int             bits: 2;            /**< User definable bits */
+    int             bucket: 30;         /**< Hash bucket index */
+#else
     int             bucket;             /**< Hash bucket index */
-} MprHash;
-
+#endif
+} MprKey;
 
 /**
     Hashing function to use for the table
@@ -4251,14 +4293,19 @@ typedef uint (*MprHashProc)(cvoid *name, ssize len);
     Hash table control structure
     @see MprHash
  */
-typedef struct MprHashTable {
-    MprHash         **buckets;          /**< Hash collision bucket table */
-    MprHashProc     hash;               /**< Hash function */             
+typedef struct MprHash {
+    MprKey          **buckets;          /**< Hash collision bucket table */
+    MprHashProc     fn;                 /**< Hash function */             
     MprMutex        *mutex;             /**< GC marker sync */
-    int             hashSize;           /**< Size of the buckets array */
+    int             size;               /**< Size of the buckets array */
     int             length;             /**< Number of symbols in the table */
     int             flags;              /**< Hash control flags */
-} MprHashTable;
+} MprHash;
+
+/*
+    Macros
+ */
+#define ITERATE_KEYS(table, item) item = 0; (item = mprGetNextKey(table, item)) != 0; 
 
 /**
     Add a duplicate symbol value into the hash table
@@ -4271,7 +4318,7 @@ typedef struct MprHashTable {
     @return Integer count of the number of entries.
     @ingroup MprHash
  */
-extern MprHash *mprAddDuplicateKey(MprHashTable *table, cvoid *key, cvoid *ptr);
+extern MprKey *mprAddDuplicateKey(MprHash *table, cvoid *key, cvoid *ptr);
 
 /**
     Add a symbol value into the hash table
@@ -4282,7 +4329,7 @@ extern MprHash *mprAddDuplicateKey(MprHashTable *table, cvoid *key, cvoid *ptr);
     @return Integer count of the number of entries.
     @ingroup MprHash
  */
-extern MprHash *mprAddKey(MprHashTable *table, cvoid *key, cvoid *ptr);
+extern MprKey *mprAddKey(MprHash *table, cvoid *key, cvoid *ptr);
 
 /**
     Add a key with a formatting value into the hash table
@@ -4293,7 +4340,7 @@ extern MprHash *mprAddKey(MprHashTable *table, cvoid *key, cvoid *ptr);
     @return Integer count of the number of entries.
     @ingroup MprHash
  */
-extern MprHash *mprAddKeyFmt(MprHashTable *table, cvoid *key, cchar *fmt, ...);
+extern MprKey *mprAddKeyFmt(MprHash *table, cvoid *key, cchar *fmt, ...);
 
 /**
     Copy a hash table
@@ -4302,7 +4349,7 @@ extern MprHash *mprAddKeyFmt(MprHashTable *table, cvoid *key, cchar *fmt, ...);
     @return A new hash table initialized with the contents of the original hash table.
     @ingroup MprHash
  */
-extern MprHashTable *mprCloneHash(MprHashTable *table);
+extern MprHash *mprCloneHash(MprHash *table);
 
 /*
     Flags for mprCreateHash
@@ -4323,7 +4370,17 @@ extern MprHashTable *mprCloneHash(MprHashTable *table);
     @return Returns a pointer to the allocated symbol table.
     @ingroup MprHash
  */
-extern MprHashTable *mprCreateHash(int hashSize, int flags);
+extern MprHash *mprCreateHash(int hashSize, int flags);
+
+#if UNUSED
+/**
+    Get the user-definable bits for a key
+    @param hp Hash key entry returned by #mprLookupKeyEntry or #mprAddKey
+    @return The low-order two user definable bits
+    @ingroup MprHash
+ */
+extern int mprGetKeyBits(MprKey *hp);
+#endif /* UNUSED */
 
 /**
     Return the first symbol in a symbol entry
@@ -4332,7 +4389,7 @@ extern MprHashTable *mprCreateHash(int hashSize, int flags);
     @return Pointer to the first entry in the symbol table.
     @ingroup MprHash
  */
-extern MprHash *mprGetFirstKey(MprHashTable *table);
+extern MprKey *mprGetFirstKey(MprHash *table);
 
 /**
     Return the next symbol in a symbol entry
@@ -4345,7 +4402,7 @@ extern MprHash *mprGetFirstKey(MprHashTable *table);
     @return Pointer to the first entry in the symbol table.
     @ingroup MprHash
  */
-extern MprHash *mprGetNextKey(MprHashTable *table, MprHash *last);
+extern MprKey *mprGetNextKey(MprHash *table, MprKey *last);
 
 /**
     Return the count of symbols in a symbol entry
@@ -4354,7 +4411,7 @@ extern MprHash *mprGetNextKey(MprHashTable *table, MprHash *last);
     @return Integer count of the number of entries.
     @ingroup MprHash
  */
-extern int mprGetHashLength(MprHashTable *table);
+extern int mprGetHashLength(MprHash *table);
 
 /**
     Lookup a symbol in the hash table.
@@ -4364,17 +4421,17 @@ extern int mprGetHashLength(MprHashTable *table);
     @return Value associated with the key when the entry was inserted via mprInsertSymbol.
     @ingroup MprHash
  */
-extern void *mprLookupKey(MprHashTable *table, cvoid *key);
+extern void *mprLookupKey(MprHash *table, cvoid *key);
 
 /**
     Lookup a symbol in the hash table and return the hash entry
     @description Lookup a symbol key and return the hash table descriptor associated with that key.
     @param table Symbol table returned via mprCreateSymbolTable.
     @param key String key of the symbole entry to delete.
-    @return MprHash table structure for the entry
+    @return MprKey for the entry
     @ingroup MprHash
  */
-extern MprHash *mprLookupKeyEntry(MprHashTable *table, cvoid *key);
+extern MprKey *mprLookupKeyEntry(MprHash *table, cvoid *key);
 
 /**
     Remove a symbol entry from the hash table.
@@ -4384,7 +4441,21 @@ extern MprHash *mprLookupKeyEntry(MprHashTable *table, cvoid *key);
     @return Returns zero if successful, otherwise a negative MPR error code is returned.
     @ingroup MprHash
  */
-extern int mprRemoveKey(MprHashTable *table, cvoid *key);
+extern int mprRemoveKey(MprHash *table, cvoid *key);
+
+#if UNUSED
+/**
+    Set the user-definable bits for a key
+    @param hp Hash key entry returned by #mprLookupKeyEntry or #mprAddKey
+    @param bits Bits to define. Only the low order two bits are used.
+    @return Returns zero if successful, otherwise a negative MPR error code is returned.
+    @ingroup MprHash
+ */
+extern void mprSetKeyBits(MprKey *hp, int bits);
+#endif
+
+//  MOB DOC
+extern MprHash *mprBlendHash(MprHash *hash, MprHash *extra);
 
 /*
     Prototypes for file system switch methods
@@ -4459,7 +4530,7 @@ typedef struct  MprRomInode {
 
 typedef struct MprRomFileSystem {
     MprFileSystem   fileSystem;
-    MprHashTable    *fileIndex;
+    MprHash         *fileIndex;
     MprRomInode     *romInodes;
     int             rootLen;
 } MprRomFileSystem;
@@ -4800,6 +4871,7 @@ extern int mprTruncateFile(cchar *path, MprOff size);
  */
 extern ssize mprWriteFile(MprFile *file, cvoid *buf, ssize count);
 
+//  MOB - rename mprWriteFmt
 /**
     Write formatted data to a file.
     @description Writes a formatted string to a file. 
@@ -4829,7 +4901,7 @@ extern ssize mprWriteFileString(MprFile *file, cchar *str);
         mprGetPathDir mprGetPathExt mprGetPathFiles mprGetPathLink mprGetPathNewline mprGetPathParent 
         mprGetPathSeparators mprGetPortablePath mprGetRelPath mprGetTempPath mprGetTransformedPath mprIsAbsPath 
         mprIsRelPath mprJoinPath mprJoinPathExt mprMakeDir mprMakeLink mprMapSeparators mprPathExists mprReadPath 
-        mprResolvePath mprSamePath mprSamePathCount mprSearchPath mprTrimPathExt mprTruncatePath 
+        mprReplacePathExt mprResolvePath mprSamePath mprSamePathCount mprSearchPath mprTrimPathExt mprTruncatePath 
     @defgroup MprPath MprPath
  */
 typedef struct MprPath {
@@ -5123,12 +5195,12 @@ extern char *mprJoinPath(cchar *base, cchar *path);
 /**
     Join an extension to a path
     @description Add an extension to a path if it does not already have one.
-    @param dir Directory path name to test use as the base/dir.
-    @param ext Extension to add. Must have period prefix.
+    @param path Path name to use as a base. Path is not modified.
+    @param ext Extension to add. Must should not have a  period prefix.
     @returns Allocated string containing the resolved path.
     @ingroup MprPath
  */
-extern char *mprJoinPathExt(cchar *dir, cchar *ext);
+extern char *mprJoinPathExt(cchar *path, cchar *ext);
 
 /**
     Make a directory
@@ -5183,6 +5255,16 @@ extern bool mprPathExists(cchar *path, int omode);
     @return An allocated string containing the file contents and return the data length in lenp.
  */
 extern char *mprReadPath(cchar *path, ssize *lenp);
+
+/**
+    Replace an extension to a path
+    @description Remove any existing path extension and then add the given path extension.
+    @param dir Directory path name to test use as the base/dir.
+    @param ext Extension to add. The extension should not have a period prefix.
+    @returns Allocated string containing the resolved path.
+    @ingroup MprPath
+ */
+extern char *mprReplacePathExt(cchar *dir, cchar *ext);
 
 /**
     Resolve paths
@@ -7600,7 +7682,7 @@ extern ssize mprWriteCmd(MprCmd *cmd, int channel, char *buf, ssize bufsize);
  */
 typedef struct MprCache
 {
-    MprHashTable    *store;             /**< Key/value store */
+    MprHash         *store;             /**< Key/value store */
     MprMutex        *mutex;             /**< Cache lock*/
     MprEvent        *timer;             /**< Pruning timer */
     MprTime         lifespan;           /**< Default lifespan (msec) */
@@ -7726,7 +7808,7 @@ typedef struct MprMime {
     @return Mime type entry object. This is owned by the mime type table.
     @ingroup MprMime
  */
-extern MprMime *mprAddMime(MprHashTable *table, cchar *ext, cchar *mimeType);
+extern MprMime *mprAddMime(MprHash *table, cchar *ext, cchar *mimeType);
 
 /**
     Create the mime types
@@ -7734,7 +7816,7 @@ extern MprMime *mprAddMime(MprHashTable *table, cchar *ext, cchar *mimeType);
     @return Hash table of mime types keyed by file extension 
     @ingroup MprMime
  */
-extern MprHashTable *mprCreateMimeTypes(cchar *path);
+extern MprHash *mprCreateMimeTypes(cchar *path);
 
 /**
     Get the mime type program for a given mimeType
@@ -7743,7 +7825,7 @@ extern MprHashTable *mprCreateMimeTypes(cchar *path);
     @return The program name associated with this mime type
     @ingroup MprMime
  */
-extern cchar *mprGetMimeProgram(MprHashTable *table, cchar *mimeType);
+extern cchar *mprGetMimeProgram(MprHash *table, cchar *mimeType);
 
 /** 
     Get the mime type for an extension.
@@ -7753,7 +7835,7 @@ extern cchar *mprGetMimeProgram(MprHashTable *table, cchar *mimeType);
     @returns Mime type string
     @ingroup MprMime
  */
-extern cchar *mprLookupMime(MprHashTable *table, cchar *ext);
+extern cchar *mprLookupMime(MprHash *table, cchar *ext);
 
 /**
     Set the mime type program
@@ -7764,7 +7846,7 @@ extern cchar *mprLookupMime(MprHashTable *table, cchar *ext);
         the mime type table.
     @ingroup MprMime
  */
-extern int mprSetMimeProgram(MprHashTable *table, cchar *mimeType, cchar *program);
+extern int mprSetMimeProgram(MprHash *table, cchar *mimeType, cchar *program);
 
 /*
     Mpr state
@@ -7811,8 +7893,8 @@ typedef struct Mpr {
     int             logLevel;               /**< Log trace level */
     MprLogHandler   logHandler;             /**< Current log handler callback */
     MprFile         *logFile;               /**< Log file */
-    MprHashTable    *mimeTypes;             /**< Table of mime types */
-    MprHashTable    *timeTokens;            /**< Date/Time parsing tokens */
+    MprHash         *mimeTypes;             /**< Table of mime types */
+    MprHash         *timeTokens;            /**< Date/Time parsing tokens */
     char            *pathEnv;               /**< Cached PATH env var. Used by MprCmd */
     char            *name;                  /**< Product name */
     char            *title;                 /**< Product title */
@@ -7854,10 +7936,16 @@ typedef struct Mpr {
     struct MprDispatcher    *dispatcher;    /**< Primary dispatcher */
     struct MprDispatcher    *nonBlock;      /**< Nonblocking dispatcher */
 
-    void            *ejsService;            /**< Ejscript service */
-    void            *httpService;           /**< Http service object */
+    /*
+        These are here to optimize access to these singleton service objects
+     */
     void            *appwebService;         /**< Appweb service object */
+    void            *ediService;            /**< EDI object */
+    void            *ejsService;            /**< Ejscript service */
+    void            *espService;            /**< ESP service object */
+    void            *httpService;           /**< Http service object */
     void            *testService;           /**< Test service object */
+
     MprIdleCallback idleCallback;           /**< Invoked to determine if the process is idle */
     MprOsThread     mainOsThread;           /**< Main OS thread ID */
     MprMutex        *mutex;                 /**< Thread synchronization */

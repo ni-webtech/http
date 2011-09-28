@@ -39,7 +39,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
 
     if (route->outputStages) {
         for (next = 0; (filter = mprGetNextItem(route->outputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter, route, HTTP_STAGE_TX)) {
+            if (matchFilter(conn, filter, route, HTTP_STAGE_TX) == HTTP_ROUTE_OK) {
                 mprAddItem(tx->outputPipeline, filter);
             }
         }
@@ -94,10 +94,9 @@ void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
     rx->inputPipeline = mprCreateList(-1, 0);
     if (route) {
         for (next = 0; (filter = mprGetNextItem(route->inputStages, &next)) != 0; ) {
-            if (!matchFilter(conn, filter, route, HTTP_STAGE_RX)) {
-                continue;
+            if (matchFilter(conn, filter, route, HTTP_STAGE_RX) == HTTP_ROUTE_OK) {
+                mprAddItem(rx->inputPipeline, filter);
             }
-            mprAddItem(rx->inputPipeline, filter);
         }
     }
     mprAddItem(rx->inputPipeline, tx->handler);

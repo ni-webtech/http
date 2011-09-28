@@ -15,7 +15,7 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range);
 static HttpPacket *createFinalRangePacket(HttpConn *conn);
 static void outgoingRangeService(HttpQueue *q);
 static bool fixRangeLength(HttpConn *conn);
-static bool matchRange(HttpConn *conn, HttpRoute *route, int dir);
+static int matchRange(HttpConn *conn, HttpRoute *route, int dir);
 static void startRange(HttpQueue *q);
 
 /*********************************** Code *************************************/
@@ -36,11 +36,14 @@ int httpOpenRangeFilter(Http *http)
 }
 
 
-static bool matchRange(HttpConn *conn, HttpRoute *route, int dir)
+static int matchRange(HttpConn *conn, HttpRoute *route, int dir)
 {
     mprAssert(conn->rx);
 
-    return ((dir & HTTP_STAGE_TX) && conn->tx->outputRanges) ? 1 : 0;
+    if ((dir & HTTP_STAGE_TX) && conn->tx->outputRanges) {
+        return HTTP_ROUTE_OK;
+    }
+    return HTTP_ROUTE_REJECT;
 }
 
 
@@ -173,22 +176,17 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
 {
     HttpPacket  *packet;
     HttpTx      *tx;
-    char        lenBuf[16];
+    char        *length;
 
     tx = conn->tx;
 
-    if (tx->entityLength >= 0) {
-        itos(lenBuf, sizeof(lenBuf), tx->entityLength, 10);
-    } else {
-        lenBuf[0] = '*';
-        lenBuf[1] = '\0';
-    }
+    length = (tx->entityLength >= 0) ? itos(tx->entityLength, 10) : "*";
     packet = httpCreatePacket(HTTP_RANGE_BUFSIZE);
     packet->flags |= HTTP_PACKET_RANGE;
     mprPutFmtToBuf(packet->content, 
         "\r\n--%s\r\n"
         "Content-Range: bytes %Ld-%Ld/%s\r\n\r\n",
-        tx->rangeBoundary, range->start, range->end - 1, lenBuf);
+        tx->rangeBoundary, range->start, range->end - 1, length);
     return packet;
 }
 

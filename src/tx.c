@@ -13,7 +13,7 @@ static void manageTx(HttpTx *tx, int flags);
 
 /*********************************** Code *************************************/
 
-HttpTx *httpCreateTx(HttpConn *conn, MprHashTable *headers)
+HttpTx *httpCreateTx(HttpConn *conn, MprHash *headers)
 {
     HttpTx      *tx;
 
@@ -157,7 +157,14 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 
     oldValue = mprLookupKey(conn->tx->headers, key);
     if (oldValue) {
-        addHeader(conn, key, sfmt("%s, %s", oldValue, value));
+        /*
+            Set-Cookie has legacy behavior and some browsers require separate headers
+         */
+        if (scasematch(key, "Set-Cookie")) {
+            mprAddDuplicateKey(conn->tx->headers, key, value);
+        } else {
+            addHeader(conn, key, sfmt("%s, %s", oldValue, value));
+        }
     } else {
         addHeader(conn, key, value);
     }
@@ -177,7 +184,11 @@ void httpAppendHeaderString(HttpConn *conn, cchar *key, cchar *value)
 
     oldValue = mprLookupKey(conn->tx->headers, key);
     if (oldValue) {
-        addHeader(conn, key, sfmt("%s, %s", oldValue, value));
+        if (scasematch(key, "Set-Cookie")) {
+            mprAddDuplicateKey(conn->tx->headers, key, value);
+        } else {
+            addHeader(conn, key, sfmt("%s, %s", oldValue, value));
+        }
     } else {
         addHeader(conn, key, value);
     }
@@ -631,7 +642,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     Http        *http;
     HttpTx      *tx;
     HttpUri     *parsedUri;
-    MprHash     *hp;
+    MprKey      *kp;
     MprBuf      *buf;
     int         level;
 
@@ -688,15 +699,15 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     /* 
        Output headers
      */
-    hp = mprGetFirstKey(conn->tx->headers);
-    while (hp) {
-        mprPutStringToBuf(packet->content, hp->key);
+    kp = mprGetFirstKey(conn->tx->headers);
+    while (kp) {
+        mprPutStringToBuf(packet->content, kp->key);
         mprPutStringToBuf(packet->content, ": ");
-        if (hp->data) {
-            mprPutStringToBuf(packet->content, hp->data);
+        if (kp->data) {
+            mprPutStringToBuf(packet->content, kp->data);
         }
         mprPutStringToBuf(packet->content, "\r\n");
-        hp = mprGetNextKey(conn->tx->headers, hp);
+        kp = mprGetNextKey(conn->tx->headers, kp);
     }
 
     /* 

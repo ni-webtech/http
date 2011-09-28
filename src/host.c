@@ -107,6 +107,24 @@ static void manageHost(HttpHost *host, int flags)
 }
 
 
+//  MOB - support different formats (one line or multi-line)
+void httpLogRoutes(HttpHost *host)
+{
+    HttpRoute   *route;
+    cchar       *methods;
+    int         next;
+
+    for (next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
+        methods = httpGetRouteMethods(route);
+        if (route->target) {
+            mprLog(0, "  %-20s %-12s %-40s %-14s", route->name, methods ? methods : "*", route->pattern, route->target);
+        } else {
+            mprLog(0, "  %-20s %-12s %-40s", route->name, methods ? methods : "*", route->pattern);
+        }
+    }
+}
+
+
 void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize)
 {
     host->logCount = logCount;
@@ -162,7 +180,7 @@ void httpSetHostProtocol(HttpHost *host, cchar *protocol)
 }
 
 
-int httpAddRoute(HttpHost *host, HttpRoute *route)
+int httpAddRouteToHost(HttpHost *host, HttpRoute *route)
 {
     mprAssert(route);
     
@@ -173,6 +191,24 @@ int httpAddRoute(HttpHost *host, HttpRoute *route)
         mprAddItem(host->routes, route);
     }
     httpSetRouteHost(route, host);
+    return 0;
+}
+
+
+HttpRoute *httpLookupRoute(HttpHost *host, cchar *name)
+{
+    HttpRoute   *route;
+    int         next;
+
+    if (name == 0 || *name == '\0') {
+        name = "default";
+    }
+    for (next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
+        mprAssert(route->name);
+        if (smatch(route->name, name)) {
+            return route;
+        }
+    }
     return 0;
 }
 

@@ -437,7 +437,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpLimits  *limits;
     MprBuf      *content;
-    char        *key, *value, *tok;
+    char        *key, *value, *tok, *hvalue;
     cchar       *oldValue;
     int         count, keepAlive;
 
@@ -468,10 +468,12 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad header key value");
         }
         if ((oldValue = mprLookupKey(rx->headers, key)) != 0) {
-            mprAddKey(rx->headers, key, sfmt("%s, %s", oldValue, value));
+            hvalue = sfmt("%s, %s", oldValue, value);
         } else {
-            mprAddKey(rx->headers, key, sclone(value));
+            hvalue = sclone(value);
         }
+        mprAddKey(rx->headers, key, hvalue);
+
         switch (key[0]) {
         case 'a':
             if (strcmp(key, "authorization") == 0) {
@@ -1247,7 +1249,7 @@ cchar *httpGetHeader(HttpConn *conn, cchar *key)
 char *httpGetHeaders(HttpConn *conn)
 {
     HttpRx      *rx;
-    MprHash     *hp;
+    MprKey      *kp;
     char        *headers, *key, *cp;
     ssize       len;
 
@@ -1257,8 +1259,8 @@ char *httpGetHeaders(HttpConn *conn)
     }
     rx = conn->rx;
     headers = 0;
-    for (len = 0, hp = mprGetFirstKey(rx->headers); hp; ) {
-        headers = srejoin(headers, hp->key, NULL);
+    for (len = 0, kp = mprGetFirstKey(rx->headers); kp; ) {
+        headers = srejoin(headers, kp->key, NULL);
         key = &headers[len];
         for (cp = &key[1]; *cp; cp++) {
             *cp = tolower((int) *cp);
@@ -1266,15 +1268,15 @@ char *httpGetHeaders(HttpConn *conn)
                 cp++;
             }
         }
-        headers = srejoin(headers, ": ", hp->data, "\n", NULL);
+        headers = srejoin(headers, ": ", kp->data, "\n", NULL);
         len = strlen(headers);
-        hp = mprGetNextKey(rx->headers, hp);
+        kp = mprGetNextKey(rx->headers, kp);
     }
     return headers;
 }
 
 
-MprHashTable *httpGetHeaderHash(HttpConn *conn)
+MprHash *httpGetHeaderHash(HttpConn *conn)
 {
     if (conn->rx == 0) {
         mprAssert(conn->rx);
@@ -1639,7 +1641,7 @@ cvoid *httpGetStageData(HttpConn *conn, cchar *key)
 }
 
 
-static int sortForm(MprHash **h1, MprHash **h2)
+static int sortForm(MprKey **h1, MprKey **h2)
 {
     return scmp((*h1)->key, (*h2)->key);
 }
@@ -1650,13 +1652,13 @@ static int sortForm(MprHash **h1, MprHash **h2)
  */
 char *httpGetFormData(HttpConn *conn)
 {
-    HttpRx          *rx;
-    MprHashTable    *params;
-    MprHash         *hp;
-    MprList         *list;
-    char            *buf, *cp;
-    ssize           len;
-    int             next;
+    HttpRx      *rx;
+    MprHash     *params;
+    MprKey      *kp;
+    MprList     *list;
+    char        *buf, *cp;
+    ssize       len;
+    int         next;
 
     mprAssert(conn);
 
@@ -1666,17 +1668,17 @@ char *httpGetFormData(HttpConn *conn)
         if ((params = conn->rx->params) != 0) {
             if ((list = mprCreateList(mprGetHashLength(params), 0)) != 0) {
                 len = 0;
-                for (hp = 0; (hp = mprGetNextKey(params, hp)) != NULL; ) {
-                    mprAddItem(list, hp);
-                    len += slen(hp->key) + slen(hp->data) + 2;
+                for (kp = 0; (kp = mprGetNextKey(params, kp)) != NULL; ) {
+                    mprAddItem(list, kp);
+                    len += slen(kp->key) + slen(kp->data) + 2;
                 }
                 if ((buf = mprAlloc(len + 1)) != 0) {
                     mprSortList(list, sortForm);
                     cp = buf;
-                    for (next = 0; (hp = mprGetNextItem(list, &next)) != 0; ) {
-                        strcpy(cp, hp->key); cp += slen(hp->key);
+                    for (next = 0; (kp = mprGetNextItem(list, &next)) != 0; ) {
+                        strcpy(cp, kp->key); cp += slen(kp->key);
                         *cp++ = '=';
-                        strcpy(cp, hp->data); cp += slen(hp->data);
+                        strcpy(cp, kp->data); cp += slen(kp->data);
                         *cp++ = '&';
                     }
                     cp[-1] = '\0';
@@ -1729,7 +1731,7 @@ static int compareLang(char **s1, char **s2)
 }
 
 
-HttpLang *httpGetLanguage(HttpConn *conn, MprHashTable *spoken, cchar *defaultLang)
+HttpLang *httpGetLanguage(HttpConn *conn, MprHash *spoken, cchar *defaultLang)
 {
     HttpRx      *rx;
     HttpLang    *lang;
@@ -1797,6 +1799,7 @@ void httpTrimExtraPath(HttpConn *conn)
         }
     }
 }
+
 
 /*
     @copy   default

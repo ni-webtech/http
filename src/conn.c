@@ -236,7 +236,7 @@ void httpPrepServerConn(HttpConn *conn)
 
 void httpPrepClientConn(HttpConn *conn, bool keepHeaders)
 {
-    MprHashTable    *headers;
+    MprHash     *headers;
 
     mprAssert(conn);
 

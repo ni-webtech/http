@@ -328,9 +328,9 @@ void *httpLookupStageData(Http *http, cchar *name)
 cchar *httpLookupStatus(Http *http, int status)
 {
     HttpStatusCode  *ep;
-    char            key[8];
+    char            *key;
     
-    itos(key, sizeof(key), status, 10);
+    key = itos(status, 10);
     ep = (HttpStatusCode*) mprLookupKey(http->statusCodes, key);
     if (ep == 0) {
         return "Custom error";

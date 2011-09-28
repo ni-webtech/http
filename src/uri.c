@@ -263,8 +263,8 @@ HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing)
  */
 char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *reference, cchar *query, int complete)
 {
-    char    portBuf[16], *uri;
-    cchar   *hostDelim, *portDelim, *pathDelim, *queryDelim, *referenceDelim;
+    char    *uri;
+    cchar   *portStr, *hostDelim, *portDelim, *pathDelim, *queryDelim, *referenceDelim;
 
     if (complete || host || scheme) {
         if (scheme == 0 || *scheme == '\0') {
@@ -284,10 +284,10 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
         portDelim = 0;
     } else {
         if (port != 0 && port != getDefaultPort(scheme)) {
-            itos(portBuf, sizeof(portBuf), port, 10);
+            portStr = itos(port, 10);
             portDelim = ":";
         } else {
-            portBuf[0] = '\0';
+            portStr = "";
             portDelim = "";
         }
     }
@@ -314,7 +314,7 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
         queryDelim = query = "";
     }
     if (portDelim) {
-        uri = sjoin(scheme, hostDelim, host, portDelim, portBuf, pathDelim, path, referenceDelim, reference, 
+        uri = sjoin(scheme, hostDelim, host, portDelim, portStr, pathDelim, path, referenceDelim, reference, 
             queryDelim, query, NULL);
     } else {
         uri = sjoin(scheme, hostDelim, host, pathDelim, path, referenceDelim, reference, queryDelim, query, NULL);

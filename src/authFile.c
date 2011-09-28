@@ -392,9 +392,9 @@ HttpAcl httpParseAcl(HttpAuth *auth, cchar *aclStr)
  */
 void httpUpdateUserAcls(HttpAuth *auth)
 {
-    MprHash     *groupHash, *userHash;
-    HttpUser      *user;
-    HttpGroup     *gp;
+    MprKey      *groupHash, *userHash;
+    HttpUser    *user;
+    HttpGroup   *gp;
     
     /*
         Reset the ACL for each user
@@ -573,7 +573,7 @@ int httpReadUserFile(HttpAuth *auth, char *path)
 int httpWriteUserFile(HttpAuth *auth, char *path)
 {
     MprFile         *file;
-    MprHash         *hp;
+    MprKey          *kp;
     HttpUser        *up;
     char            buf[HTTP_MAX_PASS * 2];
     char            *tempFile;
@@ -583,12 +583,12 @@ int httpWriteUserFile(HttpAuth *auth, char *path)
         mprError("Can't open %s", tempFile);
         return MPR_ERR_CANT_OPEN;
     }
-    hp = mprGetNextKey(auth->users, 0);
-    while (hp) {
-        up = (HttpUser*) hp->data;
+    kp = mprGetNextKey(auth->users, 0);
+    while (kp) {
+        up = (HttpUser*) kp->data;
         mprSprintf(buf, sizeof(buf), "%d: %s: %s: %s\n", up->enabled, up->name, up->realm, up->password);
         mprWriteFile(file, buf, (int) strlen(buf));
-        hp = mprGetNextKey(auth->users, hp);
+        kp = mprGetNextKey(auth->users, kp);
     }
     mprCloseFile(file);
     unlink(path);
@@ -602,7 +602,7 @@ int httpWriteUserFile(HttpAuth *auth, char *path)
 
 int httpWriteGroupFile(HttpAuth *auth, char *path)
 {
-    MprHash         *hp;
+    MprKey          *kp;
     MprFile         *file;
     HttpGroup       *gp;
     char            buf[MPR_MAX_STRING], *tempFile, *name;
@@ -613,17 +613,16 @@ int httpWriteGroupFile(HttpAuth *auth, char *path)
         mprError("Can't open %s", tempFile);
         return MPR_ERR_CANT_OPEN;
     }
-
-    hp = mprGetNextKey(auth->groups, 0);
-    while (hp) {
-        gp = (HttpGroup*) hp->data;
+    kp = mprGetNextKey(auth->groups, 0);
+    while (kp) {
+        gp = (HttpGroup*) kp->data;
         mprSprintf(buf, sizeof(buf), "%d: %x: %s: ", gp->enabled, gp->acl, gp->name);
         mprWriteFile(file, buf, strlen(buf));
         for (next = 0; (name = mprGetNextItem(gp->users, &next)) != 0; ) {
             mprWriteFile(file, name, strlen(name));
         }
         mprWriteFile(file, "\n", 1);
-        hp = mprGetNextKey(auth->groups, hp);
+        kp = mprGetNextKey(auth->groups, kp);
     }
     mprCloseFile(file);
     unlink(path);
