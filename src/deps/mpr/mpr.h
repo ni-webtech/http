@@ -3979,7 +3979,7 @@ extern int mprLookupItem(MprList *list, cvoid *item);
     @return Returns the positive index of the removed item, otherwise a negative MPR error code.
     @ingroup MprList
  */
-extern int mprRemoveItem(MprList *list, void *item);
+extern int mprRemoveItem(MprList *list, cvoid *item);
 
 /**
     Remove an item from the list
@@ -4455,7 +4455,10 @@ extern void mprSetKeyBits(MprKey *hp, int bits);
 #endif
 
 //  MOB DOC
+#define MPR_HASH_PRETTY 0x1
 extern MprHash *mprBlendHash(MprHash *hash, MprHash *extra);
+extern MprHash *mprParseHash(cchar *str);
+extern cchar *mprHashToString(MprHash *hash, int flags);
 
 /*
     Prototypes for file system switch methods

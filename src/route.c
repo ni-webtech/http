@@ -354,7 +354,6 @@ static int matchRoute(HttpConn *conn, HttpRoute *route)
         }
     }
     if (route->params) {
-        httpAddParams(conn);
         for (next = 0; (op = mprGetNextItem(route->params, &next)) != 0; ) {
             mprLog(6, "Test route \"%s\" field \"%s\"", route->name, op->name);
             if ((field = httpGetParam(conn, op->name, "")) != 0) {
@@ -399,9 +398,6 @@ static int matchRoute(HttpConn *conn, HttpRoute *route)
     if (route->prefix) {
         //  MOB - call this {app} or {prefix}
         httpSetParam(conn, "app", route->prefix);
-    }
-    if (tx->handler->flags & HTTP_STAGE_PARAMS) {
-        httpAddParams(conn);
     }
     if (route->tokens) {
         for (next = 0; (token = mprGetNextItem(route->tokens, &next)) != 0; ) {
@@ -2761,6 +2757,7 @@ static char *trimQuotes(char *str)
 }
 
 
+#if UNUSED
 /*
     Options parser. This is a sub-set of JSON. Does not support arrays.
  */
@@ -2820,6 +2817,7 @@ static MprHash *deserializeOptions(MprHash *hash, cchar **token)
     *token = cp;
     return hash;
 }
+#endif
 
 
 MprHash *httpGetOptions(cchar *options)
@@ -2831,7 +2829,11 @@ MprHash *httpGetOptions(cchar *options)
         /* Allow embedded URIs as options */
         options = sfmt("click: '%s'", options);
     }
+#if UNUSED
     return deserializeOptions(NULL, &options);
+#else
+    return mprParseHash(options);
+#endif
 }
 
 

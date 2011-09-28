@@ -1272,7 +1272,9 @@ extern void httpAssignQueue(HttpQueue *q, struct HttpStage *stage, int dir);
 #define HTTP_STAGE_HANDLER        0x2000            /**< Stage is a handler  */
 #define HTTP_STAGE_FILTER         0x4000            /**< Stage is a filter  */
 #define HTTP_STAGE_MODULE         0x8000            /**< Stage is a filter  */
+#if UNUSED
 #define HTTP_STAGE_PARAMS         0x10000           /**< Create params from URI query and form body data */
+#endif
 #define HTTP_STAGE_AUTO_DIR       0x80000           /**< Want auto directory redirection */
 #define HTTP_STAGE_UNLOADED       0x100000          /**< Stage module library has been unloaded */
 #define HTTP_STAGE_RX             0x200000          /**< Stage to be used in the Rx direction */
@@ -2201,6 +2203,7 @@ extern void httpWritable(HttpConn *conn);
 extern struct HttpConn *httpAccept(struct HttpEndpoint *endpoint);
 extern void httpEnableConnEvents(HttpConn *conn);
 extern void httpInitTrace(HttpTrace *trace);
+extern void httpParseMethod(HttpConn *conn);
 extern HttpLimits *httpSetUniqueConnLimits(HttpConn *conn);
 extern int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext);
 extern void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, MprOff total);

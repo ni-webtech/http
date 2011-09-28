@@ -4626,7 +4626,7 @@ ssize mprWriteCache(MprCache *cache, cchar *key, cchar *value, MprTime modified,
 
     mprAssert(cache);
     mprAssert(key && *key);
-    mprAssert(value && *value);
+    mprAssert(value);
 
     if (cache->shared) {
         cache = cache->shared;
@@ -10877,6 +10877,108 @@ static void *dupKey(MprHash *hash, MprKey *sp, cvoid *key)
 
 
 /*
+    The serial format is a subset of JSON without array support.
+    This is designed to be as fast as possible for encoding one level of properties.
+ */
+static MprHash *parseHash(MprHash *hash, cchar **token)
+{
+    cchar   *cp, *ep;
+    char    key[MPR_MAX_STRING];
+    int     quote;
+
+    for (cp = *token; *cp; cp++) {
+        while (isspace((int) *cp)) cp++;
+        if (*cp == '{') {
+            ++cp;
+            hash = parseHash(mprCreateHash(0, 0), &cp);
+
+        } else if ((ep = strchr(cp, ':')) != 0 && (ep == *token || ep[-1] != '\\')) {
+            if (*cp == '}') {
+                /* By continuing, we permit:  {options}{more options} */
+                continue;
+            } else if (*cp == ',') {
+                continue;
+            }
+            if (hash == 0) {
+                /* Missing opening "{" */
+                break;
+            }
+            if (*cp == '\'') {
+                sncopy(key, sizeof(key), &cp[1], ep - cp - 2);
+            } else {
+                sncopy(key, sizeof(key), cp, ep - cp);
+            }
+            for (cp = ep + 1; isspace((int) *cp); cp++) ;
+            if (*cp == '{') {
+                ++cp;
+                mprAddKey(hash, key, parseHash(mprCreateHash(0, 0), &cp));
+
+            } else if (*cp == '"' || *cp == '\'') {
+                quote = *cp;
+                if ((ep = strchr(++cp, quote)) != 0 && ep[-1] != '\\') {
+                    mprAddKey(hash, key, snclone(cp, ep - cp));
+                    cp = ep;
+                } else {
+                    /* missing closing quote */
+                    break;
+                }
+
+            } else if ((ep = strchr(cp, ',')) != 0 && ep[-1] != '\\') {
+                mprAddKey(hash, key, snclone(cp, ep - cp));
+                cp = ep - 1;
+
+            } else if ((ep = strchr(cp, '}')) != 0 && ep[-1] != '\\') {
+                /* Close of object "}" */
+                break;
+
+            } else if (ep == 0) {
+                mprAddKey(hash, key, sclone(cp));
+                break;
+            }
+        }
+    }
+    *token = cp;
+    return hash;
+}
+
+
+MprHash *mprParseHash(cchar *str)
+{
+    if (str == 0 || *str == '\0') {
+        return mprCreateHash(-1, 0);
+    }
+    return parseHash(NULL, &str);
+}
+
+
+/*
+    Serialize into JSON format. Assumes that all key data is simple strings.
+ */
+cchar *mprHashToString(MprHash *hash, int flags)
+{
+    MprKey  *kp;
+    MprBuf  *buf;
+    int     pretty;
+
+    pretty = (flags & MPR_HASH_PRETTY);
+    if ((buf = mprCreateBuf(0, 0)) == 0) {
+        return 0;
+    }
+    mprPutCharToBuf(buf, '{');
+    if (pretty) mprPutCharToBuf(buf, '\n');
+    for (ITERATE_KEYS(hash, kp)) {
+        if (pretty) mprPutStringToBuf(buf, "    ");
+        //  MOB - printable?
+        mprPutFmtToBuf(buf, "'%s': '%s',", kp->key, kp->data);
+        if (pretty) mprPutCharToBuf(buf, '\n');
+    }
+    mprPutCharToBuf(buf, '}');
+    if (pretty) mprPutCharToBuf(buf, '\n');
+    return sclone(mprGetBufStart(buf));
+}
+
+
+/*
     @copy   default
 
     Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
@@ -11968,7 +12070,7 @@ int mprInsertItemAtPos(MprList *lp, int index, cvoid *item)
 /*
     Remove an item from the list. Return the index where the item resided.
  */
-int mprRemoveItem(MprList *lp, void *item)
+int mprRemoveItem(MprList *lp, cvoid *item)
 {
     int     index;
 
