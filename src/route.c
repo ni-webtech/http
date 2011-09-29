@@ -1185,7 +1185,7 @@ static void finalizePattern(HttpRoute *route)
         route->literalPattern = snclone(startPattern, len);
         route->literalPatternLen = len;
     } else {
-        /* Need to reset incase re-defining the pattern */
+        /* Pattern has special characters */
         route->literalPattern = 0;
         route->literalPatternLen = 0;
     }
@@ -2138,27 +2138,27 @@ static void addRestful(HttpRoute *parent, cchar *name, cchar *methods, cchar *pa
 
 void httpAddResourceGroup(HttpRoute *parent, cchar *prefix, cchar *controller)
 {
-    addRestful(parent, "index",   "GET",    "^/%s(/)*$",                  "%s-index",     "%s.c", prefix, controller);
-    addRestful(parent, "init",    "GET",    "^/%s/init$",                 "%s-init",      "%s.c", prefix, controller);
-    addRestful(parent, "create",  "POST",   "^/%s(/)*$",                  "%s-create",    "%s.c", prefix, controller);
-    addRestful(parent, "edit",    "GET",    "^/%s/{id=[0-9]+}/edit$",     "%s-edit",      "%s.c", prefix, controller);
-    addRestful(parent, "show",    "GET",    "^/%s/{id=[0-9]+}$",          "%s-show",      "%s.c", prefix, controller);
-    addRestful(parent, "update",  "PUT",    "^/%s/{id=[0-9]+}$",          "%s-update",    "%s.c", prefix, controller);
-    addRestful(parent, "destroy", "DELETE", "^/%s/{id=[0-9]+}$",          "%s-destroy",   "%s.c", prefix, controller);
-    addRestful(parent, "custom",  "POST",   "^/%s/{action}/{id=[0-9]+}$", "%s-${action}", "%s.c", prefix, controller);
-    addRestful(parent, "default", "POST",   "^/%s/{action}$",             "%s-${action}", "%s.c", prefix, controller);
+    addRestful(parent, "index",   "GET",    "^/%s(/)*$",                  "%s-index",         "%s.c", prefix, controller);
+    addRestful(parent, "init",    "GET",    "^/%s/init$",                 "%s-init",          "%s.c", prefix, controller);
+    addRestful(parent, "create",  "POST",   "^/%s(/)*$",                  "%s-create",        "%s.c", prefix, controller);
+    addRestful(parent, "edit",    "GET",    "^/%s/{id=[0-9]+}/edit$",     "%s-edit",          "%s.c", prefix, controller);
+    addRestful(parent, "show",    "GET",    "^/%s/{id=[0-9]+}$",          "%s-show",          "%s.c", prefix, controller);
+    addRestful(parent, "update",  "PUT",    "^/%s/{id=[0-9]+}$",          "%s-update",        "%s.c", prefix, controller);
+    addRestful(parent, "destroy", "DELETE", "^/%s/{id=[0-9]+}$",          "%s-destroy",       "%s.c", prefix, controller);
+    addRestful(parent, "custom",  "POST",   "^/%s/{action}/{id=[0-9]+}$", "%s-${action}",     "%s.c", prefix, controller);
+    addRestful(parent, "default", "*",      "^/%s/{action}$",             "%s-cmd-${action}", "%s.c", prefix, controller);
 }
 
 
 void httpAddResource(HttpRoute *parent, cchar *prefix, cchar *controller)
 {
-    addRestful(parent, "init",    "GET",    "^/%s/init$",         "%s-init",      "%s.c", prefix, controller);
-    addRestful(parent, "create",  "POST",   "^/%s(/)*$",          "%s-create",    "%s.c", prefix, controller);
-    addRestful(parent, "edit",    "GET",    "^/%s/edit$",         "%s-edit",      "%s.c", prefix, controller);
-    addRestful(parent, "show",    "GET",    "^/%s$",              "%s-show",      "%s.c", prefix, controller);
-    addRestful(parent, "update",  "PUT",    "^/%s$",              "%s-update",    "%s.c", prefix, controller);
-    addRestful(parent, "destroy", "DELETE", "^/%s$",              "%s-destroy",   "%s.c", prefix, controller);
-    addRestful(parent, "default", "POST",   "^/%s/{action}$",     "%s-${action}", "%s.c", prefix, controller);
+    addRestful(parent, "init",    "GET",    "^/%s/init$",         "%s-init",          "%s.c", prefix, controller);
+    addRestful(parent, "create",  "POST",   "^/%s(/)*$",          "%s-create",        "%s.c", prefix, controller);
+    addRestful(parent, "edit",    "GET",    "^/%s/edit$",         "%s-edit",          "%s.c", prefix, controller);
+    addRestful(parent, "show",    "GET",    "^/%s$",              "%s-show",          "%s.c", prefix, controller);
+    addRestful(parent, "update",  "PUT",    "^/%s$",              "%s-update",        "%s.c", prefix, controller);
+    addRestful(parent, "destroy", "DELETE", "^/%s$",              "%s-destroy",       "%s.c", prefix, controller);
+    addRestful(parent, "default", "*",      "^/%s/{action}$",     "%s-cmd-${action}", "%s.c", prefix, controller);
 }
 
 
