@@ -61,18 +61,19 @@ void httpRouteRequest(HttpConn *conn)
             break;
         }
         if ((match = httpMatchRoute(conn, route)) == HTTP_ROUTE_OK) {
-            rx->route = route;
             mprAssert(tx->handler);
             break;
         } else if (match == HTTP_ROUTE_REROUTE) {
             next = 0;
+            route = 0;
             rewrites++;
         }
     }
-    if (rx->route == 0) {
-        httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't find route for request");
+    if (route == 0 || tx->handler == 0) {
+        httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't find suitable route for request");
         return;
     }
+    rx->route = route;
     if (conn->error || tx->redirected || tx->altBody) {
         tx->handler = conn->http->passHandler;
         if (rewrites >= HTTP_MAX_REWRITE) {

@@ -1818,19 +1818,24 @@ void httpTrimExtraPath(HttpConn *conn)
 {
     HttpTx      *tx;
     HttpRx      *rx;
-    char        *cp, *extra, *start;
+    char        *cp, *extra;
     ssize       len;
 
     rx = conn->rx;
     tx = conn->tx;
 
     if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) { 
-        start = rx->pathInfo;
-        if ((cp = strchr(start, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
-            len = extra - start;
+        if ((cp = strchr(rx->pathInfo, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
+            len = extra - rx->pathInfo;
             if (0 < len && len < slen(rx->pathInfo)) {
                 rx->extraPath = sclone(&rx->pathInfo[len]);
                 rx->pathInfo[len] = '\0';
+            }
+        }
+        if ((cp = strchr(rx->target, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
+            len = extra - rx->target;
+            if (0 < len && len < slen(rx->target)) {
+                rx->target[len] = '\0';
             }
         }
     }

@@ -2913,7 +2913,6 @@ typedef struct HttpRouteOp {
 typedef int (HttpRouteProc)(HttpConn *conn, HttpRoute *route, HttpRouteOp *item);
 
 //  MOB DOC
-extern HttpRoute *httpAddRoute(HttpRoute *parent, cchar *name, cchar *methods, cchar *pattern, cchar *target, cchar *source);
 extern void httpAddResource(HttpRoute *parent, cchar *prefix, cchar *controller);
 extern void httpAddResourceGroup(HttpRoute *parent, cchar *prefix, cchar *controller);
 extern void httpAddDefaultRoutes(HttpRoute *parent);
@@ -4795,6 +4794,7 @@ typedef struct HttpHost {
     struct HttpHost *parent;                /**< Parent host to inherit aliases, dirs, routes */
     MprList         *dirs;                  /**< List of Directory definitions */
     MprList         *routes;                /**< List of Route defintions */
+    HttpRoute       *defaultRoute;          /**< Default route for the host */
     HttpLimits      *limits;                /**< Host resource limits */
     MprHash         *mimeTypes;             /**< Hash table of mime types (key is extension) */
 
@@ -4828,7 +4828,11 @@ typedef struct HttpHost {
     @return Zero if the route can be added.
     @ingroup HttpHost
  */
-extern int httpAddRouteToHost(HttpHost *host, HttpRoute *route);
+extern int httpAddRoute(HttpHost *host, HttpRoute *route);
+
+//  MOB DOC
+HttpRoute *httpAddConfiguredRoute(HttpRoute *parent, cchar *name, cchar *methods, cchar *pattern, cchar *target, 
+        cchar *source);
 
 /**
     Clone a host
@@ -4848,6 +4852,9 @@ extern HttpHost *httpCloneHost(HttpHost *parent);
 extern HttpHost *httpCreateHost();
 
 //  MOB DOC
+extern HttpRoute *httpGetHostDefaultRoute(HttpHost *host);
+
+//  MOB DOC
 extern void httpLogRoutes(HttpHost *host);
 
 /**
@@ -4863,6 +4870,9 @@ extern HttpRoute *httpLookupRoute(HttpHost *host, cchar *name);
     @ingroup HttpHost
  */
 extern void httpResetRoutes(HttpHost *host);
+
+//  MOB DOC
+extern void httpSetHostDefaultRoute(HttpHost *host, HttpRoute *route);
 
 /**
     Set the home directory for a host
@@ -4929,6 +4939,7 @@ extern void httpSetHostTrace(HttpHost *host, int level, int mask);
  */
 extern void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *exclude);
 
+//  MOB DIVIDOR
 #if UNUSED
 /**
     Setup trace for expedited processing

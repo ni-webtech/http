@@ -89,6 +89,7 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->parent);
         mprMark(host->dirs);
         mprMark(host->routes);
+        mprMark(host->defaultRoute);
         mprMark(host->mimeTypes);
         mprMark(host->home);
         mprMark(host->traceInclude);
@@ -107,20 +108,38 @@ static void manageHost(HttpHost *host, int flags)
 }
 
 
+static void printRoute(HttpRoute *route)
+{
+    cchar   *methods, *pattern, *target;
+
+    methods = httpGetRouteMethods(route);
+    pattern = (route->pattern && *route->pattern) ? route->pattern : "^/";
+    target = (route->target && *route->target) ? route->target : "$&";
+    mprLog(0, "  %-20s %-12s %-40s %-14s", route->name, methods ? methods : "*", pattern, target);
+}
+
+
+HttpRoute *httpGetHostDefaultRoute(HttpHost *host)
+{
+    return host->defaultRoute;
+}
+
+
 //  MOB - support different formats (one line or multi-line)
 void httpLogRoutes(HttpHost *host)
 {
     HttpRoute   *route;
-    cchar       *methods;
-    int         next;
+    int         next, foundDefault;
 
-    for (next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
-        methods = httpGetRouteMethods(route);
-        if (route->target) {
-            mprLog(0, "  %-20s %-12s %-40s %-14s", route->name, methods ? methods : "*", route->pattern, route->target);
-        } else {
-            mprLog(0, "  %-20s %-12s %-40s", route->name, methods ? methods : "*", route->pattern);
+    mprLog(0, "  %-20s %-12s %-40s %-14s", "Name", "Methods", "Pattern", "Target");
+    for (foundDefault = next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
+        printRoute(route);
+        if (route == host->defaultRoute) {
+            foundDefault++;
         }
+    }
+    if (!foundDefault && host->defaultRoute) {
+        printRoute(host->defaultRoute);
     }
 }
 
@@ -180,7 +199,7 @@ void httpSetHostProtocol(HttpHost *host, cchar *protocol)
 }
 
 
-int httpAddRouteToHost(HttpHost *host, HttpRoute *route)
+int httpAddRoute(HttpHost *host, HttpRoute *route)
 {
     mprAssert(route);
     
@@ -216,6 +235,12 @@ HttpRoute *httpLookupRoute(HttpHost *host, cchar *name)
 void httpResetRoutes(HttpHost *host)
 {
     host->routes = mprCreateList(-1, 0);
+}
+
+
+void httpSetHostDefaultRoute(HttpHost *host, HttpRoute *route)
+{
+    host->defaultRoute = route;
 }
 
 
