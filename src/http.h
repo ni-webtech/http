@@ -176,6 +176,9 @@ struct HttpUri;
 #define HTTP_CODE_START_LOCAL_ERRORS        550
 #define HTTP_CODE_COMMS_ERROR               550     /**< The server had a communicationss error responding to the client */
 
+/*
+    Flags that can be ored into the status code
+ */
 #define HTTP_CODE_MASK                      0xFFFF
 #define HTTP_ABORT                          0x10000 /* Abort the request, immediately close the conn */
 #define HTTP_CLOSE                          0x20000 /* Close the conn at the completion of the request */
@@ -1735,6 +1738,7 @@ typedef struct HttpConn {
     void            *pool;                  /**< Pool of VMs */
     void            *mark;                  /**< Reference for GC marking */
     void            *data;                  /**< Custom data for request */
+    void            *grid;                  /**< Current request database grid for MVC apps */
     void            *record;                /**< Current request database record for MVC apps */
     char            *boundary;              /**< File upload boundary */
     char            *errorMsg;              /**< Error message for the last request (if any) */

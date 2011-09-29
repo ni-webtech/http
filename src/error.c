@@ -44,7 +44,9 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
     int         status;
 
     mprAssert(fmt);
-
+    if (conn == 0) {
+        return;
+    }
     if (flags & HTTP_ABORT) {
         conn->connError = 1;
     }
@@ -54,6 +56,9 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
     }
     conn->error = 1;
     status = flags & HTTP_CODE_MASK;
+    if (status == 0) {
+        status = HTTP_CODE_INTERNAL_SERVER_ERROR;
+    }
     httpFormatErrorV(conn, status, fmt, args);
 
     if (flags & (HTTP_ABORT | HTTP_CLOSE)) {
