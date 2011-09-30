@@ -108,39 +108,56 @@ static void manageHost(HttpHost *host, int flags)
 }
 
 
-static void printRoute(HttpRoute *route)
-{
-    cchar   *methods, *pattern, *target;
-
-    methods = httpGetRouteMethods(route);
-    pattern = (route->pattern && *route->pattern) ? route->pattern : "^/";
-    target = (route->target && *route->target) ? route->target : "$&";
-    mprLog(0, "  %-20s %-12s %-40s %-14s", route->name, methods ? methods : "*", pattern, target);
-}
-
-
 HttpRoute *httpGetHostDefaultRoute(HttpHost *host)
 {
     return host->defaultRoute;
 }
 
 
-//  MOB - support different formats (one line or multi-line)
-void httpLogRoutes(HttpHost *host)
+static void printRoute(HttpRoute *route, bool full)
+{
+    cchar   *methods, *pattern, *target;
+
+    methods = httpGetRouteMethods(route);
+    methods = methods ? methods : "*";
+    pattern = (route->pattern && *route->pattern) ? route->pattern : "^/";
+    target = (route->target && *route->target) ? route->target : "$&";
+    if (full) {
+        mprRawLog(0, "\n%s\n", route->name);
+        mprRawLog(0, "    Pattern:   %s\n", pattern);
+        mprRawLog(0, "    Methods:   %s\n", methods);
+        mprRawLog(0, "    Prefix:    %s\n", route->prefix);
+        mprRawLog(0, "    Target:    %s\n", target);
+        mprRawLog(0, "    Directory: %s\n", route->dir);
+        mprRawLog(0, "    Index:     %s\n", route->index);
+        if (route->handler) {
+            mprRawLog(0, "    Handler:   %s\n", route->handler->name);
+        }
+        mprRawLog(0, "\n");
+    } else {
+        mprRawLog(0, "%-20s %-12s %-40s %-14s\n", route->name, methods ? methods : "*", pattern, target);
+    }
+}
+
+
+void httpLogRoutes(HttpHost *host, bool full)
 {
     HttpRoute   *route;
     int         next, foundDefault;
 
-    mprLog(0, "  %-20s %-12s %-40s %-14s", "Name", "Methods", "Pattern", "Target");
+    if (!full) {
+        mprRawLog(0, "%-20s %-12s %-40s %-14s\n", "Name", "Methods", "Pattern", "Target");
+    }
     for (foundDefault = next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
-        printRoute(route);
+        printRoute(route, full);
         if (route == host->defaultRoute) {
             foundDefault++;
         }
     }
     if (!foundDefault && host->defaultRoute) {
-        printRoute(host->defaultRoute);
+        printRoute(host->defaultRoute, full);
     }
+    mprRawLog(0, "\n");
 }
 
 

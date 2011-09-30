@@ -2913,10 +2913,10 @@ typedef struct HttpRouteOp {
 typedef int (HttpRouteProc)(HttpConn *conn, HttpRoute *route, HttpRouteOp *item);
 
 //  MOB DOC
-extern void httpAddResource(HttpRoute *parent, cchar *prefix, cchar *controller);
-extern void httpAddResourceGroup(HttpRoute *parent, cchar *prefix, cchar *controller);
+extern void httpAddResource(HttpRoute *parent, cchar *resource);
+extern void httpAddResourceGroup(HttpRoute *parent, cchar *resource);
 extern void httpAddDefaultRoutes(HttpRoute *parent);
-extern void httpAddRouteSet(HttpRoute *parent, cchar *pack, cchar *patternPrefix, cchar *controller);
+extern void httpAddRouteSet(HttpRoute *parent, cchar *pack);
 
 /**
     Add a route condition
@@ -4855,7 +4855,7 @@ extern HttpHost *httpCreateHost();
 extern HttpRoute *httpGetHostDefaultRoute(HttpHost *host);
 
 //  MOB DOC
-extern void httpLogRoutes(HttpHost *host);
+extern void httpLogRoutes(HttpHost *host, bool full);
 
 /**
     Lookup a route by name
