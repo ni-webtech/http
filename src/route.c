@@ -296,6 +296,8 @@ void httpRouteRequest(HttpConn *conn)
         return;
     }
     rx->route = route;
+
+    //  MOB - be good to have one flag for this test
     if (conn->error || tx->redirected || tx->altBody) {
         tx->handler = conn->http->passHandler;
         if (rewrites >= HTTP_MAX_REWRITE) {
@@ -389,6 +391,8 @@ static int testRoute(HttpConn *conn, HttpRoute *route)
     rx = conn->rx;
     tx = conn->tx;
 
+    rx->target = route->target ? expandTokens(conn, route->target) : sclone(&conn->rx->pathInfo[1]);
+
     if (route->headers) {
         for (next = 0; (op = mprGetNextItem(route->headers, &next)) != 0; ) {
             mprLog(6, "Test route \"%s\" header \"%s\"", route->name, op->name);
@@ -465,8 +469,11 @@ static int testRoute(HttpConn *conn, HttpRoute *route)
     if ((rc = (*proc)(conn, route, 0)) != HTTP_ROUTE_OK) {
         return rc;
     }
-    if (tx->handler->check) {
-        rc = tx->handler->check(conn, route);
+    //  MOB - be good to have one flag for this test
+    if (!conn->error && !tx->redirected && !tx->altBody) {
+        if (tx->handler->check) {
+            rc = tx->handler->check(conn, route);
+        }
     }
     return rc;
 }
@@ -1340,6 +1347,7 @@ static char *finalizeReplacement(HttpRoute *route, cchar *str)
                     }
                     token = snclone(tok, ep - tok);
                     if (schr(token, ':')) {
+                        /* Double quote to get through two levels of expansion in writeTarget */
                         mprPutStringToBuf(buf, "$${");
                         mprPutStringToBuf(buf, token);
                         mprPutCharToBuf(buf, '}');
@@ -1349,6 +1357,7 @@ static char *finalizeReplacement(HttpRoute *route, cchar *str)
                                 break;
                             }
                         }
+                        /*  Insert "$" in front of "{token}" */
                         if (item) {
                             mprPutCharToBuf(buf, '$');
                             mprPutIntToBuf(buf, next);
@@ -2112,9 +2121,9 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int runTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-    mprAssert(conn);
-    mprAssert(route);
-
+    /*
+        Need to re-compute output string as updates may have run to define params which affect the route->target tokens
+     */
     conn->rx->target = route->target ? expandTokens(conn, route->target) : sclone(&conn->rx->pathInfo[1]);
     return HTTP_ROUTE_OK;
 }
@@ -2127,6 +2136,9 @@ static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(conn);
     mprAssert(route);
 
+    /*
+        Need to re-compute output string as updates may have run to define params which affect the route->target tokens
+     */
     str = route->target ? expandTokens(conn, route->target) : sclone(&conn->rx->pathInfo[1]);
     if (!(route->flags & HTTP_ROUTE_RAW)) {
         str = mprEscapeHtml(str);
