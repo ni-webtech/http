@@ -127,7 +127,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->pathTokens = parent->pathTokens;
     route->pattern = parent->pattern;
     route->patternCompiled = parent->patternCompiled;
-    route->processedPattern = parent->processedPattern;
+    route->optimizedPattern = parent->optimizedPattern;
     route->responseStatus = parent->responseStatus;
     route->script = parent->script;
     route->prefix = parent->prefix;
@@ -167,7 +167,8 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->index);
         mprMark(route->inputStages);
         mprMark(route->languages);
-        mprMark(route->literalPattern);
+        mprMark(route->startWith);
+        mprMark(route->startSegment);
         mprMark(route->methods);
         mprMark(route->methodSpec);
         mprMark(route->name);
@@ -176,7 +177,7 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->parent);
         mprMark(route->pathTokens);
         mprMark(route->pattern);
-        mprMark(route->processedPattern);
+        mprMark(route->optimizedPattern);
         mprMark(route->script);
         mprMark(route->prefix);
         mprMark(route->scriptPath);
@@ -253,52 +254,88 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *pattern, cchar *path, 
     return route;
 }
 
+/*
+    Find the matching route and handler for a request. If any errors occur, the pass handler is used to 
+    pass errors via the net/sendfile connectors onto the client. This process may rewrite the request 
+    URI and may redirect the request.
+ */
+void httpRouteRequest(HttpConn *conn)
+{
+    HttpRx      *rx;
+    HttpTx      *tx;
+    HttpRoute   *route;
+    int         next, rewrites, match;
+
+    rx = conn->rx;
+    tx = conn->tx;
+
+    for (next = rewrites = 0; rewrites < HTTP_MAX_REWRITE; ) {
+        if ((route = mprGetNextItem(conn->host->routes, &next)) == 0) {
+            break;
+        }
+        if (route->startSegment && strncmp(rx->pathInfo, route->startSegment, route->startSegmentLen) != 0) {
+            /* Failed to match the first URI segment, skip to the next group */
+            mprAssert(next <= route->nextGroup);
+            next = route->nextGroup;
+
+        } else if (route->startWith && strncmp(rx->pathInfo, route->startWith, route->startWithLen) != 0) {
+            /* Failed to match starting literal segment of the route pattern, advance to test the next route */
+            continue;
+
+        } else if ((match = httpMatchRoute(conn, route)) == HTTP_ROUTE_REROUTE) {
+            next = 0;
+            route = 0;
+            rewrites++;
+
+        } else if (match == HTTP_ROUTE_OK) {
+            break;
+        }
+    }
+    if (route == 0 || tx->handler == 0) {
+        httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't find suitable route for request");
+        return;
+    }
+    rx->route = route;
+    if (conn->error || tx->redirected || tx->altBody) {
+        tx->handler = conn->http->passHandler;
+        if (rewrites >= HTTP_MAX_REWRITE) {
+            httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");
+        }
+    }
+    mprLog(4, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
+}
+
+
 
 int httpMatchRoute(HttpConn *conn, HttpRoute *route)
 {
     HttpRx      *rx;
     char        *savePathInfo, *pathInfo;
-    ssize       len;
     int         rc;
 
     mprAssert(conn);
     mprAssert(route);
 
     rx = conn->rx;
-    savePathInfo = rx->pathInfo;
-
-    if (route->prefix) {
-        /*
-            Compare with the route prefix (app prefix)
-         */
-        mprAssert(rx->pathInfo[0] == '/');
-        len = route->prefixLen;
-        if (strncmp(rx->pathInfo, route->prefix, len) != 0) {
-            return HTTP_ROUTE_REJECT;
-        }
-        if (rx->pathInfo[len] && rx->pathInfo[len] != '/') {
-            return HTTP_ROUTE_REJECT;
-        }
-    }
-    if ((rc = matchRequestUri(conn, route)) != HTTP_ROUTE_OK) {
-        return rc;
-    }
 
     /*
-        Remove the route prefix. Restore if route processing fails
+        Remove the route prefix. Restore after matching.
      */
-    pathInfo = &rx->pathInfo[route->prefixLen];
-    if (*pathInfo == '\0') {
-        pathInfo = "/";
-    }
-    rx->pathInfo = sclone(pathInfo);
-    rx->scriptName = route->prefix;
-
-    if ((rc = testRoute(conn, route)) == HTTP_ROUTE_REJECT) {
-        if (route->prefix) {
-            rx->pathInfo = savePathInfo;
-            rx->scriptName = 0;
+    if (route->prefix) {
+        savePathInfo = rx->pathInfo;
+        pathInfo = &rx->pathInfo[route->prefixLen];
+        if (*pathInfo == '\0') {
+            pathInfo = "/";
         }
+        rx->pathInfo = sclone(pathInfo);
+        rx->scriptName = route->prefix;
+    }
+    if ((rc = matchRequestUri(conn, route)) == HTTP_ROUTE_OK) {
+        rc = testRoute(conn, route);
+    }
+    if (route->prefix) {
+        rx->pathInfo = savePathInfo;
+        rx->scriptName = 0;
     }
     return rc;
 }
@@ -313,16 +350,9 @@ static int matchRequestUri(HttpConn *conn, HttpRoute *route)
     rx = conn->rx;
 
     if (route->patternCompiled) {
-        /*
-            Test the literal pattern for fast route rejection
-            NOTE: URI comparisons include the route prefix
-         */
-        if (route->literalPattern && strncmp(rx->pathInfo, route->literalPattern, route->literalPatternLen) != 0) {
-            return HTTP_ROUTE_REJECT;
-        }
         rx->matchCount = pcre_exec(route->patternCompiled, NULL, rx->pathInfo, (int) slen(rx->pathInfo), 0, 0, 
                 rx->matches, sizeof(rx->matches) / sizeof(int));
-        mprLog(6, "Test route pattern \"%s\", regexp %s, pathInfo %s", route->name, route->processedPattern, rx->pathInfo);
+        mprLog(6, "Test route pattern \"%s\", regexp %s, pathInfo %s", route->name, route->optimizedPattern, rx->pathInfo);
 
         if (route->flags & HTTP_ROUTE_NOT) {
             if (rx->matchCount > 0) {
@@ -1192,30 +1222,38 @@ static void finalizePattern(HttpRoute *route)
         route->name = sclone(startPattern);
     }
     if (route->template == 0) {
+        /* Do this while the prefix is still in the route pattern */
         route->template = finalizeTemplate(route);
     }
-#if UNUSED
     /*
-        Remove the route prefix from the start of the compiled pattern and then create an optimized 
-        simple literal pattern from the remainder to optimize route rejection.
-     */
-    if (route->prefix && sstarts(startPattern, route->prefix)) {
-        startPattern = sclone(&startPattern[route->prefixLen]);
-    }
-#endif
-    /*
-        Create an optimized simple literal pattern to optimize route rejection.
+        Create an simple literal startWith string to optimize route rejection.
      */
     len = strcspn(startPattern, "^$*+?.(|{[\\");
     if (len) {
-        route->literalPattern = snclone(startPattern, len);
-        route->literalPatternLen = len;
+        route->startWith = snclone(startPattern, len);
+        route->startWithLen = len;
+        if ((cp = strchr(&route->startWith[1], '/')) != 0) {
+            route->startSegment = snclone(route->startWith, cp - route->startWith);
+        } else {
+            route->startSegment = route->startWith;
+        }
+        route->startSegmentLen = slen(route->startSegment);
     } else {
         /* Pattern has special characters */
-        route->literalPattern = 0;
-        route->literalPatternLen = 0;
+        route->startWith = 0;
+        route->startWithLen = 0;
+        route->startSegmentLen = 0;
+        route->startSegment = 0;
     }
-    for (cp = route->pattern; *cp; cp++) {
+
+    /*
+        Remove the route prefix from the start of the compiled pattern.
+     */
+    if (route->prefix && sstarts(startPattern, route->prefix)) {
+        mprAssert(route->prefixLen <= route->startWithLen);
+        startPattern = sfmt("^%s", &startPattern[route->prefixLen]);
+    }
+    for (cp = startPattern; *cp; cp++) {
         /* Alias for optional, non-capturing pattern:  "(?: PAT )?" */
         if (*cp == '(' && cp[1] == '~') {
             mprPutStringToBuf(pattern, "(?:");
@@ -1258,11 +1296,11 @@ static void finalizePattern(HttpRoute *route)
         }
     }
     mprAddNullToBuf(pattern);
-    route->processedPattern = sclone(mprGetBufStart(pattern));
+    route->optimizedPattern = sclone(mprGetBufStart(pattern));
     if (mprGetListLength(route->tokens) == 0) {
         route->tokens = 0;
     }
-    if ((route->patternCompiled = pcre_compile2(route->processedPattern, 0, 0, &errMsg, &column, NULL)) == 0) {
+    if ((route->patternCompiled = pcre_compile2(route->optimizedPattern, 0, 0, &errMsg, &column, NULL)) == 0) {
         mprError("Can't compile route. Error %s at column %d", errMsg, column); 
     }
 }
@@ -1362,6 +1400,9 @@ static char *finalizeTemplate(HttpRoute *route)
     if ((buf = mprCreateBuf(0, 0)) == 0) {
         return 0;
     }
+    /*
+        Note: the route->pattern includes the prefix
+     */
     for (sp = route->pattern; *sp; sp++) {
         switch (*sp) {
         default:
@@ -1425,9 +1466,12 @@ static char *finalizeTemplate(HttpRoute *route)
         mprAdjustBufEnd(buf, -1);
     }
     mprAddNullToBuf(buf);
+#if UNUSED
     if (route->prefix) {
         template = sjoin(route->prefix, mprGetBufStart(buf), NULL);
-    } else if (mprGetBufLength(buf) > 0) {
+    } else 
+#endif
+    if (mprGetBufLength(buf) > 0) {
         template = sclone(mprGetBufStart(buf));
     } else {
         template = sclone("/");
@@ -2838,10 +2882,11 @@ void httpAddOption(MprHash *options, cchar *field, cchar *value)
         return;
     }
     if ((kp = mprLookupKeyEntry(options, field)) != 0) {
-        mprAddKey(options, field, sjoin(kp->data, " ", value, NULL));
+        kp = mprAddKey(options, field, sjoin(kp->data, " ", value, NULL));
     } else {
-        mprAddKey(options, field, value);
+        kp = mprAddKey(options, field, value);
     }
+    kp->type = MPR_JSON_STRING;
 }
 
 
@@ -2857,6 +2902,8 @@ void httpRemoveOption(MprHash *options, cchar *field)
 
 void httpSetOption(MprHash *options, cchar *field, cchar *value)
 {
+    MprKey  *kp;
+
     if (value == 0) {
         return;
     }
@@ -2864,7 +2911,9 @@ void httpSetOption(MprHash *options, cchar *field, cchar *value)
         mprAssert(options);
         return;
     }
-    mprAddKey(options, field, value);
+    if ((kp = mprAddKey(options, field, value)) != 0) {
+        kp->type = MPR_JSON_STRING;
+    }
 }
 
 

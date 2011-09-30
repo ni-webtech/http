@@ -312,6 +312,37 @@ HttpConn *httpAcceptConn(HttpEndpoint *endpoint, MprEvent *event)
 }
 
 
+void httpMatchHost(HttpConn *conn)
+{ 
+    MprSocket       *listenSock;
+    HttpEndpoint    *endpoint;
+    HttpHost        *host;
+    Http            *http;
+
+    http = conn->http;
+    listenSock = conn->sock->listenSock;
+
+    if ((endpoint = httpLookupEndpoint(http, listenSock->ip, listenSock->port)) == 0) {
+        mprError("No listening endpoint for request from %s:%d", listenSock->ip, listenSock->port);
+        mprCloseSocket(conn->sock, 0);
+        return;
+    }
+    if (httpHasNamedVirtualHosts(endpoint)) {
+        host = httpLookupHostOnEndpoint(endpoint, conn->rx->hostHeader);
+    } else {
+        host = mprGetFirstItem(endpoint->hosts);
+    }
+    if (host == 0) {
+        httpSetConnHost(conn, 0);
+        httpError(conn, HTTP_CODE_NOT_FOUND, "No host to serve request. Searching for %s", conn->rx->hostHeader);
+        conn->host = mprGetFirstItem(endpoint->hosts);
+        return;
+    }
+    mprLog(4, "Select host: \"%s\"", host->name);
+    conn->host = host;
+}
+
+
 void *httpGetEndpointContext(HttpEndpoint *endpoint)
 {
     return endpoint->context;

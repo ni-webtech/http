@@ -114,7 +114,7 @@ HttpRoute *httpGetHostDefaultRoute(HttpHost *host)
 }
 
 
-static void printRoute(HttpRoute *route, bool full)
+static void printRoute(HttpRoute *route, int next, bool full)
 {
     cchar   *methods, *pattern, *target;
 
@@ -123,15 +123,19 @@ static void printRoute(HttpRoute *route, bool full)
     pattern = (route->pattern && *route->pattern) ? route->pattern : "^/";
     target = (route->target && *route->target) ? route->target : "$&";
     if (full) {
-        mprRawLog(0, "\n%s\n", route->name);
-        mprRawLog(0, "    Pattern:   %s\n", pattern);
-        mprRawLog(0, "    Methods:   %s\n", methods);
-        mprRawLog(0, "    Prefix:    %s\n", route->prefix);
-        mprRawLog(0, "    Target:    %s\n", target);
-        mprRawLog(0, "    Directory: %s\n", route->dir);
-        mprRawLog(0, "    Index:     %s\n", route->index);
+        mprRawLog(0, "\n%d. %s\n", next, route->name);
+        mprRawLog(0, "    Pattern:      %s\n", pattern);
+        mprRawLog(0, "    StartSegment: %s\n", route->startSegment);
+        mprRawLog(0, "    StartsWith:   %s\n", route->startWith);
+        mprRawLog(0, "    RegExp:       %s\n", route->optimizedPattern);
+        mprRawLog(0, "    Methods:      %s\n", methods);
+        mprRawLog(0, "    Prefix:       %s\n", route->prefix);
+        mprRawLog(0, "    Target:       %s\n", target);
+        mprRawLog(0, "    Directory:    %s\n", route->dir);
+        mprRawLog(0, "    Index:        %s\n", route->index);
+        mprRawLog(0, "    Next Group    %d\n", route->nextGroup);
         if (route->handler) {
-            mprRawLog(0, "    Handler:   %s\n", route->handler->name);
+            mprRawLog(0, "    Handler:      %s\n", route->handler->name);
         }
         mprRawLog(0, "\n");
     } else {
@@ -149,13 +153,16 @@ void httpLogRoutes(HttpHost *host, bool full)
         mprRawLog(0, "%-20s %-12s %-40s %-14s\n", "Name", "Methods", "Pattern", "Target");
     }
     for (foundDefault = next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
-        printRoute(route, full);
+        printRoute(route, next - 1, full);
         if (route == host->defaultRoute) {
             foundDefault++;
         }
     }
+    /*
+        Add the default so LogRoutes can print the default route which has yet been added to host->routes
+     */
     if (!foundDefault && host->defaultRoute) {
-        printRoute(host->defaultRoute, full);
+        printRoute(host->defaultRoute, next - 1, full);
     }
     mprRawLog(0, "\n");
 }
@@ -218,13 +225,30 @@ void httpSetHostProtocol(HttpHost *host, cchar *protocol)
 
 int httpAddRoute(HttpHost *host, HttpRoute *route)
 {
+    HttpRoute   *prev, *item;
+    int         i, thisRoute;
+
     mprAssert(route);
     
     if (host->parent && host->routes == host->parent->routes) {
         host->routes = mprCloneList(host->parent->routes);
     }
     if (mprLookupItem(host->routes, route) < 0) {
-        mprAddItem(host->routes, route);
+        thisRoute = mprAddItem(host->routes, route);
+        if (thisRoute > 0) {
+            prev = mprGetItem(host->routes, thisRoute - 1);
+            if (!smatch(prev->startSegment, route->startSegment)) {
+                prev->nextGroup = thisRoute;
+                for (i = thisRoute - 2; i >= 0; i--) {
+                    item = mprGetItem(host->routes, i);
+                    if (smatch(item->startSegment, prev->startSegment)) {
+                        item->nextGroup = thisRoute;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
     }
     httpSetRouteHost(route, host);
     return 0;

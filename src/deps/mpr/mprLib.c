@@ -11295,12 +11295,13 @@ static cchar *parseValue(MprJson *jp)
             return 0;
         }
         value = snclone(jp->tok, etok - jp->tok);
+        jp->tok = etok + 1;
 
     } else {
         etok = findEndKeyword(jp, jp->tok);
         value = snclone(jp->tok, etok - jp->tok);
+        jp->tok = etok;
     }
-    jp->tok = etok + 1;
     return value;
 }
 
@@ -11341,6 +11342,21 @@ static MprObj *makeObj(MprJson *jp, bool list)
 }
 
 
+static void quoteValue(MprBuf *buf, cchar *str)
+{
+    cchar   *cp;
+
+    mprPutCharToBuf(buf, '\'');
+    for (cp = str; *cp; cp++) {
+        if (*cp == '\'') {
+            mprPutCharToBuf(buf, '\\');
+        }
+        mprPutCharToBuf(buf, *cp);
+    }
+    mprPutCharToBuf(buf, '\'');
+}
+
+
 /*
     Supports hashes where properties are strings or hashes of strings. N-level nest is supported.
  */
@@ -11355,10 +11371,10 @@ static cchar *objToString(MprBuf *buf, MprObj *obj, int type, int pretty)
         if (pretty) mprPutCharToBuf(buf, '\n');
         for (ITERATE_ITEMS(obj, item, next)) {
             if (pretty) mprPutStringToBuf(buf, "    ");
-            if (kp->type != MPR_JSON_STRING) {
+            if (kp->type == MPR_JSON_ARRAY || kp->type == MPR_JSON_OBJ) {
                 objToString(buf, (MprObj*) kp->data, kp->type, pretty);
             } else {
-                mprPutStringToBuf(buf, kp->data);
+                quoteValue(buf, kp->data);
             }
             mprPutCharToBuf(buf, ',');
             if (pretty) mprPutCharToBuf(buf, '\n');
@@ -11369,13 +11385,14 @@ static cchar *objToString(MprBuf *buf, MprObj *obj, int type, int pretty)
         mprPutCharToBuf(buf, '{');
         if (pretty) mprPutCharToBuf(buf, '\n');
         for (ITERATE_KEYS(obj, kp)) {
+            if (kp->key == 0 || kp->data == 0) continue;
             if (pretty) mprPutStringToBuf(buf, "    ");
             mprPutStringToBuf(buf, kp->key);
             mprPutStringToBuf(buf, ": ");
-            if (kp->type != MPR_JSON_STRING) {
+            if (kp->type == MPR_JSON_ARRAY || kp->type == MPR_JSON_OBJ) {
                 objToString(buf, (MprObj*) kp->data, kp->type, pretty);
             } else {
-                mprPutStringToBuf(buf, kp->data);
+                quoteValue(buf, kp->data);
             }
             mprPutCharToBuf(buf, ',');
             if (pretty) mprPutCharToBuf(buf, '\n');
@@ -11433,7 +11450,7 @@ static cchar *findEndKeyword(MprJson *jp, cchar *str)
 
     mprAssert(str);
     for (cp = jp->tok; *cp; cp++) {
-        if ((etok = strpbrk(cp, " \t\n\r:,")) != 0) {
+        if ((etok = strpbrk(cp, " \t\n\r:,}]")) != 0) {
             if (etok == jp->tok || *etok != '\\') {
                 return etok;
             }
