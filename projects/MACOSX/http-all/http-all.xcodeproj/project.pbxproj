@@ -73,7 +73,6 @@
 		C9723C2211138578002B2B3B /* authFile.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2011138578002B2B3B /* authFile.c */; };
 		C9723C2311138578002B2B3B /* authPam.c in Sources */ = {isa = PBXBuildFile; fileRef = C9723C2111138578002B2B3B /* authPam.c */; };
 		C9802FF7136B2114008395A8 /* var.c in Sources */ = {isa = PBXBuildFile; fileRef = C9802FF6136B2114008395A8 /* var.c */; };
-		C9AA68EE130F158300918B92 /* match.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA68EB130F158300918B92 /* match.c */; };
 		C9AA6908130F160D00918B92 /* host.c in Sources */ = {isa = PBXBuildFile; fileRef = C9AA6907130F160D00918B92 /* host.c */; };
 		C9BAB0CE14303EC3004428E4 /* authCheck.c in Sources */ = {isa = PBXBuildFile; fileRef = C9BAB0CB14303EC3004428E4 /* authCheck.c */; };
 		C9BAB0CF14303EC3004428E4 /* endpoint.c in Sources */ = {isa = PBXBuildFile; fileRef = C9BAB0CC14303EC3004428E4 /* endpoint.c */; };
@@ -244,7 +243,6 @@
 		C9723C2011138578002B2B3B /* authFile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authFile.c; path = ../../../src/authFile.c; sourceTree = SOURCE_ROOT; };
 		C9723C2111138578002B2B3B /* authPam.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authPam.c; path = ../../../src/authPam.c; sourceTree = SOURCE_ROOT; };
 		C9802FF6136B2114008395A8 /* var.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = var.c; path = ../../../src/var.c; sourceTree = "<group>"; };
-		C9AA68EB130F158300918B92 /* match.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = match.c; path = ../../../src/match.c; sourceTree = SOURCE_ROOT; };
 		C9AA6907130F160D00918B92 /* host.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = host.c; path = ../../../src/host.c; sourceTree = SOURCE_ROOT; };
 		C9BAB0CB14303EC3004428E4 /* authCheck.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authCheck.c; path = ../../../src/authCheck.c; sourceTree = "<group>"; };
 		C9BAB0CC14303EC3004428E4 /* endpoint.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = endpoint.c; path = ../../../src/endpoint.c; sourceTree = "<group>"; };
@@ -349,7 +347,6 @@
 				C9513DB810E98C2E00F9E006 /* client.c */,
 				C9513DB910E98C2E00F9E006 /* conn.c */,
 				C9513DBA10E98C2E00F9E006 /* httpService.c */,
-				C9AA68EB130F158300918B92 /* match.c */,
 				C9513DBB10E98C2E00F9E006 /* netConnector.c */,
 				C9513DBC10E98C2E00F9E006 /* packet.c */,
 				C923DFBC1112560600A2422E /* passHandler.c */,
@@ -674,7 +671,6 @@
 				C949ABC2120B68FB00398DC6 /* rx.c in Sources */,
 				C949ABC3120B68FB00398DC6 /* tx.c in Sources */,
 				C949ABC7120B691100398DC6 /* trace.c in Sources */,
-				C9AA68EE130F158300918B92 /* match.c in Sources */,
 				C9AA6908130F160D00918B92 /* host.c in Sources */,
 				C9802FF7136B2114008395A8 /* var.c in Sources */,
 				C9BAB0CE14303EC3004428E4 /* authCheck.c in Sources */,
