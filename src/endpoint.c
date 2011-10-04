@@ -418,7 +418,7 @@ int httpSecureEndpointByName(cchar *name, struct MprSsl *ssl)
     int             port, next, count;
 
     http = MPR->httpService;
-    mprParseIp(name, &ip, &port, -1);
+    mprParseSocketAddress(name, &ip, &port, -1);
     if (ip == 0) {
         ip = "";
     }

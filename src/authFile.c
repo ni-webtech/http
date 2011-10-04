@@ -513,7 +513,7 @@ int httpReadGroupFile(HttpAuth *auth, char *path)
     if ((file = mprOpenFile(path, O_RDONLY | O_TEXT, 0444)) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    while ((buf = mprGetFileString(file, MPR_BUFSIZE, NULL)) != NULL) {
+    while ((buf = mprReadLine(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
         for (cp = enabled; isspace((int) *cp); cp++) {
             ;
@@ -546,7 +546,7 @@ int httpReadUserFile(HttpAuth *auth, char *path)
     if ((file = mprOpenFile(path, O_RDONLY | O_TEXT, 0444)) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    while ((buf = mprGetFileString(file, MPR_BUFSIZE, NULL)) != NULL) {
+    while ((buf = mprReadLine(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
         for (cp = enabled; isspace((int) *cp); cp++) {
             ;

@@ -55,11 +55,7 @@ void httpCreateCGIParams(HttpConn *conn)
         In CGI|PHP terms, the scriptName is the appweb rx->pathInfo and the PATH_INFO is the extraPath. 
      */
     mprAddKey(vars, "PATH_INFO", rx->extraPath);
-#if UNUSED
-    mprAddKey(vars, "SCRIPT_NAME", rx->pathInfo);
-#else
     mprAddKeyFmt(vars, "SCRIPT_NAME", "%s%s", rx->scriptName, rx->pathInfo);
-#endif
     mprAddKey(vars, "SCRIPT_FILENAME", tx->filename);
     if (rx->extraPath) {
         /*  

@@ -556,6 +556,13 @@ ssize httpWriteString(HttpQueue *q, cchar *s)
 }
 
 
+ssize httpWriteSafeString(HttpQueue *q, cchar *s)
+{
+    s = mprEscapeHtml(s);
+    return httpWriteString(q, s);
+}
+
+
 ssize httpWrite(HttpQueue *q, cchar *fmt, ...)
 {
     va_list     vargs;

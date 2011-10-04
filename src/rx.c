@@ -216,12 +216,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         if (!rx->form) {
             routeRequest(conn);
         }
-#if UNUSED
-        if (!(rx->form || rx->upload)) {
-            /* Forms and upload need to wait for all rx data */
-            httpStartPipeline(conn);
-        }
-#endif
 
     } else if (!(100 <= rx->status && rx->status < 200)) {
         httpSetState(conn, HTTP_STATE_PARSED);        

@@ -206,9 +206,6 @@ static void commonPrep(HttpConn *conn)
     conn->canProceed = 1;
     conn->error = 0;
     conn->errorMsg = 0;
-#if UNUSED
-    conn->flags = 0;
-#endif
     conn->state = 0;
     conn->writeComplete = 0;
     conn->lastActivity = conn->http->now;
