@@ -176,7 +176,7 @@ int httpStartEndpoint(HttpEndpoint *endpoint)
         return MPR_ERR_CANT_OPEN;
     }
     if (endpoint->async && endpoint->waitHandler ==  0) {
-        //  TODO -- this really should be in endpoint->listen->handler
+        //  MOB TODO -- this really should be in endpoint->listen->handler
         endpoint->waitHandler = mprCreateWaitHandler(endpoint->sock->fd, MPR_SOCKET_READABLE, endpoint->dispatcher,
             httpAcceptConn, endpoint, (endpoint->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
     } else {
@@ -191,8 +191,15 @@ int httpStartEndpoint(HttpEndpoint *endpoint)
 
 void httpStopEndpoint(HttpEndpoint *endpoint)
 {
-    mprCloseSocket(endpoint->sock, 0);
-    endpoint->sock = 0;
+    if (endpoint->waitHandler) {
+        mprRemoveWaitHandler(endpoint->waitHandler);
+        endpoint->waitHandler = 0;
+    }
+    if (endpoint->sock) {
+        mprRemoveSocketHandler(endpoint->sock);
+        mprCloseSocket(endpoint->sock, 0);
+        endpoint->sock = 0;
+    }
 }
 
 
@@ -349,7 +356,7 @@ void *httpGetEndpointContext(HttpEndpoint *endpoint)
 }
 
 
-int httpGetEndpointAsync(HttpEndpoint *endpoint) 
+int httpIsEndpointAsync(HttpEndpoint *endpoint) 
 {
     return endpoint->async;
 }

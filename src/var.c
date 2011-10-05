@@ -62,7 +62,7 @@ void httpCreateCGIParams(HttpConn *conn)
             Only set PATH_TRANSLATED if extraPath is set (CGI spec) 
          */
         mprAssert(rx->extraPath[0] == '/');
-        mprAddKey(vars, "PATH_TRANSLATED", mprGetNormalizedPath(sfmt("%s%s", rx->route->dir, rx->extraPath)));
+        mprAddKey(vars, "PATH_TRANSLATED", mprNormalizePath(sfmt("%s%s", rx->route->dir, rx->extraPath)));
     }
     if (rx->files) {
         for (index = 0, kp = 0; (kp = mprGetNextKey(conn->rx->files, kp)) != 0; index++) {
@@ -85,8 +85,7 @@ void httpCreateCGIParams(HttpConn *conn)
     Make variables for each keyword in a query string. The buffer must be url encoded (ie. key=value&key2=value2..., 
     spaces converted to '+' and all else should be %HEX encoded).
  */
-//  MOB - rename and remove http
-static void httpAddParamsFromBuf(HttpConn *conn, cchar *buf, ssize len)
+static void addParamsFromBuf(HttpConn *conn, cchar *buf, ssize len)
 {
     MprHash     *vars;
     cchar       *oldValue;
@@ -127,8 +126,7 @@ static void httpAddParamsFromBuf(HttpConn *conn, cchar *buf, ssize len)
 }
 
 
-//  MOB - rename and remove http
-static void httpAddParamsFromQueue(HttpQueue *q)
+static void addParamsFromQueue(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpRx      *rx;
@@ -144,26 +142,24 @@ static void httpAddParamsFromQueue(HttpQueue *q)
         content = q->first->content;
         mprAddNullToBuf(content);
         mprLog(6, "Form body data: length %d, \"%s\"", mprGetBufLength(content), mprGetBufStart(content));
-        httpAddParamsFromBuf(conn, mprGetBufStart(content), mprGetBufLength(content));
+        addParamsFromBuf(conn, mprGetBufStart(content), mprGetBufLength(content));
     }
 }
 
 
-//  MOB - rename and remove http
-static void httpAddQueryParams(HttpConn *conn) 
+static void addQueryParams(HttpConn *conn) 
 {
     HttpRx      *rx;
 
     rx = conn->rx;
     if (rx->parsedUri->query && !(rx->flags & HTTP_ADDED_QUERY_PARAMS)) {
-        httpAddParamsFromBuf(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
+        addParamsFromBuf(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
         rx->flags |= HTTP_ADDED_QUERY_PARAMS;
     }
 }
 
 
-//  MOB - rename and remove http
-static void httpAddBodyParams(HttpConn *conn)
+static void addBodyParams(HttpConn *conn)
 {
     HttpRx      *rx;
 
@@ -171,7 +167,7 @@ static void httpAddBodyParams(HttpConn *conn)
     if (rx->form) {
         if (!(rx->flags & HTTP_ADDED_FORM_PARAMS)) {
             conn->readq = conn->tx->queue[HTTP_QUEUE_RX]->prevQ;
-            httpAddParamsFromQueue(conn->readq);
+            addParamsFromQueue(conn->readq);
             rx->flags |= HTTP_ADDED_FORM_PARAMS;
         }
     }
@@ -180,8 +176,8 @@ static void httpAddBodyParams(HttpConn *conn)
 
 void httpAddParams(HttpConn *conn)
 {
-    httpAddQueryParams(conn);
-    httpAddBodyParams(conn);
+    addQueryParams(conn);
+    addBodyParams(conn);
 }
 
 

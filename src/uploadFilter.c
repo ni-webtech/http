@@ -114,7 +114,7 @@ static void openUpload(HttpQueue *q)
 
     if (rx->uploadDir == 0) {
 #if BLD_WIN_LIKE
-        rx->uploadDir = mprGetNormalizedPath(getenv("TEMP"));
+        rx->uploadDir = mprNormalizePath(getenv("TEMP"));
 #else
         rx->uploadDir = sclone("/tmp");
 #endif

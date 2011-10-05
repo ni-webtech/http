@@ -206,7 +206,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
             httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad URL format");
             return 0;
         }
-        //  MOB - cleanup
         if (conn->secure) {
             rx->parsedUri->scheme = sclone("https");
         }
@@ -992,6 +991,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         }
         if (rx->form) {
             //  MOB - need limit on form data size
+            //  MOB - why EOF here ?
             httpPutForService(q, packet, 0);
         } else {
             httpPutPacketToNext(q, packet);

@@ -69,8 +69,6 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     route->expiresByType = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     route->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
-
-    //  MOB - reconsider this GZIP
     route->flags = HTTP_ROUTE_GZIP;
     route->handlers = mprCreateList(-1, 0);
     route->host = host;
@@ -2083,8 +2081,7 @@ static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 /************************************************** Route Convenience ****************************************************/
 
-//  MOB - better name? httpDefineRoute?
-HttpRoute *httpAddConfiguredRoute(HttpRoute *parent, cchar *name, cchar *methods, cchar *pattern, cchar *target, 
+HttpRoute *httpDefineRoute(HttpRoute *parent, cchar *name, cchar *methods, cchar *pattern, cchar *target, 
         cchar *source)
 {
     HttpRoute   *route;
@@ -2148,7 +2145,7 @@ static void addRestful(HttpRoute *parent, cchar *action, cchar *methods, cchar *
         target = sfmt("%s-%s", resource, target);
         source = sfmt("%s.c", resource);
     }
-    httpAddConfiguredRoute(parent, name, methods, pattern, target, source);
+    httpDefineRoute(parent, name, methods, pattern, target, source);
 }
 
 
@@ -2194,7 +2191,7 @@ void httpAddStaticRoute(HttpRoute *parent)
     name = qualifyName(parent, NULL, "home");
     path = stemplate("${STATIC_DIR}/index.esp", parent->pathTokens);
     pattern = sfmt("^%s%s", prefix, "(/)*$");
-    httpAddConfiguredRoute(parent, name, "GET,POST,PUT", pattern, path, source);
+    httpDefineRoute(parent, name, "GET,POST,PUT", pattern, path, source);
 }
 
 
@@ -2208,7 +2205,7 @@ void httpAddHomeRoute(HttpRoute *parent)
     name = qualifyName(parent, NULL, "static");
     path = stemplate("${STATIC_DIR}/$1", parent->pathTokens);
     pattern = sfmt("^%s%s", prefix, "/static/(.*)");
-    httpAddConfiguredRoute(parent, name, "GET", pattern, path, source);
+    httpDefineRoute(parent, name, "GET", pattern, path, source);
 }
 
 
@@ -2221,7 +2218,7 @@ void httpAddRouteSet(HttpRoute *parent, cchar *set)
     } else if (scasematch(set, "mvc")) {
         httpAddHomeRoute(parent);
         httpAddStaticRoute(parent);
-        httpAddConfiguredRoute(parent, "default", NULL, "^/{controller}(~/{action}~)", "${controller}-${action}", 
+        httpDefineRoute(parent, "default", NULL, "^/{controller}(~/{action}~)", "${controller}-${action}", 
             "${controller}.c");
 
     } else if (scasematch(set, "restful")) {
@@ -2335,7 +2332,7 @@ static void definePathVars(HttpRoute *route)
     mprAddKey(route->pathTokens, "PRODUCT", sclone(BLD_PRODUCT));
     mprAddKey(route->pathTokens, "OS", sclone(BLD_OS));
     mprAddKey(route->pathTokens, "VERSION", sclone(BLD_VERSION));
-    mprAddKey(route->pathTokens, "LIBDIR", mprGetNormalizedPath(sfmt("%s/../%s", mprGetAppDir(), BLD_LIB_NAME))); 
+    mprAddKey(route->pathTokens, "LIBDIR", mprNormalizePath(sfmt("%s/../%s", mprGetAppDir(), BLD_LIB_NAME))); 
     if (route->host) {
         defineHostVars(route);
     }
