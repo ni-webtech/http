@@ -11443,9 +11443,9 @@ static cchar *findEndKeyword(MprJson *jp, cchar *str)
 static void jsonParseError(MprJson *jp, cchar *msg)
 {
     if (jp->path) {
-        mprError("%s\nIn file '%s' at line %d", msg, jp->path, jp->lineNumber);
+        mprLog(4, "%s\nIn file '%s' at line %d", msg, jp->path, jp->lineNumber);
     } else {
-        mprError("%s\nAt line %d", msg, jp->lineNumber);
+        mprLog(4, "%s\nAt line %d", msg, jp->lineNumber);
     }
 }
 
@@ -11458,11 +11458,6 @@ void mprJsonParseError(MprJson *jp, cchar *fmt, ...)
     va_start(args, fmt);
     msg = sfmtv(fmt, args);
     (jp->callback.parseError)(jp, msg);
-#if UNUSED
-    mprError("%s\nIn file '%s' at line %d", msg, jp->path, jp->lineNumber);
-#else
-    mprError("%s\nAt line %d", msg, jp->lineNumber);
-#endif
     va_end(args);
 }
 
