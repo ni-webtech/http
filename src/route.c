@@ -70,6 +70,9 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->expiresByType = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
     route->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->flags = HTTP_ROUTE_GZIP;
+#if UNUSED 
+    route->flags = HTTP_ROUTE_GZIP | HTTP_ROUTE_PUT_DELETE;
+#endif
     route->handlers = mprCreateList(-1, 0);
     route->host = host;
     route->http = MPR->httpService;
@@ -79,6 +82,7 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->pathTokens = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->pattern = MPR->emptyString;
     route->targetRule = sclone("run");
+    route->autoDelete = 1;
     route->workers = -1;
     definePathVars(route);
     return route;
@@ -1259,6 +1263,8 @@ static void finalizePattern(HttpRoute *route)
     if (route->prefix && sstarts(startPattern, route->prefix)) {
         mprAssert(route->prefixLen <= route->startWithLen);
         startPattern = sfmt("^%s", &startPattern[route->prefixLen]);
+    } else {
+        startPattern = sjoin("^", startPattern, NULL);
     }
     for (cp = startPattern; *cp; cp++) {
         /* Alias for optional, non-capturing pattern:  "(?: PAT )?" */
@@ -1634,8 +1640,10 @@ char *httpTemplate(HttpConn *conn, cchar *template, MprHash *options)
     }
     buf = mprCreateBuf(-1, -1);
     for (cp = template; *cp; cp++) {
-        if (*cp == '~' && (cp == template || cp[-1] != '\\') && route->prefix) {
-            mprPutStringToBuf(buf, route->prefix);
+        if (*cp == '~' && (cp == template || cp[-1] != '\\')) {
+            if (route->prefix) {
+                mprPutStringToBuf(buf, route->prefix);
+            }
 
         } else if (*cp == '$' && cp[1] == '{' && (cp == template || cp[-1] != '\\')) {
             cp += 2;
@@ -2135,7 +2143,7 @@ static void addRestful(HttpRoute *parent, cchar *action, cchar *methods, cchar *
         name = sfmt("%s/%s/%s", parent->prefix, nameResource, action);
         pattern = sfmt("^%s/%s%s", parent->prefix, resource, pattern);
     } else {
-        name = sfmt("%s/%s", nameResource, action);
+        name = sfmt("/%s/%s", nameResource, action);
         pattern = sfmt("^/%s%s", resource, pattern);
     }
     if (*resource == '{') {
@@ -2788,7 +2796,11 @@ MprHash *httpGetOptions(cchar *options)
     }
     if (*options == '@') {
         /* Allow embedded URIs as options */
-        options = sfmt("click: '%s'", options);
+        options = sfmt("{ data-click: '%s'}", options);
+    }
+    mprAssert(*options == '{');
+    if (*options != '{') {
+        options = sfmt("{%s}", options);
     }
     return mprDeserialize(options);
 }

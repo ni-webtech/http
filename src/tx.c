@@ -692,7 +692,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     if ((level = httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_FIRST, tx->ext)) >= mprGetLogLevel(tx)) {
         mprAddNullToBuf(buf);
-        mprLog(level, "%s", mprGetBufStart(buf));
+        mprLog(level, "  %s", mprGetBufStart(buf));
     }
     mprPutStringToBuf(buf, "\r\n");
 

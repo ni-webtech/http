@@ -522,7 +522,16 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
 
         case 'c':
-            if (strcmp(key, "content-length") == 0) {
+            if (strcmp(key, "connection") == 0) {
+                rx->connection = sclone(value);
+                if (scasecmp(value, "KEEP-ALIVE") == 0) {
+                    keepAlive = 1;
+                } else if (scasecmp(value, "CLOSE") == 0) {
+                    /*  Not really required, but set to 0 to be sure */
+                    conn->keepAliveCount = 0;
+                }
+
+            } else if (strcmp(key, "content-length") == 0) {
                 if (rx->length >= 0) {
                     httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Mulitple content length headers");
                     break;
@@ -587,15 +596,6 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     rx->cookie = sjoin(rx->cookie, "; ", value, NULL);
                 } else {
                     rx->cookie = sclone(value);
-                }
-
-            } else if (strcmp(key, "connection") == 0) {
-                rx->connection = sclone(value);
-                if (scasecmp(value, "KEEP-ALIVE") == 0) {
-                    keepAlive = 1;
-                } else if (scasecmp(value, "CLOSE") == 0) {
-                    /*  Not really required, but set to 0 to be sure */
-                    conn->keepAliveCount = 0;
                 }
             }
             break;
