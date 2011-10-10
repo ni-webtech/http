@@ -3033,10 +3033,10 @@ extern int httpAddRouteCondition(HttpRoute *route, cchar *name, cchar *details, 
         This definition is used by some handlers for error processing.
     @param route Route to modify
     @param status The HTTP status code to use with the error document.
-    @param url URL describing the error document
+    @param uri URL describing the error document
     @ingroup HttpRoute
  */
-extern void httpAddRouteErrorDocument(HttpRoute *route, int status, cchar *url);
+extern void httpAddRouteErrorDocument(HttpRoute *route, int status, cchar *uri);
 
 /**
     Cache response content in the client by extension.
@@ -3859,7 +3859,7 @@ typedef struct HttpRx {
     char            *method;                /**< Request method */
     char            *uri;                   /**< Current URI (not decoded, may be rewritten) */
     char            *pathInfo;              /**< Path information after the scriptName (Decoded and normalized) */
-    char            *scriptName;            /**< ScriptName portion of the url (Decoded). May be empty or start with "/" */
+    char            *scriptName;            /**< ScriptName portion of the uri (Decoded). May be empty or start with "/" */
     char            *extraPath;             /**< Extra path information (CGI|PHP) */
     int             eof;                    /**< All read data has been received (eof) */
     MprOff          bytesRead;              /**< Length of content read by user */
