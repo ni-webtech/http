@@ -76,6 +76,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->lang);
         mprMark(rx->method);
         mprMark(rx->mimeType);
+        mprMark(rx->originalMethod);
         mprMark(rx->originalUri);
         mprMark(rx->params);
         mprMark(rx->parsedUri);
@@ -235,8 +236,7 @@ static void mapMethod(HttpConn *conn)
         if ((method = httpGetParam(conn, "-http-method-", 0)) != 0) {
             if (!scasematch(method, rx->method)) {
                 mprLog(3, "Change method from %s to %s for %s", rx->method, method, rx->uri);
-                rx->method = (char*) method;
-                parseMethod(conn);
+                httpSetMethod(conn, method);
             }
         }
     }
@@ -380,7 +380,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     traceRequest(conn, packet);
 
     method = getToken(conn, " ");
-    rx->method = method = supper(method);
+    rx->originalMethod = rx->method = method = supper(method);
     parseMethod(conn);
 
     uri = getToken(conn, " ");
@@ -714,8 +714,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'x':
             if (strcmp(key, "x-http-method-override") == 0) {
-                rx->method = sclone(value);
-                parseMethod(conn);
+                httpSetMethod(conn, value);
 #if BLD_DEBUG
             } else if (strcmp(key, "x-chunk-size") == 0) {
                 tx->chunkSize = atoi(value);
@@ -1331,6 +1330,13 @@ int httpGetStatus(HttpConn *conn)
 char *httpGetStatusMessage(HttpConn *conn)
 {
     return (conn->rx) ? conn->rx->statusMessage : 0;
+}
+
+
+void httpSetMethod(HttpConn *conn, cchar *method)
+{
+    conn->rx->method = sclone(method);
+    parseMethod(conn);
 }
 
 

@@ -3909,6 +3909,7 @@ typedef struct HttpRx {
 
     char            *pragma;                /**< Pragma header */
     char            *mimeType;              /**< Mime type of the request payload (ENV: CONTENT_TYPE) */
+    char            *originalMethod;        /**< Original method from the client */
     char            *originalUri;           /**< Original URI passed by the client */
     char            *redirect;              /**< Redirect route header */
     char            *referrer;              /**< Refering URL */
@@ -4152,6 +4153,16 @@ extern void httpSetParam(HttpConn *conn, cchar *var, cchar *value);
 extern void httpSetIntParam(HttpConn *conn, cchar *var, int value);
 
 /**
+    Set a new HTTP method for processing
+    @description This modifies the request method to alter request processing. The original method is preserved in
+        the HttpRx.originalMethod field. This is only useful to do before request routing has matched a route.
+    @param conn HttpConn connection object
+    @param method New method to use. 
+    @ingroup HttpRx
+ */
+extern void httpSetMethod(HttpConn *conn, cchar *method);
+
+/**
     Set a new URI for processing
     @description This modifies the request URI to alter request processing. The original URI is preserved in
         the HttpRx.originalUri field. This is only useful to do before request routing has matched a route.
@@ -4163,7 +4174,7 @@ extern void httpSetIntParam(HttpConn *conn, cchar *var, int value);
         The request script name will be reset and the pathInfo will be set to the path portion of the URI.
     @param query Optional query string to define with the new URI. If query is null, any query string defined
         with the previous URI will be used. If query is set to the empty string, a previous query will be discarded.
-    @return True if the content is current and has not been modified.
+    @return Zero if successful, otherwise a negative MPR error code.
     @ingroup HttpRx
  */
 extern int httpSetUri(HttpConn *conn, cchar *uri, cchar *query);
