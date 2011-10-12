@@ -404,6 +404,7 @@ static void httpTimer(Http *http, MprEvent *event)
             } else {
                 mprLog(6, "Idle connection timed out");
                 httpDisconnect(conn);
+                conn->lastActivity = conn->started = http->now;
             }
         }
     }

@@ -196,7 +196,7 @@ static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
         httpPutPacketToNext(q, packet);
         return;
     }
-    mprLog(5, "uploadIncomingData: %d bytes", httpGetPacketLength(packet));
+    mprLog(7, "uploadIncomingData: %d bytes", httpGetPacketLength(packet));
     
     /*  
         Put the packet data onto the service queue for buffering. This aggregates input data incase we don't have
@@ -322,7 +322,7 @@ static int processContentHeader(HttpQueue *q, char *line)
         up->contentState = HTTP_UPLOAD_CONTENT_DATA;
         return 0;
     }
-    mprLog(5, "Header line: %s", line);
+    mprLog(7, "Header line: %s", line);
 
     headerTok = line;
     stok(line, ": ", &rest);
@@ -467,7 +467,7 @@ static int writeToFile(HttpQueue *q, char *data, ssize len)
             return MPR_ERR_CANT_WRITE;
         }
         file->size += len;
-        mprLog(6, "uploadFilter: Wrote %d bytes to %s", len, up->tmpPath);
+        mprLog(7, "uploadFilter: Wrote %d bytes to %s", len, up->tmpPath);
     }
     return 0;
 }
@@ -502,7 +502,7 @@ static int processContentData(HttpQueue *q)
     }
     bp = getBoundary(mprGetBufStart(content), size, up->boundary, up->boundaryLen);
     if (bp == 0) {
-        mprLog(6, "uploadFilter: Got boundary filename %x", up->clientFilename);
+        mprLog(7, "uploadFilter: Got boundary filename %x", up->clientFilename);
         if (up->clientFilename) {
             /*  
                 No signature found yet. probably more data to come. Must handle split boundaries.

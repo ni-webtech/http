@@ -253,8 +253,9 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         mprLog(4, "Close request. Active requests %d, active clients %d.", endpoint->requestCount, endpoint->clientCount);
         break;
     }
-    mprLog(6, "Validate request. Counts: requests: %d/%d, clients %d/%d", 
-        endpoint->requestCount, limits->requestCount, endpoint->clientCount, limits->clientCount);
+    mprLog(6, "Validate request. Active conn %d, requests: %d/%d, active clients %d/%d", 
+        mprGetListLength(endpoint->http->connections), endpoint->requestCount, limits->requestCount, 
+        endpoint->clientCount, limits->clientCount);
     unlock(endpoint->http);
     return 1;
 }

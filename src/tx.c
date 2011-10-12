@@ -482,6 +482,9 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         }
     }
     if (domain) {
+        if (*domain != '.') {
+            domain = sjoin(".", domain, NULL);
+        }
         domainAtt = "; domain=";
     } else {
         domainAtt = "";
