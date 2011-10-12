@@ -176,8 +176,8 @@ void httpConnTimeout(HttpConn *conn)
     limits = conn->limits;
     mprAssert(limits);
 
+    mprLog(6, "Inactive connection timed out");
     if (conn->state < HTTP_STATE_PARSED) {
-        mprLog(6, "Inactive connection timed out");
         mprDisconnectSocket(conn->sock);
     } else {
         if ((conn->lastActivity + limits->inactivityTimeout) < now) {

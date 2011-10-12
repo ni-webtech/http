@@ -151,12 +151,12 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
             rx->chunkState = HTTP_CHUNK_DATA;
         }
         mprAssert(mprGetBufLength(buf) == 0);
-        mprLog(5, "chunkFilter: start incoming chunk of %d bytes", rx->chunkSize);
+        mprLog(7, "chunkFilter: start incoming chunk of %d bytes", rx->chunkSize);
         break;
 
     case HTTP_CHUNK_DATA:
         mprAssert(httpGetPacketLength(packet) <= rx->chunkSize);
-        mprLog(5, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), 
+        mprLog(7, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), 
             rx->remainingContent);
         httpPutPacketToNext(q, packet);
         if (rx->remainingContent == 0) {
@@ -168,7 +168,7 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
     case HTTP_CHUNK_EOF:
         mprAssert(httpGetPacketLength(packet) == 0);
         httpPutPacketToNext(q, packet);
-        mprLog(5, "chunkFilter: last chunk");
+        mprLog(7, "chunkFilter: last chunk");
         break;    
 
     default:
