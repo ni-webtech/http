@@ -108,7 +108,7 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->authType);
         mprMark(conn->authUser);
         mprMark(conn->boundary);
-        mprMark(conn->connq);
+        mprMark(conn->connectorq);
         mprMark(conn->context);
         mprMark(conn->currentq);
         mprMark(conn->data);
@@ -177,9 +177,7 @@ void httpConnTimeout(HttpConn *conn)
     mprAssert(limits);
 
     mprLog(6, "Inactive connection timed out");
-    if (conn->state < HTTP_STATE_PARSED) {
-        mprDisconnectSocket(conn->sock);
-    } else {
+    if (conn->state >= HTTP_STATE_PARSED) {
         if ((conn->lastActivity + limits->inactivityTimeout) < now) {
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT,
                 "Exceeded inactivity timeout of %Ld sec", limits->inactivityTimeout / 1000);
@@ -188,8 +186,10 @@ void httpConnTimeout(HttpConn *conn)
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT, "Exceeded timeout %d sec", limits->requestTimeout / 1000);
         }
         httpFinalize(conn);
-        httpDisconnect(conn);
     }
+    httpDisconnect(conn);
+    httpDiscardData(conn->writeq, 1);
+    httpEnableConnEvents(conn);
     conn->timeoutEvent = 0;
 }
 
@@ -208,6 +208,8 @@ static void commonPrep(HttpConn *conn)
     conn->error = 0;
     conn->errorMsg = 0;
     conn->state = 0;
+    conn->responded = 0;
+    conn->finalized = 0;
     conn->writeComplete = 0;
     conn->lastActivity = conn->http->now;
     httpSetState(conn, HTTP_STATE_BEGIN);
@@ -332,6 +334,7 @@ void httpEvent(HttpConn *conn, MprEvent *event)
     } else if (conn->state < HTTP_STATE_COMPLETE) {
         httpEnableConnEvents(conn);
     }
+    mprYield(0);
 }
 
 
@@ -383,7 +386,7 @@ static void writeEvent(HttpConn *conn)
 
     conn->writeBlocked = 0;
     if (conn->tx) {
-        httpEnableQueue(conn->connq);
+        httpEnableQueue(conn->connectorq);
         httpServiceQueues(conn);
         httpProcess(conn, NULL);
     }
@@ -429,7 +432,6 @@ void httpEnableConnEvents(HttpConn *conn)
 
     mprLog(7, "EnableConnEvents");
     mprAssert(conn->sock);
-    mprAssert(!mprIsSocketEof(conn->sock));
     mprAssert(conn->state < HTTP_STATE_COMPLETE);
 
     if (!conn->async || !conn->sock || mprIsSocketEof(conn->sock)) {
@@ -445,47 +447,39 @@ void httpEnableConnEvents(HttpConn *conn)
         mprQueueEvent(conn->dispatcher, event);
 
     } else {
-        //  MOB - remove
-        mprAssert(conn->state < HTTP_STATE_COMPLETE);
-        mprAssert(conn->sock);
-        mprAssert(!mprIsSocketEof(conn->sock));
-
-        //  MOB - remove this test
-        if (conn->state < HTTP_STATE_COMPLETE && !mprIsSocketEof(conn->sock)) {
-            //  MOB - why locking here?
-            lock(conn->http);
-            if (tx) {
-                /*
-                    Can be writeBlocked with data in the iovec and none in the queue
-                 */
-                if (conn->writeBlocked || (conn->connq && conn->connq->count > 0)) {
-                    eventMask |= MPR_WRITABLE;
-                }
-                /*
-                    Enable read events if the read queue is not full. 
-                 */
-                q = tx->queue[HTTP_QUEUE_RX]->nextQ;
-                if (q->count < q->max || conn->rx->form) {
-                    eventMask |= MPR_READABLE;
-                }
-            } else {
+        //  MOB - why locking here?
+        lock(conn->http);
+        if (tx) {
+            /*
+                Can be writeBlocked with data in the iovec and none in the queue
+             */
+            if (conn->writeBlocked || (conn->connectorq && conn->connectorq->count > 0)) {
+                eventMask |= MPR_WRITABLE;
+            }
+            /*
+                Enable read events if the read queue is not full. 
+             */
+            q = tx->queue[HTTP_QUEUE_RX]->nextQ;
+            if (q->count < q->max || conn->rx->form) {
                 eventMask |= MPR_READABLE;
             }
-            if (eventMask) {
-                if (conn->waitHandler == 0) {
-                    conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, conn->ioCallback, 
-                        conn, 0);
-                } else {
-                    //  MOB API for this
-                    conn->waitHandler->dispatcher = conn->dispatcher;
-                    mprWaitOn(conn->waitHandler, eventMask);
-                }
-            } else if (conn->waitHandler) {
+        } else {
+            eventMask |= MPR_READABLE;
+        }
+        if (eventMask) {
+            if (conn->waitHandler == 0) {
+                conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, conn->ioCallback, 
+                    conn, 0);
+            } else {
+                //  MOB API for this
+                conn->waitHandler->dispatcher = conn->dispatcher;
                 mprWaitOn(conn->waitHandler, eventMask);
             }
-            mprAssert(conn->dispatcher->enabled);
-            unlock(conn->http);
+        } else if (conn->waitHandler) {
+            mprWaitOn(conn->waitHandler, eventMask);
         }
+        mprAssert(conn->dispatcher->enabled);
+        unlock(conn->http);
     }
 }
 
@@ -517,18 +511,6 @@ static HttpPacket *getPacket(HttpConn *conn, ssize *size)
     *size = mprGetBufSpace(packet->content);
     mprAssert(*size > 0);
     return packet;
-}
-
-
-/*
-    Called by connectors when writing the transmission is complete
- */
-void httpCompleteWriting(HttpConn *conn)
-{
-    conn->writeComplete = 1;
-    if (conn->tx) {
-        conn->tx->finalized = 1;
-    }
 }
 
 

@@ -31,6 +31,7 @@ int httpOpenSendConnector(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     stage->open = httpSendOpen;
+    stage->close = httpSendClose;
     stage->outgoingService = httpSendOutgoingService; 
     http->sendConnector = stage;
     return 0;
@@ -62,8 +63,20 @@ void httpSendOpen(HttpQueue *q)
         }
         tx->file = mprOpenFile(tx->filename, O_RDONLY | O_BINARY, 0);
         if (tx->file == 0) {
-            httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
+            httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s, err %d", tx->filename, mprGetError());
         }
+    }
+}
+
+
+void httpSendClose(HttpQueue *q)
+{
+    HttpTx  *tx;
+
+    tx = q->conn->tx;
+    if (tx->file) {
+        mprCloseFile(tx->file);
+        tx->file = 0;
     }
 }
 

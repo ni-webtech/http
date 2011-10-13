@@ -63,7 +63,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_TX, q);
     }
     conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
-    conn->connq = tx->queue[HTTP_QUEUE_TX]->prevQ;
+    conn->connectorq = tx->queue[HTTP_QUEUE_TX]->prevQ;
 
     pairQueues(conn);
     /*

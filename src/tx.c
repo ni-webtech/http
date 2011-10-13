@@ -46,7 +46,10 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHash *headers)
 
 void httpDestroyTx(HttpTx *tx)
 {
-    mprCloseFile(tx->file);
+    if (tx->file) {
+        mprCloseFile(tx->file);
+        tx->file = 0;
+    }
     if (tx->conn) {
         tx->conn->tx = 0;
         tx->conn = 0;
@@ -213,6 +216,8 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 }
 
 
+//  MOB - sort
+
 void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 {
     mprAssert(key && *key);
@@ -222,16 +227,23 @@ void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 }
 
 
+/*
+    Called by connectors (ONLY) when writing the transmission is complete
+ */
+void httpCompleteWriting(HttpConn *conn)
+{
+    conn->writeComplete = 1;
+    conn->finalized = 1;
+}
+
+
 void httpFinalize(HttpConn *conn)
 {
-    HttpTx      *tx;
-
-    tx = conn->tx;
-    if (tx->finalized || conn->state < HTTP_STATE_CONNECTED || conn->writeq == 0 || conn->sock == 0) {
+    if (conn->finalized || conn->state < HTTP_STATE_CONNECTED || conn->writeq == 0 || conn->sock == 0) {
         return;
     }
-    tx->finalized = 1;
-    tx->responded = 1;
+    conn->finalized = 1;
+    conn->responded = 1;
     httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SERVICE_NOW);
     httpServiceQueues(conn);
     if (conn->state == HTTP_STATE_RUNNING && conn->writeComplete && !conn->advancing) {
@@ -242,7 +254,7 @@ void httpFinalize(HttpConn *conn)
 
 int httpIsFinalized(HttpConn *conn)
 {
-    return conn->tx && conn->tx->finalized;
+    return conn->finalized;
 }
 
 
@@ -265,9 +277,9 @@ ssize httpFormatResponsev(HttpConn *conn, cchar *fmt, va_list args)
     char        *body;
 
     tx = conn->tx;
+    conn->responded = 1;
     body = sfmtv(fmt, args);
     tx->altBody = body;
-    tx->responded = 1;
     httpOmitBody(conn);
     return slen(tx->altBody);
 }
@@ -424,7 +436,7 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         "<html><head><title>%s</title></head>\r\n"
         "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p></body></html>\r\n",
         msg, msg, targetUri);
-    tx->responded = 1;
+    conn->responded = 1;
     tx->redirected = 1;
     httpOmitBody(conn);
 }
@@ -622,14 +634,14 @@ void httpSetEntityLength(HttpConn *conn, int64 len)
 
 void httpSetResponded(HttpConn *conn)
 {
-    conn->tx->responded = 1;
+    conn->responded = 1;
 }
 
 
 void httpSetStatus(HttpConn *conn, int status)
 {
     conn->tx->status = status;
-    conn->tx->responded = 1;
+    conn->responded = 1;
 }
 
 
@@ -657,7 +669,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->flags & HTTP_TX_HEADERS_CREATED) {
         return;
     }    
-    tx->responded = 1;
+    conn->responded = 1;
     if (conn->headersCallback) {
         /* Must be before headers below */
         (conn->headersCallback)(conn->headersCallbackArg);

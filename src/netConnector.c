@@ -17,6 +17,7 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet);
 static void adjustNetVec(HttpQueue *q, ssize written);
 static MprOff buildNetVec(HttpQueue *q);
 static void freeNetPackets(HttpQueue *q, ssize written);
+static void netClose(HttpQueue *q);
 static void netOutgoingService(HttpQueue *q);
 
 /*********************************** Code *************************************/
@@ -31,9 +32,22 @@ int httpOpenNetConnector(Http *http)
     if ((stage = httpCreateConnector(http, "netConnector", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
+    stage->close = netClose;
     stage->outgoingService = netOutgoingService;
     http->netConnector = stage;
     return 0;
+}
+
+
+static void netClose(HttpQueue *q)
+{
+    HttpTx      *tx;
+
+    tx = q->conn->tx;
+    if (tx->file) {
+        mprCloseFile(tx->file);
+        tx->file = 0;
+    }
 }
 
 

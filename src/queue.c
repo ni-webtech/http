@@ -127,6 +127,9 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
     HttpPacket  *packet, *prev, *next;
     ssize       len;
 
+    if (q == 0) {
+        return;
+    }
     for (prev = 0, packet = q->first; packet; packet = next) {
         next = packet->next;
         if (packet->flags & (HTTP_PACKET_RANGE | HTTP_PACKET_DATA)) {
@@ -506,10 +509,10 @@ ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
                
     conn = q->conn;
     tx = conn->tx;
-    if (tx->finalized) {
+    if (conn->finalized || tx == 0) {
         return MPR_ERR_CANT_WRITE;
     }
-    tx->responded = 1;
+    conn->responded = 1;
 
     for (written = 0; size > 0; ) {
         LOG(7, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);

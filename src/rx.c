@@ -949,7 +949,6 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     q = tx->queue[HTTP_QUEUE_RX];
 
     LOG(7, "processContent: packet of %d bytes, remaining %d", mprGetBufLength(content), rx->remainingContent);
-
     if ((nbytes = httpFilterChunkData(q, packet)) < 0) {
         return 0;
     }
@@ -959,7 +958,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         rx->remainingContent -= nbytes;
         rx->bytesRead += nbytes;
         if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, tx->ext) >= 0) {
-            httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, packet, nbytes, 0);
+            httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, packet, nbytes, rx->bytesRead);
         }
         if (rx->bytesRead >= conn->limits->receiveBodySize) {
             httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, 
@@ -985,10 +984,12 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     if (rx->remainingContent == 0 && !(rx->flags & HTTP_CHUNKED)) {
         rx->eof = 1;
     }
-    if (rx->form) {
-        httpPutForService(q, packet, HTTP_DELAY_SERVICE);
-    } else {
-        httpPutPacketToNext(q, packet);
+    if (!(conn->finalized && conn->endpoint)) {
+        if (rx->form) {
+            httpPutForService(q, packet, HTTP_DELAY_SERVICE);
+        } else {
+            httpPutPacketToNext(q, packet);
+        }
     }
     return 1;
 }

@@ -29,6 +29,7 @@ void httpInitTrace(HttpTrace *trace)
         trace[dir].levels[HTTP_TRACE_FIRST] = 2;
         trace[dir].levels[HTTP_TRACE_HEADER] = 3;
         trace[dir].levels[HTTP_TRACE_BODY] = 4;
+        //  MOB - should be initialized from host->traceMaxLength
         trace[dir].size = -1;
     }
 }
@@ -124,6 +125,11 @@ void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssi
     level = trace->levels[item];
 
     if (trace->size >= 0 && total >= trace->size) {
+        mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
+        trace->disable = 1;
+        return;
+    }
+    if (conn->host && conn->host->traceMaxLength >= 0 && total >= conn->host->traceMaxLength) {
         mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
         trace->disable = 1;
         return;

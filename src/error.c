@@ -47,20 +47,19 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
     int         status;
 
     mprAssert(fmt);
+    tx = conn->tx;
+
     if (conn == 0) {
         return;
     }
     if (flags & HTTP_ABORT) {
         conn->connError = 1;
     }
-    tx = conn->tx;
-    if (tx) {
-        tx->responded = 1;
-    }
     if (conn->rx) {
         conn->rx->eof = 1;
     }
     conn->error = 1;
+    conn->responded = 1;
     status = flags & HTTP_CODE_MASK;
     if (status == 0) {
         status = HTTP_CODE_INTERNAL_SERVER_ERROR;

@@ -387,8 +387,7 @@ static void httpTimer(Http *http, MprEvent *event)
        Check for any inactive connections or expired requests (inactivityTimeout and requestTimeout)
      */
     lock(http);
-    mprLog(8, "httpTimer: %d active connections", mprGetListLength(http->connections));
-mprRawLog(3, "Connections:  ");
+    mprLog(6, "httpTimer: %d active connections", mprGetListLength(http->connections));
     for (count = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; count++) {
         rx = conn->rx;
         limits = conn->limits;
@@ -405,18 +404,12 @@ mprRawLog(3, "Connections:  ");
             } else {
                 mprLog(6, "Idle connection timed out");
                 httpDisconnect(conn);
+                httpDiscardData(conn->writeq, 1);
                 httpEnableConnEvents(conn);
                 conn->lastActivity = conn->started = http->now;
             }
         }
-//  MOB - remove
-        if (conn->sock) {
-            mprRawLog(3, "%d ", conn->sock->fd);
-        }
     }
-//  MOB - remove
-    mprRawLog(3, "\n");
-    mprLog(6, "httpTimer: %d connections open", count);
 
     /*
         Check for unloadable modules
