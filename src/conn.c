@@ -423,7 +423,6 @@ void httpUsePrimary(HttpConn *conn)
 }
 
 
-//  TODO MOB - refactor
 void httpEnableConnEvents(HttpConn *conn)
 {
     HttpTx      *tx;
@@ -432,8 +431,6 @@ void httpEnableConnEvents(HttpConn *conn)
     int         eventMask;
 
     mprLog(7, "EnableConnEvents");
-    mprAssert(conn->sock);
-    mprAssert(conn->state < HTTP_STATE_COMPLETE);
 
     if (!conn->async || !conn->sock || mprIsSocketEof(conn->sock)) {
         return;
