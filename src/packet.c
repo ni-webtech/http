@@ -208,6 +208,7 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 
 /*  
     Join two packets by pulling the content from the second into the first.
+    WARNING: this will not update the queue count.
  */
 int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 {
@@ -218,6 +219,7 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 
     len = httpGetPacketLength(p);
     if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), (ssize) len) != len) {
+        mprAssert(0);
         return MPR_ERR_MEMORY;
     }
     return 0;
@@ -226,6 +228,7 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 
 /*
     Join queue packets up to the maximum of the given size and the downstream queue packet size.
+    WARNING: this will not update the queue count.
  */
 void httpJoinPackets(HttpQueue *q, ssize size)
 {
@@ -240,18 +243,10 @@ void httpJoinPackets(HttpQueue *q, ssize size)
             /* Step over a header packet */
             first = first->next;
         }
-#if UNUSED
-        maxPacketSize = min(q->nextQ->packetSize, size);
-#endif
         for (packet = first->next; packet; packet = packet->next) {
             if (packet->content == 0 || (len = httpGetPacketLength(packet)) == 0) {
                 break;
             }
-#if UNUSED
-            if ((httpGetPacketLength(first) + len) > maxPacketSize) {
-                break;
-            }
-#endif
             httpJoinPacket(first, packet);
             /* Unlink the packet */
             first->next = packet->next;

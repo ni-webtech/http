@@ -188,7 +188,7 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->ssl);
         mprMark(route->target);
         mprMark(route->targetRule);
-        mprMark(route->template);
+        mprMark(route->tplate);
         mprMark(route->tokens);
         mprMark(route->updates);
         mprMark(route->uploadDir);
@@ -1147,12 +1147,12 @@ int httpSetRouteTarget(HttpRoute *route, cchar *rule, cchar *details)
 }
 
 
-void httpSetRouteTemplate(HttpRoute *route, cchar *template)
+void httpSetRouteTemplate(HttpRoute *route, cchar *tplate)
 {
     mprAssert(route);
-    mprAssert(template && *template);
+    mprAssert(tplate && *tplate);
     
-    route->template = sclone(template);
+    route->tplate = sclone(tplate);
 }
 
 
@@ -1232,9 +1232,9 @@ static void finalizePattern(HttpRoute *route)
     if (route->name == 0) {
         route->name = sclone(startPattern);
     }
-    if (route->template == 0) {
+    if (route->tplate == 0) {
         /* Do this while the prefix is still in the route pattern */
-        route->template = finalizeTemplate(route);
+        route->tplate = finalizeTemplate(route);
     }
     /*
         Create an simple literal startWith string to optimize route rejection.
@@ -1410,7 +1410,7 @@ static char *finalizeReplacement(HttpRoute *route, cchar *str)
 static char *finalizeTemplate(HttpRoute *route)
 {
     MprBuf  *buf;
-    char    *sp, *template;
+    char    *sp, *tplate;
 
     if ((buf = mprCreateBuf(0, 0)) == 0) {
         return 0;
@@ -1482,11 +1482,11 @@ static char *finalizeTemplate(HttpRoute *route)
     }
     mprAddNullToBuf(buf);
     if (mprGetBufLength(buf) > 0) {
-        template = sclone(mprGetBufStart(buf));
+        tplate = sclone(mprGetBufStart(buf));
     } else {
-        template = sclone("/");
+        tplate = sclone("/");
     }
-    return template;
+    return tplate;
 }
 
 
@@ -1512,7 +1512,7 @@ char *httpLink(HttpConn *conn, cchar *target, MprHash *options)
     HttpRoute       *route, *lroute;
     HttpRx          *rx;
     HttpUri         *uri;
-    cchar           *routeName, *action, *controller, *originalAction, *template;
+    cchar           *routeName, *action, *controller, *originalAction, *tplate;
     char            *rest;
 
     rx = conn->rx;
@@ -1569,7 +1569,7 @@ char *httpLink(HttpConn *conn, cchar *target, MprHash *options)
                 . /app/STAR/default
                 . /app/controller/default
          */
-        if ((template = httpGetOption(options, "template", 0)) == 0) {
+        if ((tplate = httpGetOption(options, "template", 0)) == 0) {
             if ((routeName = httpGetOption(options, "route", 0)) != 0) {
                 routeName = expandRouteName(conn, routeName);
                 lroute = httpLookupRoute(conn->host, routeName);
@@ -1586,11 +1586,11 @@ char *httpLink(HttpConn *conn, cchar *target, MprHash *options)
                 }
             }
             if (lroute) {
-                template = lroute->template;
+                tplate = lroute->tplate;
             }
         }
-        if (template) {
-            target = httpTemplate(conn, template, options);
+        if (tplate) {
+            target = httpTemplate(conn, tplate, options);
         } else {
             mprError("Can't find template for URI %s", target);
             target = "/";
@@ -1623,10 +1623,10 @@ static cchar *expandRouteName(HttpConn *conn, cchar *routeName)
 
 
 /*
-    Expect a route->template with embedded tokens of the form: "/${controller}/${action}/${other}"
+    Expect a route->tplate with embedded tokens of the form: "/${controller}/${action}/${other}"
     The options is a hash of token values.
  */
-char *httpTemplate(HttpConn *conn, cchar *template, MprHash *options)
+char *httpTemplate(HttpConn *conn, cchar *tplate, MprHash *options)
 {
     MprBuf      *buf;
     HttpRoute   *route;
@@ -1634,18 +1634,18 @@ char *httpTemplate(HttpConn *conn, cchar *template, MprHash *options)
     char        key[MPR_MAX_STRING];
 
     route = conn->rx->route;
-    if (template == 0 || *template == '\0') {
+    if (tplate == 0 || *tplate == '\0') {
         //  MOB - what action should be taken here
         return MPR->emptyString;
     }
     buf = mprCreateBuf(-1, -1);
-    for (cp = template; *cp; cp++) {
-        if (*cp == '~' && (cp == template || cp[-1] != '\\')) {
+    for (cp = tplate; *cp; cp++) {
+        if (*cp == '~' && (cp == tplate || cp[-1] != '\\')) {
             if (route->prefix) {
                 mprPutStringToBuf(buf, route->prefix);
             }
 
-        } else if (*cp == '$' && cp[1] == '{' && (cp == template || cp[-1] != '\\')) {
+        } else if (*cp == '$' && cp[1] == '{' && (cp == tplate || cp[-1] != '\\')) {
             cp += 2;
             if ((ep = strchr(cp, '}')) != 0) {
                 sncopy(key, sizeof(key), cp, ep - cp);

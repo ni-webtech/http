@@ -2845,7 +2845,7 @@ typedef struct HttpRoute {
     char            *startWith;             /**< Starting literal segment of pattern (includes prefix) */
     char            *optimizedPattern;      /**< Processed pattern (excludes prefix) */
     char            *prefix;                /**< Application scriptName prefix */
-    char            *template;              /**< URI template for forming links based on this route (includes prefix) */
+    char            *tplate;                /**< URI template for forming links based on this route (includes prefix) */
     char            *targetRule;            /**< Target rule */
     char            *target;                /**< Route target details */
     char            *dir;                   /**< Directory filename */
@@ -3716,11 +3716,11 @@ extern int httpSetRouteTarget(HttpRoute *route, cchar *name, cchar *details);
     Set the route template
     @description Set the route URI template uses when constructing URIs via httpLink.
     @param route Route to modify
-    @param template URI template to use. Templates may contain embedded tokens "{token}" where the token names correspond
+    @param tplate URI template to use. Templates may contain embedded tokens "{token}" where the token names correspond
         to the token names in the route pattern. 
     @ingroup HttpRoute
  */
-extern void httpSetRouteTemplate(HttpRoute *route, cchar *template);
+extern void httpSetRouteTemplate(HttpRoute *route, cchar *tplate);
 
 /**
     Define the maximum number of workers for a route
@@ -3735,11 +3735,11 @@ extern void httpSetRouteWorkers(HttpRoute *route, int workers);
     Expand a template string using given options
     @description This expands a string with embedded tokens of the form "${token}" using values from the given options.
     @param conn HttpConn connection object created via $httpCreateConn
-    @param template Template string to process
+    @param tplate Template string to process
     @param options Hash of option values for embedded tokens.
     @ingroup HttpRoute
  */
-extern char *httpTemplate(HttpConn *conn, cchar *template, MprHash *options);
+extern char *httpTemplate(HttpConn *conn, cchar *tplate, MprHash *options);
 
 /**
     Tokenize a string based on route data

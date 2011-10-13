@@ -168,9 +168,7 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
     HttpQueue   *next;
 
     conn = q->conn;
-    LOG(6, "httpFlushQueue blocking %d", blocking);
     mprAssert(conn->sock);
-
     do {
         httpScheduleQueue(q);
         next = q->nextQ;

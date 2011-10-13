@@ -388,6 +388,7 @@ static void httpTimer(Http *http, MprEvent *event)
      */
     lock(http);
     mprLog(8, "httpTimer: %d active connections", mprGetListLength(http->connections));
+mprRawLog(3, "Connections:  ");
     for (count = 0, next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; count++) {
         rx = conn->rx;
         limits = conn->limits;
@@ -404,18 +405,17 @@ static void httpTimer(Http *http, MprEvent *event)
             } else {
                 mprLog(6, "Idle connection timed out");
                 httpDisconnect(conn);
-#if MOB && ENABLE
+                httpEnableConnEvents(conn);
                 conn->lastActivity = conn->started = http->now;
-#endif
             }
         }
 //  MOB - remove
         if (conn->sock) {
-            mprRawLog(6, "%d ", conn->sock->fd);
+            mprRawLog(3, "%d ", conn->sock->fd);
         }
     }
 //  MOB - remove
-    mprRawLog(6, "\n");
+    mprRawLog(3, "\n");
     mprLog(6, "httpTimer: %d connections open", count);
 
     /*
