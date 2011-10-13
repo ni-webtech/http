@@ -281,7 +281,8 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
         Hosts with integral port specifiers override
      */
     if (host && schr(host, ':')) {
-        portDelim = 0;
+        portDelim = "";
+        portStr = "";
     } else {
         if (port != 0 && port != getDefaultPort(scheme)) {
             portStr = itos(port, 10);

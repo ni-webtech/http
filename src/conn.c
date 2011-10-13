@@ -73,18 +73,19 @@ void httpDestroyConn(HttpConn *conn)
             HTTP_NOTIFY(conn, HTTP_STATE_COMPLETE, 0);
         }
         HTTP_NOTIFY(conn, HTTP_EVENT_CLOSE, 0);
-        mprAssert(conn->http);
-        httpRemoveConn(conn->http, conn);
-        httpCloseConn(conn);
         conn->input = 0;
+        if (conn->tx) {
+            httpDestroyPipeline(conn);
+            conn->tx->conn = 0;
+            conn->tx = 0;
+        }
         if (conn->rx) {
             conn->rx->conn = 0;
             conn->rx = 0;
         }
-        if (conn->tx) {
-            conn->tx->conn = 0;
-            conn->tx = 0;
-        }
+        mprAssert(conn->http);
+        httpRemoveConn(conn->http, conn);
+        httpCloseConn(conn);
         conn->http = 0;
     }
 }

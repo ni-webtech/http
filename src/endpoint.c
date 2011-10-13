@@ -210,6 +210,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
     int             count;
 
     limits = endpoint->limits;
+    action = "unknown";
     mprAssert(conn->endpoint == endpoint);
     lock(endpoint->http);
 

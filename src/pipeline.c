@@ -183,8 +183,8 @@ void httpDestroyPipeline(HttpConn *conn)
     HttpQueue   *q, *qhead;
     int         i;
 
-    if (conn->tx) {
-        tx = conn->tx;
+    tx = conn->tx;
+    if (tx) {
         for (i = 0; i < HTTP_MAX_QUEUE; i++) {
             qhead = tx->queue[i];
             for (q = qhead->nextQ; q != qhead; q = q->nextQ) {

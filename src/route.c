@@ -321,6 +321,7 @@ int httpMatchRoute(HttpConn *conn, HttpRoute *route)
     mprAssert(route);
 
     rx = conn->rx;
+    savePathInfo = 0;
 
     /*
         Remove the route prefix. Restore after matching.
@@ -1517,6 +1518,8 @@ char *httpLink(HttpConn *conn, cchar *target, MprHash *options)
 
     rx = conn->rx;
     route = rx->route;
+    controller = 0;
+
     if (target == 0) {
         target = "";
     }
@@ -1539,7 +1542,6 @@ char *httpLink(HttpConn *conn, cchar *target, MprHash *options)
          */
         if ((action = httpGetOption(options, "action", 0)) != 0) {
             originalAction = action;
-            controller = 0;
             if (*action == '@') {
                 action = &action[1];
             }
