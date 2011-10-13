@@ -70,7 +70,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
         Put the header before opening the queues incase an open routine actually services and completes the request
         httpHandleOptionsTrace does this when called from openFile() in fileHandler.
      */
-    httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
+    httpPutForService(conn->writeq, httpCreateHeaderPacket(), HTTP_DELAY_SERVICE);
     openQueues(conn);
 }
 

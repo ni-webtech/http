@@ -47,13 +47,12 @@ static void netOutgoingService(HttpQueue *q)
     conn = q->conn;
     tx = conn->tx;
     conn->lastActivity = conn->http->now;
+    mprAssert(conn->sock);
     
-    if (conn->sock == 0 || conn->writeComplete) {
-        /* TODO - Should never happen */
-        mprAssert(conn->sock && !conn->writeComplete);
+    if (!conn->sock) {
         return;
     }
-    if (tx->flags & HTTP_TX_NO_BODY) {
+    if (tx->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
         httpDiscardData(q, 1);
     }
     if ((tx->bytesWritten + q->count) > conn->limits->transmissionBodySize) {

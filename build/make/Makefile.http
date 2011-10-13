@@ -8,7 +8,7 @@
 #	Convenient configure targets
 #
 debug config:
-	./configure
+	./configure --without-matrixssl
 
 release:
 	./configure --defaults=release

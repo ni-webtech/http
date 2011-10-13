@@ -1101,6 +1101,10 @@ extern int httpOpenQueue(HttpQueue *q, ssize chunkSize);
  */
 extern void httpPutBackPacket(struct HttpQueue *q, HttpPacket *packet);
 
+//  MOB DOC
+#define HTTP_DELAY_SERVICE 0
+#define HTTP_SERVICE_NOW 1
+
 /** 
     Put a packet onto the service queue
     @description Add a packet to the service queue. If serviceQ is true, the queue will be scheduled for service.
@@ -1577,6 +1581,7 @@ extern int httpOpenRangeFilter(Http *http);
 extern int httpOpenUploadFilter(Http *http);
 extern void httpSendOpen(HttpQueue *q);
 extern void httpSendOutgoingService(HttpQueue *q);
+extern ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet);
 
 /********************************** HttpConn *********************************/
 /** 
@@ -3839,6 +3844,7 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
 /*  
     Incoming chunk encoding states
  */
+#define HTTP_CHUNK_UNCHUNKED  0             /**< Data is not transfer-chunk encoded */
 #define HTTP_CHUNK_START      1             /**< Start of a new chunk */
 #define HTTP_CHUNK_DATA       2             /**< Start of chunk data */
 #define HTTP_CHUNK_EOF        3             /**< End of last chunk */
@@ -3878,13 +3884,16 @@ typedef struct HttpRx {
     MprHash         *requestData;           /**< General request data storage. Users must create hash table if required */
     MprTime         since;                  /**< If-Modified date */
 
+#if UNUSED
+    ssize           chunkSize;              /**< Size of the next chunk */
+#endif
+
     int             chunkState;             /**< Chunk encoding state */
     int             flags;                  /**< Rx modifiers */
     int             form;                   /**< Using mime-type application/x-www-form-urlencoded */
+    int             streamInput;            /**< Streaming read data. Means !form */
     int             needInputPipeline;      /**< Input pipeline required to process received data */
     int             upload;                 /**< Request is using file upload */
-
-    ssize           chunkSize;              /**< Size of the next chunk */
 
     bool            ifModified;             /**< If-Modified processing requested */
     bool            ifMatch;                /**< If-Match processing requested */

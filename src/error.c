@@ -20,6 +20,9 @@ void httpDisconnect(HttpConn *conn)
     }
     conn->connError = 1;
     conn->keepAliveCount = -1;
+    if (conn->rx) {
+        conn->rx->eof = 1;
+    }
 }
 
 
@@ -54,6 +57,9 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
     if (tx) {
         tx->responded = 1;
     }
+    if (conn->rx) {
+        conn->rx->eof = 1;
+    }
     conn->error = 1;
     status = flags & HTTP_CODE_MASK;
     if (status == 0) {
@@ -79,7 +85,11 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
         }
     } else {
         if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
+#if UNUSED
             httpCloseConn(conn);
+#else
+            httpDisconnect(conn);
+#endif
         }
     }
 }

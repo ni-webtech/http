@@ -404,10 +404,19 @@ static void httpTimer(Http *http, MprEvent *event)
             } else {
                 mprLog(6, "Idle connection timed out");
                 httpDisconnect(conn);
+#if MOB && ENABLE
                 conn->lastActivity = conn->started = http->now;
+#endif
             }
         }
+//  MOB - remove
+        if (conn->sock) {
+            mprRawLog(6, "%d ", conn->sock->fd);
+        }
     }
+//  MOB - remove
+    mprRawLog(6, "\n");
+    mprLog(6, "httpTimer: %d connections open", count);
 
     /*
         Check for unloadable modules

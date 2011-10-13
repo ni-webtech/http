@@ -10,7 +10,6 @@
 
 /********************************** Forwards **********************************/
 
-static void incomingChunkData(HttpQueue *q, HttpPacket *packet);
 static int matchChunk(HttpConn *conn, HttpRoute *route, int dir);
 static void openChunk(HttpQueue *q);
 static void outgoingChunkService(HttpQueue *q);
@@ -32,7 +31,9 @@ int httpOpenChunkFilter(Http *http)
     filter->match = matchChunk; 
     filter->open = openChunk; 
     filter->outgoingService = outgoingChunkService; 
-    filter->incomingData = incomingChunkData; 
+#if UNUSED
+    filter->incomingData = httpIncomingChunkData; 
+#endif
     return 0;
 }
 
@@ -51,7 +52,6 @@ static int matchChunk(HttpConn *conn, HttpRoute *route, int dir)
             return HTTP_ROUTE_OK;
         }
         return HTTP_ROUTE_REJECT;
-
     }
     /* 
         Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
@@ -73,6 +73,7 @@ static void openChunk(HttpQueue *q)
 }
 
 
+#if UNUSED
 /*  
     Get the next chunk size. Chunked data format is:
         Chunk spec <CRLF>
@@ -83,11 +84,12 @@ static void openChunk(HttpQueue *q)
     As an optimization, use "\r\nSIZE ...\r\n" as the delimiter so that the CRLF after data does not special consideration.
     Achive this by parseHeaders reversing the input start by 2.
  */
-static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
+void httpIncomingChunkData(HttpQueue *q, HttpPacket *packet)
 {
     HttpConn    *conn;
     HttpRx      *rx;
     MprBuf      *buf;
+    ssize       chunkSize;
     char        *start, *cp;
     int         bad;
 
@@ -131,15 +133,14 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
         }
-        rx->chunkSize = (int) stoi(&start[2], 16, NULL);
-        if (!isxdigit((int) start[2]) || rx->chunkSize < 0) {
+        chunkSize = (int) stoi(&start[2], 16, NULL);
+        if (!isxdigit((int) start[2]) || chunkSize < 0) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return;
         }
         mprAdjustBufStart(buf, (cp - start + 1));
-        rx->remainingContent = rx->chunkSize;
-        if (rx->chunkSize == 0) {
-            rx->chunkState = HTTP_CHUNK_EOF;
+        rx->remainingContent = chunkSize;
+        if (chunkSize == 0) {
             /*
                 We are lenient if the request does not have a trailing "\r\n" after the last chunk
              */
@@ -147,17 +148,17 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
             if (mprGetBufLength(buf) == 2 && *cp == '\r' && cp[1] == '\n') {
                 mprAdjustBufStart(buf, 2);
             }
+            rx->chunkState = HTTP_CHUNK_EOF;
+            rx->eof = 1;
         } else {
             rx->chunkState = HTTP_CHUNK_DATA;
         }
         mprAssert(mprGetBufLength(buf) == 0);
-        mprLog(7, "chunkFilter: start incoming chunk of %d bytes", rx->chunkSize);
+        mprLog(7, "chunkFilter: start incoming chunk of %d bytes", chunkSize);
         break;
 
     case HTTP_CHUNK_DATA:
-        mprAssert(httpGetPacketLength(packet) <= rx->chunkSize);
-        mprLog(7, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), 
-            rx->remainingContent);
+        mprLog(7, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), rx->remainingContent);
         httpPutPacketToNext(q, packet);
         if (rx->remainingContent == 0) {
             rx->chunkState = HTTP_CHUNK_START;
@@ -175,11 +176,99 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
         mprAssert(0);
     }
 }
+#endif
 
 
 /*  
-    Apply chunks to dynamic outgoing data. 
+    Filter chunk headers and leave behind pure data. This is called for chunked and unchunked data.
+    Chunked data format is:
+        Chunk spec <CRLF>
+        Data <CRLF>
+        Chunk spec (size == 0) <CRLF>
+        <CRLF>
+    Chunk spec is: "HEX_COUNT; chunk length DECIMAL_COUNT\r\n". The "; chunk length DECIMAL_COUNT is optional.
+    As an optimization, use "\r\nSIZE ...\r\n" as the delimiter so that the CRLF after data does not special consideration.
+    Achive this by parseHeaders reversing the input start by 2.
  */
+ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet)
+{
+    HttpConn    *conn;
+    HttpRx      *rx;
+    MprBuf      *buf;
+    ssize       chunkSize;
+    char        *start, *cp;
+    int         bad;
+
+    conn = q->conn;
+    rx = conn->rx;
+    mprAssert(packet);
+    buf = packet->content;
+    mprAssert(buf);
+
+    switch (rx->chunkState) {
+    case HTTP_CHUNK_UNCHUNKED:
+        return (ssize) min(rx->remainingContent, mprGetBufLength(buf));
+
+    case HTTP_CHUNK_DATA:
+        mprLog(7, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), rx->remainingContent);
+        if (rx->remainingContent > 0) {
+            return min(rx->remainingContent, mprGetBufLength(buf));
+        }
+        /* End of chunk - prep for the next chunk */
+        rx->remainingContent = HTTP_BUFSIZE;
+        rx->chunkState = HTTP_CHUNK_START;
+        /* Fall through */
+
+    case HTTP_CHUNK_START:
+        /*  
+            Validate:  "\r\nSIZE.*\r\n"
+         */
+        if (mprGetBufLength(buf) < 5) {
+            return MPR_ERR_NOT_READY;
+        }
+        start = mprGetBufStart(buf);
+        bad = (start[0] != '\r' || start[1] != '\n');
+        for (cp = &start[2]; cp < buf->end && *cp != '\n'; cp++) {}
+        if (*cp != '\n' && (cp - start) < 80) {
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+            return 0;
+        }
+        bad += (cp[-1] != '\r' || cp[0] != '\n');
+        if (bad) {
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+            return 0;
+        }
+        chunkSize = (int) stoi(&start[2], 16, NULL);
+        if (!isxdigit((int) start[2]) || chunkSize < 0) {
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+            return 0;
+        }
+        mprAdjustBufStart(buf, (cp - start + 1));
+        /* Remaining content is set to the next chunk size */
+        rx->remainingContent = chunkSize;
+        if (chunkSize == 0) {
+            /*
+                We are lenient if the request does not have a trailing "\r\n" after the last chunk
+             */
+            cp = mprGetBufStart(buf);
+            if (mprGetBufLength(buf) == 2 && *cp == '\r' && cp[1] == '\n') {
+                mprAdjustBufStart(buf, 2);
+            }
+            rx->chunkState = HTTP_CHUNK_EOF;
+            rx->eof = 1;
+        } else {
+            rx->chunkState = HTTP_CHUNK_DATA;
+        }
+        mprLog(7, "chunkFilter: start incoming chunk of %d bytes", chunkSize);
+        return min(chunkSize, mprGetBufLength(buf));
+
+    default:
+        mprError("chunkFilter: bad state %d", rx->chunkState);
+    }
+    return 0;
+}
+
+
 static void outgoingChunkService(HttpQueue *q)
 {
     HttpConn    *conn;

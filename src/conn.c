@@ -190,6 +190,7 @@ void httpConnTimeout(HttpConn *conn)
         httpFinalize(conn);
         httpDisconnect(conn);
     }
+    conn->timeoutEvent = 0;
 }
 
 
@@ -303,15 +304,32 @@ void httpEvent(HttpConn *conn, MprEvent *event)
     if (event->mask & MPR_READABLE) {
         readEvent(conn);
     }
-    if (conn->keepAliveCount < 0 && conn->endpoint && conn->state == HTTP_STATE_BEGIN) {
-        /*  
-            NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
-            It should respond to the "Connection: close" and thus initiate a client-led close. This reduces 
-            TIME_WAIT states on the server. NOTE: after httpDestroyConn, conn structure and memory is still 
-            intact but conn->sock is zero.
-         */
-        httpDestroyConn(conn);
-    } else {
+
+    mprAssert(conn->sock);
+
+    if (conn->endpoint) {
+        //  MOB - aggregate
+        if (conn->error) {
+            httpDestroyConn(conn);
+
+        } else if (conn->keepAliveCount < 0 && conn->state <= HTTP_STATE_CONNECTED) {
+            /*  
+                Idle connection.
+                NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
+                It should respond to the "Connection: close" and thus initiate a client-led close. This reduces 
+                TIME_WAIT states on the server. NOTE: after httpDestroyConn, conn structure and memory is still 
+                intact but conn->sock is zero.
+             */
+            httpDestroyConn(conn);
+
+        } else if (mprIsSocketEof(conn->sock)) {
+            httpDestroyConn(conn);
+
+        } else {
+            mprAssert(conn->state < HTTP_STATE_COMPLETE);
+            httpEnableConnEvents(conn);
+        }
+    } else if (conn->state < HTTP_STATE_COMPLETE) {
         httpEnableConnEvents(conn);
     }
 }
@@ -323,10 +341,10 @@ void httpEvent(HttpConn *conn, MprEvent *event)
 static void readEvent(HttpConn *conn)
 {
     HttpPacket  *packet;
-    ssize       nbytes, len;
+    ssize       nbytes, size;
 
-    while (!conn->connError && (packet = getPacket(conn, &len)) != 0) {
-        nbytes = mprReadSocket(conn->sock, mprGetBufEnd(packet->content), len);
+    while (!conn->connError && (packet = getPacket(conn, &size)) != 0) {
+        nbytes = mprReadSocket(conn->sock, mprGetBufEnd(packet->content), size);
         LOG(8, "http: read event. Got %d", nbytes);
        
         if (nbytes > 0) {
@@ -410,8 +428,11 @@ void httpEnableConnEvents(HttpConn *conn)
     int         eventMask;
 
     mprLog(7, "EnableConnEvents");
+    mprAssert(conn->sock);
+    mprAssert(!mprIsSocketEof(conn->sock));
+    mprAssert(conn->state < HTTP_STATE_COMPLETE);
 
-    if (!conn->async) {
+    if (!conn->async || !conn->sock || mprIsSocketEof(conn->sock)) {
         return;
     }
     tx = conn->tx;
@@ -423,41 +444,48 @@ void httpEnableConnEvents(HttpConn *conn)
         conn->workerEvent = 0;
         mprQueueEvent(conn->dispatcher, event);
 
-    } else if (conn->state < HTTP_STATE_COMPLETE && conn->sock && !mprIsSocketEof(conn->sock)) {
-        //  MOB - why locking here?
-        lock(conn->http);
-        if (tx) {
-            /*
-                Can be writeBlocked with data in the iovec and none in the queue
-             */
-            if (conn->writeBlocked || (conn->connq && conn->connq->count > 0)) {
-                eventMask |= MPR_WRITABLE;
-            }
-            /*
-                Allow read events even if the current request is not complete. The pipelined request will be buffered 
-                and will be ready when the current request completes.
-             */
-            q = tx->queue[HTTP_QUEUE_RX]->nextQ;
-            if (q->count < q->max) {
+    } else {
+        //  MOB - remove
+        mprAssert(conn->state < HTTP_STATE_COMPLETE);
+        mprAssert(conn->sock);
+        mprAssert(!mprIsSocketEof(conn->sock));
+
+        //  MOB - remove this test
+        if (conn->state < HTTP_STATE_COMPLETE && !mprIsSocketEof(conn->sock)) {
+            //  MOB - why locking here?
+            lock(conn->http);
+            if (tx) {
+                /*
+                    Can be writeBlocked with data in the iovec and none in the queue
+                 */
+                if (conn->writeBlocked || (conn->connq && conn->connq->count > 0)) {
+                    eventMask |= MPR_WRITABLE;
+                }
+                /*
+                    Enable read events if the read queue is not full. 
+                 */
+                q = tx->queue[HTTP_QUEUE_RX]->nextQ;
+                if (q->count < q->max || conn->rx->form) {
+                    eventMask |= MPR_READABLE;
+                }
+            } else {
                 eventMask |= MPR_READABLE;
             }
-        } else {
-            eventMask |= MPR_READABLE;
-        }
-        if (eventMask) {
-            if (conn->waitHandler == 0) {
-                conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, conn->ioCallback, 
-                    conn, 0);
-            } else {
-                //  MOB API for this
-                conn->waitHandler->dispatcher = conn->dispatcher;
+            if (eventMask) {
+                if (conn->waitHandler == 0) {
+                    conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, conn->ioCallback, 
+                        conn, 0);
+                } else {
+                    //  MOB API for this
+                    conn->waitHandler->dispatcher = conn->dispatcher;
+                    mprWaitOn(conn->waitHandler, eventMask);
+                }
+            } else if (conn->waitHandler) {
                 mprWaitOn(conn->waitHandler, eventMask);
             }
-        } else if (conn->waitHandler) {
-            mprWaitOn(conn->waitHandler, eventMask);
+            mprAssert(conn->dispatcher->enabled);
+            unlock(conn->http);
         }
-        mprAssert(conn->dispatcher->enabled);
-        unlock(conn->http);
     }
 }
 
@@ -469,58 +497,25 @@ void httpFollowRedirects(HttpConn *conn, bool follow)
 
 
 /*  
-    Get the packet into which to read data. This may be owned by the connection or if mid-request, may be owned by the
-    request. Also return in *bytesToRead the length of data to attempt to read.
+    Get the packet into which to read data. Return in *size the length of data to attempt to read.
  */
-static HttpPacket *getPacket(HttpConn *conn, ssize *bytesToRead)
+static HttpPacket *getPacket(HttpConn *conn, ssize *size)
 {
     HttpPacket  *packet;
     MprBuf      *content;
-    HttpRx      *rx;
-    MprOff      remaining;
-    ssize       len;
 
-    rx = conn->rx;
-    len = HTTP_BUFSIZE;
-
-    //  TODO -- simplify. Okay to lose some optimization for chunked data?
-    /*  
-        The input packet may have pipelined headers and data left from the prior request. It may also have incomplete
-        chunk boundary data.
-     */
     if ((packet = conn->input) == NULL) {
-        conn->input = packet = httpCreatePacket(len);
+        conn->input = packet = httpCreatePacket(HTTP_BUFSIZE);
     } else {
         content = packet->content;
         mprResetBufIfEmpty(content);
         mprAddNullToBuf(content);
-        if (rx) {
-            /*  
-                Don't read more than the remainingContent unless chunked. We do this to minimize requests split 
-                accross packets.
-             */
-            if (rx->remainingContent) {
-                remaining = rx->remainingContent;
-                if (rx->flags & HTTP_CHUNKED) {
-                    remaining = max(remaining, HTTP_BUFSIZE);
-                }
-                len = (ssize) min(remaining, MAXSSIZE);
-            }
-            len = min(len, HTTP_BUFSIZE);
-            mprAssert(len > 0);
-            if (mprGetBufSpace(content) < len) {
-                mprGrowBuf(content, (ssize) len);
-            }
-        } else {
-            if (mprGetBufSpace(content) < HTTP_BUFSIZE) {
-                mprGrowBuf(content, HTTP_BUFSIZE);
-            }
-            len = mprGetBufSpace(content);
+        if (mprGetBufSpace(content) < HTTP_BUFSIZE) {
+            mprGrowBuf(content, HTTP_BUFSIZE);
         }
     }
-    mprAssert(packet == conn->input);
-    mprAssert(len > 0);
-    *bytesToRead = (ssize) len;
+    *size = mprGetBufSpace(packet->content);
+    mprAssert(*size > 0);
     return packet;
 }
 

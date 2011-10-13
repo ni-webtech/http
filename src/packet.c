@@ -187,7 +187,7 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 {
     if (q->first == 0) {
         /*  Just use the service queue as a holding queue while we aggregate the post data.  */
-        httpPutForService(q, packet, 0);
+        httpPutForService(q, packet, HTTP_DELAY_SERVICE);
 
     } else {
         q->count += httpGetPacketLength(packet);
@@ -230,7 +230,7 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 void httpJoinPackets(HttpQueue *q, ssize size)
 {
     HttpPacket  *packet, *first;
-    ssize       maxPacketSize, len;
+    ssize       len;
 
     if (size < 0) {
         size = MAXINT;
@@ -240,14 +240,18 @@ void httpJoinPackets(HttpQueue *q, ssize size)
             /* Step over a header packet */
             first = first->next;
         }
+#if UNUSED
         maxPacketSize = min(q->nextQ->packetSize, size);
+#endif
         for (packet = first->next; packet; packet = packet->next) {
             if (packet->content == 0 || (len = httpGetPacketLength(packet)) == 0) {
                 break;
             }
+#if UNUSED
             if ((httpGetPacketLength(first) + len) > maxPacketSize) {
                 break;
             }
+#endif
             httpJoinPacket(first, packet);
             /* Unlink the packet */
             first->next = packet->next;

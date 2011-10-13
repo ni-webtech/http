@@ -232,7 +232,7 @@ void httpFinalize(HttpConn *conn)
     }
     tx->finalized = 1;
     tx->responded = 1;
-    httpPutForService(conn->writeq, httpCreateEndPacket(), 1);
+    httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SERVICE_NOW);
     httpServiceQueues(conn);
     if (conn->state == HTTP_STATE_RUNNING && conn->writeComplete && !conn->advancing) {
         httpProcess(conn, NULL);

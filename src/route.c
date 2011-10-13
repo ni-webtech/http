@@ -657,11 +657,11 @@ int httpAddRouteFilter(HttpRoute *route, cchar *name, cchar *extensions, int dir
             word = stok(0, " \t\r\n", &tok);
         }
     }
-    if (direction & HTTP_STAGE_RX) {
+    if (direction & HTTP_STAGE_RX && filter->incomingData) {
         GRADUATE_LIST(route, inputStages);
         mprAddItem(route->inputStages, filter);
     }
-    if (direction & HTTP_STAGE_TX) {
+    if (direction & HTTP_STAGE_TX && filter->outgoingData) {
         GRADUATE_LIST(route, outputStages);
         mprAddItem(route->outputStages, filter);
     }

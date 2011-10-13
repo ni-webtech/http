@@ -309,7 +309,6 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
     ssize       nbytes, len;
 
     q = conn->readq;
-    
     while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
         if (conn->sock) {
@@ -530,7 +529,7 @@ ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
             if ((packet = httpCreateDataPacket(packetSize)) == 0) {
                 return MPR_ERR_MEMORY;
             }
-            httpPutForService(q, packet, 0);
+            httpPutForService(q, packet, HTTP_DELAY_SERVICE);
         }
         if ((bytes = mprPutBlockToBuf(packet->content, buf, size)) == 0) {
             return MPR_ERR_MEMORY;
