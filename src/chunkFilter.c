@@ -212,7 +212,7 @@ ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet)
     case HTTP_CHUNK_DATA:
         mprLog(7, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), rx->remainingContent);
         if (rx->remainingContent > 0) {
-            return min(rx->remainingContent, mprGetBufLength(buf));
+            return (ssize) min(rx->remainingContent, mprGetBufLength(buf));
         }
         /* End of chunk - prep for the next chunk */
         rx->remainingContent = HTTP_BUFSIZE;
