@@ -159,7 +159,6 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
 static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
-    HttpTx      *tx;
     ssize       len;
     char        *start, *end;
 
@@ -171,8 +170,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         conn->tx = httpCreateTx(conn, NULL);
     }
     rx = conn->rx;
-    tx = conn->tx;
-    
     if ((len = httpGetPacketLength(packet)) == 0) {
         return 0;
     }
@@ -1335,11 +1332,9 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
     HttpRx      *rx;
     HttpTx      *tx;
     HttpUri     *prior;
-    HttpHost    *host;
 
     rx = conn->rx;
     tx = conn->tx;
-    host = conn->host;
     prior = rx->parsedUri;
 
     if ((rx->parsedUri = httpCreateUri(uri, 0)) == 0) {
@@ -1384,11 +1379,9 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
  */
 int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
-    Http        *http;
     MprTime     mark, remaining, inactivityTimeout;
     int         eventMask, addedHandler, saveAsync, justOne, workDone;
 
-    http = conn->http;
     if (state == 0) {
         state = HTTP_STATE_COMPLETE;
         justOne = 1;
@@ -1562,19 +1555,15 @@ bool httpMatchModified(HttpConn *conn, MprTime time)
  */
 static bool parseRange(HttpConn *conn, char *value)
 {
-    HttpRx      *rx;
     HttpTx      *tx;
     HttpRange   *range, *last, *next;
     char        *tok, *ep;
 
-    rx = conn->rx;
     tx = conn->tx;
-
     value = sclone(value);
     if (value == 0) {
         return 0;
     }
-
     /*  
         Step over the "bytes="
      */
@@ -1806,14 +1795,11 @@ HttpLang *httpGetLanguage(HttpConn *conn, MprHash *spoken, cchar *defaultLang)
  */
 void httpTrimExtraPath(HttpConn *conn)
 {
-    HttpTx      *tx;
     HttpRx      *rx;
     char        *cp, *extra;
     ssize       len;
 
     rx = conn->rx;
-    tx = conn->tx;
-
     if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) { 
         if ((cp = strchr(rx->pathInfo, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
             len = extra - rx->pathInfo;

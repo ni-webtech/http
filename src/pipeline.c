@@ -77,7 +77,6 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
 
 void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
 {
-    Http        *http;
     HttpTx      *tx;
     HttpRx      *rx;
     HttpQueue   *q;
@@ -87,10 +86,8 @@ void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
     mprAssert(conn);
     mprAssert(route);
 
-    http = conn->http;
     rx = conn->rx;
     tx = conn->tx;
-
     rx->inputPipeline = mprCreateList(-1, 0);
     if (route) {
         for (next = 0; (filter = mprGetNextItem(route->inputStages, &next)) != 0; ) {

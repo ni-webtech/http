@@ -51,11 +51,9 @@ static void startRange(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpTx      *tx;
-    HttpRx      *rx;
 
     conn = q->conn;
     tx = conn->tx;
-    rx = conn->rx;
     mprAssert(tx->outputRanges);
 
     if (tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
@@ -228,12 +226,10 @@ static void createRangeBoundary(HttpConn *conn)
  */
 static bool fixRangeLength(HttpConn *conn)
 {
-    HttpRx      *rx;
     HttpTx      *tx;
     HttpRange   *range;
     MprOff      length;
 
-    rx = conn->rx;
     tx = conn->tx;
     length = tx->entityLength ? tx->entityLength : tx->length;
 

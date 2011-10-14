@@ -1835,12 +1835,9 @@ static int allowDenyCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-    HttpRx      *rx;
-
     mprAssert(conn);
     mprAssert(route);
 
-    rx = conn->rx;
     if (route->auth == 0 || route->auth->type == 0) {
         return HTTP_ROUTE_OK;
     }
@@ -1902,15 +1899,13 @@ static int existsCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int matchCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-    HttpRx      *rx;
-    char        *str;
-    int         matched[HTTP_MAX_ROUTE_MATCHES * 2], count;
+    char    *str;
+    int     matched[HTTP_MAX_ROUTE_MATCHES * 2], count;
 
     mprAssert(conn);
     mprAssert(route);
     mprAssert(op);
 
-    rx = conn->rx;
     str = expandTokens(conn, op->details);
     count = pcre_exec(op->mdata, NULL, str, (int) slen(str), 0, 0, matched, sizeof(matched) / sizeof(int)); 
     if (count > 0) {
@@ -1941,7 +1936,6 @@ static int updateRequest(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int cmdUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-    HttpRx  *rx;
     MprCmd  *cmd;
     char    *command, *out, *err;
     int     status;
@@ -1950,7 +1944,6 @@ static int cmdUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(route);
     mprAssert(op);
 
-    rx = conn->rx;
     command = expandTokens(conn, op->details);
     cmd = mprCreateCmd(conn->dispatcher);
     if ((status = mprRunCmd(cmd, command, &out, &err, 0)) != 0) {
@@ -1965,13 +1958,10 @@ static int cmdUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 static int paramUpdate(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 {
-    HttpRx  *rx;
-
     mprAssert(conn);
     mprAssert(route);
     mprAssert(op);
 
-    rx = conn->rx;
     httpSetParam(conn, op->var, expandTokens(conn, op->value));
     return HTTP_ROUTE_OK;
 }

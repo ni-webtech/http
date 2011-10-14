@@ -306,13 +306,10 @@ ssize httpFormatResponse(HttpConn *conn, cchar *fmt, ...)
  */
 ssize httpFormatResponseBody(HttpConn *conn, cchar *title, cchar *fmt, ...)
 {
-    HttpTx      *tx;
     va_list     args;
     char        *msg, *body;
 
-    tx = conn->tx;
     va_start(args, fmt);
-
     body = sfmtv(fmt, args);
     if (scmp(conn->rx->accept, "text/plain") == 0) {
         msg = body;

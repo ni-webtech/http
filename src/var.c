@@ -242,9 +242,6 @@ void httpSetIntParam(HttpConn *conn, cchar *var, int value)
 
 bool httpMatchParam(HttpConn *conn, cchar *var, cchar *value)
 {
-    MprHash     *vars;
-    
-    vars = httpGetParams(conn);
     if (strcmp(value, httpGetParam(conn, var, " __UNDEF__ ")) == 0) {
         return 1;
     }

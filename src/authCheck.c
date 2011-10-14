@@ -40,7 +40,6 @@ int httpCheckAuth(HttpConn *conn)
 {
     Http        *http;
     HttpRx      *rx;
-    HttpTx      *tx;
     HttpAuth    *auth;
     HttpRoute   *route;
     AuthData    *ad;
@@ -51,7 +50,6 @@ int httpCheckAuth(HttpConn *conn)
     int         actualAuthType;
 
     rx = conn->rx;
-    tx = conn->tx;
     http = conn->http;
     route = rx->route;
     auth = route->auth;
@@ -304,10 +302,8 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
  */
 static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *msg, char *logMsg)
 {
-    HttpTx  *tx;
     char    *qopClass, *nonce;
 
-    tx = conn->tx;
     if (logMsg == 0) {
         logMsg = msg;
     }
@@ -359,7 +355,7 @@ static char *createDigestNonce(HttpConn *conn, cchar *secret, cchar *realm)
 
 static int parseDigestNonce(char *nonce, cchar **secret, cchar **realm, MprTime *when)
 {
-    char    *tok, *decoded, *whenStr, *junk;
+    char    *tok, *decoded, *whenStr;
 
     if ((decoded = mprDecode64(nonce)) == 0) {
         return MPR_ERR_CANT_READ;
@@ -368,7 +364,6 @@ static int parseDigestNonce(char *nonce, cchar **secret, cchar **realm, MprTime 
     *realm = stok(NULL, ":", &tok);
     whenStr = stok(NULL, ":", &tok);
     *when = (MprTime) stoi(whenStr, 16, NULL); 
-    junk = stok(NULL, ":", &tok);
     return 0;
 }
 

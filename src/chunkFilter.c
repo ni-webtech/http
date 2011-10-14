@@ -64,11 +64,8 @@ static int matchChunk(HttpConn *conn, HttpRoute *route, int dir)
 static void openChunk(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpRx      *rx;
 
     conn = q->conn;
-    rx = conn->rx;
-
     q->packetSize = min(conn->limits->chunkSize, q->max);
 }
 
