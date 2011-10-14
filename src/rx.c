@@ -1373,14 +1373,16 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 
 
 /*
-    Wait for an Http event until the http reaches a specified state or a timeout expires
+    Wait for an I/O event. There are two modes:
+      - Wait for just one event (set state to zero)
+      - Wait until the given state is achieved
     If timeout is zero, then wait forever. If set to < 0, then use default inactivity and duration timeouts. 
-    If state is zero, it waits for just one event.
+    This routine will process buffered input.
  */
 int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
     MprTime     mark, remaining, inactivityTimeout;
-    int         eventMask, addedHandler, saveAsync, justOne, workDone;
+    int         eventMask, saveAsync, justOne, workDone;
 
     if (state == 0) {
         state = HTTP_STATE_COMPLETE;
@@ -1395,6 +1397,9 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     if (conn->input && httpGetPacketLength(conn->input) > 0) {
         httpProcess(conn, conn->input);
     }
+    if (conn->error) {
+        return MPR_ERR_BAD_STATE;
+    }
     mark = mprGetTime();
     if (mprGetDebugMode()) {
         inactivityTimeout = timeout = MPR_MAX_TIMEOUT;
@@ -1405,33 +1410,42 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         }
     }
     saveAsync = conn->async;
-    addedHandler = 0;
+    conn->async = 1;
+
+    eventMask = MPR_READABLE;
+    if (!conn->writeComplete) {
+        eventMask |= MPR_WRITABLE;
+    }
+    if (conn->waitHandler == 0) {
+        conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, waitHandler, conn, 0);
+    } else {
+        mprWaitOn(conn->waitHandler, eventMask);
+    }
+#if UNUSED
+    if (!conn->error && conn->state >= state) {
+        mprWaitForEvent(conn->dispatcher, min(inactivityTimeout, remaining));
+    }
+#endif
 
     remaining = timeout;
-    while (!conn->error && conn->state < state) {
-        if (conn->waitHandler == 0) {
-            conn->async = 1;
-            eventMask = MPR_READABLE;
-            if (!conn->writeComplete) {
-                eventMask |= MPR_WRITABLE;
-            }
-            conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, waitHandler, conn, 0);
-            addedHandler = 1;
-        }
+    do {
         workDone = httpServiceQueues(conn);
-        mprWaitForEvent(conn->dispatcher, min(inactivityTimeout, remaining));
-        if (justOne || (conn->sock && mprIsSocketEof(conn->sock) && !workDone)) {
+        if (conn->state < state) {
+            mprWaitForEvent(conn->dispatcher, min(inactivityTimeout, remaining));
+        }
+        if (conn->sock && mprIsSocketEof(conn->sock) && !workDone) {
             break;
         }
-        if ((remaining = mprGetRemainingTime(mark, timeout)) <= 0) {
-            break;
-        }
-    }
+        remaining = mprGetRemainingTime(mark, timeout);
+    } while (!justOne && !conn->error && conn->state < state && remaining > 0);
+
+#if UNUSED
     if (addedHandler && conn->waitHandler) {
         mprRemoveWaitHandler(conn->waitHandler);
         conn->waitHandler = 0;
-        conn->async = saveAsync;
     }
+#endif
+    conn->async = saveAsync;
     if (conn->sock == 0 || conn->error) {
         return MPR_ERR_CANT_CONNECT;
     }
