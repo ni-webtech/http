@@ -13,7 +13,7 @@ compileExtra: $(TARGETS)
 
 $(BLD_BIN_DIR)/http$(BLD_EXE): $(BLD_OBJ_DIR)/http$(BLD_OBJ) $(BLD_LIB_DIR)/libhttp$(BLD_LIB)
 	@bld --exe $(BLD_BIN_DIR)/http$(BLD_EXE) --search "$(BLD_SSL_LIBPATHS)" \
-		--libs "http $(BLD_HTTP_WITHLIBS) $(BLD_SSL_LIBS)" http
+		--libs "http $(BLD_HTTP_WITHLIBS) $(BLD_MPR_LIBS) $(BLD_SSL_LIBS)" http
 
 #
 #   Local variables:
