@@ -8,9 +8,13 @@ EXPORTS
   httpAddGroup
   httpAddHeader
   httpAddHeaderString
+  httpAddHomeRoute
   httpAddHost
   httpAddHostToEndpoint
+  httpAddOption
   httpAddParams
+  httpAddResource
+  httpAddResourceGroup
   httpAddRoute
   httpAddRouteCondition
   httpAddRouteErrorDocument
@@ -21,10 +25,11 @@ EXPORTS
   httpAddRouteHeader
   httpAddRouteLanguageDir
   httpAddRouteLanguageSuffix
-  httpAddRouteLoad
   httpAddRouteParam
+  httpAddRouteSet
   httpAddRouteUpdate
   httpAddStage
+  httpAddStaticRoute
   httpAddUploadFile
   httpAddUser
   httpAddUserToGroup
@@ -87,6 +92,7 @@ EXPORTS
   httpCreateUriFromParts
   httpCreateUser
   httpDefaultOutgoingServiceStage
+  httpDefineRoute
   httpDefineRouteBuiltins
   httpDefineRouteCondition
   httpDefineRouteTarget
@@ -113,6 +119,7 @@ EXPORTS
   httpError
   httpEvent
   httpFileExists
+  httpFilterChunkData
   httpFinalize
   httpFinalizeRoute
   httpFindPreviousQueue
@@ -136,7 +143,6 @@ EXPORTS
   httpGetDateString
   httpGetDefaultClientHost
   httpGetDefaultClientPort
-  httpGetEndpointAsync
   httpGetEndpointContext
   httpGetError
   httpGetExt
@@ -147,9 +153,13 @@ EXPORTS
   httpGetHeader
   httpGetHeaderHash
   httpGetHeaders
+  httpGetHostDefaultRoute
   httpGetIntParam
   httpGetLanguage
   httpGetNextQueueForService
+  httpGetOption
+  httpGetOptionHash
+  httpGetOptions
   httpGetPacket
   httpGetParam
   httpGetParams
@@ -172,6 +182,7 @@ EXPORTS
   httpInitSchedulerQueue
   httpInitTrace
   httpInsertQueue
+  httpIsEndpointAsync
   httpIsEof
   httpIsFinalized
   httpIsGroupEnabled
@@ -183,10 +194,13 @@ EXPORTS
   httpJoinPackets
   httpJoinUri
   httpJoinUriPath
+  httpLink
   httpLoadSsl
+  httpLogRoutes
   httpLookupEndpoint
   httpLookupHost
   httpLookupHostOnEndpoint
+  httpLookupRoute
   httpLookupRouteErrorDocument
   httpLookupStage
   httpLookupStageData
@@ -233,6 +247,7 @@ EXPORTS
   httpRemoveGroup
   httpRemoveHeader
   httpRemoveHost
+  httpRemoveOption
   httpRemoveQueue
   httpRemoveUploadFile
   httpRemoveUser
@@ -248,6 +263,7 @@ EXPORTS
   httpScheduleQueue
   httpSecureEndpoint
   httpSecureEndpointByName
+  httpSendClose
   httpSendOpen
   httpSendOutgoingService
   httpServiceQueue
@@ -284,6 +300,7 @@ EXPORTS
   httpSetHeader
   httpSetHeaderString
   httpSetHeadersCallback
+  httpSetHostDefaultRoute
   httpSetHostHome
   httpSetHostIpAddr
   httpSetHostLogRotation
@@ -295,6 +312,8 @@ EXPORTS
   httpSetIntParam
   httpSetKeepAliveCount
   httpSetListenCallback
+  httpSetMethod
+  httpSetOption
   httpSetParam
   httpSetPipelineHandler
   httpSetProtocol
@@ -321,6 +340,7 @@ EXPORTS
   httpSetRouteScript
   httpSetRouteSource
   httpSetRouteTarget
+  httpSetRouteTemplate
   httpSetRouteWorkers
   httpSetSendConnector
   httpSetSoftware
@@ -336,6 +356,7 @@ EXPORTS
   httpStartEndpoint
   httpStartPipeline
   httpStopEndpoint
+  httpTemplate
   httpTestParam
   httpTokenize
   httpTokenizev
@@ -347,6 +368,7 @@ EXPORTS
   httpUseWorker
   httpValidateFileCredentials
   httpValidateLimits
+  httpVerifyQueue
   httpWait
   httpWillNextQueueAcceptPacket
   httpWillNextQueueAcceptSize
@@ -355,6 +377,7 @@ EXPORTS
   httpWriteBlock
   httpWriteGroupFile
   httpWriteHeaders
+  httpWriteSafeString
   httpWriteString
   httpWriteUploadData
   httpWriteUserFile

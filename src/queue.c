@@ -310,7 +310,11 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
     ssize       nbytes, len;
 
     q = conn->readq;
-    while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
+    mprAssert(q->count >= 0);
+    mprAssert(size >= 0);
+    mprAssert(httpVerifyQueue(q));
+
+    while (q->count <= 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
         if (conn->sock) {
             httpWait(conn, 0, MPR_TIMEOUT_SOCKETS);
@@ -318,6 +322,7 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
     }
     //  TODO - better place for this?
     conn->lastActivity = conn->http->now;
+    mprAssert(httpVerifyQueue(q));
 
     for (nbytes = 0; size > 0 && q->count > 0; ) {
         if ((packet = q->first) == 0) {
@@ -326,17 +331,22 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
         content = packet->content;
         len = mprGetBufLength(content);
         len = min(len, size);
+        mprAssert(len <= q->count);
         if (len > 0) {
             len = mprGetBlockFromBuf(content, buf, len);
+            mprAssert(len <= q->count);
         }
         buf += len;
         size -= len;
         q->count -= len;
+        mprAssert(q->count >= 0);
         nbytes += len;
         if (mprGetBufLength(content) == 0) {
             httpGetPacket(q);
         }
     }
+    mprAssert(q->count >= 0);
+    mprAssert(httpVerifyQueue(q));
     return nbytes;
 }
 
@@ -574,6 +584,19 @@ ssize httpWrite(HttpQueue *q, cchar *fmt, ...)
     return httpWriteString(q, buf);
 }
 
+
+bool httpVerifyQueue(HttpQueue *q)
+{
+    HttpPacket  *packet;
+    ssize       count;
+
+    count = 0;
+    for (packet = q->first; packet; packet = packet->next) {
+        count += httpGetPacketLength(packet);
+    }
+    mprAssert(count <= q->count);
+    return count <= q->count;
+}
 
 /*
     @copy   default

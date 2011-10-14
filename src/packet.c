@@ -190,7 +190,6 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
         httpPutForService(q, packet, HTTP_DELAY_SERVICE);
 
     } else {
-        q->count += httpGetPacketLength(packet);
         /* Skip over the header packet */
         if (q->first && q->first->flags & HTTP_PACKET_HEADER) {
             packet = q->first->next;
@@ -199,7 +198,9 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
             /* Aggregate all data into one packet and free the packet.  */
             httpJoinPacket(q->first, packet);
         }
+        q->count += httpGetPacketLength(packet);
     }
+    mprAssert(httpVerifyQueue(q));
     if (serviceQ && !(q->flags & HTTP_QUEUE_DISABLED))  {
         httpScheduleQueue(q);
     }
@@ -208,7 +209,7 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 
 /*  
     Join two packets by pulling the content from the second into the first.
-    WARNING: this will not update the queue count.
+    WARNING: this will not update the queue count. Assumes the either both are on the queue or neither. 
  */
 int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 {

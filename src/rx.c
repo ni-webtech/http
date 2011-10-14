@@ -944,6 +944,7 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     tx = conn->tx;
     content = packet->content;
     q = tx->queue[HTTP_QUEUE_RX];
+    mprAssert(httpVerifyQueue(q));
 
     LOG(7, "processContent: packet of %d bytes, remaining %d", mprGetBufLength(content), rx->remainingContent);
     if ((nbytes = httpFilterChunkData(q, packet)) < 0) {
@@ -977,16 +978,17 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         } else {
             conn->input = 0;
         }
+        if (!(conn->finalized && conn->endpoint)) {
+            if (rx->form) {
+                httpPutForService(q, packet, HTTP_DELAY_SERVICE);
+            } else {
+                httpPutPacketToNext(q, packet);
+            }
+            mprAssert(httpVerifyQueue(q));
+        }
     }
     if (rx->remainingContent == 0 && !(rx->flags & HTTP_CHUNKED)) {
         rx->eof = 1;
-    }
-    if (!(conn->finalized && conn->endpoint)) {
-        if (rx->form) {
-            httpPutForService(q, packet, HTTP_DELAY_SERVICE);
-        } else {
-            httpPutPacketToNext(q, packet);
-        }
     }
     return 1;
 }
