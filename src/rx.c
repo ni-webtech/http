@@ -1002,10 +1002,9 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     HttpRx      *rx;
     HttpQueue   *q;
 
-    mprAssert(packet);
     rx = conn->rx;
 
-    if (!analyseContent(conn, packet)) {
+    if (packet == 0 || !analyseContent(conn, packet)) {
         return 0;
     }
     if (rx->eof) {
