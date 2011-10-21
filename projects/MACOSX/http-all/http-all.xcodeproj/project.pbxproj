@@ -599,7 +599,7 @@
 		C90A19DC0FD6DC5E006A9E86 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0410;
+				LastUpgradeCheck = 0420;
 			};
 			buildConfigurationList = C90A19DF0FD6DC5E006A9E86 /* Build configuration list for PBXProject "http-all" */;
 			compatibilityVersion = "Xcode 3.2";
