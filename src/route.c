@@ -338,7 +338,7 @@ int httpMatchRoute(HttpConn *conn, HttpRoute *route)
     if ((rc = matchRequestUri(conn, route)) == HTTP_ROUTE_OK) {
         rc = testRoute(conn, route);
     }
-    if (route->prefix) {
+    if (rc != HTTP_ROUTE_OK && route->prefix) {
         rx->pathInfo = savePathInfo;
         rx->scriptName = 0;
     }
@@ -1269,6 +1269,7 @@ static void finalizePattern(HttpRoute *route)
     }
     for (cp = startPattern; *cp; cp++) {
         /* Alias for optional, non-capturing pattern:  "(?: PAT )?" */
+        //  MOB - change ~ is confusing with ~ for top of app
         if (*cp == '(' && cp[1] == '~') {
             mprPutStringToBuf(pattern, "(?:");
             cp++;
@@ -1507,7 +1508,10 @@ void httpFinalizeRoute(HttpRoute *route)
 
 
 /********************************* Path and URI Expansion *****************************/
-
+/*
+    MOB - doc
+    what does this return. Does it return an absolute URI?
+ */
 char *httpLink(HttpConn *conn, cchar *target, MprHash *options)
 {
     HttpRoute       *route, *lroute;
