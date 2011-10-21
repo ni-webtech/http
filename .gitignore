@@ -47,3 +47,4 @@ mob.*
 .publisher
 src/test/appweb/trace.txt
 .DS_Store
+*.guid
