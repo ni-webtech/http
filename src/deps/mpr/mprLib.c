@@ -15439,11 +15439,13 @@ char *mprTransformPath(cchar *path, int flags)
         result = mprNormalizePath(path);
     }
 
-#if BLD_WIN_LIKE || CYGWIN
     if (flags & MPR_PATH_NATIVE_SEP) {
+#if BLD_WIN_LIKE
         mprMapSeparators(result, '\\');
-    }
+#elif CYGWIN
+        mprMapSeparators(result, '/');
 #endif
+    }
     return result;
 }
 
