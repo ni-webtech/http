@@ -9,7 +9,7 @@ STAGING		:= staging
 
 include		.makedep
 
-regen: dox next rest
+gen: dox next rest
 
 dox:
 	make -C ../../..

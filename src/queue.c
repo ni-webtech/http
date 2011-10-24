@@ -506,7 +506,7 @@ bool httpWillNextQueueAcceptSize(HttpQueue *q, ssize size)
 
 /*  
     Write a block of data. This is the lowest level write routine for data. This will buffer the data and flush if
-    the queue buffer is full. This will always accept the data but may return with a "short" write.
+    the queue buffer is full. This will always accept the data.
  */
 ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
 {

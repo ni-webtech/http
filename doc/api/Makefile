@@ -12,7 +12,7 @@ prep:
 	rm -f http.html
 
 http.html: Makefile
-	make -C http doc
+	make -C http gen
 
 tidy:
 	tidy -q -config tidy.conf http.html
