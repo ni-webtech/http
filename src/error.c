@@ -102,6 +102,7 @@ void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
     if (conn->errorMsg == 0) {
         conn->errorMsg = sfmtv(fmt, args);
+        //  MOB - need an escape option in status
         if (status) {
             if (status < 0) {
                 status = HTTP_CODE_INTERNAL_SERVER_ERROR;
