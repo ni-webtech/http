@@ -3038,9 +3038,11 @@ int mprMakeArgv(cchar *command, char ***argvp, int flags)
     strcpy(args, command);
     argv = (char**) vector;
 
-    parseArgs(args, argv);
     if (flags & MPR_ARGV_ARGS_ONLY) {
+        parseArgs(args, &argv[1]);
         argv[0] = MPR->emptyString;
+    } else {
+        parseArgs(args, argv);
     }
     argv[argc] = 0;
     *argvp = argv;
@@ -3494,7 +3496,7 @@ static LRESULT msgProc(HWND hwnd, uint msg, uint wp, long lp)
         mprServiceWinIO(MPR->waitService, sock, winMask);
 
     } else if (ws->msgCallback) {
-        ws->msgCallback(hwnd, msg, wp, lp);
+        return ws->msgCallback(hwnd, msg, wp, lp);
 
     } else {
         return DefWindowProc(hwnd, msg, wp, lp);
@@ -3503,8 +3505,11 @@ static LRESULT msgProc(HWND hwnd, uint msg, uint wp, long lp)
 }
 
 
-void mprSetWinMsgCallback(MprWaitService *ws, MprMsgCallback callback)
+void mprSetWinMsgCallback(MprMsgCallback callback)
 {
+    MprWaitService  *ws;
+
+    ws = MPR->waitService;
     ws->msgCallback = callback;
 }
 
@@ -27001,7 +27006,6 @@ int mprGetRandomBytes(char *buf, ssize length, bool block)
     int             rc;
 
     rc = 0;
-
     if (!CryptAcquireContext(&prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | 0x40)) {
         return mprGetError();
     }
