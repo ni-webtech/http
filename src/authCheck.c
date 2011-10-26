@@ -331,6 +331,7 @@ static void formatAuthResponse(HttpConn *conn, HttpAuth *auth, int code, char *m
             httpSetHeader(conn, "WWW-Authenticate", "Digest realm=\"%s\", nonce=\"%s\"", auth->requiredRealm, nonce);
         }
     }
+    httpSetContentType(conn, "text/plain");
     httpError(conn, code, "Authentication Error: %s", msg);
     httpSetPipelineHandler(conn, conn->http->passHandler);
 }
