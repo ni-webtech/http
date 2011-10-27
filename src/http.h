@@ -3956,10 +3956,7 @@ typedef struct HttpRx {
     char            *uploadDir;             /**< Upload directory */
     int             autoDelete;             /**< Auto delete uploaded files */
 
-    /*
-        Misc
-     */
-    char            *formData;              /**< Cached form data as a string*/
+    char            *paramString;           /**< Cached param data as a string */
     HttpLang        *lang;                  /**< Selected language */
 
     /*
@@ -4041,6 +4038,17 @@ extern cchar *httpGetParam(HttpConn *conn, cchar *var, cchar *defaultValue);
     @ingroup HttpRx
  */
 extern MprHash *httpGetParams(HttpConn *conn);
+
+/**
+    Get the request params table as a string
+    @description This call gets the request params encoded as a string. The params are always in the same order 
+        regardless of the form parameter order. Request parameters include query parameters, form data and routing 
+        parameters.
+    @param conn HttpConn connection object
+    @return A string representation in www-urlencoded format.
+    @ingroup HttpRx
+ */
+extern char *httpGetParamsString(HttpConn *conn);
 
 /** 
     Get an rx http header.
@@ -4226,7 +4234,6 @@ extern void httpCloseRx(struct HttpConn *conn);
 extern HttpRange *httpCreateRange(HttpConn *conn, MprOff start, MprOff end);
 extern HttpRx *httpCreateRx(HttpConn *conn);
 extern void httpDestroyRx(HttpRx *rx);
-extern char *httpGetFormData(HttpConn *conn);
 extern bool httpMatchEtag(HttpConn *conn, char *requestedEtag);
 extern bool httpMatchModified(HttpConn *conn, MprTime time);
 extern void httpProcess(HttpConn *conn, HttpPacket *packet);

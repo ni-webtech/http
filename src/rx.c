@@ -66,7 +66,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->etags);
         mprMark(rx->extraPath);
         mprMark(rx->files);
-        mprMark(rx->formData);
+        mprMark(rx->paramString);
         mprMark(rx->headerPacket);
         mprMark(rx->headers);
         mprMark(rx->hostHeader);
@@ -1668,56 +1668,6 @@ cvoid *httpGetStageData(HttpConn *conn, cchar *key)
         return NULL;
     }
     return mprLookupKey(rx->requestData, key);
-}
-
-
-static int sortForm(MprKey **h1, MprKey **h2)
-{
-    return scmp((*h1)->key, (*h2)->key);
-}
-
-
-/*
-    Return form data as a string. This will return the exact same string regardless of the order of form parameters.
- */
-char *httpGetFormData(HttpConn *conn)
-{
-    HttpRx      *rx;
-    MprHash     *params;
-    MprKey      *kp;
-    MprList     *list;
-    char        *buf, *cp;
-    ssize       len;
-    int         next;
-
-    mprAssert(conn);
-
-    rx = conn->rx;
-
-    if (rx->formData == 0) {
-        if ((params = conn->rx->params) != 0) {
-            if ((list = mprCreateList(mprGetHashLength(params), 0)) != 0) {
-                len = 0;
-                for (kp = 0; (kp = mprGetNextKey(params, kp)) != NULL; ) {
-                    mprAddItem(list, kp);
-                    len += slen(kp->key) + slen(kp->data) + 2;
-                }
-                if ((buf = mprAlloc(len + 1)) != 0) {
-                    mprSortList(list, sortForm);
-                    cp = buf;
-                    for (next = 0; (kp = mprGetNextItem(list, &next)) != 0; ) {
-                        strcpy(cp, kp->key); cp += slen(kp->key);
-                        *cp++ = '=';
-                        strcpy(cp, kp->data); cp += slen(kp->data);
-                        *cp++ = '&';
-                    }
-                    cp[-1] = '\0';
-                    rx->formData = buf;
-                }
-            }
-        }
-    }
-    return rx->formData;
 }
 
 

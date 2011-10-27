@@ -223,6 +223,57 @@ int httpGetIntParam(HttpConn *conn, cchar *var, int defaultValue)
 }
 
 
+static int sortParam(MprKey **h1, MprKey **h2)
+{
+    return scmp((*h1)->key, (*h2)->key);
+}
+
+
+/*
+    Return the request parameters as a string. 
+    This will return the exact same string regardless of the order of form parameters.
+ */
+char *httpGetParamsString(HttpConn *conn)
+{
+    HttpRx      *rx;
+    MprHash     *params;
+    MprKey      *kp;
+    MprList     *list;
+    char        *buf, *cp;
+    ssize       len;
+    int         next;
+
+    mprAssert(conn);
+
+    rx = conn->rx;
+
+    if (rx->paramString == 0) {
+        if ((params = conn->rx->params) != 0) {
+            if ((list = mprCreateList(mprGetHashLength(params), 0)) != 0) {
+                len = 0;
+                for (kp = 0; (kp = mprGetNextKey(params, kp)) != NULL; ) {
+                    mprAddItem(list, kp);
+                    len += slen(kp->key) + slen(kp->data) + 2;
+                }
+                if ((buf = mprAlloc(len + 1)) != 0) {
+                    mprSortList(list, sortParam);
+                    cp = buf;
+                    for (next = 0; (kp = mprGetNextItem(list, &next)) != 0; ) {
+                        strcpy(cp, kp->key); cp += slen(kp->key);
+                        *cp++ = '=';
+                        strcpy(cp, kp->data); cp += slen(kp->data);
+                        *cp++ = '&';
+                    }
+                    cp[-1] = '\0';
+                    rx->paramString = buf;
+                }
+            }
+        }
+    }
+    return rx->paramString;
+}
+
+
 void httpSetParam(HttpConn *conn, cchar *var, cchar *value) 
 {
     MprHash     *vars;
