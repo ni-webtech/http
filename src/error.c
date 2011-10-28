@@ -10,6 +10,7 @@
 /********************************** Forwards **********************************/
 
 static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args);
+static void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args);
 
 /*********************************** Code *************************************/
 
@@ -41,6 +42,7 @@ void httpError(HttpConn *conn, int flags, cchar *fmt, ...)
     overrides the normal output with an alternate error message. If the output has alread started (headers sent), then
     the connection MUST be closed so the client can get some indication the request failed.
  */
+//  MOB - remove the http prefix. Make V lower case
 static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
 {
     HttpTx      *tx;
@@ -59,7 +61,6 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
         conn->rx->eof = 1;
     }
     conn->error = 1;
-    conn->responded = 1;
     status = flags & HTTP_CODE_MASK;
     if (status == 0) {
         status = HTTP_CODE_INTERNAL_SERVER_ERROR;
@@ -91,6 +92,8 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
 #endif
         }
     }
+    conn->responded = 1;
+    httpFinalize(conn);
 }
 
 
@@ -98,7 +101,8 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
     Just format conn->errorMsg and set status - nothing more
     NOTE: this is an internal API. Users should use httpError()
  */
-void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
+//  MOB - rename to remove the http prefix
+static void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
     if (conn->errorMsg == 0) {
         conn->errorMsg = sfmtv(fmt, args);

@@ -240,6 +240,8 @@ static void routeRequest(HttpConn *conn)
 {
     HttpRx  *rx;
 
+    mprAssert(conn->endpoint);
+
     rx = conn->rx;
     httpAddParams(conn);
     mapMethod(conn);
@@ -1046,7 +1048,10 @@ static bool processRunning(HttpConn *conn)
     } else {
         if (conn->endpoint) {
             httpProcessPipeline(conn);
-            if (conn->connError || conn->writeComplete) {
+            if (conn->finalized && conn->tx->cacheBuffer) {
+                httpSaveCachedResponse(conn);
+            }
+            if (conn->connError || conn->connectorComplete) {
                 httpSetState(conn, HTTP_STATE_COMPLETE);
             } else {
                 httpWritable(conn);
@@ -1414,7 +1419,7 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     conn->async = 1;
 
     eventMask = MPR_READABLE;
-    if (!conn->writeComplete) {
+    if (!conn->connectorComplete) {
         eventMask |= MPR_WRITABLE;
     }
     if (conn->waitHandler == 0) {

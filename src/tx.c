@@ -60,6 +60,8 @@ void httpDestroyTx(HttpTx *tx)
 static void manageTx(HttpTx *tx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
+        mprMark(tx->cache);
+        mprMark(tx->cachedContent);
         mprMark(tx->conn);
         mprMark(tx->outputPipeline);
         mprMark(tx->handler);
@@ -230,9 +232,10 @@ void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 /*
     Called by connectors (ONLY) when writing the transmission is complete
  */
-void httpCompleteWriting(HttpConn *conn)
+void httpConnectorComplete(HttpConn *conn)
 {
-    conn->writeComplete = 1;
+    conn->connectorComplete = 1;
+    conn->handlerComplete = 1;
     conn->finalized = 1;
 }
 
@@ -242,11 +245,14 @@ void httpFinalize(HttpConn *conn)
     if (conn->finalized || conn->state < HTTP_STATE_CONNECTED || conn->writeq == 0 || conn->sock == 0) {
         return;
     }
-    conn->finalized = 1;
     conn->responded = 1;
+    conn->finalized = 1;
+    if (!conn->tx->cacheBuffer) {
+        conn->handlerComplete = 1;
+    }
     httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SERVICE_NOW);
     httpServiceQueues(conn);
-    if (conn->state == HTTP_STATE_RUNNING && conn->writeComplete && !conn->advancing) {
+    if (conn->state == HTTP_STATE_RUNNING && conn->connectorComplete && !conn->advancing) {
         httpProcess(conn, NULL);
     }
 }
@@ -360,9 +366,11 @@ void *httpGetQueueData(HttpConn *conn)
 }
 
 
+//  MOB - refactor and remove this
 void httpOmitBody(HttpConn *conn)
 {
     if (conn->tx) {
+        //  MOB - refactor and remove this flag
         conn->tx->flags |= HTTP_TX_NO_BODY;
     }
     if (conn->tx->flags & HTTP_TX_HEADERS_CREATED) {
@@ -433,9 +441,12 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         "<html><head><title>%s</title></head>\r\n"
         "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p></body></html>\r\n",
         msg, msg, targetUri);
+
+    //  MOB - can remove this because finalizing below
     conn->responded = 1;
     tx->redirected = 1;
     httpOmitBody(conn);
+    httpFinalize(conn);
 }
 
 
@@ -529,14 +540,15 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     HttpTx      *tx;
+    HttpRoute   *route;
     HttpRange   *range;
-    MprTime     expires;
-    cchar       *mimeType, *value;
+    cchar       *mimeType;
 
     mprAssert(packet->flags == HTTP_PACKET_HEADER);
 
     rx = conn->rx;
     tx = conn->tx;
+    route = rx->route;
 
     httpAddHeaderString(conn, "Date", conn->http->currentDate);
 
@@ -549,18 +561,19 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             }
         }
     }
-    if (rx->route && !mprLookupKey(tx->headers, "Cache-Control")) {
+#if UNUSED
+    if (route && !mprLookupKey(tx->headers, "Cache-Control")) {
         expires = 0;
         if (tx->ext) {
-            expires = PTOL(mprLookupKey(rx->route->expires, tx->ext));
+            expires = PTOL(mprLookupKey(route->cacheExtensions, tx->ext));
         }
         if (expires == 0 && (mimeType = mprLookupKey(tx->headers, "Content-Type")) != 0) {
-            expires = PTOL(mprLookupKey(rx->route->expiresByType, mimeType));
+            expires = PTOL(mprLookupKey(route->cacheTypes, mimeType));
         }
         if (expires == 0) {
-            expires = PTOL(mprLookupKey(rx->route->expires, ""));
+            expires = PTOL(mprLookupKey(route->cacheExtensions, ""));
             if (expires == 0) {
-                expires = PTOL(mprLookupKey(rx->route->expiresByType, ""));
+                expires = PTOL(mprLookupKey(route->cacheTypes, ""));
             }
         }
         if (expires) {
@@ -579,6 +592,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
 #endif
         }
     }
+#endif
     if (tx->etag) {
         httpAddHeader(conn, "ETag", "%s", tx->etag);
     }

@@ -1709,8 +1709,8 @@ extern void httpSetIOCallback(struct HttpConn *conn, HttpIOCallback fn);
     @stability Evolving
     @defgroup HttpConn HttpConn
     @see HttpConn HttpEnvCallback HttpGetPassword HttpListenCallback HttpNotifier HttpQueue HttpRedirectCallback 
-        HttpRx HttpStage HttpTx HtttpListenCallback httpCallEvent httpCloseConn httpCompleteRequest 
-        httpCompleteWriting httpConnTimeout httpConsumeLastRequest httpCreateConn httpCreateRxPipeline 
+        HttpRx HttpStage HttpTx HtttpListenCallback httpCallEvent httpCloseConn 
+        httpConnectorComplete httpConnTimeout httpConsumeLastRequest httpCreateConn httpCreateRxPipeline 
         httpCreateTxPipeline httpDestroyConn httpDestroyPipeline httpDiscardTransmitData httpDisconnect 
         httpEnableUpload httpError httpEvent httpGetAsync httpGetChunkSize httpGetConnContext httpGetConnHost 
         httpGetError httpGetExt httpGetKeepAliveCount httpMatchHost httpMemoryError httpPrepClientConn 
@@ -1730,9 +1730,13 @@ typedef struct HttpConn {
     int             state;                  /**< Connection state */
     int             error;                  /**< A request error has occurred */
     int             connError;              /**< A connection error has occurred */
-    int             finalized;              /**< Request complete */
-    int             responded;              /**< The request has responded (endpoint). Some output has been initiated */
-    int             writeComplete;          /**< All write data has been sent (set by connectors) */
+
+    int             responded;              /**< The request has started to respond. Some output has been initiated. */
+    int             finalized;              /**< End of response has been signified (set at handler level) */
+
+    //  MOB - who uses this and is it needed?
+    int             handlerComplete;        /**< The handler has finished sending the response into the pipeline */
+    int             connectorComplete;      /**< Connector has finished sending the response */
     int             advancing;              /**< In httpProcess (reentrancy prevention) */
 
     HttpLimits      *limits;                /**< Service limits */
@@ -1824,19 +1828,12 @@ extern void httpCallEvent(HttpConn *conn, int mask);
 extern void httpCloseConn(HttpConn *conn);
 
 /**
-    Signal the request is complete. This is called by connectors when the request is complete
-    @param conn HttpConn object created via $httpCreateConn
-    @ingroup HttpConn
- */ 
-extern void httpCompleteRequest(HttpConn *conn);
-
-/**
-    Signal writing transmission body is complete. This is called by connectors when writing data is complete.
+    Connector has completed sending the response.
     @param conn HttpConn object created via $httpCreateConn
     @ingroup HttpConn
     @internal
  */ 
-extern void httpCompleteWriting(HttpConn *conn);
+extern void httpConnectorComplete(HttpConn *conn);
 
 /**
     Signal a connection timeout on a connection
@@ -2819,6 +2816,31 @@ typedef struct HttpLang {
     int         flags;                      /**< Control suffix position */
 } HttpLang;
 
+/********************************** HttpCache  *********************************/
+
+#define HTTP_CACHE_MANUAL           0x1     /**< Cache manually. User must call httpWriteCache */
+#define HTTP_CACHE_IGNORE_PARAMS    0x2     /**< Ignore request params when caching */
+#define HTTP_CACHE_CLIENT           0x4     /**< Cache on the client side */
+#define HTTP_CACHE_RESET            0x10    /**< Don't inherit cache config from outer routes */
+
+typedef struct HttpCache {
+    MprHash     *extensions;                /**< Extensions to cache */
+    MprHash     *methods;                   /**< Methods to cache */
+    MprHash     *types;                     /**< MimeTypes to cache */
+    MprHash     *uris;                      /**< URIs to cache */
+    MprTime     lifespan;                   /**< Lifespan for cached content */
+    int         flags;                      /**< Cache control flags */
+} HttpCache;
+
+extern void httpAddCache(struct HttpRoute *route, cchar *methods, cchar *uris, cchar *extensions, cchar *types, 
+        MprTime lifespan, int flags);
+extern bool httpFetchCachedResponse(HttpConn *conn);
+extern void httpSendCachedResponse(HttpConn *conn);
+extern void httpSaveCachedResponse(HttpConn *conn);
+extern int httpUpdateCache(HttpConn *conn, cchar *data);
+extern ssize httpWriteCached(HttpConn *conn);
+extern bool httpSetupRequestCaching(HttpConn *conn);
+
 /********************************** HttpRoute  *********************************/
 /*
     Misc route API flags
@@ -2826,12 +2848,8 @@ typedef struct HttpLang {
 #define HTTP_ROUTE_NOT            0x1       /**< Negate the route pattern test result */
 #define HTTP_ROUTE_FREE           0x2       /**< Free Route.mdata back to malloc when route is freed */
 #define HTTP_ROUTE_RAW            0x4       /**< Don't html encode the write data */
-
-/*
-    Route flags (set above the API flasg)
- */
-#define HTTP_ROUTE_PUT_DELETE     0x100     /**< Support PUT|DELETE */
-#define HTTP_ROUTE_GZIP           0x1000    /**< Support gzipped conent */
+#define HTTP_ROUTE_PUT_DELETE     0x1000    /**< Support PUT|DELETE */
+#define HTTP_ROUTE_GZIP           0x2000    /**< Support gzipped conent */
 
 /**
     Route Control
@@ -2871,7 +2889,7 @@ typedef struct HttpRoute {
     ssize           startWithLen;           /**< Length of startWith */
     ssize           startSegmentLen;        /**< Prefix length */
 
-
+    MprList         *caching;               /**< Items to cache */
     HttpAuth        *auth;                  /**< Per route block authentication */
     Http            *http;                  /**< Http service object (copy of appweb->http) */
     struct HttpHost *host;                  /**< Owning host */
@@ -2883,8 +2901,6 @@ typedef struct HttpRoute {
     MprList         *handlers;              /**< List of handlers for this route */
     HttpStage       *connector;             /**< Network connector to use */
     MprHash         *data;                  /**< Hash of extra data configuration */
-    MprHash         *expires;               /**< Expiry of content by extension */
-    MprHash         *expiresByType;         /**< Expiry of content by mime type */
     MprHash         *pathTokens;            /**< Path $token refrerences */
     MprHash         *languages;             /**< Languages supported */
     MprList         *inputStages;           /**< Input stages */
@@ -4288,6 +4304,9 @@ typedef struct HttpTx {
     HttpQueue       *queue[2];              /**< Dummy head for the queues */
 
     MprHash         *headers;               /**< Transmission headers */
+    HttpCache       *cache;                 /**< Cache control entry (only set if this request is being cached) */
+    MprBuf          *cacheBuffer;           /**< Response caching buffer */
+    cchar           *cachedContent;         /**< Retrieved cached response to send */
 
     HttpRange       *outputRanges;          /**< Data ranges for tx data */
     HttpRange       *currentRange;          /**< Current range being fullfilled */
@@ -4421,6 +4440,7 @@ extern void httpFollowRedirects(HttpConn *conn, bool follow);
  */
 extern void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...);
 
+#if UNUSED
 /** 
     Format an error transmission using a va_list
     @description Format an error message to use instead of data generated by the request processing pipeline.
@@ -4434,6 +4454,7 @@ extern void httpFormatError(HttpConn *conn, int status, cchar *fmt, ...);
     @ingroup HttpTx
  */
 extern void httpFormatErrorV(HttpConn *conn, int status, cchar *fmt, va_list args);
+#endif
 
 /** 
     Format an alternate response
@@ -4935,6 +4956,7 @@ typedef struct HttpHost {
     int             port;                   /**< Port address portion parsed from name */
 
     struct HttpHost *parent;                /**< Parent host to inherit aliases, dirs, routes */
+    MprCache        *cache;                 /**< Response content caching store */
     MprList         *dirs;                  /**< List of Directory definitions */
     MprList         *routes;                /**< List of Route defintions */
     HttpRoute       *defaultRoute;          /**< Default route for the host */

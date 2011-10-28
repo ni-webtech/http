@@ -66,14 +66,14 @@ static void netOutgoingService(HttpQueue *q)
     if (!conn->sock) {
         return;
     }
-    if (tx->flags & HTTP_TX_NO_BODY || conn->writeComplete) {
+    if (tx->flags & HTTP_TX_NO_BODY || conn->connectorComplete) {
         httpDiscardData(q, 1);
     }
     if ((tx->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
         httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE | ((tx->bytesWritten) ? HTTP_ABORT : 0),
             "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
         if (tx->bytesWritten) {
-            httpCompleteWriting(conn);
+            httpConnectorComplete(conn);
             return;
         }
     }
@@ -113,7 +113,7 @@ static void netOutgoingService(HttpQueue *q)
                 LOG(5, "netOutgoingService write failed, error %d", errCode);
             }
             httpError(conn, HTTP_ABORT | HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
-            httpCompleteWriting(conn);
+            httpConnectorComplete(conn);
             break;
 
         } else if (written == 0) {
@@ -129,7 +129,7 @@ static void netOutgoingService(HttpQueue *q)
     }
     if (q->ioCount == 0) {
         if ((q->flags & HTTP_QUEUE_EOF)) {
-            httpCompleteWriting(conn);
+            httpConnectorComplete(conn);
         } else {
             httpWritable(conn);
         }

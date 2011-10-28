@@ -26,6 +26,9 @@ HttpHost *httpCreateHost()
     if ((host = mprAllocObj(HttpHost, manageHost)) == 0) {
         return 0;
     }
+    if ((host->cache = mprCreateCache(MPR_CACHE_SHARED)) == 0) {
+        return 0;
+    }
     host->mutex = mprCreateLock();
     host->dirs = mprCreateList(-1, 0);
     host->routes = mprCreateList(-1, 0);
@@ -84,6 +87,7 @@ HttpHost *httpCloneHost(HttpHost *parent)
 static void manageHost(HttpHost *host, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
+        mprMark(host->cache);
         mprMark(host->name);
         mprMark(host->ip);
         mprMark(host->parent);

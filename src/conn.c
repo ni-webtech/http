@@ -211,7 +211,7 @@ static void commonPrep(HttpConn *conn)
     conn->state = 0;
     conn->responded = 0;
     conn->finalized = 0;
-    conn->writeComplete = 0;
+    conn->connectorComplete = 0;
     conn->lastActivity = conn->http->now;
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpInitSchedulerQueue(conn->serviceq);

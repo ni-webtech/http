@@ -66,8 +66,10 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->defaultLanguage = sclone("en");
     route->dir = mprGetCurrentPath(".");
     route->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
-    route->expires = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
-    route->expiresByType = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
+#if UNUSED
+    route->cacheExtensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
+    route->cacheTypes = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
+#endif
     route->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->flags = HTTP_ROUTE_GZIP;
 #if UNUSED 
@@ -103,14 +105,13 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->parent = parent;
     route->auth = httpCreateInheritedAuth(parent->auth);
     route->autoDelete = parent->autoDelete;
+    route->caching = parent->caching;
     route->conditions = parent->conditions;
     route->connector = parent->connector;
     route->defaultLanguage = parent->defaultLanguage;
     route->dir = parent->dir;
     route->data = parent->data;
     route->errorDocuments = parent->errorDocuments;
-    route->expires = parent->expires;
-    route->expiresByType = parent->expiresByType;
     route->extensions = parent->extensions;
     route->flags = parent->flags;
     route->handler = parent->handler;
@@ -152,6 +153,7 @@ static void manageRoute(HttpRoute *route, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(route->auth);
+        mprMark(route->caching);
         mprMark(route->conditions);
         mprMark(route->connector);
         mprMark(route->context);
@@ -159,8 +161,6 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->defaultLanguage);
         mprMark(route->dir);
         mprMark(route->errorDocuments);
-        mprMark(route->expires);
-        mprMark(route->expiresByType);
         mprMark(route->extensions);
         mprMark(route->handler);
         mprMark(route->handlers);
@@ -299,8 +299,11 @@ void httpRouteRequest(HttpConn *conn)
     }
     rx->route = route;
 
-    //  MOB - be good to have one flag for this test
-    if (conn->error || tx->redirected || tx->altBody) {
+    //  MOB - refactor
+    if (httpSetupRequestCaching(conn)) {
+        httpFetchCachedResponse(conn);
+    }
+    if (conn->finalized || tx->cachedContent /* MOB || tx->redirected || tx->altBody || tx->cache */) {
         tx->handler = conn->http->passHandler;
         if (rewrites >= HTTP_MAX_REWRITE) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");
@@ -455,8 +458,7 @@ static int testRoute(HttpConn *conn, HttpRoute *route)
         return rc;
     }
     if (route->prefix) {
-        //  MOB - call this {app} or {prefix}
-        httpSetParam(conn, "app", route->prefix);
+        httpSetParam(conn, "prefix", route->prefix);
     }
     if (route->tokens) {
         for (next = 0; (token = mprGetNextItem(route->tokens, &next)) != 0; ) {
@@ -588,40 +590,48 @@ int httpAddRouteCondition(HttpRoute *route, cchar *name, cchar *details, int fla
 }
 
 
-void httpAddRouteExpiry(HttpRoute *route, MprTime when, cchar *extensions)
+#if UNUSED
+void httpAddRouteCacheByExt(HttpRoute *route, MprTime when, cchar *extensions)
 {
     char    *types, *ext, *tok;
 
     mprAssert(route);
 
     if (extensions && *extensions) {
-        GRADUATE_HASH(route, expires);
+        if (route->cacheExtensions == 0) {
+            route->cacheExtensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
+        }
+        GRADUATE_HASH(route, cacheExtensions);
         types = sclone(extensions);
         ext = stok(types, " ,\t\r\n", &tok);
         while (ext) {
-            mprAddKey(route->expires, ext, ITOP(when));
+            mprAddKey(route->cacheExtensions, ext, ITOP(when));
             ext = stok(0, " \t\r\n", &tok);
         }
     }
 }
 
 
-void httpAddRouteExpiryByType(HttpRoute *route, MprTime when, cchar *mimeTypes)
+void httpAddRouteCacheByType(HttpRoute *route, MprTime when, cchar *mimeTypes)
 {
     char    *types, *mime, *tok;
 
     mprAssert(route);
 
     if (mimeTypes && *mimeTypes) {
-        GRADUATE_HASH(route, expiresByType);
+        if (route->cacheTypes == 0) {
+            route->cacheTypes = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
+        }
+        GRADUATE_HASH(route, cacheTypes);
         types = sclone(mimeTypes);
         mime = stok(types, " ,\t\r\n", &tok);
         while (mime) {
-            mprAddKey(route->expiresByType, mime, ITOP(when));
+            mprAddKey(route->cacheTypes, mime, ITOP(when));
             mime = stok(0, " \t\r\n", &tok);
         }
     }
 }
+#endif
 
 
 int httpAddRouteFilter(HttpRoute *route, cchar *name, cchar *extensions, int direction)
@@ -903,8 +913,8 @@ void httpResetRoutePipeline(HttpRoute *route)
 
     if (route->parent == 0) {
         route->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
-        route->expires = mprCreateHash(0, MPR_HASH_STATIC_VALUES);
-        route->extensions = mprCreateHash(0, MPR_HASH_CASELESS);
+        route->caching = 0;
+        route->extensions = 0;
         route->handlers = mprCreateList(-1, 0);
         route->inputStages = mprCreateList(-1, 0);
     }

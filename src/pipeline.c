@@ -45,7 +45,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
         }
     }
     if (tx->connector == 0) {
-        if (tx->handler == http->fileHandler && rx->flags & HTTP_GET && !tx->outputRanges && 
+        if (tx->handler == http->fileHandler && (rx->flags & HTTP_GET) && !tx->cache && !tx->outputRanges && 
                 !conn->secure && tx->chunkSize <= 0 &&
                 httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->ext) < 0) {
             tx->connector = http->sendConnector;
@@ -191,6 +191,11 @@ void httpDestroyPipeline(HttpConn *conn)
                 }
             }
         }
+#if UNUSED
+        if (conn->finalized && tx->cacheBuffer) {
+            httpSaveCachedResponse(conn);
+        }
+#endif
     }
 }
 
@@ -199,14 +204,15 @@ void httpStartPipeline(HttpConn *conn)
 {
     HttpQueue   *qhead, *q, *prevQ, *nextQ;
     HttpTx      *tx;
+    HttpRx      *rx;
     
     tx = conn->tx;
     if (tx->started) {
         return;
     }
     tx->started = 1;
-
-    if (conn->rx->needInputPipeline) {
+    rx = conn->rx;
+    if (rx->needInputPipeline) {
         qhead = tx->queue[HTTP_QUEUE_RX];
         for (q = qhead->nextQ; q->nextQ != qhead; q = nextQ) {
             nextQ = q->nextQ;
@@ -233,7 +239,10 @@ void httpStartPipeline(HttpConn *conn)
         q->flags |= HTTP_QUEUE_STARTED;
         HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
     }
-    if (!conn->error && !conn->writeComplete && conn->rx->remainingContent > 0) {
+    if (tx->cachedContent) {
+        httpSendCachedResponse(conn);
+    }
+    if (!conn->error && !conn->connectorComplete && rx->remainingContent > 0) {
         /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
         httpWritable(conn);
     }
