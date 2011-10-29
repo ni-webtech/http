@@ -285,15 +285,16 @@ static void saveCachedResponse(HttpConn *conn)
 }
 
 
-//  MOB -- test
 ssize httpWriteCached(HttpConn *conn)
 {
     HttpRoute   *route;
     MprTime     modified;
     cchar       *key, *content;
 
-    //  MOB - debug and verify this
     route = conn->rx->route;
+    if (!conn->tx->cacheControl) {
+        return MPR_ERR_CANT_FIND;
+    }
     key = makeCacheKey(conn);
     if ((content = mprReadCache(conn->host->cache, key, &modified, 0)) == 0) {
         mprLog(3, "No cached data for ", key);
@@ -309,12 +310,16 @@ ssize httpWriteCached(HttpConn *conn)
 }
 
 
-//  MOB -- test
 int httpUpdateCache(HttpConn *conn, cchar *data)
 {
     HttpCache   *cache;
 
+#if UNUSED
     if ((cache = lookupCacheControl(conn)) == 0) {
+        return MPR_ERR_CANT_FIND;
+    }
+#endif
+    if ((cache = conn->tx->cacheControl) == 0) {
         return MPR_ERR_CANT_FIND;
     }
     mprWriteCache(conn->host->cache, makeCacheKey(conn), data, 0, cache->lifespan, 0, 0);
@@ -384,9 +389,9 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
                 /*
                     For usability, auto-add ?prefix=ROUTE_NAME
                  */
-                if (!scontains(item, sfmt("prefix=%s", route->name), -1)) {
+                if (route->prefix && !scontains(item, sfmt("prefix=%s", route->prefix), -1)) {
                     if (!schr(item, '?')) {
-                        item = sfmt("%s?prefix=%s", item, route->name); 
+                        item = sfmt("%s?prefix=%s", item, route->prefix); 
                     }
                 }
             }
