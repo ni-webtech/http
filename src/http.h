@@ -276,7 +276,9 @@ typedef struct Http {
     struct HttpStage *netConnector;         /**< Default network connector */
     struct HttpStage *sendConnector;        /**< Optimized sendfile connector */
     struct HttpStage *rangeFilter;          /**< Ranged requests filter */
+    struct HttpStage *cacheFilter;          /**< Cache filter */
     struct HttpStage *chunkFilter;          /**< Chunked transfer encoding filter */
+    struct HttpStage *cacheHandler;         /**< Cache filter */
     struct HttpStage *cgiHandler;           /**< CGI listing handler */
     struct HttpStage *dirHandler;           /**< Directory listing handler */
     struct HttpStage *egiHandler;           /**< Embedded Gateway Interface (EGI) handler */
@@ -1584,6 +1586,7 @@ extern void httpAddStage(Http *http, HttpStage *stage);
 extern int httpOpenNetConnector(Http *http);
 extern int httpOpenSendConnector(Http *http);
 extern int httpOpenChunkFilter(Http *http);
+extern int httpOpenCacheHandler(Http *http);
 extern int httpOpenPassHandler(Http *http);
 extern int httpOpenRangeFilter(Http *http);
 extern int httpOpenUploadFilter(Http *http);
@@ -1734,8 +1737,6 @@ typedef struct HttpConn {
     int             responded;              /**< The request has started to respond. Some output has been initiated. */
     int             finalized;              /**< End of response has been signified (set at handler level) */
 
-    //  MOB - who uses this and is it needed?
-    int             handlerComplete;        /**< The handler has finished sending the response into the pipeline */
     int             connectorComplete;      /**< Connector has finished sending the response */
     int             advancing;              /**< In httpProcess (reentrancy prevention) */
 
@@ -2834,9 +2835,6 @@ typedef struct HttpCache {
 
 extern void httpAddCache(struct HttpRoute *route, cchar *methods, cchar *uris, cchar *extensions, cchar *types, 
         MprTime lifespan, int flags);
-extern bool httpFetchCachedResponse(HttpConn *conn);
-extern void httpSendCachedResponse(HttpConn *conn);
-extern void httpSaveCachedResponse(HttpConn *conn);
 extern int httpUpdateCache(HttpConn *conn, cchar *data);
 extern ssize httpWriteCached(HttpConn *conn);
 extern bool httpSetupRequestCaching(HttpConn *conn);
@@ -2899,6 +2897,7 @@ typedef struct HttpRoute {
     char            *defaultLanguage;       /**< Default language */
     MprHash         *extensions;            /**< Hash of handlers by extensions */
     MprList         *handlers;              /**< List of handlers for this route */
+    MprList         *handlersWithMatch;     /**< List of handlers with match routines */
     HttpStage       *connector;             /**< Network connector to use */
     MprHash         *data;                  /**< Hash of extra data configuration */
     MprHash         *pathTokens;            /**< Path $token refrerences */
@@ -3912,10 +3911,6 @@ typedef struct HttpRx {
     MprHash         *requestData;           /**< General request data storage. Users must create hash table if required */
     MprTime         since;                  /**< If-Modified date */
 
-#if UNUSED
-    ssize           chunkSize;              /**< Size of the next chunk */
-#endif
-
     int             chunkState;             /**< Chunk encoding state */
     int             flags;                  /**< Rx modifiers */
     int             form;                   /**< Using mime-type application/x-www-form-urlencoded */
@@ -4304,7 +4299,7 @@ typedef struct HttpTx {
     HttpQueue       *queue[2];              /**< Dummy head for the queues */
 
     MprHash         *headers;               /**< Transmission headers */
-    HttpCache       *cache;                 /**< Cache control entry (only set if this request is being cached) */
+    HttpCache       *cacheControl;          /**< Cache control entry (only set if this request is being cached) */
     MprBuf          *cacheBuffer;           /**< Response caching buffer */
     cchar           *cachedContent;         /**< Retrieved cached response to send */
 

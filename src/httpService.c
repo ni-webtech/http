@@ -110,6 +110,7 @@ Http *httpCreate()
     httpOpenRangeFilter(http);
     httpOpenChunkFilter(http);
     httpOpenUploadFilter(http);
+    httpOpenCacheHandler(http);
     httpOpenPassHandler(http);
 
     http->clientLimits = httpCreateLimits(0);

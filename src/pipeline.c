@@ -22,7 +22,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
     HttpRx      *rx;
     HttpQueue   *q;
     HttpStage   *stage, *filter;
-    int         next;
+    int         next, hasOutputFilters;
 
     mprAssert(conn);
     mprAssert(route);
@@ -37,17 +37,19 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
     }
     mprAddItem(tx->outputPipeline, tx->handler);
 
+    hasOutputFilters = 0;
     if (route->outputStages) {
         for (next = 0; (filter = mprGetNextItem(route->outputStages, &next)) != 0; ) {
             if (matchFilter(conn, filter, route, HTTP_STAGE_TX) == HTTP_ROUTE_OK) {
                 mprAddItem(tx->outputPipeline, filter);
+                hasOutputFilters = 1;
             }
         }
     }
     if (tx->connector == 0) {
-        if (tx->handler == http->fileHandler && (rx->flags & HTTP_GET) && !tx->cache && !tx->outputRanges && 
-                !conn->secure && tx->chunkSize <= 0 &&
-                httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->ext) < 0) {
+        //  MOB - must disable send connector if there are output filters
+        if (tx->handler == http->fileHandler && (rx->flags & HTTP_GET) && !hasOutputFilters && 
+                !conn->secure && httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->ext) < 0) {
             tx->connector = http->sendConnector;
         } else if (route && route->connector) {
             tx->connector = route->connector;
@@ -191,11 +193,6 @@ void httpDestroyPipeline(HttpConn *conn)
                 }
             }
         }
-#if UNUSED
-        if (conn->finalized && tx->cacheBuffer) {
-            httpSaveCachedResponse(conn);
-        }
-#endif
     }
 }
 
@@ -238,9 +235,6 @@ void httpStartPipeline(HttpConn *conn)
         mprAssert(!(q->flags & HTTP_QUEUE_STARTED));
         q->flags |= HTTP_QUEUE_STARTED;
         HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
-    }
-    if (tx->cachedContent) {
-        httpSendCachedResponse(conn);
     }
     if (!conn->error && !conn->connectorComplete && rx->remainingContent > 0) {
         /* If no remaining content, wait till the processing stage to avoid duplicate writable events */

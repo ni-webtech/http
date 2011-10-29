@@ -60,7 +60,7 @@ void httpDestroyTx(HttpTx *tx)
 static void manageTx(HttpTx *tx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(tx->cache);
+        mprMark(tx->cacheControl);
         mprMark(tx->cachedContent);
         mprMark(tx->conn);
         mprMark(tx->outputPipeline);
@@ -235,7 +235,9 @@ void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 void httpConnectorComplete(HttpConn *conn)
 {
     conn->connectorComplete = 1;
+#if UNUSED
     conn->handlerComplete = 1;
+#endif
     conn->finalized = 1;
 }
 
@@ -247,9 +249,11 @@ void httpFinalize(HttpConn *conn)
     }
     conn->responded = 1;
     conn->finalized = 1;
+#if UNUSED
     if (!conn->tx->cacheBuffer) {
         conn->handlerComplete = 1;
     }
+#endif
     httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SERVICE_NOW);
     httpServiceQueues(conn);
     if (conn->state == HTTP_STATE_RUNNING && conn->connectorComplete && !conn->advancing) {

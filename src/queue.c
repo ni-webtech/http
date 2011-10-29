@@ -507,7 +507,6 @@ bool httpWillNextQueueAcceptSize(HttpQueue *q, ssize size)
 /*  
     Write a block of data. This is the lowest level write routine for data. This will buffer the data and flush if
     the queue buffer is full. This will always accept the data.
-    If a Tx.cacheBuffer is defined, output is sent there instead of down the pipeline.
  */
 ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
 {
@@ -525,9 +524,6 @@ ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
     }
     conn->responded = 1;
 
-    if (tx->cacheBuffer) {
-        return mprPutBlockToBuf(tx->cacheBuffer, buf, size);
-    }
     for (written = 0; size > 0; ) {
         LOG(7, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);
         if (conn->state >= HTTP_STATE_COMPLETE) {

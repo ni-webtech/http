@@ -1048,9 +1048,6 @@ static bool processRunning(HttpConn *conn)
     } else {
         if (conn->endpoint) {
             httpProcessPipeline(conn);
-            if (conn->finalized && conn->tx->cacheBuffer) {
-                httpSaveCachedResponse(conn);
-            }
             if (conn->connError || conn->connectorComplete) {
                 httpSetState(conn, HTTP_STATE_COMPLETE);
             } else {
@@ -1129,64 +1126,6 @@ void httpCloseRx(HttpConn *conn)
         httpProcess(conn, NULL);
     }
 }
-
-
-#if UNUSED
-/*  
-    Optimization to correctly size the packets to the chunk filter.
- */
-static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
-{
-    HttpRx      *rx;
-    char        *start, *cp;
-    ssize       size, need;
-
-    rx = conn->rx;
-    need = 0;
-
-    switch (rx->chunkState) {
-    case HTTP_CHUNK_DATA:
-        need = (ssize) min(MAXSSIZE, rx->remainingContent);
-        if (need != 0) {
-            break;
-        }
-        /* Fall through */
-
-    case HTTP_CHUNK_START:
-        start = mprGetBufStart(buf);
-        if (mprGetBufLength(buf) < 3) {
-            return 0;
-        }
-        if (start[0] != '\r' || start[1] != '\n') {
-            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
-            return 0;
-        }
-        for (cp = &start[2]; cp < (char*) buf->end && *cp != '\n'; cp++) {}
-        if ((cp - start) < 2 || (cp[-1] != '\r' || cp[0] != '\n')) {
-            /* Insufficient data */
-            if ((cp - start) > 80) {
-                httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
-                return 0;
-            }
-            return 0;
-        }
-        need = (cp - start + 1);
-        size = (ssize) stoi(&start[2], 16, NULL);
-        if (size == 0 && &cp[2] < buf->end && cp[1] == '\r' && cp[2] == '\n') {
-            /*
-                This is the last chunk (size == 0). Now need to consume the trailing "\r\n".
-                We are lenient if the request does not have the trailing "\r\n" as required by the spec.
-             */
-            need += 2;
-        }
-        break;
-
-    default:
-        mprAssert(0);
-    }
-    return need;
-}
-#endif
 
 
 bool httpContentNotModified(HttpConn *conn)

@@ -1,6 +1,10 @@
 /*
     cache.c -- Http request route caching 
 
+    Caching operates as both a handler and an output filter. If acceptable cached content is found, the 
+    cacheHandler will serve it instead of the normal handler. If no content is acceptable and caching is enabled
+    for the request, the cacheFilter will capture and save the response.
+
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
 
@@ -10,20 +14,313 @@
 
 /********************************** Forwards **********************************/
 
+static bool fetchCachedResponse(HttpConn *conn);
+static HttpCache *lookupCacheControl(HttpConn *conn);
 static char *makeCacheKey(HttpConn *conn);
 static void manageHttpCache(HttpCache *cache, int flags);
+static int matchCacheFilter(HttpConn *conn, HttpRoute *route, int dir);
+static int matchCacheHandler(HttpConn *conn, HttpRoute *route, int dir);
+static void outgoingCacheFilterService(HttpQueue *q);
+static void processCacheHandler(HttpQueue *q);
+static void saveCachedResponse(HttpConn *conn);
 
 /************************************ Code ************************************/
 
-static void manageHttpCache(HttpCache *cache, int flags)
+int httpOpenCacheHandler(Http *http)
 {
-    if (flags & MPR_MANAGE_MARK) {
-        mprMark(cache->uris);
-        mprMark(cache->extensions);
-        mprMark(cache->methods);
-        mprMark(cache->types);
+    HttpStage     *handler, *filter;
+
+    /*
+        Create the cache handler to serve cached content 
+     */
+    if ((handler = httpCreateHandler(http, "cacheHandler", HTTP_STAGE_ALL, NULL)) == 0) {
+        return MPR_ERR_CANT_CREATE;
+    }
+    http->cacheHandler = handler;
+    handler->match = matchCacheHandler;
+    handler->process = processCacheHandler;
+
+    /*
+        Create the cache filter to capture and cache response content
+     */
+    if ((filter = httpCreateHandler(http, "cacheFilter", HTTP_STAGE_ALL, NULL)) == 0) {
+        return MPR_ERR_CANT_CREATE;
+    }
+    http->cacheFilter = filter;
+    filter->match = matchCacheFilter;
+    filter->outgoingService = outgoingCacheFilterService;
+    return 0;
+}
+
+
+/*
+    See if there is acceptable cached content to serve
+ */
+static int matchCacheHandler(HttpConn *conn, HttpRoute *route, int dir)
+{
+    mprAssert(route->caching);
+
+    if ((conn->tx->cacheControl = lookupCacheControl(conn)) == 0) {
+        return HTTP_ROUTE_REJECT;
+    }
+    if (!fetchCachedResponse(conn)) {
+        /* 
+            Side-effect: may have setup tx->cacheBuffer to cause the cacheFilter to match and catpure output 
+         */
+        return HTTP_ROUTE_REJECT;
+    }
+    /* 
+        There is acceptable cached content - so use the cacheHandler 
+     */
+    return HTTP_ROUTE_OK;
+}
+
+
+static void processCacheHandler(HttpQueue *q) 
+{
+    HttpConn    *conn;
+    HttpTx      *tx;
+
+    conn = q->conn;
+    tx = conn->tx;
+    if (tx->cachedContent) {
+        mprLog(3, "cacheHandler: write cached content for '%s'", conn->rx->uri);
+        httpWriteString(q, tx->cachedContent);
+    }
+    httpFinalize(conn);
+}
+
+
+static int matchCacheFilter(HttpConn *conn, HttpRoute *route, int dir)
+{
+    if ((dir & HTTP_STAGE_TX) && conn->tx->cacheBuffer) {
+        mprLog(3, "cacheFilter: Cache response content for '%s'", conn->rx->uri);
+        return HTTP_ROUTE_OK;
+    }
+    return HTTP_ROUTE_REJECT;
+}
+
+
+static void outgoingCacheFilterService(HttpQueue *q)
+{
+    HttpPacket  *packet;
+    HttpConn    *conn;
+    HttpTx      *tx;
+
+    conn = q->conn;
+    tx = conn->tx;
+    mprAssert(tx->cacheBuffer);
+
+    for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
+        if (!httpWillNextQueueAcceptPacket(q, packet)) {
+            httpPutBackPacket(q, packet);
+            return;
+        }
+        if (packet->flags & HTTP_PACKET_DATA) {
+            mprPutBlockToBuf(tx->cacheBuffer, mprGetBufStart(packet->content), mprGetBufLength(packet->content));
+
+        } else if (packet->flags & HTTP_PACKET_END) {
+            saveCachedResponse(conn);
+        }
+        httpPutPacketToNext(q, packet);
     }
 }
+
+
+/*
+    Find a qualifying cache control entry. Any configured uri,method,extension,type must match.
+ */
+static HttpCache *lookupCacheControl(HttpConn *conn)
+{
+    HttpRx      *rx;
+    HttpTx      *tx;
+    HttpCache   *cache;
+    cchar       *mimeType, *ukey;
+    int         next;
+
+    rx = conn->rx;
+    tx = conn->tx;
+
+    /*
+        Find first qualifying cache control entry. Any configured uri,method,extension,type must match.
+     */
+    for (next = 0; (cache = mprGetNextItem(rx->route->caching, &next)) != 0; ) {
+        if (cache->uris) {
+            if (cache->flags & HTTP_CACHE_IGNORE_PARAMS) {
+                ukey = rx->pathInfo;
+            } else {
+                ukey = sfmt("%s?%s", rx->pathInfo, httpGetParamsString(conn));
+            }
+            if (!mprLookupKey(cache->uris, ukey)) {
+                continue;
+            }
+        }
+        if (cache->methods && !mprLookupKey(cache->methods, rx->method)) {
+            continue;
+        }
+        if (cache->extensions && !mprLookupKey(cache->extensions, tx->ext)) {
+            continue;
+        }
+        if (cache->types) {
+            if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->ext)) != 0) {
+                if (!mprLookupKey(cache->types, mimeType)) {
+                    continue;
+                }
+            }
+        }
+        /* All match */
+        break;
+    }
+    return cache;
+}
+
+
+/*
+    See if there is acceptable cached content for this request. If so, return true.
+    Will setup tx->cacheBuffer as a side-effect if the output should be captured and cached.
+ */
+static bool fetchCachedResponse(HttpConn *conn)
+{
+    HttpRx      *rx;
+    HttpTx      *tx;
+    HttpRoute   *route;
+    MprTime     modified, when;
+    HttpCache   *cache;
+    cchar       *value, *key, *tag;
+    int         status, cacheOk, canUseClientCache;
+
+    rx = conn->rx;
+    tx = conn->tx;
+    route = rx->route;
+    cache = tx->cacheControl;
+    mprAssert(cache);
+
+    if (cache->flags & HTTP_CACHE_CLIENT) {
+        if (!mprLookupKey(tx->headers, "Cache-Control")) {
+            if ((value = mprLookupKey(conn->tx->headers, "Cache-Control")) != 0) {
+                if (strstr(value, "max-age") == 0) {
+                    httpAppendHeader(conn, "Cache-Control", "max-age=%d", cache->lifespan / MPR_TICKS_PER_SEC);
+                }
+            } else {
+                httpAddHeader(conn, "Cache-Control", "max-age=%d", cache->lifespan / MPR_TICKS_PER_SEC);
+            }
+#if UNUSED && KEEP
+            {
+                /* Old HTTP/1.0 clients don't understand Cache-Control */
+                struct tm   tm;
+                mprDecodeUniversalTime(&tm, conn->http->now + (expires * MPR_TICKS_PER_SEC));
+                httpAddHeader(conn, "Expires", "%s", mprFormatTime(MPR_HTTP_DATE, &tm));
+            }
+#endif
+        }
+        return 0;
+    }
+    if (!(cache->flags & HTTP_CACHE_MANUAL)) {
+        /*
+            Transparent caching. Manual caching must manually call httpWriteCached()
+         */
+        key = makeCacheKey(conn);
+        if ((value = httpGetHeader(conn, "Cache-Control")) != 0 && 
+                (scontains(value, "max-age=0", -1) == 0 || scontains(value, "no-cache", -1) == 0)) {
+            mprLog(3, "Client reload. Cache-control header '%s' rejects use of cached content.", value);
+
+        } else if ((tx->cachedContent = mprReadCache(conn->host->cache, key, &modified, 0)) != 0) {
+            /*
+                See if a NotModified response can be served. This is much faster than sending the response.
+                Observe headers:
+                    If-None-Match: "ec18d-54-4d706a63"
+                    If-Modified-Since: Fri, 04 Mar 2011 04:28:19 GMT
+                Set status to OK when content must be transmitted.
+             */
+            cacheOk = 1;
+            canUseClientCache = 0;
+            tag = mprGetMD5(key);
+            if ((value = httpGetHeader(conn, "If-None-Match")) != 0) {
+                canUseClientCache = 1;
+                if (scmp(value, tag) != 0) {
+                    cacheOk = 0;
+                }
+            }
+            if (cacheOk && (value = httpGetHeader(conn, "If-Modified-Since")) != 0) {
+                canUseClientCache = 1;
+                mprParseTime(&when, value, 0, 0);
+                if (modified > when) {
+                    cacheOk = 0;
+                }
+            }
+            mprLog(3, "cacheHandler: Use cached content for %s, status %d", key, status);
+            status = (canUseClientCache && cacheOk) ? HTTP_CODE_NOT_MODIFIED : HTTP_CODE_OK;
+            httpSetStatus(conn, status);
+            httpSetHeader(conn, "Etag", mprGetMD5(key));
+            httpSetHeader(conn, "Last-Modified", mprFormatUniversalTime(MPR_HTTP_DATE, modified));
+            return 1;
+        }
+        mprLog(3, "cacheHandler: No cached content for %s", key);
+    }
+    /*
+        Must run the real handler, so create a capture buffer.
+     */
+    conn->tx->cacheBuffer = mprCreateBuf(-1, -1);
+    return 0;
+}
+
+
+static void saveCachedResponse(HttpConn *conn)
+{
+    HttpTx      *tx;
+    MprBuf      *buf;
+    MprTime     modified;
+
+    tx = conn->tx;
+
+    mprAssert(conn->finalized && tx->cacheBuffer);
+    buf = tx->cacheBuffer;
+    mprAddNullToBuf(buf);
+    tx->cacheBuffer = 0;
+    /* 
+        Truncate modified time to get a 1 sec resolution. This is the resolution for If-Modified headers.  
+     */
+    modified = mprGetTime() / MPR_TICKS_PER_SEC * MPR_TICKS_PER_SEC;
+    mprWriteCache(conn->host->cache, makeCacheKey(conn), mprGetBufStart(buf), modified, tx->cacheControl->lifespan, 0, 0);
+}
+
+
+//  MOB -- test
+ssize httpWriteCached(HttpConn *conn)
+{
+    HttpRoute   *route;
+    MprTime     modified;
+    cchar       *key, *content;
+
+    //  MOB - debug and verify this
+    route = conn->rx->route;
+    key = makeCacheKey(conn);
+    if ((content = mprReadCache(conn->host->cache, key, &modified, 0)) == 0) {
+        mprLog(3, "No cached data for ", key);
+        return 0;
+    }
+    mprLog(5, "Used cached ", key);
+    httpSetHeader(conn, "Etag", mprGetMD5(key));
+    httpSetHeader(conn, "Last-Modified", mprFormatUniversalTime(MPR_HTTP_DATE, modified));
+    conn->tx->cacheBuffer = 0;
+    httpWriteString(conn->writeq, content);
+    httpFinalize(conn);
+    return slen(content);
+}
+
+
+//  MOB -- test
+int httpUpdateCache(HttpConn *conn, cchar *data)
+{
+    HttpCache   *cache;
+
+    if ((cache = lookupCacheControl(conn)) == 0) {
+        return MPR_ERR_CANT_FIND;
+    }
+    mprWriteCache(conn->host->cache, makeCacheKey(conn), data, 0, cache->lifespan, 0, 0);
+    return 0;
+}
+
 
 /*
     Add cache configuration to the route. This can be called multiple times.
@@ -40,8 +337,14 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
     char        *cp, *item, *tok;
 
     cache = 0;
-    if (route->caching == 0 || (flags & HTTP_CACHE_RESET)) {
+    if (!route->caching) {
+        httpAddRouteHandler(route, "cacheHandler", "");
+        httpAddRouteFilter(route, "cacheFilter", "", HTTP_STAGE_TX);
         route->caching = mprCreateList(0, 0);
+
+    } else if (flags & HTTP_CACHE_RESET) {
+        route->caching = mprCreateList(0, 0);
+
     } else if (route->parent && route->caching == route->parent->caching) {
         route->caching = mprCloneList(route->parent->caching);
     }
@@ -94,8 +397,7 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
     cache->flags = flags;
     mprAddItem(route->caching, cache);
 
-    //  MOB 3
-    mprLog(0, "Caching route %s for methods %s, URIs %s, extensions %s, types %s, lifespan %d", 
+    mprLog(3, "Caching route %s for methods %s, URIs %s, extensions %s, types %s, lifespan %d", 
         route->name,
         (methods) ? methods: "*",
         (uris) ? uris: "*",
@@ -105,226 +407,14 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
 }
 
 
-/*
-    Find first qualifying cache control entry. Any configured uri,method,extension,type must match.
- */
-static HttpCache *lookupCache(HttpConn *conn)
+static void manageHttpCache(HttpCache *cache, int flags)
 {
-    HttpRx      *rx;
-    HttpTx      *tx;
-    HttpCache   *cache;
-    cchar       *mimeType, *ukey;
-    int         next;
-
-    rx = conn->rx;
-    tx = conn->tx;
-
-    /*
-        Find first qualifying cache control entry. Any configured uri,method,extension,type must match.
-     */
-    for (next = 0; (cache = mprGetNextItem(rx->route->caching, &next)) != 0; ) {
-        if (cache->uris) {
-            if (cache->flags & HTTP_CACHE_IGNORE_PARAMS) {
-                ukey = rx->pathInfo;
-            } else {
-                ukey = sfmt("%s?%s", rx->pathInfo, httpGetParamsString(conn));
-            }
-            if (!mprLookupKey(cache->uris, ukey)) {
-                continue;
-            }
-        }
-        if (cache->methods && !mprLookupKey(cache->methods, rx->method)) {
-            continue;
-        }
-        if (cache->extensions && !mprLookupKey(cache->extensions, tx->ext)) {
-            continue;
-        }
-        if (cache->types) {
-            if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->ext)) != 0) {
-                if (!mprLookupKey(cache->types, mimeType)) {
-                    continue;
-                }
-            }
-        }
-        /* All match */
-        break;
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(cache->uris);
+        mprMark(cache->extensions);
+        mprMark(cache->methods);
+        mprMark(cache->types);
     }
-    return cache;
-}
-
-
-bool httpSetupRequestCaching(HttpConn *conn)
-{
-    if (conn->tx->cache) {
-        return 1;
-    }
-    if (!conn->rx->route->caching) {
-        return 0;
-    }
-    if ((conn->tx->cache = lookupCache(conn)) == 0) {
-        return 0;
-    }
-    return 1;
-}
-
-
-bool httpFetchCachedResponse(HttpConn *conn)
-{
-    HttpRx      *rx;
-    HttpTx      *tx;
-    HttpRoute   *route;
-    MprTime     modified, when;
-    HttpCache   *cache;
-    cchar       *value, *key, *tag;
-    int         status, cacheOk, canUseClientCache;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    route = rx->route;
-    cache = tx->cache;
-
-    if (!cache) {
-        return 0;
-    }
-    if (cache->flags & HTTP_CACHE_CLIENT) {
-        if (!mprLookupKey(tx->headers, "Cache-Control")) {
-            if ((value = mprLookupKey(conn->tx->headers, "Cache-Control")) != 0) {
-                if (strstr(value, "max-age") == 0) {
-                    httpAppendHeader(conn, "Cache-Control", "max-age=%d", cache->lifespan / MPR_TICKS_PER_SEC);
-                }
-            } else {
-                httpAddHeader(conn, "Cache-Control", "max-age=%d", cache->lifespan / MPR_TICKS_PER_SEC);
-            }
-#if UNUSED && KEEP
-            /* Old HTTP/1.0 clients don't understand Cache-Control */
-            struct tm   tm;
-            mprDecodeUniversalTime(&tm, conn->http->now + (expires * MPR_TICKS_PER_SEC));
-            httpAddHeader(conn, "Expires", "%s", mprFormatTime(MPR_HTTP_DATE, &tm));
-#endif
-        }
-        return 0;
-    }
-    if (!(cache->flags & HTTP_CACHE_MANUAL)) {
-        /*
-            Transparent caching. Manual caching must manually call httpWriteCached()
-         */
-        key = makeCacheKey(conn);
-        if ((value = httpGetHeader(conn, "Cache-Control")) != 0 && 
-                (scontains(value, "max-age=0", -1) == 0 || scontains(value, "no-cache", -1) == 0)) {
-            mprLog(3, "Client reload. Cache-control header '%s' rejects use of cached content.", value);
-
-        } else if ((tx->cachedContent = mprReadCache(conn->host->cache, key, &modified, 0)) != 0) {
-            /*
-                Observe headers:
-                    If-None-Match: "ec18d-54-4d706a63"
-                    If-Modified-Since: Fri, 04 Mar 2011 04:28:19 GMT
-                Set status to OK when content must be transmitted.
-             */
-            cacheOk = 1;
-            canUseClientCache = 0;
-            tag = mprGetMD5(key);
-            if ((value = httpGetHeader(conn, "If-None-Match")) != 0) {
-                canUseClientCache = 1;
-                if (scmp(value, tag) != 0) {
-                    cacheOk = 0;
-                }
-            }
-            if (cacheOk && (value = httpGetHeader(conn, "If-Modified-Since")) != 0) {
-                canUseClientCache = 1;
-                mprParseTime(&when, value, 0, 0);
-                if (modified > when) {
-                    cacheOk = 0;
-                }
-            }
-            status = (canUseClientCache && cacheOk) ? HTTP_CODE_NOT_MODIFIED : HTTP_CODE_OK;
-            mprLog(3, "Use cached content for %s, status %d", key, status);
-            httpDiscardData(conn->writeq, 1);
-            httpSetStatus(conn, status);
-            httpSetHeader(conn, "Etag", mprGetMD5(key));
-            httpSetHeader(conn, "Last-Modified", mprFormatUniversalTime(MPR_HTTP_DATE, modified));
-            return 1;
-        }
-        mprLog(3, "No cached content for %s", key);
-    }
-    conn->tx->cacheBuffer = mprCreateBuf(-1, -1);
-    return 0;
-}
-
-
-void httpSendCachedResponse(HttpConn *conn)
-{
-    HttpTx  *tx;
-
-    tx = conn->tx;
-    if (tx->cachedContent && tx->status != HTTP_CODE_NOT_MODIFIED) {
-        httpWriteString(conn->writeq, tx->cachedContent);
-        httpFinalize(conn);
-    }
-}
-
-
-/*
-    This is called by the pipeline to save the cache buffer
- */
-void httpSaveCachedResponse(HttpConn *conn)
-{
-    HttpRx      *rx;
-    HttpTx      *tx;
-    HttpRoute   *route;
-    MprBuf      *buf;
-    MprTime     modified;
-    char        *key;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    route = rx->route;
-
-    mprAssert(conn->finalized && tx->cacheBuffer);
-    //  MOB - remove test
-
-    if (conn->finalized && tx->cacheBuffer) {
-        buf = tx->cacheBuffer;
-        mprAddNullToBuf(buf);
-        tx->cacheBuffer = 0;
-        key = makeCacheKey(conn);
-
-        /* Truncate modified time to get a 1 sec resolution. This is the resolution for If-Modified headers.  */
-        modified = mprGetTime() / MPR_TICKS_PER_SEC * MPR_TICKS_PER_SEC;
-
-        mprWriteCache(conn->host->cache, key, mprGetBufStart(buf), modified, tx->cache->lifespan, 0, 0);
-        if (!conn->connectorComplete) {
-            /*
-                Some handlers will write to the cacheBuffer and also write to the client (fileHandler). In those cases,
-                connectorComplete will be true.
-             */
-            httpAddHeader(conn, "Etag", mprGetMD5(key));
-            httpAddHeader(conn, "Last-Modified", mprFormatUniversalTime(MPR_HTTP_DATE, modified));
-            httpWriteBlock(conn->writeq, mprGetBufStart(buf), mprGetBufLength(buf));
-        }
-        httpFinalize(conn);
-    }
-}
-
-
-ssize httpWriteCached(HttpConn *conn)
-{
-    HttpRoute   *route;
-    MprTime     modified;
-    cchar       *key, *content;
-
-    route = conn->rx->route;
-    key = makeCacheKey(conn);
-    if ((content = mprReadCache(conn->host->cache, key, &modified, 0)) == 0) {
-        mprLog(3, "No cached data for ", key);
-        return 0;
-    }
-    mprLog(5, "Used cached ", key);
-    httpSetHeader(conn, "Etag", mprGetMD5(key));
-    httpSetHeader(conn, "Last-Modified", mprFormatUniversalTime(MPR_HTTP_DATE, modified));
-    conn->tx->cacheBuffer = 0;
-    httpWriteString(conn->writeq, content);
-    httpFinalize(conn);
-    return slen(content);
 }
 
 
@@ -335,23 +425,11 @@ static char *makeCacheKey(HttpConn *conn)
 
     rx = conn->rx;
     route = rx->route;
-    if (conn->tx->cache->flags & HTTP_CACHE_IGNORE_PARAMS) {
+    if (conn->tx->cacheControl->flags & HTTP_CACHE_IGNORE_PARAMS) {
         return sfmt("http::response-%s", rx->pathInfo);
     } else {
         return sfmt("http::response-%s?%s", rx->pathInfo, httpGetParamsString(conn));
     }
-}
-
-
-int httpUpdateCache(HttpConn *conn, cchar *data)
-{
-    HttpCache   *cache;
-
-    if ((cache = lookupCache(conn)) == 0) {
-        return MPR_ERR_CANT_FIND;
-    }
-    mprWriteCache(conn->host->cache, makeCacheKey(conn), data, 0, cache->lifespan, 0, 0);
-    return 0;
 }
 
 

@@ -85,11 +85,7 @@ static void httpErrorV(HttpConn *conn, int flags, cchar *fmt, va_list args)
         }
     } else {
         if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
-#if UNUSED
-            httpCloseConn(conn);
-#else
             httpDisconnect(conn);
-#endif
         }
     }
     conn->responded = 1;

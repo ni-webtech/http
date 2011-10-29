@@ -72,10 +72,8 @@ HttpRoute *httpCreateRoute(HttpHost *host)
 #endif
     route->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->flags = HTTP_ROUTE_GZIP;
-#if UNUSED 
-    route->flags = HTTP_ROUTE_GZIP | HTTP_ROUTE_PUT_DELETE;
-#endif
     route->handlers = mprCreateList(-1, 0);
+    route->handlersWithMatch = mprCreateList(-1, 0);
     route->host = host;
     route->http = MPR->httpService;
     route->index = sclone("index.html");
@@ -116,6 +114,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->flags = parent->flags;
     route->handler = parent->handler;
     route->handlers = parent->handlers;
+    route->handlersWithMatch = parent->handlersWithMatch;
     route->headers = parent->headers;
     route->http = MPR->httpService;
     route->host = parent->host;
@@ -164,6 +163,7 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->extensions);
         mprMark(route->handler);
         mprMark(route->handlers);
+        mprMark(route->handlersWithMatch);
         mprMark(route->headers);
         mprMark(route->http);
         mprMark(route->index);
@@ -299,11 +299,7 @@ void httpRouteRequest(HttpConn *conn)
     }
     rx->route = route;
 
-    //  MOB - refactor
-    if (httpSetupRequestCaching(conn)) {
-        httpFetchCachedResponse(conn);
-    }
-    if (conn->finalized || tx->cachedContent /* MOB || tx->redirected || tx->altBody || tx->cache */) {
+    if (conn->finalized /* UNUSED MOB || tx->redirected || tx->altBody || tx->cache */) {
         tx->handler = conn->http->passHandler;
         if (rewrites >= HTTP_MAX_REWRITE) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");
@@ -454,11 +450,12 @@ static int testRoute(HttpConn *conn, HttpRoute *route)
             }
         }
     }
+    if (route->prefix) {
+        /* This is needed by some handler match routines */
+        httpSetParam(conn, "prefix", route->prefix);
+    }
     if ((rc = selectHandler(conn, route)) != HTTP_ROUTE_OK) {
         return rc;
-    }
-    if (route->prefix) {
-        httpSetParam(conn, "prefix", route->prefix);
     }
     if (route->tokens) {
         for (next = 0; (token = mprGetNextItem(route->tokens, &next)) != 0; ) {
@@ -487,7 +484,7 @@ static int testRoute(HttpConn *conn, HttpRoute *route)
 static int selectHandler(HttpConn *conn, HttpRoute *route)
 {
     HttpTx      *tx;
-    int         rc;
+    int         next, rc;
 
     mprAssert(conn);
     mprAssert(route);
@@ -495,17 +492,33 @@ static int selectHandler(HttpConn *conn, HttpRoute *route)
     tx = conn->tx;
     if (route->handler) {
         tx->handler = route->handler;
-    } else {
+        return HTTP_ROUTE_OK;
+    }
+    /*
+        Handlers with match routines are examined first (in-order)
+     */
+    for (next = 0; (tx->handler = mprGetNextItem(route->handlersWithMatch, &next)) != 0; ) {
+        rc = tx->handler->match(conn, route, 0);
+        if (rc == HTTP_ROUTE_OK || rc == HTTP_ROUTE_REROUTE) {
+            return rc;
+        }
+    }
+    if (!tx->handler) {
+        /*
+            Now match by extensions
+         */
         if (!tx->ext || (tx->handler = mprLookupKey(route->extensions, tx->ext)) == 0) {
             tx->handler = mprLookupKey(route->extensions, "");
         }
     }
+#if UNUSED && MOB
     if (tx->handler && tx->handler->match) {
         if ((rc = tx->handler->match(conn, route, 0)) != HTTP_ROUTE_OK) {
             tx->handler = 0;
         }
         return rc;
     }
+#endif
     return tx->handler ? HTTP_ROUTE_OK : HTTP_ROUTE_REJECT;
 }
 
@@ -721,15 +734,20 @@ int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions)
         }
 
     } else {
-        if (handler->match == 0) {
+        if (mprLookupItem(route->handlers, handler) < 0) {
+            GRADUATE_LIST(route, handlers);
+            mprAddItem(route->handlers, handler);
+        }
+        if (handler->match) {
+            if (mprLookupItem(route->handlersWithMatch, handler) < 0) {
+                GRADUATE_LIST(route, handlersWithMatch);
+                mprAddItem(route->handlersWithMatch, handler);
+            }
+        } else {
             /*
                 Only match by extensions if no-match routine provided.
              */
             mprAddKey(route->extensions, "", handler);
-        }
-        if (mprLookupItem(route->handlers, handler) < 0) {
-            GRADUATE_LIST(route, handlers);
-            mprAddItem(route->handlers, handler);
         }
     }
     return 0;
@@ -916,6 +934,7 @@ void httpResetRoutePipeline(HttpRoute *route)
         route->caching = 0;
         route->extensions = 0;
         route->handlers = mprCreateList(-1, 0);
+        route->handlersWithMatch = mprCreateList(-1, 0);
         route->inputStages = mprCreateList(-1, 0);
     }
     route->outputStages = mprCreateList(-1, 0);
@@ -926,6 +945,7 @@ void httpResetHandlers(HttpRoute *route)
 {
     mprAssert(route);
     route->handlers = mprCreateList(-1, 0);
+    route->handlersWithMatch = mprCreateList(-1, 0);
 }
 
 
@@ -2228,9 +2248,6 @@ void httpAddRouteSet(HttpRoute *parent, cchar *set)
 {
     if (scasematch(set, "simple")) {
         httpAddHomeRoute(parent);
-#if UNUSED
-        httpAddStaticRoute(parent);
-#endif
 
     } else if (scasematch(set, "mvc")) {
         httpAddHomeRoute(parent);

@@ -98,9 +98,6 @@ static void manageConn(HttpConn *conn, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(conn->authCnonce);
         mprMark(conn->authDomain);
-#if UNUSED && KEEP
-        mprMark(conn->authGroup);
-#endif
         mprMark(conn->authNonce);
         mprMark(conn->authOpaque);
         mprMark(conn->authPassword);
