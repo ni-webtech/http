@@ -60,7 +60,7 @@ void httpDestroyTx(HttpTx *tx)
 static void manageTx(HttpTx *tx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(tx->cacheControl);
+        mprMark(tx->cache);
         mprMark(tx->cachedContent);
         mprMark(tx->conn);
         mprMark(tx->outputPipeline);

@@ -66,10 +66,6 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->defaultLanguage = sclone("en");
     route->dir = mprGetCurrentPath(".");
     route->errorDocuments = mprCreateHash(HTTP_SMALL_HASH_SIZE, 0);
-#if UNUSED
-    route->cacheExtensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
-    route->cacheTypes = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
-#endif
     route->extensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->flags = HTTP_ROUTE_GZIP;
     route->handlers = mprCreateList(-1, 0);
@@ -78,6 +74,7 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->http = MPR->httpService;
     route->index = sclone("index.html");
     route->inputStages = mprCreateList(-1, 0);
+    route->lifespan = HTTP_CACHE_LIFESPAN;
     route->outputStages = mprCreateList(-1, 0);
     route->pathTokens = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->pattern = MPR->emptyString;
@@ -601,50 +598,6 @@ int httpAddRouteCondition(HttpRoute *route, cchar *name, cchar *details, int fla
     addUniqueItem(route->conditions, op);
     return 0;
 }
-
-
-#if UNUSED
-void httpAddRouteCacheByExt(HttpRoute *route, MprTime when, cchar *extensions)
-{
-    char    *types, *ext, *tok;
-
-    mprAssert(route);
-
-    if (extensions && *extensions) {
-        if (route->cacheExtensions == 0) {
-            route->cacheExtensions = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
-        }
-        GRADUATE_HASH(route, cacheExtensions);
-        types = sclone(extensions);
-        ext = stok(types, " ,\t\r\n", &tok);
-        while (ext) {
-            mprAddKey(route->cacheExtensions, ext, ITOP(when));
-            ext = stok(0, " \t\r\n", &tok);
-        }
-    }
-}
-
-
-void httpAddRouteCacheByType(HttpRoute *route, MprTime when, cchar *mimeTypes)
-{
-    char    *types, *mime, *tok;
-
-    mprAssert(route);
-
-    if (mimeTypes && *mimeTypes) {
-        if (route->cacheTypes == 0) {
-            route->cacheTypes = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_STATIC_VALUES);
-        }
-        GRADUATE_HASH(route, cacheTypes);
-        types = sclone(mimeTypes);
-        mime = stok(types, " ,\t\r\n", &tok);
-        while (mime) {
-            mprAddKey(route->cacheTypes, mime, ITOP(when));
-            mime = stok(0, " \t\r\n", &tok);
-        }
-    }
-}
-#endif
 
 
 int httpAddRouteFilter(HttpRoute *route, cchar *name, cchar *extensions, int direction)

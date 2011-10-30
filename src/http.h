@@ -116,6 +116,7 @@ struct HttpUri;
 
 #define HTTP_INACTIVITY_TIMEOUT   (60  * 1000)      /**< Keep connection alive timeout */
 #define HTTP_SESSION_TIMEOUT      (3600 * 1000)     /**< One hour */
+#define HTTP_CACHE_LIFESPAN       86400             /**< Default cache lifespan to 1 day */
 
 #define HTTP_DATE_FORMAT          "%a, %d %b %Y %T GMT"
 
@@ -2820,9 +2821,11 @@ typedef struct HttpLang {
 /********************************** HttpCache  *********************************/
 
 #define HTTP_CACHE_MANUAL           0x1     /**< Cache manually. User must call httpWriteCache */
-#define HTTP_CACHE_IGNORE_PARAMS    0x2     /**< Ignore request params when caching */
-#define HTTP_CACHE_CLIENT           0x4     /**< Cache on the client side */
-#define HTTP_CACHE_RESET            0x10    /**< Don't inherit cache config from outer routes */
+#define HTTP_CACHE_CLIENT           0x2     /**< Cache on the client side */
+#define HTTP_CACHE_RESET            0x4     /**< Don't inherit cache config from outer routes */
+#define HTTP_CACHE_COMBINED         0x8     /**< Combine the caching of requests with different params */
+#define HTTP_CACHE_ONLY             0x10    /**< Cache exactly the specified URI with params */
+#define HTTP_CACHE_UNIQUE           0x20    /**< Uniquely cache request with different params */
 
 typedef struct HttpCache {
     MprHash     *extensions;                /**< Extensions to cache */
@@ -2888,6 +2891,7 @@ typedef struct HttpRoute {
     ssize           startSegmentLen;        /**< Prefix length */
 
     MprList         *caching;               /**< Items to cache */
+    int             lifespan;               /**< Default lifespan for all cache items in route */
     HttpAuth        *auth;                  /**< Per route block authentication */
     Http            *http;                  /**< Http service object (copy of appweb->http) */
     struct HttpHost *host;                  /**< Owning host */
@@ -4299,7 +4303,7 @@ typedef struct HttpTx {
     HttpQueue       *queue[2];              /**< Dummy head for the queues */
 
     MprHash         *headers;               /**< Transmission headers */
-    HttpCache       *cacheControl;          /**< Cache control entry (only set if this request is being cached) */
+    HttpCache       *cache;                 /**< Cache control entry (only set if this request is being cached) */
     MprBuf          *cacheBuffer;           /**< Response caching buffer */
     cchar           *cachedContent;         /**< Retrieved cached response to send */
 
