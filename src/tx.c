@@ -235,29 +235,27 @@ void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 void httpConnectorComplete(HttpConn *conn)
 {
     conn->connectorComplete = 1;
-#if UNUSED
-    conn->handlerComplete = 1;
-#endif
     conn->finalized = 1;
 }
 
 
 void httpFinalize(HttpConn *conn)
 {
-    if (conn->finalized || conn->state < HTTP_STATE_CONNECTED || conn->writeq == 0 || conn->sock == 0) {
+    if (conn->finalized) {
         return;
     }
     conn->responded = 1;
     conn->finalized = 1;
-#if UNUSED
-    if (!conn->tx->cacheBuffer) {
-        conn->handlerComplete = 1;
-    }
-#endif
-    httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SERVICE_NOW);
-    httpServiceQueues(conn);
-    if (conn->state == HTTP_STATE_RUNNING && conn->connectorComplete && !conn->advancing) {
-        httpProcess(conn, NULL);
+    if (conn->state >= HTTP_STATE_CONNECTED && conn->writeq && conn->sock) {
+        httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SERVICE_NOW);
+        httpServiceQueues(conn);
+        if (conn->state == HTTP_STATE_RUNNING && conn->connectorComplete && !conn->advancing) {
+            httpProcess(conn, NULL);
+        }
+        conn->refinalize = 0;
+    } else {
+        /* Pipeline has not been setup yet */
+        conn->refinalize = 1;
     }
 }
 
@@ -289,9 +287,10 @@ ssize httpFormatResponsev(HttpConn *conn, cchar *fmt, va_list args)
     tx = conn->tx;
     conn->responded = 1;
     body = sfmtv(fmt, args);
-    tx->altBody = body;
     httpOmitBody(conn);
-    return slen(tx->altBody);
+    tx->altBody = body;
+    tx->length = slen(tx->altBody);
+    return tx->length;
 }
 
 
@@ -438,18 +437,15 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         targetUri = uri;
     }
     httpSetHeader(conn, "Location", "%s", targetUri);
-    mprAssert(tx->altBody == 0);
     msg = httpLookupStatus(conn->http, status);
-    tx->altBody = sfmt(
+    httpFormatResponse(conn, 
         "<!DOCTYPE html>\r\n"
         "<html><head><title>%s</title></head>\r\n"
         "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p></body></html>\r\n",
         msg, msg, targetUri);
-
-    //  MOB - can remove this because finalizing below
-    conn->responded = 1;
+#if UNUSED
     tx->redirected = 1;
-    httpOmitBody(conn);
+#endif
     httpFinalize(conn);
 }
 
@@ -600,9 +596,13 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->etag) {
         httpAddHeader(conn, "ETag", "%s", tx->etag);
     }
+    //MOB REMOVE
+#if UNUSED || 1
     if (tx->altBody) {
+        mprAssert(tx->length > 0);
         tx->length = (int) strlen(tx->altBody);
     }
+#endif
     if (tx->chunkSize > 0 && !tx->altBody) {
         if (!(rx->flags & HTTP_HEAD)) {
             httpSetHeaderString(conn, "Transfer-Encoding", "chunked");

@@ -403,23 +403,6 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
     if (uris) {
         cache->uris = mprCreateHash(0, 0);
         for (item = stok(sclone(uris), " \t,", &tok); item; item = stok(0, " \t,", &tok)) {
-#if UNUSED
-            if (flags & HTTP_CACHE_IGNORE_PARAMS) {
-                if ((cp = schr(item, '?')) != 0) {
-                    mprError("URI has params and ignore parms requested");
-                    *cp = '\0';
-                }
-            } else {
-                /*
-                    For usability, auto-add ?prefix=ROUTE_NAME
-                 */
-                if (route->prefix && !scontains(item, sfmt("prefix=%s", route->prefix), -1)) {
-                    if (!schr(item, '?')) {
-                        item = sfmt("%s?prefix=%s", item, route->prefix); 
-                    }
-                }
-            }
-#else
             if (flags & HTTP_CACHE_ONLY && route->prefix && !scontains(item, sfmt("prefix=%s", route->prefix), -1)) {
                 /*
                     Auto-add ?prefix=ROUTE_NAME if there is no query
@@ -428,7 +411,6 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
                     item = sfmt("%s?prefix=%s", item, route->prefix); 
                 }
             }
-#endif
             mprAddKey(cache->uris, item, cache);
         }
     }

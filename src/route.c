@@ -296,7 +296,7 @@ void httpRouteRequest(HttpConn *conn)
     }
     rx->route = route;
 
-    if (conn->finalized /* UNUSED MOB || tx->redirected || tx->altBody || tx->cache */) {
+    if (conn->finalized) {
         tx->handler = conn->http->passHandler;
         if (rewrites >= HTTP_MAX_REWRITE) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");
@@ -468,11 +468,8 @@ static int testRoute(HttpConn *conn, HttpRoute *route)
     if ((rc = (*proc)(conn, route, 0)) != HTTP_ROUTE_OK) {
         return rc;
     }
-    //  MOB - be good to have one flag for this test
-    if (!conn->error && !tx->redirected && !tx->altBody) {
-        if (tx->handler->check) {
-            rc = tx->handler->check(conn, route);
-        }
+    if (!conn->finalized && tx->handler->check) {
+        rc = tx->handler->check(conn, route);
     }
     return rc;
 }
@@ -508,14 +505,6 @@ static int selectHandler(HttpConn *conn, HttpRoute *route)
             tx->handler = mprLookupKey(route->extensions, "");
         }
     }
-#if UNUSED && MOB
-    if (tx->handler && tx->handler->match) {
-        if ((rc = tx->handler->match(conn, route, 0)) != HTTP_ROUTE_OK) {
-            tx->handler = 0;
-        }
-        return rc;
-    }
-#endif
     return tx->handler ? HTTP_ROUTE_OK : HTTP_ROUTE_REJECT;
 }
 
@@ -2063,6 +2052,7 @@ static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     }
     httpSetStatus(conn, route->responseStatus);
     httpFormatResponse(conn, "%s", str);
+    httpFinalize(conn);
     return HTTP_ROUTE_OK;
 }
 

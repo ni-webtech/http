@@ -183,6 +183,7 @@ static void outgoingChunkService(HttpQueue *q)
             }
         }
     }
+    //  MOB - refactor to setting altBody also sets tx->length
     if (tx->chunkSize <= 0 || tx->altBody) {
         httpDefaultOutgoingServiceStage(q);
     } else {

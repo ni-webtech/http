@@ -120,7 +120,8 @@ void httpDisableQueue(HttpQueue *q)
 
 
 /*  
-    Remove all data from non-header, non-eof packets in the queue. If removePackets is true, actually remove the packet too.
+    Remove all data in the queue. If removePackets is true, actually remove the packet too.
+    This preserves the header and EOT packets.
  */
 void httpDiscardData(HttpQueue *q, bool removePackets)
 {
