@@ -594,6 +594,7 @@ int httpAddRouteFilter(HttpRoute *route, cchar *name, cchar *extensions, int dir
     HttpStage   *stage;
     HttpStage   *filter;
     char        *extlist, *word, *tok;
+    int         pos;
 
     mprAssert(route);
     
@@ -629,7 +630,13 @@ int httpAddRouteFilter(HttpRoute *route, cchar *name, cchar *extensions, int dir
     }
     if (direction & HTTP_STAGE_TX && filter->outgoingData) {
         GRADUATE_LIST(route, outputStages);
-        mprAddItem(route->outputStages, filter);
+        if (smatch(name, "cacheFilter") && 
+                (pos = mprGetListLength(route->outputStages) - 1) >= 0 &&
+                smatch(((HttpStage*) mprGetLastItem(route->outputStages))->name, "chunkFilter")) {
+            mprInsertItemAtPos(route->outputStages, pos, filter);
+        } else {
+            mprAddItem(route->outputStages, filter);
+        }
     }
     return 0;
 }

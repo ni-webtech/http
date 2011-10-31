@@ -93,6 +93,7 @@ static void processCacheHandler(HttpQueue *q)
     tx = conn->tx;
     if (tx->cachedContent) {
         mprLog(3, "cacheHandler: write cached content for '%s'", conn->rx->uri);
+        tx->length = slen(tx->cachedContent);
         httpWriteString(q, tx->cachedContent);
     }
     httpFinalize(conn);
@@ -136,7 +137,7 @@ static void outgoingCacheFilterService(HttpQueue *q)
             return;
         }
         if (packet->flags & HTTP_PACKET_HEADER) {
-            if (useCache && tx->length >= 0) {
+            if (useCache) {
                 tx->length = slen(tx->cachedContent);
             }
 
