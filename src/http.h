@@ -2838,7 +2838,7 @@ typedef struct HttpCache {
 
 extern void httpAddCache(struct HttpRoute *route, cchar *methods, cchar *uris, cchar *extensions, cchar *types, 
         MprTime lifespan, int flags);
-extern int httpUpdateCache(HttpConn *conn, cchar *data);
+extern ssize httpUpdateCache(HttpConn *conn, cchar *uri, cchar *data, MprTime lifespan);
 extern ssize httpWriteCached(HttpConn *conn);
 extern bool httpSetupRequestCaching(HttpConn *conn);
 
@@ -4291,9 +4291,6 @@ typedef struct HttpTx {
     HttpStage       *handler;               /**< Server-side request handler stage */
     MprOff          length;                 /**< Transmission content length */
     int             started;                /**< Handler has started */
-#if UNUSED
-    int             redirected;             /**< The request has been redirected to a new URI */
-#endif
     int             status;                 /**< HTTP request status */
 
     HttpUri         *parsedUri;             /**< Client request uri */

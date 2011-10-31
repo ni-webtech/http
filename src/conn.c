@@ -263,13 +263,15 @@ void httpConsumeLastRequest(HttpConn *conn)
     MprTime     mark;
     char        junk[4096];
 
-    if (!conn->sock || conn->state < HTTP_STATE_FIRST) {
+    if (!conn->sock) {
         return;
     }
-    mark = conn->http->now;
-    while (!httpIsEof(conn) && mprGetRemainingTime(mark, conn->limits->requestTimeout) > 0) {
-        if (httpRead(conn, junk, sizeof(junk)) <= 0) {
-            break;
+    if (conn->state >= HTTP_STATE_FIRST) {
+        mark = conn->http->now;
+        while (!httpIsEof(conn) && mprGetRemainingTime(mark, conn->limits->requestTimeout) > 0) {
+            if (httpRead(conn, junk, sizeof(junk)) <= 0) {
+                break;
+            }
         }
     }
     if (HTTP_STATE_CONNECTED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
