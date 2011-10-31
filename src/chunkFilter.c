@@ -161,6 +161,7 @@ static void outgoingChunkService(HttpQueue *q)
     HttpConn    *conn;
     HttpPacket  *packet;
     HttpTx      *tx;
+    cchar       *value;
 
     conn = q->conn;
     tx = conn->tx;
@@ -170,6 +171,9 @@ static void outgoingChunkService(HttpQueue *q)
             If we don't know the content length (tx->length < 0) and if the last packet is the end packet. Then
             we have all the data. Thus we can determine the actual content length and can bypass the chunk handler.
          */
+        if (tx->length < 0 && (value = mprLookupKey(tx->headers, "Content-Length")) != 0) {
+            tx->length = stoi(value, 10, 0);
+        }
         if (tx->length < 0) {
             if (q->last->flags & HTTP_PACKET_END) {
                 if (tx->chunkSize < 0 && tx->length <= 0) {
