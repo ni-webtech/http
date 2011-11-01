@@ -2827,6 +2827,12 @@ typedef struct HttpLang {
 #define HTTP_CACHE_ONLY             0x10    /**< Cache exactly the specified URI with params */
 #define HTTP_CACHE_UNIQUE           0x20    /**< Uniquely cache request with different params */
 
+/**
+    Cache Control
+    @stability Evolving
+    @defgroup HttpCache
+    @see 
+*/
 typedef struct HttpCache {
     MprHash     *extensions;                /**< Extensions to cache */
     MprHash     *methods;                   /**< Methods to cache */
@@ -2836,8 +2842,79 @@ typedef struct HttpCache {
     int         flags;                      /**< Cache control flags */
 } HttpCache;
 
+/**
+    Add caching for response content
+    @description This call configures caching for request responses. Caching may be used for any HTTP method, 
+    though typically it is most useful for state-less GET requests. Output data may be uniquely cached for requests 
+    with different request parameters (query, post and route parameters).
+    \n\n
+    When server-side caching is requested and manual-mode is not enabled, the request response will be automatically 
+    cached. Subsequent client requests will revalidate the cached content with the server. If the server-side cached 
+    content has not expired, a HTTP Not-Modified (304) response will be sent and the client will use its client-side 
+    cached content.  This results in a very fast transaction with the client as no response data is sent.
+    \n\n
+    If manual server-side caching is requested, the response will be automatically cached, but subsequent requests will
+    require the handler to explicitly send cached content by calling $httpWriteCached.
+    \n\n
+    If client-side caching is requested, a "Cache-Control" Http header will be sent to the client with the caching 
+    "max-age" set to the lifespan argument value (converted to seconds). This causes the client to serve client-cached 
+    content and to not contact the server at all until the max-age expires. 
+    Alternatively, you can use $httpSetHeader to explicitly set a "Cache-Control header. For your reference, here are 
+    some keywords that can be used in the Cache-Control Http header.
+    \n\n
+        "max-age" Max time in seconds the resource is considered fresh.
+        "s-maxage" Max time in seconds the resource is considered fresh from a shared cache.
+        "public" marks authenticated responses as cacheable.
+        "private" shared caches may not store the response.
+        "no-cache" cache must re-submit request for validation before using cached copy.
+        "no-store" response may not be stored in a cache.
+        "must-revalidate" forces clients to revalidate the request with the server.
+        "proxy-revalidate" similar to must-revalidate except only for proxy caches.
+    @param route HttpRoute object
+    @param methods List of methods for which caching should be enabled. Set to a comma or space separated list
+        of method names. Method names can be any case. Set to null or "*" for all methods. Example:
+        "GET, POST".
+    @param uris Name of the Controller action or MOB -- what is it for just a POV.
+    @param uri Set of URIs to cache. 
+        If the URI is set to "*" all URIs for that action are uniquely cached. If the request has POST data, 
+        the URI may include such post data in a sorted query format. E.g. {uri: /buy?item=scarf&quantity=1}.
+    @param extensions List of document extensions for which caching should be enabled. Set to a comma or space 
+        separated list of extensions. Extensions should not have a period prefix. Set to null or "*" for all extensions.
+        Example: "html, css, js".
+    @param types List of document mime types for which caching should be enabled. Set to a comma or space 
+        separated list of types. The mime types are those that correspond to the document extension and NOT the
+        content type defined by the handler serving the document. Set to null or "*" for all types.
+        Example: "image/gif, application/x-php".
+    @param lifespan Lifespan of cache items in milliseconds. If not set to positive integer, the lifespan will
+        default to the route lifespan.
+
+    @param flags Cache control flags. Select from ESP_CACHE_MANUAL and ESP_CACHE_VARY_ON_PARAMS. The ESP_CACHE_MANUAL 
+        flag enables manual mode caching. In this mode, responses will be cached, but you must manually call 
+        $espRenderCache to write cached data to the client. For MVC applications in manual cache mode, the action
+        routine will still be called.
+        The ESP_CACHE_VARY_ON_PARAMS flag causes responses to be cached uniquely for different request parameters.
+        Request parameters include the request URI, query string, request POST body data and route parameters.
+
+        If ESP_CACHE_CLIENT is set, "Cache-Control" Http header will be sent to the client with the caching "max-age" 
+        
+        If the ESP_CACHE_COMBINED flag is set, the request response will be automatically cached. Subsequent client 
+        requests will revalidate the cached content with the server. If the server-side cached content has not expired, 
+        a HTTP Not-Modified (304) response will be sent and the client will use its client-side cached content. 
+        This results in a very fast transaction with the client as no response data is sent.
+        \n\n
+        The ESP_CACHE_MANUAL and ESP_CACHE_TRANSPARENT are mutually exclusive -- you must choose one or the other. If 
+        neither flag is specified, the call defaults to use ESP_CACHE_TRANSPARENT.
+        \n\n
+        Use ESP_CACHE_CLIENT for static content that will rarely change or for content for which using "reload" in 
+        the browser is an adequate solution to force a refresh. Use ESP_CACHE_MANUAL for situations where you need to
+        explicitly control when and how cached data is returned to the client. For most other situations, use 
+        ESP_CACHE_TRANSPARENT.
+    @return A count of the bytes actually written
+    @ingroup HttpCache
+ */
 extern void httpAddCache(struct HttpRoute *route, cchar *methods, cchar *uris, cchar *extensions, cchar *types, 
         MprTime lifespan, int flags);
+
 extern ssize httpUpdateCache(HttpConn *conn, cchar *uri, cchar *data, MprTime lifespan);
 extern ssize httpWriteCached(HttpConn *conn);
 extern bool httpSetupRequestCaching(HttpConn *conn);

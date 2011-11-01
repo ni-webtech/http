@@ -326,8 +326,8 @@ static bool fetchCachedResponse(HttpConn *conn)
                 cacheOk = 0;
             }
         }
-        mprLog(3, "cacheHandler: Use cached content for %s, status %d", key, status);
         status = (canUseClientCache && cacheOk) ? HTTP_CODE_NOT_MODIFIED : HTTP_CODE_OK;
+        mprLog(3, "cacheHandler: Use cached content for %s, status %d", key, status);
         httpSetStatus(conn, status);
         httpSetHeader(conn, "Etag", mprGetMD5(key));
         httpSetHeader(conn, "Last-Modified", mprFormatUniversalTime(MPR_HTTP_DATE, modified));
@@ -433,12 +433,20 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
     if (extensions) {
         cache->extensions = mprCreateHash(0, 0);
         for (item = stok(sclone(extensions), " \t,", &tok); item; item = stok(0, " \t,", &tok)) {
-            mprAddKey(cache->extensions, item, cache);
+            if (smatch(item, "*")) {
+                extensions = 0;
+            } else {
+                mprAddKey(cache->extensions, item, cache);
+            }
         }
     } else if (types) {
         cache->types = mprCreateHash(0, 0);
         for (item = stok(sclone(types), " \t,", &tok); item; item = stok(0, " \t,", &tok)) {
-            mprAddKey(cache->types, item, cache);
+            if (smatch(item, "*")) {
+                extensions = 0;
+            } else {
+                mprAddKey(cache->types, item, cache);
+            }
         }
     }
     if (methods) {
