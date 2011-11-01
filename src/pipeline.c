@@ -47,7 +47,6 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
         }
     }
     if (tx->connector == 0) {
-        //  MOB - must disable send connector if there are output filters
         if (tx->handler == http->fileHandler && (rx->flags & HTTP_GET) && !hasOutputFilters && 
                 !conn->secure && httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->ext) < 0) {
             tx->connector = http->sendConnector;

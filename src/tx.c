@@ -219,7 +219,7 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 }
 
 
-//  MOB - sort
+//  MOB - sort file
 
 void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 {
@@ -370,11 +370,9 @@ void *httpGetQueueData(HttpConn *conn)
 }
 
 
-//  MOB - refactor and remove this
 void httpOmitBody(HttpConn *conn)
 {
     if (conn->tx) {
-        //  MOB - refactor and remove this flag
         conn->tx->flags |= HTTP_TX_NO_BODY;
     }
     if (conn->tx->flags & HTTP_TX_HEADERS_CREATED) {
@@ -444,9 +442,6 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
         "<html><head><title>%s</title></head>\r\n"
         "<body><h1>%s</h1>\r\n<p>The document has moved <a href=\"%s\">here</a>.</p></body></html>\r\n",
         msg, msg, targetUri);
-#if UNUSED
-    tx->redirected = 1;
-#endif
     httpFinalize(conn);
 }
 

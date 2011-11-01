@@ -311,7 +311,6 @@ void httpEvent(HttpConn *conn, MprEvent *event)
     mprAssert(conn->sock);
 
     if (conn->endpoint) {
-        //  MOB - aggregate
         if (conn->error) {
             httpDestroyConn(conn);
 

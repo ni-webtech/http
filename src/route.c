@@ -656,14 +656,6 @@ int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions)
         return MPR_ERR_CANT_FIND;
     }
     hostName = route->host->name ? route->host->name : "default"; 
-#if UNUSED
-    if (extensions && *extensions) {
-        mprLog(MPR_CONFIG, "Add handler \"%s\" on host \"%s\" for extensions: %s", name, hostName, extensions);
-    } else {
-        mprLog(MPR_CONFIG, "Add handler \"%s\" on host \"%s\" for route: \"%s\"", name, hostName, 
-            mprJoinPath(route->prefix, route->pattern));
-    }
-#endif
     GRADUATE_HASH(route, extensions);
 
     if (extensions && *extensions) {
@@ -934,9 +926,6 @@ int httpSetRouteConnector(HttpRoute *route, cchar *name)
         return MPR_ERR_CANT_FIND;
     }
     route->connector = stage;
-#if UNUSED
-    mprLog(MPR_CONFIG, "Set connector \"%s\"", name);
-#endif
     return 0;
 }
 
@@ -1492,7 +1481,7 @@ void httpFinalizeRoute(HttpRoute *route)
 
 /********************************* Path and URI Expansion *****************************/
 /*
-    MOB - doc
+    MOB - some description here
     what does this return. Does it return an absolute URI?
     MOB - rename httpUri() and move to uri.c
  */
@@ -1625,7 +1614,6 @@ char *httpTemplate(HttpConn *conn, cchar *tplate, MprHash *options)
 
     route = conn->rx->route;
     if (tplate == 0 || *tplate == '\0') {
-        //  MOB - what action should be taken here
         return MPR->emptyString;
     }
     buf = mprCreateBuf(-1, -1);

@@ -482,10 +482,6 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         while (isspace((int) *value)) {
             value++;
         }
-#if UNUSED
-        //  MOB - change headers to be a caseless hash
-        key = slower(key);
-#endif
         LOG(8, "Key %s, value %s", key, value);
         if (strspn(key, "%<>/\\") > 0) {
             httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad header key value");
@@ -764,12 +760,6 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             mprAdjustBufStart(content, 2);
         }
     }
-#if UNUSED
-    //MOB - why here
-    if (rx->remainingContent == 0) {
-        rx->eof = 1;
-    }
-#endif
 }
 
 
@@ -1043,7 +1033,6 @@ static bool processRunning(HttpConn *conn)
     int     canProceed;
 
     //  MOB - refactor
-
     canProceed = 1;
     if (conn->connError) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
@@ -1241,39 +1230,6 @@ char *httpGetHeaders(HttpConn *conn)
 }
 
 
-#if UNUSED &&KEEP
-char *httpGetHeaders(HttpConn *conn)
-{
-    HttpRx      *rx;
-    MprKey      *kp;
-    char        *headers, *key, *cp;
-    ssize       len;
-
-    if (conn->rx == 0) {
-        mprAssert(conn->rx);
-        return 0;
-    }
-    rx = conn->rx;
-    headers = 0;
-    //  MOB OPT - faster to compute length first and then do one allocation
-    for (len = 0, kp = mprGetFirstKey(rx->headers); kp; ) {
-        headers = srejoin(headers, kp->key, NULL);
-        key = &headers[len];
-        for (cp = &key[1]; *cp; cp++) {
-            *cp = tolower((int) *cp);
-            if (*cp == '-') {
-                cp++;
-            }
-        }
-        headers = srejoin(headers, ": ", kp->data, "\n", NULL);
-        len = strlen(headers);
-        kp = mprGetNextKey(rx->headers, kp);
-    }
-    return headers;
-}
-#endif
-
-
 MprHash *httpGetHeaderHash(HttpConn *conn)
 {
     if (conn->rx == 0) {
@@ -1403,12 +1359,6 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     } else {
         mprWaitOn(conn->waitHandler, eventMask);
     }
-#if UNUSED
-    if (!conn->error && conn->state >= state) {
-        mprWaitForEvent(conn->dispatcher, min(inactivityTimeout, remaining));
-    }
-#endif
-
     remaining = timeout;
     do {
         workDone = httpServiceQueues(conn);
@@ -1421,12 +1371,6 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         remaining = mprGetRemainingTime(mark, timeout);
     } while (!justOne && !conn->error && conn->state < state && remaining > 0);
 
-#if UNUSED
-    if (addedHandler && conn->waitHandler) {
-        mprRemoveWaitHandler(conn->waitHandler);
-        conn->waitHandler = 0;
-    }
-#endif
     conn->async = saveAsync;
     if (conn->sock == 0 || conn->error) {
         return MPR_ERR_CANT_CONNECT;
