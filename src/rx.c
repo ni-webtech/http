@@ -482,6 +482,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         while (isspace((int) *value)) {
             value++;
         }
+        //  MOB - change headers to be a caseless hash
         key = slower(key);
 
         LOG(8, "Key %s, value %s", key, value);
@@ -1207,6 +1208,39 @@ cchar *httpGetHeader(HttpConn *conn, cchar *key)
 }
 
 
+char *httpGetHeadersFromHash(MprHash *hash)
+{
+    MprKey      *kp;
+    char        *headers, *cp;
+    ssize       len;
+
+    for (len = 0, kp = 0; (kp = mprGetNextKey(hash, kp)) != 0; ) {
+        len += strlen(kp->key) + 2 + strlen(kp->data) + 1;
+    }
+    if ((headers = mprAlloc(len + 1)) == 0) {
+        return 0;
+    }
+    for (kp = 0, cp = headers; (kp = mprGetNextKey(hash, kp)) != 0; ) {
+        strcpy(cp, kp->key);
+        cp += strlen(cp);
+        *cp++ = ':';
+        *cp++ = ' ';
+        strcpy(cp, kp->data);
+        cp += strlen(cp);
+        *cp++ = '\n';
+    }
+    *cp = '\0';
+    return headers;
+}
+
+
+char *httpGetHeaders(HttpConn *conn)
+{
+    return httpGetHeadersFromHash(conn->rx->headers);
+}
+
+
+#if UNUSED &&KEEP
 char *httpGetHeaders(HttpConn *conn)
 {
     HttpRx      *rx;
@@ -1220,6 +1254,7 @@ char *httpGetHeaders(HttpConn *conn)
     }
     rx = conn->rx;
     headers = 0;
+    //  MOB OPT - faster to compute length first and then do one allocation
     for (len = 0, kp = mprGetFirstKey(rx->headers); kp; ) {
         headers = srejoin(headers, kp->key, NULL);
         key = &headers[len];
@@ -1235,6 +1270,7 @@ char *httpGetHeaders(HttpConn *conn)
     }
     return headers;
 }
+#endif
 
 
 MprHash *httpGetHeaderHash(HttpConn *conn)

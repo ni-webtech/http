@@ -24,6 +24,7 @@ static int matchCacheHandler(HttpConn *conn, HttpRoute *route, int dir);
 static void outgoingCacheFilterService(HttpQueue *q);
 static void processCacheHandler(HttpQueue *q);
 static void saveCachedResponse(HttpConn *conn);
+static cchar *setHeadersFromCache(HttpConn *conn, cchar *content);
 
 /************************************ Code ************************************/
 
@@ -88,13 +89,17 @@ static void processCacheHandler(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpTx      *tx;
+    cchar       *data;
 
     conn = q->conn;
     tx = conn->tx;
+
     if (tx->cachedContent) {
         mprLog(3, "cacheHandler: write cached content for '%s'", conn->rx->uri);
-        tx->length = slen(tx->cachedContent);
-        httpWriteString(q, tx->cachedContent);
+        if ((data = setHeadersFromCache(conn, tx->cachedContent)) != 0) {
+            tx->length = slen(data);
+            httpWriteString(q, data);
+        }
     }
     httpFinalize(conn);
 }
@@ -119,16 +124,24 @@ static void outgoingCacheFilterService(HttpQueue *q)
     HttpPacket  *packet, *data;
     HttpConn    *conn;
     HttpTx      *tx;
-    int         useCache;
+    MprKey      *kp;
+    cchar       *cachedData;
+    int         foundDataPacket;
 
     conn = q->conn;
     tx = conn->tx;
-    useCache = 0;
+    foundDataPacket = 0;
+    cachedData = 0;
 
+    /*
+        This routine will save cached responses to tx->cacheBuffer.
+        It will also send cached data if the X-SendCache header is present. Normal caching is done by cacheHandler
+     */
     if (mprLookupKey(conn->tx->headers, "X-SendCache") != 0) {
         if (fetchCachedResponse(conn)) {
             mprLog(3, "cacheFilter: write cached content for '%s'", conn->rx->uri);
-            useCache = 1;
+            cachedData = setHeadersFromCache(conn, tx->cachedContent);
+            tx->length = slen(cachedData);
         }
     }
     for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
@@ -137,27 +150,45 @@ static void outgoingCacheFilterService(HttpQueue *q)
             return;
         }
         if (packet->flags & HTTP_PACKET_HEADER) {
-            if (useCache) {
-                tx->length = slen(tx->cachedContent);
+            if (!cachedData && tx->cacheBuffer) {
+                /*
+                    Add defined headers to the start of the cache buffer. Separate with a double newline.
+                 */
+                for (kp = 0; (kp = mprGetNextKey(tx->headers, kp)) != 0; ) {
+                    mprPutFmtToBuf(tx->cacheBuffer, "%s: %s\n", kp->key, kp->data);
+                }
+                mprPutCharToBuf(tx->cacheBuffer, '\n');
             }
 
         } else if (packet->flags & HTTP_PACKET_DATA) {
-            if (useCache) {
+            if (cachedData) {
+                /*
+                    Using X-SendCache. Replace the data with the cached response
+                 */
                 mprFlushBuf(packet->content);
-                mprPutBlockToBuf(packet->content, tx->cachedContent, tx->length);
+                mprPutBlockToBuf(packet->content, cachedData, tx->length);
 
             } else if (tx->cacheBuffer) {
+                /*
+                    Save the response packet to the cache buffer. Will write below in saveCachedResponse
+                 */
                 mprPutBlockToBuf(tx->cacheBuffer, mprGetBufStart(packet->content), mprGetBufLength(packet->content));
             }
+            foundDataPacket = 1;
 
         } else if (packet->flags & HTTP_PACKET_END) {
-            if (useCache) {
+            if (cachedData && !foundDataPacket) {
+                /*
+                    Using X-SendCache but there was no data packet to replace. So do the write here
+                 */
                 data = httpCreateDataPacket(tx->length);
-                /* Did not find any data packets so write here */
-                mprPutBlockToBuf(data->content, tx->cachedContent, tx->length);
+                mprPutBlockToBuf(data->content, cachedData, tx->length);
                 httpPutPacketToNext(q, data);
 
             } else if (tx->cacheBuffer) {
+                /*
+                    Save the cache buffer to the cache store
+                 */
                 saveCachedResponse(conn);
             }
         }
@@ -332,24 +363,25 @@ ssize httpWriteCached(HttpConn *conn)
 {
     HttpRoute   *route;
     MprTime     modified;
-    cchar       *key, *content;
+    cchar       *cacheKey, *data, *content;
 
     route = conn->rx->route;
     if (!conn->tx->cache) {
         return MPR_ERR_CANT_FIND;
     }
-    key = makeCacheKey(conn);
-    if ((content = mprReadCache(conn->host->cache, key, &modified, 0)) == 0) {
-        mprLog(3, "No cached data for ", key);
+    cacheKey = makeCacheKey(conn);
+    if ((content = mprReadCache(conn->host->cache, cacheKey, &modified, 0)) == 0) {
+        mprLog(3, "No cached data for ", cacheKey);
         return 0;
     }
-    mprLog(5, "Used cached ", key);
-    httpSetHeader(conn, "Etag", mprGetMD5(key));
+    mprLog(5, "Used cached ", cacheKey);
+    data = setHeadersFromCache(conn, content);
+    httpSetHeader(conn, "Etag", mprGetMD5(cacheKey));
     httpSetHeader(conn, "Last-Modified", mprFormatUniversalTime(MPR_HTTP_DATE, modified));
     conn->tx->cacheBuffer = 0;
-    httpWriteString(conn->writeq, content);
+    httpWriteString(conn->writeq, data);
     httpFinalize(conn);
-    return slen(content);
+    return slen(data);
 }
 
 
@@ -456,10 +488,10 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
 static void manageHttpCache(HttpCache *cache, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(cache->uris);
         mprMark(cache->extensions);
         mprMark(cache->methods);
         mprMark(cache->types);
+        mprMark(cache->uris);
     }
 }
 
@@ -476,6 +508,29 @@ static char *makeCacheKey(HttpConn *conn)
     } else {
         return sfmt("http::response-%s", rx->pathInfo);
     }
+}
+
+
+/*
+    Parse cached content of the form:  headers \n\n data
+    Set headers in the current requeset and return a reference to the data portion
+ */
+static cchar *setHeadersFromCache(HttpConn *conn, cchar *content)
+{
+    cchar   *data;
+    char    *header, *headers, *key, *value, *tok;
+
+    if ((data = strstr(content, "\n\n")) == 0) {
+        data = content;
+    } else {
+        headers = snclone(content, data - content);
+        data += 2;
+        for (header = stok(headers, "\n", &tok); header; header = stok(NULL, "\n", &tok)) {
+            key = stok(header, ": ", &value);
+            httpAddHeader(conn, key, value);
+        }
+    }
+    return data;
 }
 
 

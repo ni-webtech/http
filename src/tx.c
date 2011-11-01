@@ -61,6 +61,7 @@ static void manageTx(HttpTx *tx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(tx->cache);
+        mprMark(tx->cacheBuffer);
         mprMark(tx->cachedContent);
         mprMark(tx->conn);
         mprMark(tx->outputPipeline);
@@ -550,6 +551,9 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     tx = conn->tx;
     route = rx->route;
 
+    /*
+        Mandatory headers that must be defined here use httpSetHeader which overwrites existing values. 
+     */
     httpAddHeaderString(conn, "Date", conn->http->currentDate);
 
     if (tx->ext) {
@@ -561,38 +565,6 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             }
         }
     }
-#if UNUSED
-    if (route && !mprLookupKey(tx->headers, "Cache-Control")) {
-        expires = 0;
-        if (tx->ext) {
-            expires = PTOL(mprLookupKey(route->cacheExtensions, tx->ext));
-        }
-        if (expires == 0 && (mimeType = mprLookupKey(tx->headers, "Content-Type")) != 0) {
-            expires = PTOL(mprLookupKey(route->cacheTypes, mimeType));
-        }
-        if (expires == 0) {
-            expires = PTOL(mprLookupKey(route->cacheExtensions, ""));
-            if (expires == 0) {
-                expires = PTOL(mprLookupKey(route->cacheTypes, ""));
-            }
-        }
-        if (expires) {
-            if ((value = mprLookupKey(conn->tx->headers, "Cache-Control")) != 0) {
-                if (strstr(value, "max-age") == 0) {
-                    httpAppendHeader(conn, "Cache-Control", "max-age=%d", expires);
-                }
-            } else {
-                httpAddHeader(conn, "Cache-Control", "max-age=%d", expires);
-            }
-#if UNUSED && KEEP
-            /* Old HTTP/1.0 clients don't understand Cache-Control */
-            struct tm   tm;
-            mprDecodeUniversalTime(&tm, conn->http->now + (expires * MPR_TICKS_PER_SEC));
-            httpAddHeader(conn, "Expires", "%s", mprFormatTime(MPR_HTTP_DATE, &tm));
-#endif
-        }
-    }
-#endif
     if (tx->etag) {
         httpAddHeader(conn, "ETag", "%s", tx->etag);
     }
@@ -608,7 +580,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
             httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
         }
     } else if (tx->length > 0 || conn->endpoint) {
-        httpAddHeader(conn, "Content-Length", "%Ld", tx->length);
+        httpSetHeader(conn, "Content-Length", "%Ld", tx->length);
     }
     if (tx->outputRanges) {
         if (tx->outputRanges->next == 0) {
@@ -621,7 +593,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         } else {
             httpSetHeader(conn, "Content-Type", "multipart/byteranges; boundary=%s", tx->rangeBoundary);
         }
-        httpAddHeader(conn, "Accept-Ranges", "bytes");
+        httpSetHeader(conn, "Accept-Ranges", "bytes");
     }
     if (conn->endpoint) {
         if (--conn->keepAliveCount > 0) {
