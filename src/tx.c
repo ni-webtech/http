@@ -568,15 +568,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->etag) {
         httpAddHeader(conn, "ETag", "%s", tx->etag);
     }
-    //MOB REMOVE
-#if UNUSED || 1
-    if (tx->altBody) {
-        mprAssert(tx->length > 0);
-        tx->length = (int) strlen(tx->altBody);
-    }
-#endif
-    //  MOB - remove altBody
-    if (tx->chunkSize > 0 && !tx->altBody) {
+    if (tx->chunkSize > 0) {
         if (!(rx->flags & HTTP_HEAD)) {
             httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
         }
@@ -715,7 +707,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     /* 
        By omitting the "\r\n" delimiter after the headers, chunks can emit "\r\nSize\r\n" as a single chunk delimiter
      */
-    if (tx->chunkSize <= 0 || tx->altBody) {
+    if (tx->chunkSize <= 0) {
         mprPutStringToBuf(buf, "\r\n");
     }
     if (tx->altBody) {

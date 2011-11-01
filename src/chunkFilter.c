@@ -189,10 +189,7 @@ static void outgoingChunkService(HttpQueue *q)
             }
         }
     }
-    //  MOB - change altBody test to length
-    //  MOB - refactor to setting altBody also sets tx->length
-    mprAssert(tx->altBody == 0 || tx->length);
-    if (tx->chunkSize <= 0 || tx->altBody) {
+    if (tx->chunkSize <= 0) {
         httpDefaultOutgoingServiceStage(q);
     } else {
         for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {

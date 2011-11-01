@@ -42,9 +42,6 @@ void httpHandleOptionsTrace(HttpConn *conn)
             (flags & HTTP_STAGE_DELETE) ? ",DELETE" : "");
         httpOmitBody(conn);
         httpFinalize(conn);
-#if UNUSED
-        tx->length = 0;
-#endif
     }
 }
 
