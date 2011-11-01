@@ -482,9 +482,10 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         while (isspace((int) *value)) {
             value++;
         }
+#if UNUSED
         //  MOB - change headers to be a caseless hash
         key = slower(key);
-
+#endif
         LOG(8, "Key %s, value %s", key, value);
         if (strspn(key, "%<>/\\") > 0) {
             httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad header key value");
@@ -496,29 +497,29 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         }
         mprAddKey(rx->headers, key, hvalue);
 
-        switch (key[0]) {
+        switch (tolower((int) key[0])) {
         case 'a':
-            if (strcmp(key, "authorization") == 0) {
+            if (strcasecmp(key, "authorization") == 0) {
                 value = sclone(value);
                 rx->authType = stok(value, " \t", &tok);
                 rx->authDetails = sclone(tok);
 
-            } else if (strcmp(key, "accept-charset") == 0) {
+            } else if (strcasecmp(key, "accept-charset") == 0) {
                 rx->acceptCharset = sclone(value);
 
-            } else if (strcmp(key, "accept") == 0) {
+            } else if (strcasecmp(key, "accept") == 0) {
                 rx->accept = sclone(value);
 
-            } else if (strcmp(key, "accept-encoding") == 0) {
+            } else if (strcasecmp(key, "accept-encoding") == 0) {
                 rx->acceptEncoding = sclone(value);
 
-            } else if (strcmp(key, "accept-language") == 0) {
+            } else if (strcasecmp(key, "accept-language") == 0) {
                 rx->acceptLanguage = sclone(value);
             }
             break;
 
         case 'c':
-            if (strcmp(key, "connection") == 0) {
+            if (strcasecmp(key, "connection") == 0) {
                 rx->connection = sclone(value);
                 if (scasecmp(value, "KEEP-ALIVE") == 0) {
                     keepAlive = 1;
@@ -527,7 +528,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     conn->keepAliveCount = 0;
                 }
 
-            } else if (strcmp(key, "content-length") == 0) {
+            } else if (strcasecmp(key, "content-length") == 0) {
                 if (rx->length >= 0) {
                     httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Mulitple content length headers");
                     break;
@@ -544,12 +545,12 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 rx->contentLength = sclone(value);
                 mprAssert(rx->length >= 0);
-                if (conn->endpoint || strcmp(tx->method, "HEAD") != 0) {
+                if (conn->endpoint || strcasecmp(tx->method, "HEAD") != 0) {
                     rx->remainingContent = rx->length;
                     rx->needInputPipeline = 1;
                 }
 
-            } else if (strcmp(key, "content-range") == 0) {
+            } else if (strcasecmp(key, "content-range") == 0) {
                 /*
                     This headers specifies the range of any posted body data
                     Format is:  Content-Range: bytes n1-n2/length
@@ -582,12 +583,12 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 rx->inputRange = httpCreateRange(conn, start, end);
 
-            } else if (strcmp(key, "content-type") == 0) {
+            } else if (strcasecmp(key, "content-type") == 0) {
                 rx->mimeType = sclone(value);
                 rx->form = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "application/x-www-form-urlencoded", -1);
                 rx->upload = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "multipart/form-data", -1);
 
-            } else if (strcmp(key, "cookie") == 0) {
+            } else if (strcasecmp(key, "cookie") == 0) {
                 if (rx->cookie && *rx->cookie) {
                     rx->cookie = sjoin(rx->cookie, "; ", value, NULL);
                 } else {
@@ -597,13 +598,13 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
 
         case 'h':
-            if (strcmp(key, "host") == 0) {
+            if (strcasecmp(key, "host") == 0) {
                 rx->hostHeader = sclone(value);
             }
             break;
 
         case 'i':
-            if ((strcmp(key, "if-modified-since") == 0) || (strcmp(key, "if-unmodified-since") == 0)) {
+            if ((strcasecmp(key, "if-modified-since") == 0) || (strcasecmp(key, "if-unmodified-since") == 0)) {
                 MprTime     newDate = 0;
                 char        *cp;
                 bool        ifModified = (key[3] == 'm');
@@ -621,7 +622,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     rx->flags |= HTTP_IF_MODIFIED;
                 }
 
-            } else if ((strcmp(key, "if-match") == 0) || (strcmp(key, "if-none-match") == 0)) {
+            } else if ((strcasecmp(key, "if-match") == 0) || (strcasecmp(key, "if-none-match") == 0)) {
                 char    *word, *tok;
                 bool    ifMatch = key[3] == 'm';
 
@@ -637,7 +638,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     word = stok(0, " ,", &tok);
                 }
 
-            } else if (strcmp(key, "if-range") == 0) {
+            } else if (strcasecmp(key, "if-range") == 0) {
                 char    *word, *tok;
 
                 if ((tok = strchr(value, ';')) != 0) {
@@ -656,7 +657,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'k':
             /* Keep-Alive: timeout=N, max=1 */
-            if (strcmp(key, "keep-alive") == 0) {
+            if (strcasecmp(key, "keep-alive") == 0) {
                 keepAlive = 1;
                 if ((tok = scontains(value, "max=", -1)) != 0) {
                     conn->keepAliveCount = atoi(&tok[4]);
@@ -672,30 +673,30 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;                
                 
         case 'l':
-            if (strcmp(key, "location") == 0) {
+            if (strcasecmp(key, "location") == 0) {
                 rx->redirect = sclone(value);
             }
             break;
 
         case 'p':
-            if (strcmp(key, "pragma") == 0) {
+            if (strcasecmp(key, "pragma") == 0) {
                 rx->pragma = sclone(value);
             }
             break;
 
         case 'r':
-            if (strcmp(key, "range") == 0) {
+            if (strcasecmp(key, "range") == 0) {
                 if (!parseRange(conn, value)) {
                     httpError(conn, HTTP_CODE_RANGE_NOT_SATISFIABLE, "Bad range");
                 }
-            } else if (strcmp(key, "referer") == 0) {
+            } else if (strcasecmp(key, "referer") == 0) {
                 /* NOTE: yes the header is misspelt in the spec */
                 rx->referrer = sclone(value);
             }
             break;
 
         case 't':
-            if (strcmp(key, "transfer-encoding") == 0) {
+            if (strcasecmp(key, "transfer-encoding") == 0) {
                 if (scasecmp(value, "chunked") == 0) {
                     /*  
                         remainingContent will be revised by the chunk filter as chunks are processed and will be set to zero when the
@@ -710,10 +711,10 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
 
         case 'x':
-            if (strcmp(key, "x-http-method-override") == 0) {
+            if (strcasecmp(key, "x-http-method-override") == 0) {
                 httpSetMethod(conn, value);
 #if BLD_DEBUG
-            } else if (strcmp(key, "x-chunk-size") == 0) {
+            } else if (strcasecmp(key, "x-chunk-size") == 0) {
                 tx->chunkSize = atoi(value);
                 if (tx->chunkSize <= 0) {
                     tx->chunkSize = 0;
@@ -725,13 +726,13 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
 
         case 'u':
-            if (strcmp(key, "user-agent") == 0) {
+            if (strcasecmp(key, "user-agent") == 0) {
                 rx->userAgent = sclone(value);
             }
             break;
 
         case 'w':
-            if (strcmp(key, "www-authenticate") == 0) {
+            if (strcasecmp(key, "www-authenticate") == 0) {
                 conn->authType = value;
                 while (*value && !isspace((int) *value)) {
                     value++;
