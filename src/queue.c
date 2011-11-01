@@ -281,7 +281,9 @@ int httpOpenQueue(HttpQueue *q, ssize chunkSize)
     }
     if (stage->flags & HTTP_STAGE_UNLOADED && stage->module) {
         module = stage->module;
+#if UNUSED
         mprLog(2, "Loading module for %s", stage->name);
+#endif
         module = mprCreateModule(module->name, module->path, module->entry, http);
         if (mprLoadModule(module) < 0) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't load module %s", module->name);
