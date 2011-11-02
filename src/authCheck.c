@@ -364,7 +364,7 @@ static int parseDigestNonce(char *nonce, cchar **secret, cchar **realm, MprTime 
     *secret = stok(decoded, ":", &tok);
     *realm = stok(NULL, ":", &tok);
     whenStr = stok(NULL, ":", &tok);
-    *when = (MprTime) stoi(whenStr, 16, NULL); 
+    *when = (MprTime) stoiradix(whenStr, 16, NULL); 
     return 0;
 }
 

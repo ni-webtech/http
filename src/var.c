@@ -219,7 +219,7 @@ int httpGetIntParam(HttpConn *conn, cchar *var, int defaultValue)
     
     vars = httpGetParams(conn);
     value = mprLookupKey(vars, var);
-    return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
+    return (value) ? (int) stoi(value) : defaultValue;
 }
 
 

@@ -125,7 +125,7 @@ ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet)
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return 0;
         }
-        chunkSize = (int) stoi(&start[2], 16, NULL);
+        chunkSize = (int) stoiradix(&start[2], 16, NULL);
         if (!isxdigit((int) start[2]) || chunkSize < 0) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
             return 0;
@@ -172,7 +172,7 @@ static void outgoingChunkService(HttpQueue *q)
             we have all the data. Thus we can determine the actual content length and can bypass the chunk handler.
          */
         if (tx->length < 0 && (value = mprLookupKey(tx->headers, "Content-Length")) != 0) {
-            tx->length = stoi(value, 10, 0);
+            tx->length = stoi(value);
         }
         if (tx->length < 0) {
             if (q->last->flags & HTTP_PACKET_END) {

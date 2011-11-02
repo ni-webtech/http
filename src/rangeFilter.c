@@ -178,7 +178,7 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
 
     tx = conn->tx;
 
-    length = (tx->entityLength >= 0) ? itos(tx->entityLength, 10) : "*";
+    length = (tx->entityLength >= 0) ? itos(tx->entityLength) : "*";
     packet = httpCreatePacket(HTTP_RANGE_BUFSIZE);
     packet->flags |= HTTP_PACKET_RANGE;
     mprPutFmtToBuf(packet->content, 

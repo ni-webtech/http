@@ -529,7 +529,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Mulitple content length headers");
                     break;
                 }
-                rx->length = stoi(value, 10, 0);
+                rx->length = stoi(value);
                 if (rx->length < 0) {
                     httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad content length");
                     break;
@@ -561,16 +561,16 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     sp++;
                 }
                 if (*sp) {
-                    start = stoi(sp, 10, NULL);
+                    start = stoi(sp);
                     if ((sp = strchr(sp, '-')) != 0) {
-                        end = stoi(++sp, 10, NULL);
+                        end = stoi(++sp);
                     }
                     if ((sp = strchr(sp, '/')) != 0) {
                         /*
                             Note this is not the content length transmitted, but the original size of the input of which
                             the client is transmitting only a portion.
                          */
-                        size = stoi(++sp, 10, NULL);
+                        size = stoi(++sp);
                     }
                 }
                 if (start < 0 || end < 0 || size < 0 || end <= start) {
@@ -1518,7 +1518,7 @@ static bool parseRange(HttpConn *conn, char *value)
          */
         tok = stok(value, ",", &value);
         if (*tok != '-') {
-            range->start = (ssize) stoi(tok, 10, NULL);
+            range->start = (ssize) stoi(tok);
         } else {
             range->start = -1;
         }
@@ -1529,7 +1529,7 @@ static bool parseRange(HttpConn *conn, char *value)
                 /*
                     End is one beyond the range. Makes the math easier.
                  */
-                range->end = (ssize) stoi(ep, 10, NULL) + 1;
+                range->end = (ssize) stoi(ep) + 1;
             }
         }
         if (range->start >= 0 && range->end >= 0) {

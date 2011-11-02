@@ -1142,7 +1142,7 @@ void httpAddRouteErrorDocument(HttpRoute *route, int status, cchar *url)
 
     mprAssert(route);
     GRADUATE_HASH(route, errorDocuments);
-    code = itos(status, 10);
+    code = itos(status);
     mprAddKey(route->errorDocuments, code, sclone(url));
 }
 
@@ -1155,7 +1155,7 @@ cchar *httpLookupRouteErrorDocument(HttpRoute *route, int code)
     if (route->errorDocuments == 0) {
         return 0;
     }
-    num = itos(code, 10);
+    num = itos(code);
     return (cchar*) mprLookupKey(route->errorDocuments, num);
 }
 
@@ -2519,7 +2519,7 @@ static char *expandPatternTokens(cchar *str, cchar *replacement, int *matches, i
             default:
                 /* Insert the nth submatch */
                 if (isdigit((int) *cp)) {
-                    submatch = (int) wtoi(cp, 10, NULL);
+                    submatch = (int) wtoi(cp);
                     while (isdigit((int) *++cp))
                         ;
                     cp--;
@@ -2666,7 +2666,7 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
                 }
                 break;
             case 'N':
-                *va_arg(args, int*) = (int) stoi(tok, 10, 0);
+                *va_arg(args, int*) = (int) stoi(tok);
                 break;
             case 'P':
                 *va_arg(args, char**) = httpMakePath(route, strim(tok, "\"", MPR_TRIM_BOTH));

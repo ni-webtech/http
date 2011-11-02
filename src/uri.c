@@ -140,7 +140,7 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
     if (host) {
         up->host = sclone(host);
         if ((cp = schr(host, ':')) && port == 0) {
-            port = (int) stoi(++cp, 10, NULL);
+            port = (int) stoi(++cp);
         }
     } else if (complete) {
         up->host = sclone("localhost");
@@ -196,7 +196,7 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
     if (base->host) {
         up->host = sclone(base->host);
         if ((cp = schr(base->host, ':')) && port == 0) {
-            port = (int) stoi(++cp, 10, NULL);
+            port = (int) stoi(++cp);
         }
     } else if (complete) {
         base->host = sclone("localhost");
@@ -285,7 +285,7 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
         portStr = "";
     } else {
         if (port != 0 && port != getDefaultPort(scheme)) {
-            portStr = itos(port, 10);
+            portStr = itos(port);
             portDelim = ":";
         } else {
             portStr = "";

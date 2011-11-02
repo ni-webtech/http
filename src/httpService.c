@@ -246,6 +246,7 @@ HttpHost *httpLookupHost(Http *http, cchar *name)
 void httpInitLimits(HttpLimits *limits, bool serverSide)
 {
     memset(limits, 0, sizeof(HttpLimits));
+    limits->cacheItemSize = HTTP_MAX_CHUNK;
     limits->chunkSize = HTTP_MAX_CHUNK;
     limits->headerCount = HTTP_MAX_NUM_HEADERS;
     limits->headerSize = HTTP_MAX_HEADERS;
@@ -331,7 +332,7 @@ cchar *httpLookupStatus(Http *http, int status)
     HttpStatusCode  *ep;
     char            *key;
     
-    key = itos(status, 10);
+    key = itos(status);
     ep = (HttpStatusCode*) mprLookupKey(http->statusCodes, key);
     if (ep == 0) {
         return "Custom error";
