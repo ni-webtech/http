@@ -14,7 +14,7 @@
 
 /********************************** Forwards **********************************/
 
-static void clientCache(HttpConn *conn);
+static void cacheAtClient(HttpConn *conn);
 static bool fetchCachedResponse(HttpConn *conn);
 static HttpCache *lookupCacheControl(HttpConn *conn);
 static char *makeCacheKey(HttpConn *conn);
@@ -69,11 +69,9 @@ static int matchCacheHandler(HttpConn *conn, HttpRoute *route, int dir)
         return HTTP_ROUTE_REJECT;
     }
     if (cache->flags & HTTP_CACHE_CLIENT) {
-        clientCache(conn);
-        /* Doing client side caching and so don't need the cacheHandler */
-        return HTTP_ROUTE_REJECT;
-
-    } else if (!(cache->flags & HTTP_CACHE_MANUAL) && fetchCachedResponse(conn)) {
+        cacheAtClient(conn);
+    }
+    if (!(cache->flags & HTTP_CACHE_MANUAL) && fetchCachedResponse(conn)) {
         /* Found cached content */
         return HTTP_ROUTE_OK;
     }
@@ -126,12 +124,17 @@ static void outgoingCacheFilterService(HttpQueue *q)
     HttpTx      *tx;
     MprKey      *kp;
     cchar       *cachedData;
+    ssize       size;
     int         foundDataPacket;
 
     conn = q->conn;
     tx = conn->tx;
     foundDataPacket = 0;
     cachedData = 0;
+
+    if (tx->status < 200 || tx->status > 299) {
+        tx->cacheBuffer = 0;
+    }
 
     /*
         This routine will save cached responses to tx->cacheBuffer.
@@ -154,6 +157,7 @@ static void outgoingCacheFilterService(HttpQueue *q)
                 /*
                     Add defined headers to the start of the cache buffer. Separate with a double newline.
                  */
+                mprPutFmtToBuf(tx->cacheBuffer, "X-Status: %d\n", tx->status);
                 for (kp = 0; (kp = mprGetNextKey(tx->headers, kp)) != 0; ) {
                     mprPutFmtToBuf(tx->cacheBuffer, "%s: %s\n", kp->key, kp->data);
                 }
@@ -163,16 +167,22 @@ static void outgoingCacheFilterService(HttpQueue *q)
         } else if (packet->flags & HTTP_PACKET_DATA) {
             if (cachedData) {
                 /*
-                    Using X-SendCache. Replace the data with the cached response
+                    Using X-SendCache. Replace the data with the cached response.
                  */
                 mprFlushBuf(packet->content);
                 mprPutBlockToBuf(packet->content, cachedData, (ssize) tx->length);
 
             } else if (tx->cacheBuffer) {
                 /*
-                    Save the response packet to the cache buffer. Will write below in saveCachedResponse
+                    Save the response packet to the cache buffer. Will write below in saveCachedResponse.
                  */
-                mprPutBlockToBuf(tx->cacheBuffer, mprGetBufStart(packet->content), mprGetBufLength(packet->content));
+                size = mprGetBufLength(packet->content);
+                if ((tx->cacheBufferLength + size) < conn->limits->cacheItemSize) {
+                    mprPutBlockToBuf(tx->cacheBuffer, mprGetBufStart(packet->content), mprGetBufLength(packet->content));
+                    tx->cacheBufferLength += size;
+                } else {
+                    tx->cacheBuffer = 0;
+                }
             }
             foundDataPacket = 1;
 
@@ -245,7 +255,7 @@ static HttpCache *lookupCacheControl(HttpConn *conn)
 }
 
 
-static void clientCache(HttpConn *conn)
+static void cacheAtClient(HttpConn *conn)
 {
     HttpTx      *tx;
     HttpCache   *cache;
@@ -257,10 +267,10 @@ static void clientCache(HttpConn *conn)
     if (!mprLookupKey(tx->headers, "Cache-Control")) {
         if ((value = mprLookupKey(conn->tx->headers, "Cache-Control")) != 0) {
             if (strstr(value, "max-age") == 0) {
-                httpAppendHeader(conn, "Cache-Control", "max-age=%d", cache->lifespan / MPR_TICKS_PER_SEC);
+                httpAppendHeader(conn, "Cache-Control", "max-age=%d", cache->clientLifespan / MPR_TICKS_PER_SEC);
             }
         } else {
-            httpAddHeader(conn, "Cache-Control", "max-age=%d", cache->lifespan / MPR_TICKS_PER_SEC);
+            httpAddHeader(conn, "Cache-Control", "max-age=%d", cache->clientLifespan / MPR_TICKS_PER_SEC);
         }
 #if UNUSED && KEEP
         {
@@ -355,7 +365,7 @@ static void saveCachedResponse(HttpConn *conn)
      */
     modified = mprGetTime() / MPR_TICKS_PER_SEC * MPR_TICKS_PER_SEC;
     mprWriteCache(conn->host->responseCache, makeCacheKey(conn), mprGetBufStart(buf), modified, 
-        tx->cache->lifespan, 0, 0);
+        tx->cache->serverLifespan, 0, 0);
 }
 
 
@@ -388,11 +398,16 @@ ssize httpWriteCached(HttpConn *conn)
 ssize httpUpdateCache(HttpConn *conn, cchar *uri, cchar *data, MprTime lifespan)
 {
     cchar   *key;
+    ssize   len;
 
-    key = sfmt("http::response-%s", uri);
+    len = slen(data);
+    if (len > conn->limits->cacheItemSize) {
+        return MPR_ERR_WONT_FIT;
+    }
     if (lifespan <= 0) {
         lifespan = conn->rx->route->lifespan;
     }
+    key = sfmt("http::response-%s", uri);
     if (data == 0 || lifespan <= 0) {
         mprRemoveCache(conn->host->responseCache, key);
         return 0;
@@ -409,8 +424,8 @@ ssize httpUpdateCache(HttpConn *conn, cchar *uri, cchar *data, MprTime lifespan)
     Note: the URI should not include the route prefix (scriptName)
     The extensions should not contain ".". The methods may contain "*" for all methods.
  */
-void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensions, cchar *types, MprTime lifespan, 
-        int flags)
+void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensions, cchar *types, MprTime clientLifespan, 
+        MprTime serverLifespan, int flags)
 {
     HttpCache   *cache;
     char        *item, *tok;
@@ -473,23 +488,26 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
             mprAddKey(cache->uris, item, cache);
         }
     }
-    if (lifespan <= 0) {
-        lifespan = route->lifespan;
+    if (clientLifespan <= 0) {
+        clientLifespan = route->lifespan;
     }
-    if (lifespan <= 0) {
-        lifespan = HTTP_CACHE_LIFESPAN;
+    cache->clientLifespan = clientLifespan;
+    if (serverLifespan <= 0) {
+        serverLifespan = route->lifespan;
     }
-    cache->lifespan = lifespan;
+    cache->serverLifespan = serverLifespan;
     cache->flags = flags;
     mprAddItem(route->caching, cache);
-
-    mprLog(3, "Caching route %s for methods %s, URIs %s, extensions %s, types %s, lifespan %d", 
+#if UNUSED
+    mprLog(3, "Caching route %s for methods %s, URIs %s, extensions %s, types %s, client lifespan %d, server lifespan %d", 
         route->name,
         (methods) ? methods: "*",
         (uris) ? uris: "*",
         (extensions) ? extensions: "*",
         (types) ? types: "*",
-        cache->lifespan / MPR_TICKS_PER_SEC);
+        cache->clientLifespan / MPR_TICKS_PER_SEC);
+        cache->serverLifespan / MPR_TICKS_PER_SEC);
+#endif
 }
 
 
@@ -535,7 +553,11 @@ static cchar *setHeadersFromCache(HttpConn *conn, cchar *content)
         data += 2;
         for (header = stok(headers, "\n", &tok); header; header = stok(NULL, "\n", &tok)) {
             key = stok(header, ": ", &value);
-            httpAddHeader(conn, key, value);
+            if (smatch(key, "X-Status")) {
+                conn->tx->status = (int) stoi(value);
+            } else {
+                httpAddHeader(conn, key, value);
+            }
         }
     }
     return data;
