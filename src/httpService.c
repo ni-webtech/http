@@ -461,7 +461,7 @@ static bool isIdle()
     for (next = 0; (conn = mprGetNextItem(http->connections, &next)) != 0; ) {
         if (conn->state != HTTP_STATE_BEGIN) {
             if (lastTrace < now) {
-                mprLog(0, "Waiting for request %s to complete", conn->rx->uri ? conn->rx->uri : conn->rx->pathInfo);
+                mprLog(4, "Waiting for request %s to complete", conn->rx->uri ? conn->rx->uri : conn->rx->pathInfo);
                 lastTrace = now;
             }
             unlock(http);
