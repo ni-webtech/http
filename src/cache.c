@@ -71,14 +71,16 @@ static int matchCacheHandler(HttpConn *conn, HttpRoute *route, int dir)
     if (cache->flags & HTTP_CACHE_CLIENT) {
         cacheAtClient(conn);
     }
-    if (!(cache->flags & HTTP_CACHE_MANUAL) && fetchCachedResponse(conn)) {
-        /* Found cached content */
-        return HTTP_ROUTE_OK;
+    if (cache->flags & HTTP_CACHE_SERVER) {
+        if (!(cache->flags & HTTP_CACHE_MANUAL) && fetchCachedResponse(conn)) {
+            /* Found cached content */
+            return HTTP_ROUTE_OK;
+        }
+        /*
+            Caching is configured but no acceptable cached content. Create a capture buffer for the cacheFilter.
+         */
+        conn->tx->cacheBuffer = mprCreateBuf(-1, -1);
     }
-    /*
-        Caching is configured but no acceptable cached content. Create a capture buffer for the cacheFilter.
-     */
-    conn->tx->cacheBuffer = mprCreateBuf(-1, -1);
     return HTTP_ROUTE_REJECT;
 }
 
