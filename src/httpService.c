@@ -171,6 +171,9 @@ static void manageHttp(Http *http, int flags)
 
 void httpDestroy(Http *http)
 {
+    if (http->timer) {
+        mprRemoveEvent(http->timer);
+    }
     MPR->httpService = NULL;
 }
 
@@ -458,8 +461,10 @@ static void terminateHttp(int how, int status)
         Stop listening for new requests
      */
     http = (Http*) mprGetMpr()->httpService;
-    for (next = 0; (endpoint = mprGetNextItem(http->endpoints, &next)) != 0; ) {
-        httpStopEndpoint(endpoint);
+    if (http) {
+        for (ITERATE_ITEMS(http->endpoints, endpoint, next)) {
+            httpStopEndpoint(endpoint);
+        }
     }
 }
 
