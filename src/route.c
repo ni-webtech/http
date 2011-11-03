@@ -118,6 +118,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->inputStages = parent->inputStages;
     route->index = parent->index;
     route->languages = parent->languages;
+    route->lifespan = parent->lifespan;
     route->methods = parent->methods;
     route->methodSpec = parent->methodSpec;
     route->outputStages = parent->outputStages;

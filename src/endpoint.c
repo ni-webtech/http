@@ -40,7 +40,6 @@ HttpEndpoint *httpCreateEndpoint(cchar *ip, int port, MprDispatcher *dispatcher)
 
 void httpDestroyEndpoint(HttpEndpoint *endpoint)
 {
-    mprLog(4, "Destroy endpoint %s", endpoint->ip);
     if (endpoint->waitHandler) {
         mprRemoveWaitHandler(endpoint->waitHandler);
         endpoint->waitHandler = 0;
