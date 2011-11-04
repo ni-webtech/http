@@ -89,23 +89,23 @@ HttpHost *httpCloneHost(HttpHost *parent)
 static void manageHost(HttpHost *host, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(host->responseCache);
         mprMark(host->name);
         mprMark(host->ip);
         mprMark(host->parent);
+        mprMark(host->responseCache);
         mprMark(host->dirs);
         mprMark(host->routes);
         mprMark(host->defaultRoute);
+        mprMark(host->limits);
         mprMark(host->mimeTypes);
         mprMark(host->home);
         mprMark(host->traceInclude);
         mprMark(host->traceExclude);
         mprMark(host->protocol);
-        mprMark(host->mutex);
         mprMark(host->log);
         mprMark(host->logFormat);
         mprMark(host->logPath);
-        mprMark(host->limits);
+        mprMark(host->mutex);
 
     } else if (flags & MPR_MANAGE_FREE) {
         /* The http->hosts list is static. ie. The hosts won't be marked via http->hosts */

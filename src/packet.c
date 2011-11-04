@@ -39,6 +39,7 @@ static void managePacket(HttpPacket *packet, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(packet->prefix);
         mprMark(packet->content);
+        /* Don't mark next packet. List owner will mark */
     }
 }
 

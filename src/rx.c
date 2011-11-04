@@ -51,47 +51,47 @@ HttpRx *httpCreateRx(HttpConn *conn)
 static void manageRx(HttpRx *rx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
+        mprMark(rx->method);
+        mprMark(rx->uri);
+        mprMark(rx->pathInfo);
+        mprMark(rx->scriptName);
+        mprMark(rx->extraPath);
+        mprMark(rx->conn);
+        mprMark(rx->route);
+        mprMark(rx->etags);
+        mprMark(rx->headerPacket);
+        mprMark(rx->headers);
+        mprMark(rx->inputPipeline);
+        mprMark(rx->parsedUri);
+        mprMark(rx->requestData);
+        mprMark(rx->statusMessage);
         mprMark(rx->accept);
         mprMark(rx->acceptCharset);
         mprMark(rx->acceptEncoding);
         mprMark(rx->acceptLanguage);
+        mprMark(rx->cookie);
+        mprMark(rx->connection);
+        mprMark(rx->contentLength);
+        mprMark(rx->hostHeader);
+        mprMark(rx->pragma);
+        mprMark(rx->mimeType);
+        mprMark(rx->originalMethod);
+        mprMark(rx->originalUri);
+        mprMark(rx->redirect);
+        mprMark(rx->referrer);
+        mprMark(rx->securityToken);
+        mprMark(rx->userAgent);
+        mprMark(rx->params);
+        mprMark(rx->inputRange);
         mprMark(rx->authAlgorithm);
         mprMark(rx->authDetails);
         mprMark(rx->authStale);
         mprMark(rx->authType);
-        mprMark(rx->conn);
-        mprMark(rx->connection);
-        mprMark(rx->contentLength);
-        mprMark(rx->cookie);
-        mprMark(rx->etags);
-        mprMark(rx->extraPath);
         mprMark(rx->files);
-        mprMark(rx->paramString);
-        mprMark(rx->headerPacket);
-        mprMark(rx->headers);
-        mprMark(rx->hostHeader);
-        mprMark(rx->inputPipeline);
-        mprMark(rx->inputRange);
-        mprMark(rx->lang);
-        mprMark(rx->method);
-        mprMark(rx->mimeType);
-        mprMark(rx->originalMethod);
-        mprMark(rx->originalUri);
-        mprMark(rx->params);
-        mprMark(rx->parsedUri);
-        mprMark(rx->pathInfo);
-        mprMark(rx->pragma);
-        mprMark(rx->redirect);
-        mprMark(rx->referrer);
-        mprMark(rx->requestData);
-        mprMark(rx->route);
-        mprMark(rx->scriptName);
-        mprMark(rx->securityToken);
-        mprMark(rx->statusMessage);
-        mprMark(rx->target);
         mprMark(rx->uploadDir);
-        mprMark(rx->uri);
-        mprMark(rx->userAgent);
+        mprMark(rx->paramString);
+        mprMark(rx->lang);
+        mprMark(rx->target);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (rx->conn) {

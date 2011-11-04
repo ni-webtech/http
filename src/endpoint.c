@@ -56,15 +56,16 @@ void httpDestroyEndpoint(HttpEndpoint *endpoint)
 static int manageEndpoint(HttpEndpoint *endpoint, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(endpoint->clientLoad);
-        mprMark(endpoint->dispatcher);
-        mprMark(endpoint->hosts);
         mprMark(endpoint->http);
-        mprMark(endpoint->ip);
+        mprMark(endpoint->hosts);
         mprMark(endpoint->limits);
-        mprMark(endpoint->sock);
-        mprMark(endpoint->ssl);
         mprMark(endpoint->waitHandler);
+        mprMark(endpoint->clientLoad);
+        mprMark(endpoint->ip);
+        mprMark(endpoint->context);
+        mprMark(endpoint->sock);
+        mprMark(endpoint->dispatcher);
+        mprMark(endpoint->ssl);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyEndpoint(endpoint);

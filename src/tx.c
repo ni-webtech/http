@@ -60,26 +60,26 @@ void httpDestroyTx(HttpTx *tx)
 static void manageTx(HttpTx *tx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
-        mprMark(tx->cache);
-        mprMark(tx->cacheBuffer);
-        mprMark(tx->cachedContent);
+        mprMark(tx->ext);
+        mprMark(tx->etag);
+        mprMark(tx->filename);
+        mprMark(tx->handler);
+        mprMark(tx->parsedUri);
+        mprMark(tx->method);
         mprMark(tx->conn);
         mprMark(tx->outputPipeline);
-        mprMark(tx->handler);
         mprMark(tx->connector);
         mprMark(tx->queue[0]);
         mprMark(tx->queue[1]);
-        mprMark(tx->parsedUri);
+        mprMark(tx->headers);
+        mprMark(tx->cache);
+        mprMark(tx->cacheBuffer);
+        mprMark(tx->cachedContent);
         mprMark(tx->outputRanges);
         mprMark(tx->currentRange);
-        mprMark(tx->headers);
         mprMark(tx->rangeBoundary);
-        mprMark(tx->etag);
-        mprMark(tx->method);
         mprMark(tx->altBody);
         mprMark(tx->file);
-        mprMark(tx->filename);
-        mprMark(tx->ext);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyTx(tx);

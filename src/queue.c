@@ -50,18 +50,18 @@ static void manageQueue(HttpQueue *q, int flags)
 
     if (flags & MPR_MANAGE_MARK) {
         mprMark(q->owner);
-        mprMark(q->stage);
-        mprMark(q->conn);
-        mprMark(q->nextQ);
-        mprMark(q->prevQ);
-        mprMark(q->scheduleNext);
-        mprMark(q->schedulePrev);
-        mprMark(q->pair);
-        mprMark(q->last);
-        mprMark(q->queueData);
         for (packet = q->first; packet; packet = packet->next) {
             mprMark(packet);
         }
+        mprMark(q->last);
+        mprMark(q->nextQ);
+        mprMark(q->prevQ);
+        mprMark(q->stage);
+        mprMark(q->conn);
+        mprMark(q->scheduleNext);
+        mprMark(q->schedulePrev);
+        mprMark(q->pair);
+        mprMark(q->queueData);
         mprMark(q->queueData);
         if (q->nextQ && q->nextQ->stage) {
             /* Not a queue head */

@@ -131,29 +131,30 @@ static void manageHttp(Http *http, int flags)
     int         next;
 
     if (flags & MPR_MANAGE_MARK) {
-        /* Note endpoints and hosts are static values - contents are not marked so they can be collected */
-        mprMark(http->clientLimits);
-        mprMark(http->clientRoute);
-        mprMark(http->connections);
-        mprMark(http->context);
-        mprMark(http->currentDate);
-        mprMark(http->defaultClientHost);
         mprMark(http->endpoints);
-        mprMark(http->expiresDate);
-        mprMark(http->forkData);
         mprMark(http->hosts);
-        mprMark(http->mutex);
-        mprMark(http->protocol);
-        mprMark(http->proxyHost);
-        mprMark(http->routeConditions);
-        mprMark(http->routeTargets);
-        mprMark(http->routeUpdates);
-        mprMark(http->secret);
-        mprMark(http->serverLimits);
-        mprMark(http->software);
+        mprMark(http->connections);
         mprMark(http->stages);
         mprMark(http->statusCodes);
+        mprMark(http->routeTargets);
+        mprMark(http->routeConditions);
+        mprMark(http->routeUpdates);
+        /* Don't mark convenience stage references as they will be in http->stages */
+        
+        mprMark(http->clientLimits);
+        mprMark(http->serverLimits);
+        mprMark(http->clientRoute);
         mprMark(http->timer);
+        mprMark(http->mutex);
+        mprMark(http->software);
+        mprMark(http->forkData);
+        mprMark(http->context);
+        mprMark(http->currentDate);
+        mprMark(http->expiresDate);
+        mprMark(http->secret);
+        mprMark(http->defaultClientHost);
+        mprMark(http->protocol);
+        mprMark(http->proxyHost);
 
         /*
             Endpoints keep connections alive until a timeout. Keep marking even if no other references.
