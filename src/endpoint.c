@@ -217,7 +217,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
     switch (event) {
     case HTTP_VALIDATE_OPEN_CONN:
         /*
-            MOB - this isn't really active clients. It is active client systems.
+            This active client systems with unique IP addresses.
          */
         if (endpoint->clientCount >= limits->clientCount) {
             unlock(endpoint->http);
@@ -239,7 +239,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
             mprRemoveKey(endpoint->clientLoad, conn->ip);
         }
         endpoint->clientCount = (int) mprGetHashLength(endpoint->clientLoad);
-        mprLog(4, "Close connection %d. Active requests %d, active client IP %d.", conn->seqno, endpoint->requestCount, 
+        LOG(4, "Close connection %d. Active requests %d, active client IP %d.", conn->seqno, endpoint->requestCount, 
             endpoint->clientCount);
         action = "close conn";
         break;
@@ -258,13 +258,15 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
     case HTTP_VALIDATE_CLOSE_REQUEST:
         endpoint->requestCount--;
         mprAssert(endpoint->requestCount >= 0);
-        mprLog(4, "Close request. Active requests %d, active client IP %d.", endpoint->requestCount, endpoint->clientCount);
+        LOG(4, "Close request. Active requests %d, active client IP %d.", endpoint->requestCount, endpoint->clientCount);
         action = "close request";
         break;
     }
-    mprLog(6, "Validate request for %s. Active connections %d, active requests: %d/%d, active client IP addresses %d/%d", 
-        action, mprGetListLength(endpoint->http->connections), endpoint->requestCount, limits->requestCount, 
-        endpoint->clientCount, limits->clientCount);
+    if (event == HTTP_VALIDATE_CLOSE_CONN || event == HTTP_VALIDATE_CLOSE_REQUEST) {
+        LOG(2, "Validate request for %s. Active connections %d, active requests: %d/%d, active client IP addresses %d/%d", 
+            action, mprGetListLength(endpoint->http->connections), endpoint->requestCount, limits->requestCount, 
+            endpoint->clientCount, limits->clientCount);
+    }
     unlock(endpoint->http);
     return 1;
 }

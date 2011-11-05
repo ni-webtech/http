@@ -66,7 +66,12 @@ HttpConn *httpCreateConn(Http *http, HttpEndpoint *endpoint, MprDispatcher *disp
 void httpDestroyConn(HttpConn *conn)
 {
     if (conn->http) {
+        mprAssert(conn->http);
+        httpRemoveConn(conn->http, conn);
         if (conn->endpoint) {
+            if (conn->state > HTTP_STATE_BEGIN) {
+                httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
+            }
             httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_CONN, conn);
         }
         if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
@@ -83,8 +88,6 @@ void httpDestroyConn(HttpConn *conn)
             conn->rx->conn = 0;
             conn->rx = 0;
         }
-        mprAssert(conn->http);
-        httpRemoveConn(conn->http, conn);
         httpCloseConn(conn);
         conn->http = 0;
     }
