@@ -188,9 +188,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         return 0;
     }
     if (conn->endpoint) {
-        if (!httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
-            return 0;
-        }
         parseRequestLine(conn, packet);
     } else {
         parseResponseLine(conn, packet);
@@ -208,12 +205,14 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         }
         rx->parsedUri->port = conn->sock->listenSock->port;
         rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
-        httpSetState(conn, HTTP_STATE_PARSED);        
 
     } else if (!(100 <= rx->status && rx->status < 200)) {
-        httpSetState(conn, HTTP_STATE_PARSED);        
         /* Clients have already created their Tx pipeline */
         httpCreateRxPipeline(conn, conn->http->clientRoute);
+    }
+    httpSetState(conn, HTTP_STATE_PARSED);
+    if (conn->endpoint && !httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
+        return 0;
     }
     return 1;
 }
