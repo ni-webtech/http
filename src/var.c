@@ -51,11 +51,10 @@ void httpCreateCGIParams(HttpConn *conn)
     mprAddKey(svars, "SERVER_PROTOCOL", conn->protocol);
     mprAddKey(svars, "SERVER_ROOT", host->home);
     mprAddKey(svars, "SERVER_SOFTWARE", conn->http->software);
-print("ORIGINAL URI %s\n", rx->originalUri);
+    /*
+        For PHP, REQUEST_URI must be the original URI. The SCRIPT_NAME will refer to the new pathInfo
+     */
     mprAddKey(svars, "REQUEST_URI", rx->originalUri);
-#if UNUSED
-    mprAddKey(svars, "REQUEST_ORIGINAL_URI", rx->originalUri);
-#endif
     /*  
         URIs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} 
         NOTE: Appweb refers to pathInfo as the app relative URI and scriptName as the app address before the pathInfo.
