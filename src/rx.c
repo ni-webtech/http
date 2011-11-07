@@ -82,6 +82,7 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->securityToken);
         mprMark(rx->userAgent);
         mprMark(rx->params);
+        mprMark(rx->svars);
         mprMark(rx->inputRange);
         mprMark(rx->authAlgorithm);
         mprMark(rx->authDetails);
