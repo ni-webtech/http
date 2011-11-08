@@ -72,7 +72,7 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->handlersWithMatch = mprCreateList(-1, 0);
     route->host = host;
     route->http = MPR->httpService;
-    route->index = sclone("index.html");
+    route->indicies = mprCreateList(-1, 0);
     route->inputStages = mprCreateList(-1, 0);
     route->lifespan = HTTP_CACHE_LIFESPAN;
     route->outputStages = mprCreateList(-1, 0);
@@ -106,6 +106,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->defaultLanguage = parent->defaultLanguage;
     route->dir = parent->dir;
     route->data = parent->data;
+    route->eroute = parent->eroute;
     route->errorDocuments = parent->errorDocuments;
     route->extensions = parent->extensions;
     route->flags = parent->flags;
@@ -116,7 +117,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->http = MPR->httpService;
     route->host = parent->host;
     route->inputStages = parent->inputStages;
-    route->index = parent->index;
+    route->indicies = parent->indicies;
     route->languages = parent->languages;
     route->lifespan = parent->lifespan;
     route->methods = parent->methods;
@@ -159,7 +160,7 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->targetRule);
         mprMark(route->target);
         mprMark(route->dir);
-        mprMark(route->index);
+        mprMark(route->indicies);
         mprMark(route->methodSpec);
         mprMark(route->handler);
         mprMark(route->caching);
@@ -173,6 +174,7 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->handlersWithMatch);
         mprMark(route->connector);
         mprMark(route->data);
+        mprMark(route->eroute);
         mprMark(route->pathTokens);
         mprMark(route->languages);
         mprMark(route->inputStages);
@@ -882,6 +884,7 @@ void httpResetRoutePipeline(HttpRoute *route)
         route->handlers = mprCreateList(-1, 0);
         route->handlersWithMatch = mprCreateList(-1, 0);
         route->inputStages = mprCreateList(-1, 0);
+        route->indicies = mprCreateList(-1, 0);
     }
     route->outputStages = mprCreateList(-1, 0);
 }
@@ -994,12 +997,21 @@ void httpSetRouteHost(HttpRoute *route, HttpHost *host)
 }
 
 
-void httpSetRouteIndex(HttpRoute *route, cchar *index)
+void httpAddRouteIndex(HttpRoute *route, cchar *index)
 {
+    cchar   *item;
+    int     next;
+
     mprAssert(route);
     mprAssert(index && *index);
     
-    route->index = sclone(index);
+    GRADUATE_LIST(route, indicies);
+    for (ITERATE_ITEMS(route->indicies, item, next)) {
+        if (smatch(index, item)) {
+            return;
+        }
+    }
+    mprAddItem(route->indicies, sclone(index));
 }
 
 
@@ -1475,6 +1487,9 @@ void httpFinalizeRoute(HttpRoute *route)
         This is important as requests process routes in-order.
      */
     mprAssert(route);
+    if (mprGetListLength(route->indicies) == 0) {
+        mprAddItem(route->indicies,  sclone("index.html"));
+    }
     httpAddRoute(route->host, route);
 #if BLD_FEATURE_SSL
     mprConfigureSsl(route->ssl);

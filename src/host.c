@@ -122,7 +122,8 @@ HttpRoute *httpGetHostDefaultRoute(HttpHost *host)
 
 static void printRoute(HttpRoute *route, int next, bool full)
 {
-    cchar   *methods, *pattern, *target;
+    cchar   *methods, *pattern, *target, *index;
+    int     nextIndex;
 
     methods = httpGetRouteMethods(route);
     methods = methods ? methods : "*";
@@ -138,8 +139,13 @@ static void printRoute(HttpRoute *route, int next, bool full)
         mprRawLog(0, "    Prefix:       %s\n", route->prefix);
         mprRawLog(0, "    Target:       %s\n", target);
         mprRawLog(0, "    Directory:    %s\n", route->dir);
-        mprRawLog(0, "    Index:        %s\n", route->index);
-        mprRawLog(0, "    Next Group    %d\n", route->nextGroup);
+        if (route->indicies) {
+            mprRawLog(0, "    Indicies      ");
+            for (ITERATE_ITEMS(route->indicies, index, nextIndex)) {
+                mprRawLog(0, "%s ", index);
+            }
+        }
+        mprRawLog(0, "\n    Next Group    %d\n", route->nextGroup);
         if (route->handler) {
             mprRawLog(0, "    Handler:      %s\n", route->handler->name);
         }
