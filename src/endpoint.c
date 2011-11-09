@@ -490,10 +490,17 @@ HttpHost *httpLookupHostOnEndpoint(HttpEndpoint *endpoint, cchar *name)
     if (name == 0 || *name == '\0') {
         return mprGetFirstItem(endpoint->hosts);
     }
-
     for (next = 0; (host = mprGetNextItem(endpoint->hosts, &next)) != 0; ) {
         if (smatch(host->name, name)) {
             return host;
+        }
+        if (*host->name == '*') {
+            if (host->name[1] == '\0') {
+                return host;
+            }
+            if (scontains(name, &host->name[1], -1)) {
+                return host;
+            }
         }
     }
     return 0;

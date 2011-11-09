@@ -252,7 +252,7 @@ HttpHost *httpLookupHost(Http *http, cchar *name)
 void httpInitLimits(HttpLimits *limits, bool serverSide)
 {
     memset(limits, 0, sizeof(HttpLimits));
-    limits->cacheItemSize = HTTP_MAX_CHUNK;
+    limits->cacheItemSize = HTTP_MAX_CACHE_ITEM;
     limits->chunkSize = HTTP_MAX_CHUNK;
     limits->headerCount = HTTP_MAX_NUM_HEADERS;
     limits->headerSize = HTTP_MAX_HEADERS;
