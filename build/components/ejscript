@@ -92,8 +92,12 @@ defineComponent() {
     fi
     incdir=`probe --name ejs.h --dir --search "$search" "ejs.h" `
     if [ "$incdir" != "" ] ; then
-        headers="`echo $incdir/ejs*.h $incdir/http.h $incdir/mpr*.h $incdir/pcre.h`"
+        headers="`echo $incdir/ejs*.h`"
         imports="$imports $headers"
+        if [ "$builtin" = "" ] ; then
+            headers="`echo $incdir/http.h $incdir/mpr*.h $incdir/pcre.h`"
+            imports="$imports $headers"
+        fi
     fi
     configureComponent --libs "$libs" --iflags "$iflags" --libpaths "$libdir" --withlibs "$withlibs" \
         $builtin $present --dependencies "$deps" --optional-dependencies "$optional" --imports "$imports" \

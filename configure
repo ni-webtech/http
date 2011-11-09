@@ -1355,7 +1355,7 @@ createBuildConfig() {
     
     CONFIG_ARGS="${BLD_OUT_DIR}/bin/${CONFIG_ARGS}"
     CONFIG_H="${BLD_OUT_DIR}/inc/${CONFIG_H}"
-    CONFIG_IMP="${BLD_OUT_DIR}/bin/${CONFIG_IMP}"
+    CONFIG_IMP="${BLD_OUT_DIR}/inc/${CONFIG_IMP}"
 
     [ $quiet = 0 ] && echo "  # Creating $CONFIG_H ..."
     rm -f "$CONFIG_H"
