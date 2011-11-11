@@ -3110,7 +3110,7 @@ extern void httpAddResourceGroup(HttpRoute *parent, cchar *resource);
 
 /**
     Add a route for the home page.
-    @description This will add a home page route ESP applications. This will add the following route:
+    @description This will add a home page to route ESP applications. This will add the following route:
     <table>
         <tr><td>Name</td><td>Method</td><td>Pattern</td><td>Target</td></tr>
         <tr><td>home</td><td>GET,POST,PUT</td><td>^/$</td><td>index.esp</td></tr>
