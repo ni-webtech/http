@@ -1743,7 +1743,7 @@ typedef struct HttpConn {
     int             responded;              /**< The request has started to respond. Some output has been initiated. */
     int             finalized;              /**< End of response has been signified (set at handler level) */
     int             connectorComplete;      /**< Connector has finished sending the response */
-    int             advancing;              /**< In httpProcess (reentrancy prevention) */
+    int             advancing;              /**< In httpProcess (re-entrancy prevention) */
     int             refinalize;             /**< Finalize required once the Tx pipeline is created */
 
     HttpLimits      *limits;                /**< Service limits */
