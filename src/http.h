@@ -826,7 +826,7 @@ extern HttpPacket *httpCreateEndPacket();
 
 /** 
     Create an entity data packet
-    @description Create an entity packet and set the HTTP_PACKET_DATA flag
+    @description Create an entity packet and set the HTTP_PACKET_DATA flag.
         Entity packets describe the resource (entity) to send to the client and provide a #HttpFillProc procedure
         used to fill packets with data from the entity.
     @param pos Position within the entity for packet data 
