@@ -3151,7 +3151,7 @@ extern void httpAddRouteSet(HttpRoute *parent, cchar *set);
         must match. Route conditions are built-in rules that can be applied to routes.
     @param route Route to modify
     @param name Condition rule to add. Supported conditions are: "auth", "missing", "directory", "exists", and "match".
-        The auth rule is used internally to implement basic and digest authentication. 
+        The "auth" rule is used internally to implement basic and digest authentication. 
         \n\n
         The "missing" rule tests if the target filename is missing. The "missing" rule takes no arguments. 
         \n\n
