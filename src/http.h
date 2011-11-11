@@ -3018,7 +3018,7 @@ typedef struct HttpRoute {
     void            *context;               /**< Hosting context (Appweb == EjsPool) */
     void            *eroute;                /**< Extended route information for handler (only) */
     char            *uploadDir;             /**< Upload directory */
-    int             autoDelete;             /**< Auto delete uploaded files */
+    int             autoDelete;             /**< Automatically delete uploaded files */
 
     /*
         Used by Ejscript
@@ -4077,7 +4077,7 @@ typedef struct HttpRx {
      */
     MprHash         *files;                 /**< Uploaded files. Managed by the upload filter */
     char            *uploadDir;             /**< Upload directory */
-    int             autoDelete;             /**< Auto delete uploaded files */
+    int             autoDelete;             /**< Automatically delete uploaded files */
 
     char            *paramString;           /**< Cached param data as a string */
     HttpLang        *lang;                  /**< Selected language */
