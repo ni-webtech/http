@@ -2853,7 +2853,7 @@ typedef struct HttpCache {
     Add caching for response content
     @description This call configures caching for request responses. Caching may be used for any HTTP method, 
     though typically it is most useful for state-less GET requests. Output data may be uniquely cached for requests 
-    with different request parameters (query, post and route parameters).
+    with different request parameters (query, post, and route parameters).
     \n\n
     When server-side caching is requested and manual-mode is not enabled, the request response will be automatically 
     cached. Subsequent client requests will revalidate the cached content with the server. If the server-side cached 
