@@ -47,19 +47,19 @@ struct HttpUri;
         Tune for size
      */
     #define HTTP_BUFSIZE               (8 * 1024)           /**< Default I/O buffer size */
-    #define HTTP_MAX_CACHE_ITEM        (256 * 1024)         /**< Max cachable item size */
-    #define HTTP_MAX_CHUNK             (8 * 1024)           /**< Max chunk size for transfer chunk encoding */
-    #define HTTP_MAX_HEADERS           4096                 /**< Max size of the headers */
+    #define HTTP_MAX_CACHE_ITEM        (256 * 1024)         /**< Maximum cachable item size */
+    #define HTTP_MAX_CHUNK             (8 * 1024)           /**< Maximum chunk size for transfer chunk encoding */
+    #define HTTP_MAX_HEADERS           4096                 /**< Maximum size of the headers */
     #define HTTP_MAX_IOVEC             16                   /**< Number of fragments in a single socket write */
-    #define HTTP_MAX_NUM_HEADERS       20                   /**< Max number of header lines */
+    #define HTTP_MAX_NUM_HEADERS       20                   /**< Maximum number of header lines */
     #define HTTP_MAX_RECEIVE_FORM      (1024 * 1024)        /**< Maximum incoming form size */
     #define HTTP_MAX_RECEIVE_BODY      (128 * 1024 * 1024)  /**< Maximum incoming body size */
-    #define HTTP_MAX_REQUESTS          20                   /**< Max concurrent requests */
-    #define HTTP_MAX_CLIENTS           10                   /**< Max concurrent client endpoints */
-    #define HTTP_MAX_SESSIONS          100                  /**< Max concurrent sessions */
-    #define HTTP_MAX_STAGE_BUFFER      (32 * 1024)          /**< Max buffer for any stage */
+    #define HTTP_MAX_REQUESTS          20                   /**< Maximum concurrent requests */
+    #define HTTP_MAX_CLIENTS           10                   /**< Maximum concurrent client endpoints */
+    #define HTTP_MAX_SESSIONS          100                  /**< Maximum concurrent sessions */
+    #define HTTP_MAX_STAGE_BUFFER      (32 * 1024)          /**< Maximum buffer for any stage */
     #define HTTP_CLIENTS_HASH          (131)                /**< Hash table for client IP addresses */
-    #define HTTP_MAX_ROUTE_MATCHES     32                   /**< Max number of submatches in routes */
+    #define HTTP_MAX_ROUTE_MATCHES     32                   /**< Maximum number of submatches in routes */
 
 #elif BLD_TUNE == MPR_TUNE_BALANCED
     /*  
@@ -100,8 +100,8 @@ struct HttpUri;
     #define HTTP_MAX_ROUTE_MATCHES     128
 #endif
 
-#define HTTP_MAX_TX_BODY           (INT_MAX)        /**< Max buffer for response data */
-#define HTTP_MAX_UPLOAD            (INT_MAX)
+#define HTTP_MAX_TX_BODY           (INT_MAX)        /**< Maximum buffer for response data */
+#define HTTP_MAX_UPLOAD            (INT_gg)
 
 /*  
     Other constants
@@ -476,21 +476,21 @@ extern void httpDefineRouteBuiltins();
     @see HttpLimits httpInitLimits httpCreateLimits httpEaseLimits httpEnableTraceMethod
  */
 typedef struct HttpLimits {
-    ssize   chunkSize;              /**< Max chunk size for transfer encoding */
-    ssize   headerSize;             /**< Max size of the total header */
-    ssize   stageBufferSize;        /**< Max buffering by any pipeline stage */
-    ssize   uriSize;                /**< Max size of a uri */
-    ssize   cacheItemSize;          /**< Max size of a cachable item */
+    ssize   chunkSize;              /**< Maximum chunk size for transfer encoding */
+    ssize   headerSize;             /**< Maximum size of the total header */
+    ssize   stageBufferSize;        /**< Maximum buffering by any pipeline stage */
+    ssize   uriSize;                /**< Maximum size of a uri */
+    ssize   cacheItemSize;          /**< Maximum size of a cachable item */
 
-    MprOff  receiveFormSize;        /**< Max size of form data */
-    MprOff  receiveBodySize;        /**< Max size of receive body data */
-    MprOff  transmissionBodySize;   /**< Max size of transmission body content */
-    MprOff  uploadSize;             /**< Max size of an uploaded file */
+    MprOff  receiveFormSize;        /**< Maximum size of form data */
+    MprOff  receiveBodySize;        /**< Maximum size of receive body data */
+    MprOff  transmissionBodySize;   /**< Maximum size of transmission body content */
+    MprOff  uploadSize;             /**< Maximum size of an uploaded file */
 
-    int     clientCount;            /**< Max number of simultaneous clients endpoints */
-    int     headerCount;            /**< Max number of header lines */
-    int     keepAliveCount;         /**< Max number of Keep-Alive requests to perform per socket */
-    int     requestCount;           /**< Max number of simultaneous concurrent requests */
+    int     clientCount;            /**< Maximum number of simultaneous clients endpoints */
+    int     headerCount;            /**< Maximum number of header lines */
+    int     keepAliveCount;         /**< Maximum number of Keep-Alive requests to perform per socket */
+    int     requestCount;           /**< Maximum number of simultaneous concurrent requests */
 
     MprTime inactivityTimeout;      /**< Default timeout for keep-alive and idle requests (msec) */
     MprTime requestTimeout;         /**< Default time a request can take (msec) */
@@ -1022,7 +1022,7 @@ extern void httpEnableQueue(HttpQueue *q);
 /**
     Flush queue data
     @description This flushes all queue data by scheduling the queue and servicing all scheduled queues. 
-    If blocking is requested, the call will block until the queue count falls below the queue max.
+    If blocking is requested, the call will block until the queue count falls below the queue maximum.
     WARNING: Be very careful when using blocking == true. Should only be used by end applications and not by middleware.
     @param q Queue to flush
     @param block If set to true, this call will block until the data has drained below the queue maximum.
@@ -2870,8 +2870,8 @@ typedef struct HttpCache {
     Alternatively, you can use $httpSetHeader to explicitly set a "Cache-Control header. For your reference, here are 
     some keywords that can be used in the Cache-Control Http header.
     \n\n
-        "max-age" Max time in seconds the resource is considered fresh.
-        "s-maxage" Max time in seconds the resource is considered fresh from a shared cache.
+        "max-age" Maximum time in seconds the resource is considered fresh.
+        "s-maxage" Maximum time in seconds the resource is considered fresh from a shared cache.
         "public" marks authenticated responses as cacheable.
         "private" shared caches may not store the response.
         "no-cache" cache must re-submit request for validation before using cached copy.
@@ -5074,7 +5074,7 @@ typedef struct HttpHost {
     char            *logPath;               /**< Access log filename */
 
     int             logCount;               /**< Number of log files to preserve */
-    int             logSize;                /**< Max log size */
+    int             logSize;                /**< Maximum log size */
 
     MprMutex        *mutex;                 /**< Multithread sync */
 } HttpHost;
