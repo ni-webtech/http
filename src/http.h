@@ -255,7 +255,7 @@ extern void httpSetForkCallback(struct Http *http, MprForkCallback proc, void *a
 /************************************ Http **********************************/
 /** 
     Http service object
-    The Http service is managed by a single service object.
+    @description The Http service is managed by a single service object.
     @stability Evolving
     @defgroup Http Http
     @see Http HttpConn HttpEndpoint gettGetDateString httpConfigurenamedVirtualEndpoint httpCreate httpCreateSecret 
@@ -776,8 +776,8 @@ typedef struct HttpPacket {
 } HttpPacket;
 
 /**
-    Adjust the packet starting position
-    This adds adjusts the packet content by the given size. The packet position is incremented by start and the packet
+    Adjust the packet starting position.
+    This adjusts the packet content by the given size. The packet position is incremented by start and the packet
     length (size) is decremented. If the packet describes entity data, the given size amount to the Packet.epos and 
     decrements the Packet.esize fields. If the packet has actual data buffered in Packet.content, the content buffer
     start is incremeneted by the size amount.
@@ -787,8 +787,8 @@ typedef struct HttpPacket {
 extern void httpAdjustPacketStart(HttpPacket *packet, MprOff size);
 
 /**
-    Adjust the packet end position
-    This adds adjusts the packet content by the given size. The packet length (size) is decremented by the requested 
+    Adjust the packet end position.
+    This adjusts the packet content by the given size. The packet length (size) is decremented by the requested 
     amount. If the packet describes entity data, the Packet.esize field is reduced by the requested size amount. If the 
     packet has actual data buffered in Packet.content, the content buffer end position is reduced by
     by the size amount.
@@ -1040,7 +1040,7 @@ extern bool httpFlushQueue(HttpQueue *q, bool block);
 extern ssize httpGetQueueRoom(HttpQueue *q);
 
 /**
-    Test is the connection has received all incoming content
+    Test if the connection has received all incoming content
     @description This tests if the connection is at an "End of File condition.
     @param conn HttpConn object created via $httpCreateConn
     @return True if all receive content has been received 
@@ -1854,7 +1854,7 @@ extern void httpConnectorComplete(HttpConn *conn);
 extern void httpConnTimeout(HttpConn *conn);
 
 /**
-    Consume left over data from the last request
+    Consume leftover data from the last request
     @param conn HttpConn object created via $httpCreateConn
     @ingroup HttpConn
     @internal
@@ -1862,7 +1862,7 @@ extern void httpConnTimeout(HttpConn *conn);
 extern void httpConsumeLastRequest(HttpConn *conn);
 
 /** 
-    Create a connection object
+    Create a connection object.
     Most interactions with the Http library are via a connection object. It is used for server-side communications when
     responding to client requests and it is used to initiate outbound client requests.
     @param http Http object created via #httpCreate
@@ -2272,7 +2272,7 @@ typedef long HttpAcl;                       /**< Authentication Access control m
 
 /** 
     Authorization
-    HttpAuth is the foundation authorization object and is used by HttpRoute.
+    @description HttpAuth is the foundation authorization object and is used by HttpRoute.
     It stores the authorization configuration information required to determine if a client request should be permitted 
     access to a given resource.
     @stability Evolving
@@ -3067,7 +3067,7 @@ typedef struct HttpRouteOp {
 typedef int (HttpRouteProc)(HttpConn *conn, HttpRoute *route, HttpRouteOp *item);
 
 /**
-    Add a routes for a resource
+    Add routes for a resource
     @description This routing add a set of RESTful routes for a resource. This will add the following routes:
     <table>
         <tr><td>Name</td><td>Method</td><td>Pattern</td><td>Action</td></tr>
@@ -3087,7 +3087,7 @@ typedef int (HttpRouteProc)(HttpConn *conn, HttpRoute *route, HttpRouteOp *item)
 extern void httpAddResource(HttpRoute *parent, cchar *resource);
 
 /**
-    Add a routes for a group of resources
+    Add routes for a group of resources
     @description This routing add a set of RESTful routes for a resource group. This will add the following routes:
     <table>
         <tr><td>Name</td><td>Method</td><td>Pattern</td><td>Action</td></tr>
@@ -3331,7 +3331,7 @@ extern int httpAddRouteUpdate(HttpRoute *route, cchar *name, cchar *details, int
 extern void httpAddStaticRoute(HttpRoute *parent);
 
 /**
-    Clear the pipline stages for the route
+    Clear the pipeline stages for the route
     @description This resets the configured pipeline stages for the route.
     @param route Route to modify
     @param direction Set to HTTP_STAGE_TX for transmit direction and HTTP_STAGE_RX for receive data flow.
@@ -3917,7 +3917,7 @@ extern bool httpTokenizev(HttpRoute *route, cchar *str, cchar *fmt, va_list args
 /********************************** HttpUploadFile *********************************/
 /**
     Upload File
-    Each uploaded file has an HttpUploadedFile entry. This is managed by the upload handler.
+    @description Each uploaded file has an HttpUploadedFile entry. This is managed by the upload handler.
     @stability Evolving
     @defgroup HttpUploadFile HttpUploadFile
     @see httpAddUploadFile httpRemoveAllUploadedFiles httpRemoveUploadFile
@@ -5034,7 +5034,7 @@ extern bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn
 
 /**
     Host Object
-    A Host object represents a logical host. Several logical hosts may share a single HttpEndpoint.
+    @description A Host object represents a logical host. Several logical hosts may share a single HttpEndpoint.
     @stability Evolving
     @defgroup HttpHost HttpHost
     @see HttpHost httpAddRoute httpCloneHost httpCreateHost httpResetRoutes httpSetHostHome httpSetHostIpAddr 
