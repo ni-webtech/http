@@ -1153,12 +1153,12 @@ extern void httpRemoveQueue(HttpQueue *q);
 
 /** 
     Resize a packet
-    @description Resize a packet if required so that it fits in the downstream queue. This may split the packet
+    @description Resize a packet, if required, so that it fits in the downstream queue. This may split the packet
         if it is too big to fit in the downstream queue. If it is split, the tail portion is put back on the queue.
     @param q Queue reference
     @param packet Packet to put
     @param size If size is > 0, then also ensure the packet is not larger than this size.
-    @return Zero if successful, otherwise a negative Mpr error code
+    @return "Zero" if successful, otherwise a negative Mpr error code
     @ingroup HttpQueue
  */
 extern int httpResizePacket(struct HttpQueue *q, HttpPacket *packet, ssize size);
