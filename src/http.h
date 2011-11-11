@@ -858,7 +858,7 @@ extern HttpPacket *httpCreatePacket(ssize size);
 /** 
     Get the next packet from a queue
     @description Get the next packet. This will remove the packet from the queue and adjust the queue counts
-        accordingly. If the queue was full and upstream queues were blocked, they will be enabled.
+        accordingly. If the queue is full and upstream queues are blocked, they will be enabled.
     @param q Queue reference
     @return The packet removed from the queue.
     @ingroup HttpQueue
