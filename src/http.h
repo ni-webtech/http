@@ -1970,7 +1970,7 @@ extern int httpGetAsync(HttpConn *conn);
 /**
     Get the preferred chunked size for transfer chunk encoding.
     @param conn HttpConn connection object created via $httpCreateConn
-    @return Chunk size. Returns zero if not yet defined.
+    @return Chunk size. Returns "zero" if not yet defined.
     @ingroup HttpConn
  */
 extern ssize httpGetChunkSize(HttpConn *conn);
