@@ -1198,29 +1198,29 @@ extern void httpServiceQueue(HttpQueue *q);
 /**
     Verify a queue 
     @param q Queue reference
-    @return True if the queue verifies
+    @return "True" if the queue verifies
     @internal
  */
 extern bool httpVerifyQueue(HttpQueue *q);
 
 /** 
     Determine if the downstream queue will accept this packet.
-    @description Test if the downstream queue will accept a packet. The packet will be resized if required in an
+    @description Test if the downstream queue will accept a packet. The packet will be resized, if required, in an
         attempt to get the downstream queue to accept it. If the downstream queue is full, disable this queue
-        and mark the downstream queue as full and service it immediately to try to relieve the congestion.
+        and mark the downstream queue as full, and service it immediately to try to relieve the congestion.
     @param q Queue reference
     @param packet Packet to put
-    @return True if the downstream queue will accept the packet. Use $httpSendPacketToNext to send the packet downstream
+    @return "True" if the downstream queue will accept the packet. Use $httpSendPacketToNext to send the packet downstream
     @ingroup HttpQueue
  */
 extern bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet);
 
 /** 
     Determine if the downstream queue will accept a certain amount of data.
-    @description Test if the downstream queue will data of a given size.
+    @description Test if the downstream queue will accept data of a given size.
     @param q Queue reference
     @param size Size of data to test for
-    @return True if the downstream queue will accept the given sized data.
+    @return "True" if the downstream queue will accept the given sized data.
     @ingroup HttpQueue
  */
 extern bool httpWillNextQueueAcceptSize(HttpQueue *q, ssize size);
