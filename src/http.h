@@ -1134,7 +1134,7 @@ extern void httpPutPacket(struct HttpQueue *q, HttpPacket *packet);
 
 /** 
     Put a packet onto the next queue
-    @description Put a packet onto the next downstream queue by calling the downstreams queue's put() method. 
+    @description Put a packet onto the next downstream queue by calling the downstream queue's put() method. 
     @param q Queue reference. The packet will not be queued on this queue, but rather on the queue downstream.
     @param packet Packet to put
     @ingroup HttpQueue
