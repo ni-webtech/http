@@ -347,7 +347,7 @@ extern int httpConfigureNamedVirtualEndpoints(Http *http, cchar *ip, int port);
 
 /**  
     Create the Http secret data for crypto
-    @description Create http secret data that is used to seed SSL based communications.
+    @description Create http secret data that is used to seed SSL-based communications.
     @param http Http service object.
     @return Zero if successful, otherwise a negative MPR error code
     @ingroup Http
