@@ -1043,7 +1043,7 @@ extern ssize httpGetQueueRoom(HttpQueue *q);
     Test if the connection has received all incoming content
     @description This tests if the connection is at an "End of File condition.
     @param conn HttpConn object created via $httpCreateConn
-    @return True if all receive content has been received 
+    @return "True" if all Receive content has been received 
     @ingroup HttpQueue
  */
 extern bool httpIsEof(struct HttpConn *conn);
@@ -1051,10 +1051,10 @@ extern bool httpIsEof(struct HttpConn *conn);
 /** 
     Test if a packet is too big 
     @description Test if a packet is too big to fit downstream. If the packet content exceeds the downstream queue's 
-        maximum or exceeds the downstream queue's requested packet size -- then this routine will return true.
+        maximum or exceeds the downstream queue's requested packet size -- then this routine will return "true".
     @param q Queue reference
     @param packet Packet to test
-    @return True if the packet is too big for the downstream queue
+    @return "True" if the packet is too big for the downstream queue
     @ingroup HttpQueue
  */
 extern bool httpIsPacketTooBig(struct HttpQueue *q, HttpPacket *packet);
@@ -1063,7 +1063,7 @@ extern bool httpIsPacketTooBig(struct HttpQueue *q, HttpPacket *packet);
     Determine if the queue is empty
     @description Determine if the queue has no packets queued. This does not test if the queue has no data content.
     @param q Queue reference
-    @return True if there are no packets queued.
+    @return "True" if there are no packets queued.
     @ingroup HttpQueue
  */
 extern bool httpIsQueueEmpty(HttpQueue *q);
