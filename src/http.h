@@ -753,10 +753,10 @@ typedef ssize (*HttpFillProc)(struct HttpQueue *q, struct HttpPacket *packet, Mp
     Packet object. 
     @description The request/response pipeline sends data and control information in HttpPacket objects. The output
         stream typically consists of a HEADER packet followed by zero or more data packets and terminated by an END
-        packet. If the request has input data, the input stream is consists of one or more data packets followed by
+        packet. If the request has input data, the input stream consists of one or more data packets followed by
         an END packet.
         \n\n
-        Packets contain data and optional prefix or suffix headers. Packets can be split, joined, filled or emptied. 
+        Packets contain data and optional prefix or suffix headers. Packets can be split, joined, filled, or emptied. 
         The pipeline stages will fill or transform packet data as required.
     @stability Evolving
     @defgroup HttpPacket HttpPacket
