@@ -938,14 +938,14 @@ typedef void (*HttpQueueService)(struct HttpQueue *q);
     Queue object
     @description The request pipeline consists of a full-duplex pipeline of stages. Each stage has two queues,
         one for outgoing data and one for incoming. A HttpQueue object manages the data flow for a request stage
-        and has the ability to queue and process data, manage flow control and schedule packets for service.
+        and has the ability to queue and process data, manage flow control, and schedule packets for service.
         \n\n
-        Queue's provide open, close, put and service methods. These methods manage and respond to incoming packets.
+        Queue's provide open, close, put, and service methods. These methods manage and respond to incoming packets.
         A queue can respond immediately to an incoming packet by processing or dispatching a packet in its put() method.
         Alternatively, the queue can defer processing by queueing the packet on it's service queue and then waiting for
         it's service() method to be invoked. 
         \n\n
-        If a queue does not define a put() method, the default put method will 
+        If a queue does not define a put() method, the default put() method will 
         be used which queues data onto the service queue. The default incoming put() method joins incoming packets
         into a single packet on the service queue.
     @stability Evolving
