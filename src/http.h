@@ -2897,9 +2897,9 @@ typedef struct HttpCache {
         separated list of types. The mime types are those that correspond to the document extension and NOT the
         content type defined by the handler serving the document. Set to null or "*" for all types.
         Example: "image/gif, application/x-php".
-    @param lifespan Lifespan of client cache items in milliseconds. If not set to positive integer, the lifespan will
+    @param clientLifespan Lifespan of client cache items in milliseconds. If not set to positive integer, the lifespan will
         default to the route lifespan.
-    @param lifespan Lifespan of server cache items in milliseconds. If not set to positive integer, the lifespan will
+    @param serverLifespan Lifespan of server cache items in milliseconds. If not set to positive integer, the lifespan will
         default to the route lifespan.
     @param flags Cache control flags. Select ESP_CACHE_MANUAL to enable manual mode. In manual mode, cached content
         will not be automatically sent. Use $httpWriteCached in the request handler to write previously cached content.
