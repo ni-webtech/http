@@ -3148,7 +3148,7 @@ extern void httpAddRouteSet(HttpRoute *parent, cchar *set);
 /**
     Add a route condition
     @description A route condition is run after matching the route pattern. For a route to be accepted, all conditions
-        must match. Route conditions are builtin rules that can be applied to routes.
+        must match. Route conditions are built-in rules that can be applied to routes.
     @param route Route to modify
     @param name Condition rule to add. Supported conditions are: "auth", "missing", "directory", "exists", and "match".
         The auth rule is used internally to implement basic and digest authentication. 
@@ -3214,7 +3214,7 @@ extern void httpAddRouteExpiryByType(HttpRoute *route, MprTime when, cchar *mime
 /**
     Add a route filter
     @description This configures the route pipeline by adding processing filters for a request.
-        must match. Route conditions are builtin rules that can be applied to routes.
+        must match. Route conditions are built-in rules that can be applied to routes.
     @param route Route to modify
     @param name Filter name to add
     @param extensions Request extensions for which the filter will be run. A request extension may come from the URI
@@ -3300,7 +3300,7 @@ extern void httpAddRouteParam(HttpRoute *route, cchar *field, cchar *value, int 
 /**
     Add a route update rule
     @description This configures the route pipeline by adding processing update rules for a request.
-        Updates are builtin rules that can be applied to routes.
+        Updates are built-in rules that can be applied to routes.
     @param route Route to modify
     @param name Update rule to add. Supported update rules include: "cmd", "field" and "lang". 
         \n\n
