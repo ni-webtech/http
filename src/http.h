@@ -2002,7 +2002,7 @@ extern cchar *httpGetError(HttpConn *conn);
 
 /**
     Get a URI extension 
-    @description If the URI has not extension and the response content filename (HttpTx.filename) has been calculated,
+    @description If the URI has no extension and the response content filename (HttpTx.filename) has been calculated,
         it will be tested for an extension.
     @param conn HttpConn connection object created via $httpCreateConn
     @return The URI extension sans "."
