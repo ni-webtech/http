@@ -4887,7 +4887,7 @@ extern HttpEndpoint *httpCreateEndpoint(cchar *ip, int port, MprDispatcher *disp
 
 /**
     Destroy the endpoint
-    @description This destroys the endpoint created by #httpCreateEndpoint. Calling this routein should not
+    @description This destroys the endpoint created by #httpCreateEndpoint. Calling this routine should not
         normally be necessary as the garbage collector will invoke as required.
     @param endpoint HttpEndpoint object returned from #httpCreateEndpoint.
     @ingroup HttpEndpoint
