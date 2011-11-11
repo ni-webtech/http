@@ -2293,20 +2293,20 @@ typedef struct HttpAuth {
     MprHash         *allow;                 /**< Clients to allow */
     MprHash         *deny;                  /**< Clients to deny */
     char            *requiredRealm;         /**< Realm to use for access */
-    char            *requiredGroups;        /**< Auth group for access */
+    char            *requiredGroups;        /**< Authorization group for access */
     char            *requiredUsers;         /**< User name for access */
     HttpAcl         requiredAcl;            /**< ACL for access */
 
     int             backend;                /**< Authorization method (PAM | FILE) */
-    int             flags;                  /**< Auth flags */
+    int             flags;                  /**< Authorization flags */
     int             order;                  /**< Order deny/allow, allow/deny */
     char            *qop;                   /**< Digest Qop */
 
     /*  
         State for file based authorization
      */
-    char            *userFile;              /**< User name auth file */
-    char            *groupFile;             /**< Group auth file  */
+    char            *userFile;              /**< User name authorization file */
+    char            *groupFile;             /**< Group authorization file  */
     MprHash         *users;                 /**< Hash of user file  */
     MprHash         *groups;                /**< Hash of group file  */
 } HttpAuth;
@@ -2322,7 +2322,7 @@ extern HttpAuth *httpCreateAuth();
 
 /**
     Allow access by a client
-    @param auth Auth object allocated by #httpCreateAuth. Authenticated routes typically store the reference to an
+    @param auth Authorization object allocated by #httpCreateAuth. Authenticated routes typically store the reference to an
         auth object.
     @param allow Client to allow access. This must be an IP address string.
     @ingroup HttpAuth
@@ -2332,8 +2332,8 @@ extern void httpSetAuthAllow(HttpAuth *auth, cchar *allow);
 
 /**
     Allow access by any valid user
-    @description This configures the basic or digest authentication for the auth object
-    @param auth Auth object allocated by #httpCreateAuth. Authenticated routes typically store the reference to an
+    @description This configures the basic or digest authentication for the authorization object
+    @param auth Authorization object allocated by #httpCreateAuth. Authenticated routes typically store the reference to an
         auth object.
     @ingroup HttpAuth
     @internal
@@ -2342,7 +2342,7 @@ extern void httpSetAuthAnyValidUser(HttpAuth *auth);
 
 /**
     Deny access by a client
-    @param auth Auth object allocated by #httpCreateAuth. Authenticated routes typically store the reference to an
+    @param auth Authorization object allocated by #httpCreateAuth. Authenticated routes typically store the reference to an
         auth object.
     @param deny Client to deny access. This must be an IP address string.
     @ingroup HttpAuth
