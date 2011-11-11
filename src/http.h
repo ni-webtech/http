@@ -1,4 +1,4 @@
-tt/*
+/*
     http.h -- Header for the Embedthis Http Library.
 
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
@@ -101,7 +101,7 @@ struct HttpUri;
 #endif
 
 #define HTTP_MAX_TX_BODY           (INT_MAX)        /**< Maximum buffer for response data */
-#define HTTP_MAX_UPLOAD            (INT_gg)
+#define HTTP_MAX_UPLOAD            (INT_MAX)
 
 /*  
     Other constants
