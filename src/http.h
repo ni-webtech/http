@@ -3068,7 +3068,7 @@ typedef int (HttpRouteProc)(HttpConn *conn, HttpRoute *route, HttpRouteOp *item)
 
 /**
     Add routes for a resource
-    @description This routing add a set of RESTful routes for a resource. This will add the following routes:
+    @description This routing adds a set of RESTful routes for a resource. It will add the following routes:
     <table>
         <tr><td>Name</td><td>Method</td><td>Pattern</td><td>Action</td></tr>
         <tr><td>init</td><td>GET</td><td>/NAME/init$</td><td>init</td></tr>
@@ -3088,7 +3088,7 @@ extern void httpAddResource(HttpRoute *parent, cchar *resource);
 
 /**
     Add routes for a group of resources
-    @description This routing add a set of RESTful routes for a resource group. This will add the following routes:
+    @description This routing adds a set of RESTful routes for a resource group. It will add the following routes:
     <table>
         <tr><td>Name</td><td>Method</td><td>Pattern</td><td>Action</td></tr>
         <tr><td>list</td><td>GET</td><td>/NAME(/)*$</td><td>list</td></tr>
