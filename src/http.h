@@ -255,7 +255,7 @@ extern void httpSetForkCallback(struct Http *http, MprForkCallback proc, void *a
 /************************************ Http **********************************/
 /** 
     Http service object
-    The Http service is managed by a single service object.
+    @description The Http service is managed by a single service object.
     @stability Evolving
     @defgroup Http Http
     @see Http HttpConn HttpEndpoint gettGetDateString httpConfigurenamedVirtualEndpoint httpCreate httpCreateSecret 
@@ -2272,7 +2272,7 @@ typedef long HttpAcl;                       /**< Authentication Access control m
 
 /** 
     Authorization
-    HttpAuth is the foundation authorization object and is used by HttpRoute.
+    @description HttpAuth is the foundation authorization object and is used by HttpRoute.
     It stores the authorization configuration information required to determine if a client request should be permitted 
     access to a given resource.
     @stability Evolving
@@ -3917,7 +3917,7 @@ extern bool httpTokenizev(HttpRoute *route, cchar *str, cchar *fmt, va_list args
 /********************************** HttpUploadFile *********************************/
 /**
     Upload File
-    Each uploaded file has an HttpUploadedFile entry. This is managed by the upload handler.
+    @description Each uploaded file has an HttpUploadedFile entry. This is managed by the upload handler.
     @stability Evolving
     @defgroup HttpUploadFile HttpUploadFile
     @see httpAddUploadFile httpRemoveAllUploadedFiles httpRemoveUploadFile
@@ -5034,7 +5034,7 @@ extern bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn
 
 /**
     Host Object
-    A Host object represents a logical host. Several logical hosts may share a single HttpEndpoint.
+    @description A Host object represents a logical host. Several logical hosts may share a single HttpEndpoint.
     @stability Evolving
     @defgroup HttpHost HttpHost
     @see HttpHost httpAddRoute httpCloneHost httpCreateHost httpResetRoutes httpSetHostHome httpSetHostIpAddr 
