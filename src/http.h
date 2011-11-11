@@ -1,4 +1,4 @@
-/*
+tt/*
     http.h -- Header for the Embedthis Http Library.
 
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
@@ -502,7 +502,7 @@ typedef struct HttpLimits {
 /**
     Initialize a limits object with default values
     @param limits Limits object ot modify
-    @param serverSide Set to true for server side limits. Set to false for client side default limits
+    @param serverSide Set to "true" for server side limits. Set to "false" for client side default limits
     @ingroup HttpLimits
  */
 extern void httpInitLimits(HttpLimits *limits, bool serverSide);
@@ -510,7 +510,7 @@ extern void httpInitLimits(HttpLimits *limits, bool serverSide);
 /**
     Create a new limits object
     @description Create and initialize a new limits object with default values
-    @param serverSide Set to true for server side limits. Set to false for client side default limits
+    @param serverSide Set to "true" for server side limits. Set to "false" for client side default limits
     @return The allocated limits object
     @ingroup HttpLimits
  */
