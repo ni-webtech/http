@@ -3164,7 +3164,7 @@ extern void httpAddRouteSet(HttpRoute *parent, cchar *set);
         The match directory tests a regular expression pattern against the rest of the condition arguments. The form of 
         the match rule is: "match RegExp string". For example: "match https ${request.scheme}".
     @param details Condition parameters. 
-        The See #httpSetRouteTarget for a list of the token values that can be included in the condition rule details.
+        See #httpSetRouteTarget for a list of the token values that can be included in the condition rule details.
     @param flags Set to HTTP_ROUTE_NOT to negate the condition test
     @return "Zero" if successful, otherwise a negative MPR error code.
     @ingroup HttpRoute
@@ -3190,7 +3190,7 @@ extern void httpAddRouteErrorDocument(HttpRoute *route, int status, cchar *uri);
         httpAddRouteExpiry(route, when, "png");
     @param route Route to modify
     @param when Time to expire the item. Use mprGetTime() + milliseconds.
-    @param extensions Space or comman separated list of request extensions for which the content should be 
+    @param extensions Space or comma separated list of request extensions for which the content should be 
         cached in the client.
     @ingroup HttpRoute
  */
@@ -3309,7 +3309,7 @@ extern void httpAddRouteParam(HttpRoute *route, cchar *field, cchar *value, int 
         The "param" rule is used to set values in the request param fields. For example: "param priority high". 
         \n\n
         The "lang" update rule is uses internally to implement the various language options.
-        The See #httpSetRouteTarget for a list of the token values that can be included in the condition rule details.
+        See #httpSetRouteTarget for a list of the token values that can be included in the condition rule details.
     @param details Update rule parameters.
     @param flags Reserved.
     @return "Zero" if successful, otherwise a negative MPR error code.
