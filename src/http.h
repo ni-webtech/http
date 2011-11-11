@@ -2913,7 +2913,7 @@ typedef struct HttpCache {
         Select HTTP_CACHE_ALL, HTTP_CACHE_ONLY or HTTP_CACHE_UNIQUE to define the server-side caching mode. Only
         one of these three mode flags should be specified.
         \n\n
-        If the HTTP_CACHE_ALL flag is set, the request params (query, post data and route parameters) will be
+        If the HTTP_CACHE_ALL flag is set, the request params (query, post data, and route parameters) will be
         ignored and all requests for a given URI path will cache to the same cache record.
         \n\n
         Select HTTP_CACHE_UNIQUE to uniquely cache requests with different request parameters. The URIs specified in 
