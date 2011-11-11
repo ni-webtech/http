@@ -1734,7 +1734,7 @@ typedef struct HttpConn {
     struct HttpRx *rx;                      /**< Rx object */
     struct HttpTx *tx;                      /**< Tx object */
     struct HttpEndpoint *endpoint;          /**< Endpoint object (if set - indicates server-side) */
-    struct HttpHost *host;                  /**< Host object (if releveant) */
+    struct HttpHost *host;                  /**< Host object (if relevant) */
 
     int             state;                  /**< Connection state */
     int             error;                  /**< A request error has occurred */
