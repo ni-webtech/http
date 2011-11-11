@@ -5172,7 +5172,7 @@ extern void httpSetHostDefaultRoute(HttpHost *host, HttpRoute *route);
 
 /**
     Set the home directory for a host
-    @description The home directory is used by some host and route components to location configuration files.
+    @description The home directory is used by some host and route components to locate configuration files.
     @param host HttpHost object
     @param dir Directory path for the host home
     @ingroup HttpHost
