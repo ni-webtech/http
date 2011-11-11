@@ -2265,7 +2265,7 @@ extern void httpUseWorker(HttpConn *conn, MprDispatcher *dispatcher, MprEvent *e
 /*  
     Authentication methods
  */
-#define HTTP_AUTH_METHOD_FILE     1         /**< httpPassword file based authentication */
+#define HTTP_AUTH_METHOD_FILE     1         /**< httpPassword file-based authentication */
 #define HTTP_AUTH_METHOD_PAM      2         /**< Plugable authentication module scheme (Unix) */
 
 typedef long HttpAcl;                       /**< Authentication Access control mask */
@@ -2303,7 +2303,7 @@ typedef struct HttpAuth {
     char            *qop;                   /**< Digest Qop */
 
     /*  
-        State for file based authorization
+        State for file-based authorization
      */
     char            *userFile;              /**< User name authorization file */
     char            *groupFile;             /**< Group authorization file  */
@@ -2426,7 +2426,7 @@ extern HttpAuth *httpCreateInheritedAuth(HttpAuth *parent);
 #if BLD_FEATURE_AUTH_FILE
 /** 
     User Authorization
-    File based authorization backend
+    File-based authorization backend
     @stability Evolving
     @ingroup HttpAuth
     @see HttpAuth
@@ -2593,7 +2593,7 @@ extern int httpEnableUser(HttpAuth *auth, cchar *realm, cchar *user);
 extern HttpAcl httpGetGroupAcl(HttpAuth *auth, char *group);
 
 /**
-    Get the password for a user from a file based authentication database
+    Get the password for a user from a file-based authentication database
     @param auth Auth object allocated by #httpCreateAuth. Authenticated routes typically store the reference to an
         auth object.
     @param realm Authentication realm for user
@@ -2761,7 +2761,7 @@ extern int httpWriteGroupFile(HttpAuth *auth, char *path);
 extern int httpWriteUserFile(HttpAuth *auth, char *path);
 
 /**
-    Validate credentials using a file based authentication database
+    Validate credentials using a file-based authentication database
     @param auth Auth object allocated by #httpCreateAuth. Authenticated routes typically store the reference to an
         auth object.
     @param realm Authentication realm
@@ -4426,7 +4426,7 @@ typedef struct HttpTx {
     char            *altBody;               /**< Alternate transmission for errors */
     int             traceMethods;           /**< Handler methods supported */
 
-    /* File information for file based handlers */
+    /* File information for file-based handlers */
     MprFile         *file;                  /**< File to be served */
     MprPath         fileInfo;               /**< File information if there is a real file to serve */
     ssize           headerSize;             /**< Size of the header written */
