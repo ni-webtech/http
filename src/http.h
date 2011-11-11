@@ -968,7 +968,7 @@ typedef struct HttpQueue {
     struct HttpQueue    *nextQ;                 /**< Downstream queue for next stage */
     struct HttpQueue    *prevQ;                 /**< Upstream queue for prior stage */
     struct HttpStage    *stage;                 /**< Stage owning this queue */
-    struct HttpConn     *conn;                  /**< Connection ownning this queue */
+    struct HttpConn     *conn;                  /**< Connection owning this queue */
     HttpQueueOpen       open;                   /**< Open the queue */
     HttpQueueClose      close;                  /**< Close the queue */
     HttpQueueStart      start;                  /**< Start the queue */
@@ -994,7 +994,7 @@ typedef struct HttpQueue {
 
 /** 
     Disable a queue
-    @description Mark a queue as disabled so that it will not be scheduled for service.
+    @description Mark a queue as disabled, so that it will not be scheduled for service.
     @param q Queue reference
     @ingroup HttpQueue
  */
@@ -1002,10 +1002,10 @@ extern void httpDisableQueue(HttpQueue *q);
 
 /** 
     Discard all data from the queue
-    @description Discard data from the queue. If removePackets (not yet implemented) is true, then remove the packets
-        otherwise, just discard the data and preserve the packets.
+    @description Discard data from the queue. If removePackets (not yet implemented) is "true", then remove the packets.
+        Oherwise, just discard the data and preserve the packets.
     @param q Queue reference
-    @param removePackets If true, the data packets will be removed from the queue
+    @param removePackets If "true", the data packets will be removed from the queue.
     @ingroup HttpQueue
  */
 extern void httpDiscardData(HttpQueue *q, bool removePackets);
@@ -1025,8 +1025,8 @@ extern void httpEnableQueue(HttpQueue *q);
     If blocking is requested, the call will block until the queue count falls below the queue maximum.
     WARNING: Be very careful when using blocking == true. Should only be used by end applications and not by middleware.
     @param q Queue to flush
-    @param block If set to true, this call will block until the data has drained below the queue maximum.
-    @return True if there is room for more data in the queue after flushing.
+    @param block If set to "true", this call will block until the data has drained below the queue maximum.
+    @return "True" if there is room for more data in the queue after flushing.
  */
 extern bool httpFlushQueue(HttpQueue *q, bool block);
 
