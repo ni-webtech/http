@@ -501,7 +501,7 @@ typedef struct HttpLimits {
 
 /**
     Initialize a limits object with default values
-    @param limits Limits object ot modify
+    @param limits Limits object to modify
     @param serverSide Set to "true" for server side limits. Set to "false" for client side default limits
     @ingroup HttpLimits
  */
