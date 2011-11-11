@@ -1070,10 +1070,10 @@ extern bool httpIsQueueEmpty(HttpQueue *q);
 
 /**
     Join the packets together
-    @description This call joins data packets on the given queue up together up to the given maximum size.
+    @description This call joins data packets (on the given queue) together - up to the designated maximum size.
         The maximum size is also limited by the downstream queue maximum packet size.
     @param q Queue to examine
-    @param size The maximum sized packet that will be created by joining queue packets is the minimum of the given size
+    @param size The maximum-sized packet that will be created by joining queue packets is the minimum of the given size
         and the downstream queues maximum packet size.
     @ingroup HttpQueue
  */
