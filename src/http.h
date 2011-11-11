@@ -489,7 +489,7 @@ typedef struct HttpLimits {
 
     int     clientCount;            /**< Max number of simultaneous clients endpoints */
     int     headerCount;            /**< Max number of header lines */
-    int     keepAliveCount;         /**< Max number of keep alive requests to perform per socket */
+    int     keepAliveCount;         /**< Max number of Keep-Alive requests to perform per socket */
     int     requestCount;           /**< Max number of simultaneous concurrent requests */
 
     MprTime inactivityTimeout;      /**< Default timeout for keep-alive and idle requests (msec) */
@@ -1781,7 +1781,7 @@ typedef struct HttpConn {
     int             async;                  /**< Connection is in async mode (non-blocking) */
     int             canProceed;             /**< State machine should continue to process the request */
     int             followRedirects;        /**< Follow redirects for client requests */
-    int             keepAliveCount;         /**< Count of remaining keep alive requests for this connection */
+    int             keepAliveCount;         /**< Count of remaining Keep-Alive requests for this connection */
     int             http10;                 /**< Using legacy HTTP/1.0 */
 
     int             port;                   /**< Remote port */
@@ -2012,11 +2012,11 @@ extern char *httpGetExt(HttpConn *conn);
 
 /** 
     Get the count of Keep-Alive requests that will be used for this connection object.
-    @description Http keep alive means that the TCP/IP connection is preserved accross multiple requests. This
-        typically means much higher performance and better response. Http keep alive is enabled by default 
-        for Http/1.1 (the default). Disable keep alive when talking to old, broken HTTP servers.
+    @description Http Keep-Alive means that the TCP/IP connection is preserved accross multiple requests. This
+        typically means much higher performance and better response. Http Keep-Alive is enabled by default 
+        for Http/1.1 (the default). Disable Keep-Alive when talking to old, broken HTTP servers.
     @param conn HttpConn connection object created via $httpCreateConn
-    @return The maximum count of keep alive requests. 
+    @return The maximum count of Keep-Alive requests. 
     @ingroup HttpConn
  */
 extern int httpGetKeepAliveCount(HttpConn *conn);
@@ -2137,11 +2137,11 @@ extern void httpSetCredentials(HttpConn *conn, cchar *user, cchar *password);
 
 /** 
     Control Http Keep-Alive for the connection.
-    @description Http keep alive means that the TCP/IP connection is preserved accross multiple requests. This
-        typically means much higher performance and better response. Http keep alive is enabled by default 
-        for Http/1.1 (the default). Disable keep alive when talking to old, broken HTTP servers.
+    @description Http Keep-Alive means that the TCP/IP connection is preserved accross multiple requests. This
+        typically means much higher performance and better response. Http Keep-Alive is enabled by default 
+        for Http/1.1 (the default). Disable Keep-Alive when talking to old, broken HTTP servers.
     @param conn HttpConn connection object created via $httpCreateConn
-    @param count Count of keep alive transactions to use before closing the connection. Set to zero to disable keep-alive.
+    @param count Count of Keep-Alive transactions to use before closing the connection. Set to zero to disable keep-alive.
     @ingroup HttpConn
  */
 extern void httpSetKeepAliveCount(HttpConn *conn, int count);
