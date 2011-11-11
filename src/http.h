@@ -2023,7 +2023,7 @@ extern int httpGetKeepAliveCount(HttpConn *conn);
 
 /**
     Match the HttpHost object that should serve this request
-    @description This sets the conn->host field to the appropriate host. If not suitable host can be found, #httpError
+    @description This sets the conn->host field to the appropriate host. If no suitable host can be found, #httpError
         will be called and conn->error will be set
     @param conn HttpConn connection object created via $httpCreateConn
     @ingroup HttpConn
