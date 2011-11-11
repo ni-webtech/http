@@ -1863,7 +1863,7 @@ extern void httpConsumeLastRequest(HttpConn *conn);
 
 /** 
     Create a connection object.
-    Most interactions with the Http library are via a connection object. It is used for server-side communications when
+    @description Most interactions with the Http library are via a connection object. It is used for server-side communications when
     responding to client requests and it is used to initiate outbound client requests.
     @param http Http object created via #httpCreate
     @param endpoint Endpoint object owning the connection.
