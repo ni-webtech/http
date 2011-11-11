@@ -2091,8 +2091,8 @@ extern bool httpServiceQueues(HttpConn *conn);
 extern void httpSetAsync(HttpConn *conn, int enable);
 
 /** 
-    Set the chunk size for transfer chunked encoding. When set a "Transfer-Encoding: Chunked" header will
-    be added to the request and all write data will be broken into chunks of the requested size.
+    Set the chunk size for transfer chunked encoding. When set, a "Transfer-Encoding: Chunked" header will
+    be added to the request, and all write data will be broken into chunks of the requested size.
     @param conn HttpConn connection object created via $httpCreateConn
     @param size Requested chunk size.
     @ingroup HttpConn
