@@ -3198,10 +3198,10 @@ extern void httpAddRouteExpiry(HttpRoute *route, MprTime when, cchar *extensions
 
 /**
     Cache response content in the client by mime type.
-    Add client cache expiry definitions to the route
-    @description This configures default caching lifespans for documents with various mime types. This call causes
+    Add client cache expiry definitions to the route.
+    @description This configures default caching lifespans for documents with various mime types. The call causes
         a Cache-Control header to be sent with the response instructing the client to cache the response content.
-        This is most useful for client caching static web content. For example: to cache "png" graphic files, use: 
+        It is most useful for client caching static web content. For example: to cache "png" graphic files, use: 
         httpAddRouteExpiry(route, when, "png");
     @param route Route to modify
     @param when Time to expire the item. Use mprGetTime() + milliseconds.
@@ -3308,7 +3308,7 @@ extern void httpAddRouteParam(HttpRoute *route, cchar *field, cchar *value, int 
         \n\n
         The "param" rule is used to set values in the request param fields. For example: "param priority high". 
         \n\n
-        The "lang" update rule is uses internally to implement the various language options.
+        The "lang" update rule is used internally to implement the various language options.
         See #httpSetRouteTarget for a list of the token values that can be included in the condition rule details.
     @param details Update rule parameters.
     @param flags Reserved.
@@ -3356,7 +3356,7 @@ extern HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *pattern, cchar 
     Create a configured route 
     @description This creates a route and configures the request pipeline with range, chunk and upload filters.
     @param host HttpHost object owning the route
-    @param serverSide Set to true if this is a server side route. Set to false for client side.
+    @param serverSide Set to "true" if this is a server side route. Set to "false" for client side.
     @return Allocated HttpRoute object
     @ingroup HttpRoute
  */
@@ -3372,7 +3372,7 @@ extern HttpRoute *httpCreateConfiguredRoute(struct HttpHost *host, int serverSid
 extern HttpRoute *httpCreateDefaultRoute(struct HttpHost *host);
 
 /**
-    Create a route inheriting from a parent route
+    Create a route inherited from a parent route
     @description When the route is fully configured, it should be finalized which will add it to its owning host.
     @param route Parent route from which to inherit
     @return Allocated HttpRoute object
