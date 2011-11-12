@@ -3198,10 +3198,10 @@ extern void httpAddRouteExpiry(HttpRoute *route, MprTime when, cchar *extensions
 
 /**
     Cache response content in the client by mime type.
-    Add client cache expiry definitions to the route
-    @description This configures default caching lifespans for documents with various mime types. This call causes
+    Add client cache expiry definitions to the route.
+    @description This configures default caching lifespans for documents with various mime types. The call causes
         a Cache-Control header to be sent with the response instructing the client to cache the response content.
-        This is most useful for client caching static web content. For example: to cache "png" graphic files, use: 
+        It is most useful for client caching static web content. For example: to cache "png" graphic files, use: 
         httpAddRouteExpiry(route, when, "png");
     @param route Route to modify
     @param when Time to expire the item. Use mprGetTime() + milliseconds.
