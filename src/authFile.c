@@ -1,5 +1,5 @@
 /*
-    authFile.c - File based authorization using httpPassword files.
+    authFile.c - File based authorization using password files.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */

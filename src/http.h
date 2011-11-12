@@ -2265,7 +2265,7 @@ extern void httpUseWorker(HttpConn *conn, MprDispatcher *dispatcher, MprEvent *e
 /*  
     Authentication methods
  */
-#define HTTP_AUTH_METHOD_FILE     1         /**< httpPassword file-based authentication */
+#define HTTP_AUTH_METHOD_FILE     1         /**< File-based authentication */
 #define HTTP_AUTH_METHOD_PAM      2         /**< Plugable authentication module scheme (Unix) */
 
 typedef long HttpAcl;                       /**< Authentication Access control mask */
