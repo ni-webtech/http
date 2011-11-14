@@ -191,12 +191,12 @@ void httpAppendHeaderString(HttpConn *conn, cchar *key, cchar *value)
     oldValue = mprLookupKey(conn->tx->headers, key);
     if (oldValue) {
         if (scasematch(key, "Set-Cookie")) {
-            mprAddDuplicateKey(conn->tx->headers, key, value);
+            mprAddDuplicateKey(conn->tx->headers, key, sclone(value));
         } else {
             addHeader(conn, key, sfmt("%s, %s", oldValue, value));
         }
     } else {
-        addHeader(conn, key, value);
+        addHeader(conn, key, sclone(value));
     }
 }
 
@@ -552,7 +552,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     httpAddHeaderString(conn, "Date", conn->http->currentDate);
 
     if (tx->ext) {
-        if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->ext)) != 0) {
+        if ((mimeType = (char*) mprLookupMime(route->mimeTypes, tx->ext)) != 0) {
             if (conn->error) {
                 httpAddHeaderString(conn, "Content-Type", "text/html");
             } else {

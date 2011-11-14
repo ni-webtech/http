@@ -123,18 +123,21 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
 void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, MprOff total)
 {
     HttpTrace   *trace;
+    HttpRoute   *route;
     ssize       size;
     int         level;
 
     trace = &conn->trace[dir];
     level = trace->levels[item];
+    route = conn->rx->route;
+    mprAssert(route);
 
     if (trace->size >= 0 && total >= trace->size) {
         mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
         trace->disable = 1;
         return;
     }
-    if (conn->host && conn->host->traceMaxLength >= 0 && total >= conn->host->traceMaxLength) {
+    if (route && route->traceMaxLength >= 0 && total >= route->traceMaxLength) {
         mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
         trace->disable = 1;
         return;

@@ -80,7 +80,18 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->pattern = MPR->emptyString;
     route->targetRule = sclone("run");
     route->autoDelete = 1;
+
+    //  MOB
     route->workers = -1;
+    route->limits = mprMemdup(((Http*) MPR->httpService)->serverLimits, sizeof(HttpLimits));
+    route->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
+    route->traceLevel = 3;
+    route->traceMaxLength = MAXINT;
+    route->mimeTypes = MPR->mimeTypes;
+
+    if ((route->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
+        route->mimeTypes = MPR->mimeTypes;                                                                  
+    }  
     definePathVars(route);
     return route;
 }
@@ -143,6 +154,18 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->updates = parent->updates;
     route->uploadDir = parent->uploadDir;
     route->workers = parent->workers;
+
+    route->limits = parent->limits;
+    route->mimeTypes = parent->mimeTypes;
+    route->traceInclude = parent->traceInclude;
+    route->traceExclude = parent->traceExclude;
+    route->traceLevel = parent->traceLevel;
+    route->traceMaxLength = parent->traceMaxLength;
+    route->traceMask = parent->traceMask;
+    route->log = parent->log;
+    route->logFormat = parent->logFormat;
+    route->logPath = parent->logPath;
+
     return route;
 }
 
@@ -193,6 +216,14 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->sourcePath);
         mprMark(route->tokens);
         mprMark(route->ssl);
+
+        mprMark(route->limits);
+        mprMark(route->mimeTypes);
+        mprMark(route->traceInclude);
+        mprMark(route->traceExclude);
+        mprMark(route->log);
+        mprMark(route->logFormat);
+        mprMark(route->logPath);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (route->patternCompiled) {
@@ -257,6 +288,28 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *pattern, cchar *path, 
     return route;
 }
 
+
+int httpStartRoute(HttpRoute *route)
+{
+#if !BLD_FEATURE_ROMFS
+    if (route->logPath && (!route->parent || route->logPath != route->parent->logPath)) {
+        route->log = mprOpenFile(route->logPath, O_CREAT | O_APPEND | O_WRONLY | O_TEXT, 0664);
+        if (route->log == 0) {
+            mprError("Can't open log file %s", route->logPath);
+            return MPR_ERR_CANT_OPEN;
+        }
+    }
+#endif
+    return 0;
+}
+
+
+void httpStopRoute(HttpRoute *route)
+{
+    route->log = 0;
+}
+
+
 /*
     Find the matching route and handler for a request. If any errors occur, the pass handler is used to 
     pass errors via the net/sendfile connectors onto the client. This process may rewrite the request 
@@ -299,6 +352,7 @@ void httpRouteRequest(HttpConn *conn)
         return;
     }
     rx->route = route;
+    conn->limits = route->limits;
 
     if (conn->finalized) {
         tx->handler = conn->http->passHandler;
@@ -2867,6 +2921,71 @@ void httpSetOption(MprHash *options, cchar *field, cchar *value)
         kp->type = MPR_JSON_STRING;
     }
 }
+
+
+HttpLimits *httpGraduateLimits(HttpRoute *route)
+{
+    if (route->parent && route->limits == route->parent->limits) {
+        route->limits = mprMemdup(((Http*) MPR->httpService)->serverLimits, sizeof(HttpLimits));
+    }
+    return route->limits;
+}
+
+
+//  MOB - create trace.
+void httpSetRouteTrace(HttpRoute *route, int level, int mask)
+{
+    route->traceMask = mask;
+    route->traceLevel = level;
+}
+
+
+void httpSetRouteTraceFilter(HttpRoute *route, ssize len, cchar *include, cchar *exclude)
+{
+    char    *word, *tok, *line;
+
+    route->traceMaxLength = (int) len;
+    if (include && strcmp(include, "*") != 0) {
+        route->traceInclude = mprCreateHash(0, 0);
+        line = sclone(include);
+        word = stok(line, ", \t\r\n", &tok);
+        while (word) {
+            if (word[0] == '*' && word[1] == '.') {
+                word += 2;
+            }
+            mprAddKey(route->traceInclude, word, route);
+            word = stok(NULL, ", \t\r\n", &tok);
+        }
+    }
+    if (exclude) {
+        route->traceExclude = mprCreateHash(0, 0);
+        line = sclone(exclude);
+        word = stok(line, ", \t\r\n", &tok);
+        while (word) {
+            if (word[0] == '*' && word[1] == '.') {
+                word += 2;
+            }
+            mprAddKey(route->traceExclude, word, route);
+            word = stok(NULL, ", \t\r\n", &tok);
+        }
+    }
+}
+
+
+#if UNUSED && KEEP
+int httpSetupRouteTrace(HttpHost *route, cchar *ext)
+{
+    if (ext) {
+        if (route->traceInclude && !mprLookupKey(route->traceInclude, ext)) {
+            return 0;
+        }
+        if (route->traceExclude && mprLookupKey(route->traceExclude, ext)) {
+            return 0;
+        }
+    }
+    return route->traceMask;
+}
+#endif
 
 
 /*

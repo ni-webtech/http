@@ -1086,14 +1086,19 @@ static void measure(HttpConn *conn)
 static bool processCompletion(HttpConn *conn)
 {
     HttpPacket  *packet;
+    HttpRx      *rx;
     bool        more;
 
+    rx = conn->rx;
     mprAssert(conn->state == HTTP_STATE_COMPLETE);
 
     httpDestroyPipeline(conn);
     measure(conn);
-    if (conn->endpoint && conn->rx) {
-        conn->rx->conn = 0;
+    if (conn->endpoint && rx) {
+        if (rx->route->log) {
+            httpLogRequest(conn);
+        }
+        rx->conn = 0;
         conn->tx->conn = 0;
         conn->rx = 0;
         conn->tx = 0;

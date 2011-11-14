@@ -116,9 +116,11 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
     httpSetHostIpAddr(host, ip, port);
     httpAddHostToEndpoint(endpoint, host);
     httpSetHostHome(host, home);
+#if UNUSED
     if ((host->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
         host->mimeTypes = MPR->mimeTypes;
     }
+#endif
     httpSetRouteDir(route, documents);
     httpFinalizeRoute(route);
     return endpoint;
@@ -160,10 +162,15 @@ static bool validateEndpoint(HttpEndpoint *endpoint)
 
 int httpStartEndpoint(HttpEndpoint *endpoint)
 {
-    cchar   *proto, *ip;
+    HttpHost    *host;
+    cchar       *proto, *ip;
+    int         next;
 
     if (!validateEndpoint(endpoint)) {
         return MPR_ERR_BAD_ARGS;
+    }
+    for (ITERATE_ITEMS(endpoint->hosts, host, next)) {
+        httpStartHost(host);
     }
     if ((endpoint->sock = mprCreateSocket(endpoint->ssl)) == 0) {
         return MPR_ERR_MEMORY;
@@ -191,6 +198,12 @@ int httpStartEndpoint(HttpEndpoint *endpoint)
 
 void httpStopEndpoint(HttpEndpoint *endpoint)
 {
+    HttpHost    *host;
+    int         next;
+
+    for (ITERATE_ITEMS(endpoint->hosts, host, next)) {
+        httpStopHost(host);
+    }
     if (endpoint->waitHandler) {
         mprRemoveWaitHandler(endpoint->waitHandler);
         endpoint->waitHandler = 0;
@@ -209,7 +222,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
     cchar           *action;
     int             count;
 
-    limits = endpoint->limits;
+    limits = conn->limits;
     action = "unknown";
     mprAssert(conn->endpoint == endpoint);
     lock(endpoint->http);
@@ -461,7 +474,7 @@ void httpAddHostToEndpoint(HttpEndpoint *endpoint, HttpHost *host)
 {
     mprAddItem(endpoint->hosts, host);
     if (endpoint->limits == 0) {
-        endpoint->limits = host->limits;
+        endpoint->limits = host->defaultRoute->limits;
     }
 }
 

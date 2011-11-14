@@ -246,7 +246,7 @@ static HttpCache *lookupCacheControl(HttpConn *conn)
             continue;
         }
         if (cache->types) {
-            if ((mimeType = (char*) mprLookupMime(conn->host->mimeTypes, tx->ext)) != 0) {
+            if ((mimeType = (char*) mprLookupMime(rx->route->mimeTypes, tx->ext)) != 0) {
                 if (!mprLookupKey(cache->types, mimeType)) {
                     continue;
                 }

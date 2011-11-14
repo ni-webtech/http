@@ -39,7 +39,7 @@ HttpConn *httpCreateConn(Http *http, HttpEndpoint *endpoint, MprDispatcher *disp
     if (endpoint) {
         conn->notifier = endpoint->notifier;
         host = mprGetFirstItem(endpoint->hosts);
-        conn->limits = (host) ? host->limits : http->serverLimits;
+        conn->limits = (host && host->defaultRoute) ? host->defaultRoute->limits : http->serverLimits;
     } else {
         conn->limits = http->clientLimits;
     }

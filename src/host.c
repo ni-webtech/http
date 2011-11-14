@@ -32,17 +32,21 @@ HttpHost *httpCreateHost()
     mprSetCacheLimits(host->responseCache, 0, HTTP_CACHE_LIFESPAN, 0, 0);
 
     host->mutex = mprCreateLock();
-    host->dirs = mprCreateList(-1, 0);
     host->routes = mprCreateList(-1, 0);
+#if UNUSED
+    host->dirs = mprCreateList(-1, 0);
     host->limits = mprMemdup(http->serverLimits, sizeof(HttpLimits));
+#endif
     host->flags = HTTP_HOST_NO_TRACE;
     host->protocol = sclone("HTTP/1.1");
-    host->mimeTypes = MPR->mimeTypes;
     host->home = sclone(".");
 
+#if UNUSED
+    host->mimeTypes = MPR->mimeTypes;
     host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     host->traceLevel = 3;
     host->traceMaxLength = MAXINT;
+#endif
     httpAddHost(http, host);
     return host;
 }
@@ -66,13 +70,16 @@ HttpHost *httpCloneHost(HttpHost *parent)
      */
     host->parent = parent;
     host->responseCache = parent->responseCache;
+    host->home = parent->home;
+#if UNUSED
     host->dirs = parent->dirs;
+#endif
     host->routes = parent->routes;
     host->flags = parent->flags | HTTP_HOST_VHOST;
     host->protocol = parent->protocol;
+#if UNUSED
     host->mimeTypes = parent->mimeTypes;
     host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
-    host->home = parent->home;
     host->traceMask = parent->traceMask;
     host->traceLevel = parent->traceLevel;
     host->traceMaxLength = parent->traceMaxLength;
@@ -82,6 +89,7 @@ HttpHost *httpCloneHost(HttpHost *parent)
     if (parent->traceExclude) {
         host->traceExclude = mprCloneHash(parent->traceExclude);
     }
+#endif
     httpAddHost(http, host);
     return host;
 }
@@ -94,23 +102,46 @@ static void manageHost(HttpHost *host, int flags)
         mprMark(host->ip);
         mprMark(host->parent);
         mprMark(host->responseCache);
-        mprMark(host->dirs);
         mprMark(host->routes);
         mprMark(host->defaultRoute);
-        mprMark(host->limits);
-        mprMark(host->mimeTypes);
-        mprMark(host->home);
-        mprMark(host->traceInclude);
-        mprMark(host->traceExclude);
         mprMark(host->protocol);
-        mprMark(host->log);
-        mprMark(host->logFormat);
-        mprMark(host->logPath);
         mprMark(host->mutex);
+        mprMark(host->home);
+#if UNUSED
+        mprMark(host->dirs);
+#endif
 
     } else if (flags & MPR_MANAGE_FREE) {
         /* The http->hosts list is static. ie. The hosts won't be marked via http->hosts */
         httpRemoveHost(MPR->httpService, host);
+    }
+}
+
+
+int httpStartHost(HttpHost *host)
+{
+    HttpRoute   *route;
+    int         next;
+
+    for (ITERATE_ITEMS(host->routes, route, next)) {
+        httpStartRoute(route);
+    }
+    for (ITERATE_ITEMS(host->routes, route, next)) {
+        if (!route->log && route->parent && route->parent->log) {
+            route->log = route->parent->log;
+        }
+    }
+    return 0;
+}
+
+
+void httpStopHost(HttpHost *host)
+{
+    HttpRoute   *route;
+    int         next;
+
+    for (ITERATE_ITEMS(host->routes, route, next)) {
+        httpStopRoute(route);
     }
 }
 
@@ -181,11 +212,13 @@ void httpLogRoutes(HttpHost *host, bool full)
 }
 
 
+#if UNUSED
 void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize)
 {
     host->logCount = logCount;
     host->logSize = logSize;
 }
+#endif
 
 
 void httpSetHostHome(HttpHost *host, cchar *home)
@@ -298,6 +331,7 @@ void httpSetHostDefaultRoute(HttpHost *host, HttpRoute *route)
 }
 
 
+#if UNUSED
 void httpSetHostTrace(HttpHost *host, int level, int mask)
 {
     host->traceMask = mask;
@@ -338,7 +372,6 @@ void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *ex
 }
 
 
-#if UNUSED && KEEP
 int httpSetupTrace(HttpHost *host, cchar *ext)
 {
     if (ext) {
