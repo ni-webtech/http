@@ -1649,8 +1649,9 @@ extern ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet);
 #define HTTP_TRACE_FIRST            1       /**< First line of header only */
 #define HTTP_TRACE_HEADER           2       /**< Header */
 #define HTTP_TRACE_BODY             3       /**< Body content */
-#define HTTP_TRACE_TIME             4       /**< Instrument http pipeline */
-#define HTTP_TRACE_MAX_ITEM         5
+#define HTTP_TRACE_LIMITS           4       /**< Instrument http pipeline */
+#define HTTP_TRACE_TIME             5       /**< Instrument http pipeline */
+#define HTTP_TRACE_MAX_ITEM         6
 
 typedef struct HttpTrace {
     int             disable;                     /**< If tracing is disabled for this request */
@@ -3025,15 +3026,12 @@ typedef struct HttpRoute {
     MprFile         *log;                   /**< File object for access logging */
     char            *logFormat;             /**< Access log format */
     char            *logPath;               /**< Access log filename */
+    int             logFlags;               /**< Log control flags (append|anew) */
+    int             logBackup;              /**< Number of log backups */
+    ssize           logSize;                /**< Max log size */
     HttpLimits      *limits;                /**< Host resource limits */
     MprHash         *mimeTypes;             /**< Hash table of mime types (key is extension) */
 
-#if UNUSED
-    int             traceLevel;             /**< Trace activation level */
-    int             traceMaxLength;         /**< Maximum trace file length (if known) */
-    MprHash         *traceInclude;          /**< Extensions to include in trace */
-    MprHash         *traceExclude;          /**< Extensions to exclude from trace */
-#endif
     HttpTrace       trace[2];               /**< Default route request tracing */
     int             traceMask;              /**< Request/response trace mask */
 
@@ -3981,9 +3979,11 @@ extern bool httpTokenize(HttpRoute *route, cchar *str, cchar *fmt, ...);
 extern bool httpTokenizev(HttpRoute *route, cchar *str, cchar *fmt, va_list args);
 
 //  MOB
-extern void httpSetRouteLogFormat(HttpRoute *route, cchar *path, cchar *format);
-extern void httpWriteRouteLog(HttpRoute *route, cchar *buf, int len);
+extern void httpSetRouteLogFormat(HttpRoute *route, cchar *path, ssize size, int backup, cchar *format, int flags);
+extern void httpWriteRouteLog(HttpRoute *route, cchar *buf, ssize len);
 extern void httpLogRequest(HttpConn *conn);
+extern void httpBackupRouteLog(HttpRoute *route);
+extern MprFile *httpOpenRouteLog(HttpRoute *route);
 
 /********************************** HttpUploadFile *********************************/
 /**
@@ -4098,6 +4098,7 @@ typedef struct HttpRx {
     int             form;                   /**< Using mime-type application/x-www-form-urlencoded */
     int             streamInput;            /**< Streaming read data. Means !form */
     int             needInputPipeline;      /**< Input pipeline required to process received data */
+    int             traceLevel;             /**< General trace level for header level info */
     int             upload;                 /**< Request is using file upload */
 
     bool            ifModified;             /**< If-Modified processing requested */

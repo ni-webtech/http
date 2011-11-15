@@ -80,16 +80,10 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->pattern = MPR->emptyString;
     route->targetRule = sclone("run");
     route->autoDelete = 1;
-
-    //  MOB
     route->workers = -1;
     route->limits = mprMemdup(((Http*) MPR->httpService)->serverLimits, sizeof(HttpLimits));
-#if UNUSED
-    route->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
-    route->traceLevel = 3;
-    route->traceMaxLength = MAXINT;
-#endif
     route->mimeTypes = MPR->mimeTypes;
+    httpInitTrace(route->trace);
 
     if ((route->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
         route->mimeTypes = MPR->mimeTypes;                                                                  
@@ -156,23 +150,16 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->updates = parent->updates;
     route->uploadDir = parent->uploadDir;
     route->workers = parent->workers;
-
     route->limits = parent->limits;
     route->mimeTypes = parent->mimeTypes;
-#if UNUSED
-    route->traceInclude = parent->traceInclude;
-    route->traceExclude = parent->traceExclude;
-    route->traceLevel = parent->traceLevel;
-    route->traceMaxLength = parent->traceMaxLength;
-    route->traceMask = parent->traceMask;
-#else
     route->trace[0] = parent->trace[0];
     route->trace[1] = parent->trace[1];
-#endif
     route->log = parent->log;
     route->logFormat = parent->logFormat;
     route->logPath = parent->logPath;
-
+    route->logSize = parent->logSize;
+    route->logBackup = parent->logBackup;
+    route->logFlags = parent->logFlags;
     return route;
 }
 
@@ -223,13 +210,8 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->sourcePath);
         mprMark(route->tokens);
         mprMark(route->ssl);
-
         mprMark(route->limits);
         mprMark(route->mimeTypes);
-#if UNUSED
-        mprMark(route->traceInclude);
-        mprMark(route->traceExclude);
-#endif
         httpManageTrace(&route->trace[0], flags);
         httpManageTrace(&route->trace[1], flags);
         mprMark(route->log);
@@ -304,6 +286,10 @@ int httpStartRoute(HttpRoute *route)
 {
 #if !BLD_FEATURE_ROMFS
     if (route->logPath && (!route->parent || route->logPath != route->parent->logPath)) {
+        if (route->logBackup > 0) {
+            httpBackupRouteLog(route);
+        }
+        mprAssert(!route->log);
         route->log = mprOpenFile(route->logPath, O_CREAT | O_APPEND | O_WRONLY | O_TEXT, 0664);
         if (route->log == 0) {
             mprError("Can't open log file %s", route->logPath);
@@ -374,7 +360,9 @@ void httpRouteRequest(HttpConn *conn)
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Too many request rewrites");
         }
     }
-    mprLog(4, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
+    if (rx->traceLevel >= 0) {
+        mprLog(rx->traceLevel, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
+    }
 }
 
 
@@ -537,7 +525,9 @@ static int testRoute(HttpConn *conn, HttpRoute *route)
         httpError(conn, -1, "Can't find route target rule \"%s\"", route->targetRule);
         return HTTP_ROUTE_REJECT;
     }
-    mprLog(4, "Selected route \"%s\" target \"%s\"", route->name, route->targetRule);
+    if (rx->traceLevel >= 0) {
+        mprLog(4, "Select route \"%s\" target \"%s\"", route->name, route->targetRule);
+    }
     if ((rc = (*proc)(conn, route, 0)) != HTTP_ROUTE_OK) {
         return rc;
     }
@@ -611,7 +601,7 @@ void httpMapFile(HttpConn *conn, HttpRoute *route)
     if (info->valid) {
         tx->etag = sfmt("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
     }
-    mprLog(5, "mapFile uri \"%s\", filename: \"%s\", extension: \"%s\"", rx->uri, tx->filename, tx->ext);
+    LOG(7, "mapFile uri \"%s\", filename: \"%s\", extension: \"%s\"", rx->uri, tx->filename, tx->ext);
 }
 
 
@@ -2944,72 +2934,6 @@ HttpLimits *httpGraduateLimits(HttpRoute *route)
     }
     return route->limits;
 }
-
-
-#if UNUSED
-//  MOB - create trace.
-void httpSetRouteTrace(HttpRoute *route, int level, int mask)
-{
-    route->traceMask = mask;
-    route->traceLevel = level;
-}
-#endif
-
-
-void httpSetRouteTraceFilter(HttpRoute *route, int dir, int levels[HTTP_TRACE_MAX_ITEM], ssize len, 
-    cchar *include, cchar *exclude)
-{
-    HttpTrace   *trace;
-    char        *word, *tok, *line;
-    int         i;
-
-    trace = &route->trace[dir];
-    trace->size = len;
-    for (i = 0; i < HTTP_TRACE_MAX_ITEM; i++) {
-        trace->levels[i] = levels[i];
-    }
-    if (include && strcmp(include, "*") != 0) {
-        trace->include = mprCreateHash(0, 0);
-        line = sclone(include);
-        word = stok(line, ", \t\r\n", &tok);
-        while (word) {
-            if (word[0] == '*' && word[1] == '.') {
-                word += 2;
-            }
-            mprAddKey(trace->include, word, route);
-            word = stok(NULL, ", \t\r\n", &tok);
-        }
-    }
-    if (exclude) {
-        trace->exclude = mprCreateHash(0, 0);
-        line = sclone(exclude);
-        word = stok(line, ", \t\r\n", &tok);
-        while (word) {
-            if (word[0] == '*' && word[1] == '.') {
-                word += 2;
-            }
-            mprAddKey(trace->exclude, word, route);
-            word = stok(NULL, ", \t\r\n", &tok);
-        }
-    }
-}
-
-
-#if UNUSED && KEEP
-int httpSetupRouteTrace(HttpHost *route, cchar *ext)
-{
-    if (ext) {
-        if (route->traceInclude && !mprLookupKey(route->traceInclude, ext)) {
-            return 0;
-        }
-        if (route->traceExclude && mprLookupKey(route->traceExclude, ext)) {
-            return 0;
-        }
-    }
-    return route->traceMask;
-}
-#endif
-
 
 /*
     @copy   default

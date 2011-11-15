@@ -10,7 +10,7 @@
 
 /************************************ Code ************************************/
 
-void httpSetRouteLogFormat(HttpRoute *route, cchar *path, cchar *format)
+void httpSetRouteLogFormat(HttpRoute *route, cchar *path, ssize size, int backup, cchar *format, int flags)
 {
     char    *src, *dest;
 
@@ -21,6 +21,9 @@ void httpSetRouteLogFormat(HttpRoute *route, cchar *path, cchar *format)
     if (format == NULL || *format == '\0') {
         format = HTTP_LOG_FORMAT;
     }
+    route->logFlags = flags;
+    route->logSize = size;
+    route->logBackup = backup;
     route->logPath = sclone(path);
     route->logFormat = sclone(format);
 
@@ -34,13 +37,57 @@ void httpSetRouteLogFormat(HttpRoute *route, cchar *path, cchar *format)
 }
 
 
-void httpWriteRouteLog(HttpRoute *route, cchar *buf, int len)
+void httpBackupRouteLog(HttpRoute *route)
 {
-    static int once = 0;
+    MprPath     info;
 
-    if (mprWriteFile(route->log, (char*) buf, len) != len && once++ == 0) {
-        mprError("Can't write to access log %s", route->logPath);
+    mprAssert(route->logBackup);
+    mprAssert(route->logSize > 100);
+    mprGetPathInfo(route->logPath, &info);
+    if (info.valid && info.size > route->logSize) {
+        if (route->log) {
+            mprCloseFile(route->log);
+            route->log = 0;
+        }
+        mprBackupLog(route->logPath, route->logBackup);
     }
+}
+
+
+MprFile *httpOpenRouteLog(HttpRoute *route)
+{
+    MprFile     *file;
+    int         mode;
+
+    mprAssert(route->log == 0);
+
+    mode = O_CREAT | O_WRONLY | O_TEXT;
+    if ((file = mprOpenFile(route->logPath, mode, 0664)) == 0) {
+        mprError("Can't open log file %s", route->logPath);
+        unlock(MPR);
+        return 0;
+    }
+    route->log = file;
+    return file;
+}
+
+
+void httpWriteRouteLog(HttpRoute *route, cchar *buf, ssize len)
+{
+    lock(MPR);
+    if (route->logBackup > 0) {
+        httpBackupRouteLog(route);
+        if (!route->log && !httpOpenRouteLog(route)) {
+            unlock(MPR);
+            return;
+        }
+    }
+    if (mprWriteFile(route->log, (char*) buf, len) != len) {
+        mprError("Can't write to access log %s", route->logPath);
+        mprCloseFile(route->log);
+        route->log = 0;
+    }
+    unlock(MPR);
 }
 
 
@@ -169,7 +216,7 @@ void httpLogRequest(HttpConn *conn)
     }
     mprPutCharToBuf(buf, '\n');
     mprAddNullToBuf(buf);
-    mprWriteFile(route->log, mprGetBufStart(buf), mprGetBufLength(buf));
+    httpWriteRouteLog(route, mprGetBufStart(buf), mprGetBufLength(buf));
 }
 
 

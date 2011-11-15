@@ -44,6 +44,7 @@ HttpRx *httpCreateRx(HttpConn *conn)
     rx->needInputPipeline = !conn->endpoint;
     rx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     rx->chunkState = HTTP_CHUNK_UNCHUNKED;
+    rx->traceLevel = -1;
     return rx;
 }
 
@@ -274,12 +275,11 @@ static void traceRequest(HttpConn *conn, HttpPacket *packet)
         }
     }
 
-    mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->acceptIp, conn->sock->acceptPort);
-
     /*
         If tracing header, do entire header including first line
      */
-    if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, ext) >= 0) {
+    if ((conn->rx->traceLevel = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, ext)) >= 0) {
+        mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->acceptIp, conn->sock->acceptPort);
         endp = strstr((char*) content->start, "\r\n\r\n");
         len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
         httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
@@ -1069,7 +1069,7 @@ static void measure(HttpConn *conn)
     }
     uri = (conn->endpoint) ? conn->rx->uri : tx->parsedUri->path;
    
-    if ((level = httpShouldTrace(conn, 0, HTTP_TRACE_TIME, tx->ext)) >= 0) {
+    if ((level = httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_TIME, tx->ext)) >= 0) {
         elapsed = mprGetTime() - conn->startTime;
 #if MPR_HIGH_RES_TIMER
         if (elapsed < 1000) {

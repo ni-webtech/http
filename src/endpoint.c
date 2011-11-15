@@ -220,7 +220,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
 {
     HttpLimits      *limits;
     cchar           *action;
-    int             count;
+    int             count, level, dir;
 
     limits = conn->limits;
     action = "unknown";
@@ -242,6 +242,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         mprAddKey(endpoint->clientLoad, conn->ip, ITOP(count + 1));
         endpoint->clientCount = (int) mprGetHashLength(endpoint->clientLoad);
         action = "open conn";
+        dir = HTTP_TRACE_RX;
         break;
 
     case HTTP_VALIDATE_CLOSE_CONN:
@@ -252,9 +253,12 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
             mprRemoveKey(endpoint->clientLoad, conn->ip);
         }
         endpoint->clientCount = (int) mprGetHashLength(endpoint->clientLoad);
+#if UNUSED
         LOG(4, "Close connection %d. Active requests %d, active client IP %d.", conn->seqno, endpoint->requestCount, 
             endpoint->clientCount);
+#endif
         action = "close conn";
+        dir = HTTP_TRACE_TX;
         break;
     
     case HTTP_VALIDATE_OPEN_REQUEST:
@@ -266,19 +270,25 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         }
         endpoint->requestCount++;
         action = "open request";
+        dir = HTTP_TRACE_RX;
         break;
 
     case HTTP_VALIDATE_CLOSE_REQUEST:
         endpoint->requestCount--;
         mprAssert(endpoint->requestCount >= 0);
+#if UNUSED
         LOG(4, "Close request. Active requests %d, active client IP %d.", endpoint->requestCount, endpoint->clientCount);
+#endif
         action = "close request";
+        dir = HTTP_TRACE_TX;
         break;
     }
     if (event == HTTP_VALIDATE_CLOSE_CONN || event == HTTP_VALIDATE_CLOSE_REQUEST) {
-        LOG(4, "Validate request for %s. Active connections %d, active requests: %d/%d, active client IP addresses %d/%d", 
-            action, mprGetListLength(endpoint->http->connections), endpoint->requestCount, limits->requestCount, 
-            endpoint->clientCount, limits->clientCount);
+        if ((level = httpShouldTrace(conn, dir, HTTP_TRACE_LIMITS, NULL)) >= 0) {
+            LOG(4, "Validate request for %s. Active connections %d, active requests: %d/%d, active client IP %d/%d", 
+                action, mprGetListLength(endpoint->http->connections), endpoint->requestCount, limits->requestCount, 
+                endpoint->clientCount, limits->clientCount);
+        }
     }
     unlock(endpoint->http);
     return 1;
@@ -373,7 +383,9 @@ void httpMatchHost(HttpConn *conn)
         conn->host = mprGetFirstItem(endpoint->hosts);
         return;
     }
-    mprLog(4, "Select host: \"%s\"", host->name);
+    if (conn->rx->traceLevel >= 0) {
+        mprLog(conn->rx->traceLevel, "Select host: \"%s\"", host->name);
+    }
     conn->host = host;
 }
 

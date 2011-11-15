@@ -9,6 +9,45 @@
 
 /*********************************** Code *************************************/
 
+void httpSetRouteTraceFilter(HttpRoute *route, int dir, int levels[HTTP_TRACE_MAX_ITEM], ssize len, 
+    cchar *include, cchar *exclude)
+{
+    HttpTrace   *trace;
+    char        *word, *tok, *line;
+    int         i;
+
+    trace = &route->trace[dir];
+    trace->size = len;
+    for (i = 0; i < HTTP_TRACE_MAX_ITEM; i++) {
+        trace->levels[i] = levels[i];
+    }
+    if (include && strcmp(include, "*") != 0) {
+        trace->include = mprCreateHash(0, 0);
+        line = sclone(include);
+        word = stok(line, ", \t\r\n", &tok);
+        while (word) {
+            if (word[0] == '*' && word[1] == '.') {
+                word += 2;
+            }
+            mprAddKey(trace->include, word, route);
+            word = stok(NULL, ", \t\r\n", &tok);
+        }
+    }
+    if (exclude) {
+        trace->exclude = mprCreateHash(0, 0);
+        line = sclone(exclude);
+        word = stok(line, ", \t\r\n", &tok);
+        while (word) {
+            if (word[0] == '*' && word[1] == '.') {
+                word += 2;
+            }
+            mprAddKey(trace->exclude, word, route);
+            word = stok(NULL, ", \t\r\n", &tok);
+        }
+    }
+}
+
+
 void httpManageTrace(HttpTrace *trace, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
@@ -29,6 +68,8 @@ void httpInitTrace(HttpTrace *trace)
         trace[dir].levels[HTTP_TRACE_FIRST] = 2;
         trace[dir].levels[HTTP_TRACE_HEADER] = 3;
         trace[dir].levels[HTTP_TRACE_BODY] = 4;
+        trace[dir].levels[HTTP_TRACE_LIMITS] = 5;
+        trace[dir].levels[HTTP_TRACE_TIME] = 6;
         trace[dir].size = -1;
     }
 }
@@ -123,11 +164,6 @@ void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssi
     trace = &conn->trace[dir];
     level = trace->levels[item];
 
-    if (trace->size >= 0 && total >= trace->size) {
-        mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
-        trace->disable = 1;
-        return;
-    }
     if (trace->size >= 0 && total >= trace->size) {
         mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
         trace->disable = 1;
