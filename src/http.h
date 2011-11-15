@@ -106,7 +106,6 @@ struct HttpUri;
 /*  
     Other constants
  */
-#define HTTP_TIME_LEVEL           7                 /**< Trace level for timing log messages */
 #define HTTP_DEFAULT_MAX_THREADS  10                /**< Default number of threads */
 #define HTTP_MAX_KEEP_ALIVE       100               /**< Maximum requests per connection */
 #define HTTP_MAX_PASS             64                /**< Size of password */
@@ -1663,6 +1662,7 @@ typedef struct HttpTrace {
 
 extern void httpManageTrace(HttpTrace *trace, int flags);
 
+#if UNUSED
 #if BLD_DEBUG
 #define HTTP_TIME(conn, tag1, tag2, op) \
     if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, NULL) >= 0) { \
@@ -1670,6 +1670,7 @@ extern void httpManageTrace(HttpTrace *trace, int flags);
     } else op
 #else
 #define HTTP_TIME(conn, tag1, tag2, op) op
+#endif
 #endif
 
 /**
@@ -3021,16 +3022,20 @@ typedef struct HttpRoute {
     char            *uploadDir;             /**< Upload directory */
     int             autoDelete;             /**< Automatically delete uploaded files */
 
-    HttpLimits      *limits;                /**< Host resource limits */
-    MprHash         *mimeTypes;             /**< Hash table of mime types (key is extension) */
-    int             traceLevel;             /**< Trace activation level */
-    int             traceMaxLength;         /**< Maximum trace file length (if known) */
-    int             traceMask;              /**< Request/response trace mask */
-    MprHash         *traceInclude;          /**< Extensions to include in trace */
-    MprHash         *traceExclude;          /**< Extensions to exclude from trace */
     MprFile         *log;                   /**< File object for access logging */
     char            *logFormat;             /**< Access log format */
     char            *logPath;               /**< Access log filename */
+    HttpLimits      *limits;                /**< Host resource limits */
+    MprHash         *mimeTypes;             /**< Hash table of mime types (key is extension) */
+
+#if UNUSED
+    int             traceLevel;             /**< Trace activation level */
+    int             traceMaxLength;         /**< Maximum trace file length (if known) */
+    MprHash         *traceInclude;          /**< Extensions to include in trace */
+    MprHash         *traceExclude;          /**< Extensions to exclude from trace */
+#endif
+    HttpTrace       trace[2];               /**< Default route request tracing */
+    int             traceMask;              /**< Request/response trace mask */
 
     /*
         Used by Ejscript
@@ -3880,6 +3885,7 @@ extern int httpSetRouteTarget(HttpRoute *route, cchar *name, cchar *details);
  */
 extern void httpSetRouteTemplate(HttpRoute *route, cchar *tplate);
 
+#if UNUSED
 /**
     Set the route trace level and mask
     @param route HttpRoute object
@@ -3890,6 +3896,7 @@ extern void httpSetRouteTemplate(HttpRoute *route, cchar *tplate);
     @ingroup HttpRoute
  */
 extern void httpSetRouteTrace(HttpRoute *route, int level, int mask);
+#endif
 
 /**
     Set the route trace filter
@@ -3900,7 +3907,8 @@ extern void httpSetRouteTrace(HttpRoute *route, int level, int mask);
     @param exclude Comma or space separated list of extensions to exclude from tracing
     @ingroup HttpRoute
  */
-extern void httpSetRouteTraceFilter(HttpRoute *route, ssize len, cchar *include, cchar *exclude);
+extern void httpSetRouteTraceFilter(HttpRoute *route, int dir, int levels[HTTP_TRACE_MAX_ITEM], 
+        ssize len, cchar *include, cchar *exclude);
 
 #if UNUSED
 /**

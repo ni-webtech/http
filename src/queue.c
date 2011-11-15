@@ -293,7 +293,7 @@ int httpOpenQueue(HttpQueue *q, ssize chunkSize)
     }
     q->flags |= HTTP_QUEUE_OPEN;
     if (q->open) {
-        HTTP_TIME(q->conn, q->stage->name, "open", q->stage->open(q));
+        q->stage->open(q);
     }
     return 0;
 }

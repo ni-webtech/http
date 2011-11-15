@@ -22,6 +22,7 @@ HttpConn *httpCreateConn(Http *http, HttpEndpoint *endpoint, MprDispatcher *disp
 {
     HttpConn    *conn;
     HttpHost    *host;
+    HttpRoute   *route;
 
     if ((conn = mprAllocObj(HttpConn, manageConn)) == 0) {
         return 0;
@@ -39,13 +40,20 @@ HttpConn *httpCreateConn(Http *http, HttpEndpoint *endpoint, MprDispatcher *disp
     if (endpoint) {
         conn->notifier = endpoint->notifier;
         host = mprGetFirstItem(endpoint->hosts);
-        conn->limits = (host && host->defaultRoute) ? host->defaultRoute->limits : http->serverLimits;
+        if (host && (route = host->defaultRoute) != 0) {
+            conn->limits = route->limits;
+            conn->trace[0] = route->trace[0];
+            conn->trace[1] = route->trace[1];
+        } else {
+            conn->limits = http->serverLimits;
+            httpInitTrace(conn->trace);
+        }
     } else {
         conn->limits = http->clientLimits;
+        httpInitTrace(conn->trace);
     }
     conn->keepAliveCount = conn->limits->keepAliveCount;
     conn->serviceq = httpCreateQueueHead(conn, "serviceq");
-    httpInitTrace(conn->trace);
 
     if (dispatcher) {
         conn->dispatcher = dispatcher;

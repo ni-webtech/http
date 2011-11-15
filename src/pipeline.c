@@ -223,7 +223,7 @@ void httpStartPipeline(HttpConn *conn)
             if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_STARTED)) {
                     q->flags |= HTTP_QUEUE_STARTED;
-                    HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
+                    q->stage->start(q);
                 }
             }
         }
@@ -233,7 +233,7 @@ void httpStartPipeline(HttpConn *conn)
         prevQ = q->prevQ;
         if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
             q->flags |= HTTP_QUEUE_STARTED;
-            HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
+            q->stage->start(q);
         }
     }
     /* Start the handler last */
@@ -241,7 +241,7 @@ void httpStartPipeline(HttpConn *conn)
     if (q->start) {
         mprAssert(!(q->flags & HTTP_QUEUE_STARTED));
         q->flags |= HTTP_QUEUE_STARTED;
-        HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
+        q->stage->start(q);
     }
     if (!conn->error && !conn->connectorComplete && rx->remainingContent > 0) {
         /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
@@ -262,7 +262,7 @@ void httpProcessPipeline(HttpConn *conn)
     }
     q = conn->tx->queue[HTTP_QUEUE_TX]->nextQ;
     if (q->stage->process) {
-        HTTP_TIME(conn, q->stage->name, "process", q->stage->process(q));
+        q->stage->process(q);
     }
 }
 

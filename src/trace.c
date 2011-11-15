@@ -29,25 +29,23 @@ void httpInitTrace(HttpTrace *trace)
         trace[dir].levels[HTTP_TRACE_FIRST] = 2;
         trace[dir].levels[HTTP_TRACE_HEADER] = 3;
         trace[dir].levels[HTTP_TRACE_BODY] = 4;
-        //  MOB - should be initialized from host->traceMaxLength
         trace[dir].size = -1;
     }
 }
 
 
 /*
-    Return the level at which tracing should occur
+    If tracing should occur, return the level
  */
 int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext)
 {
     HttpTrace   *trace;
-    int         mprLevel;
 
     mprAssert(0 <= dir && dir < HTTP_TRACE_MAX_DIR);
     mprAssert(0 <= item && item < HTTP_TRACE_MAX_ITEM);
 
     trace = &conn->trace[dir];
-    if (trace->disable) {
+    if (trace->disable || trace->levels[item] > MPR->logLevel) {
         return -1;
     }
     if (ext) {
@@ -60,11 +58,7 @@ int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext)
             return -1;
         }
     }
-    mprLevel = mprGetLogLevel(conn);
-    if (trace->levels[item] <= mprLevel) {
-        return trace->levels[item];
-    }
-    return -1;
+    return trace->levels[item];
 }
 
 
@@ -123,21 +117,18 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
 void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssize len, MprOff total)
 {
     HttpTrace   *trace;
-    HttpRoute   *route;
     ssize       size;
     int         level;
 
     trace = &conn->trace[dir];
     level = trace->levels[item];
-    route = conn->rx->route;
-    mprAssert(route);
 
     if (trace->size >= 0 && total >= trace->size) {
         mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
         trace->disable = 1;
         return;
     }
-    if (route && route->traceMaxLength >= 0 && total >= route->traceMaxLength) {
+    if (trace->size >= 0 && total >= trace->size) {
         mprLog(level, "Abbreviating response trace for conn %d", conn->seqno);
         trace->disable = 1;
         return;

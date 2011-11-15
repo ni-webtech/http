@@ -1061,6 +1061,7 @@ static void measure(HttpConn *conn)
     MprTime     elapsed;
     HttpTx      *tx;
     cchar       *uri;
+    int         level;
 
     tx = conn->tx;
     if (conn->rx == 0 || tx == 0) {
@@ -1068,14 +1069,14 @@ static void measure(HttpConn *conn)
     }
     uri = (conn->endpoint) ? conn->rx->uri : tx->parsedUri->path;
    
-    if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, tx->ext) >= 0) {
+    if ((level = httpShouldTrace(conn, 0, HTTP_TRACE_TIME, tx->ext)) >= 0) {
         elapsed = mprGetTime() - conn->startTime;
 #if MPR_HIGH_RES_TIMER
         if (elapsed < 1000) {
-            mprLog(6, "TIME: Request %s took %,d msec %,d ticks", uri, elapsed, mprGetTicks() - conn->startTicks);
+            mprLog(level, "TIME: Request %s took %,d msec %,d ticks", uri, elapsed, mprGetTicks() - conn->startTicks);
         } else
 #endif
-            mprLog(6, "TIME: Request %s took %,d msec", uri, elapsed);
+            mprLog(level, "TIME: Request %s took %,d msec", uri, elapsed);
     }
 }
 #else

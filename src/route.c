@@ -84,9 +84,11 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     //  MOB
     route->workers = -1;
     route->limits = mprMemdup(((Http*) MPR->httpService)->serverLimits, sizeof(HttpLimits));
+#if UNUSED
     route->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
     route->traceLevel = 3;
     route->traceMaxLength = MAXINT;
+#endif
     route->mimeTypes = MPR->mimeTypes;
 
     if ((route->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
@@ -157,11 +159,16 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
 
     route->limits = parent->limits;
     route->mimeTypes = parent->mimeTypes;
+#if UNUSED
     route->traceInclude = parent->traceInclude;
     route->traceExclude = parent->traceExclude;
     route->traceLevel = parent->traceLevel;
     route->traceMaxLength = parent->traceMaxLength;
     route->traceMask = parent->traceMask;
+#else
+    route->trace[0] = parent->trace[0];
+    route->trace[1] = parent->trace[1];
+#endif
     route->log = parent->log;
     route->logFormat = parent->logFormat;
     route->logPath = parent->logPath;
@@ -219,8 +226,12 @@ static void manageRoute(HttpRoute *route, int flags)
 
         mprMark(route->limits);
         mprMark(route->mimeTypes);
+#if UNUSED
         mprMark(route->traceInclude);
         mprMark(route->traceExclude);
+#endif
+        httpManageTrace(&route->trace[0], flags);
+        httpManageTrace(&route->trace[1], flags);
         mprMark(route->log);
         mprMark(route->logFormat);
         mprMark(route->logPath);
@@ -353,6 +364,9 @@ void httpRouteRequest(HttpConn *conn)
     }
     rx->route = route;
     conn->limits = route->limits;
+
+    conn->trace[0] = route->trace[0];
+    conn->trace[1] = route->trace[1];
 
     if (conn->finalized) {
         tx->handler = conn->http->passHandler;
@@ -2932,40 +2946,49 @@ HttpLimits *httpGraduateLimits(HttpRoute *route)
 }
 
 
+#if UNUSED
 //  MOB - create trace.
 void httpSetRouteTrace(HttpRoute *route, int level, int mask)
 {
     route->traceMask = mask;
     route->traceLevel = level;
 }
+#endif
 
 
-void httpSetRouteTraceFilter(HttpRoute *route, ssize len, cchar *include, cchar *exclude)
+void httpSetRouteTraceFilter(HttpRoute *route, int dir, int levels[HTTP_TRACE_MAX_ITEM], ssize len, 
+    cchar *include, cchar *exclude)
 {
-    char    *word, *tok, *line;
+    HttpTrace   *trace;
+    char        *word, *tok, *line;
+    int         i;
 
-    route->traceMaxLength = (int) len;
+    trace = &route->trace[dir];
+    trace->size = len;
+    for (i = 0; i < HTTP_TRACE_MAX_ITEM; i++) {
+        trace->levels[i] = levels[i];
+    }
     if (include && strcmp(include, "*") != 0) {
-        route->traceInclude = mprCreateHash(0, 0);
+        trace->include = mprCreateHash(0, 0);
         line = sclone(include);
         word = stok(line, ", \t\r\n", &tok);
         while (word) {
             if (word[0] == '*' && word[1] == '.') {
                 word += 2;
             }
-            mprAddKey(route->traceInclude, word, route);
+            mprAddKey(trace->include, word, route);
             word = stok(NULL, ", \t\r\n", &tok);
         }
     }
     if (exclude) {
-        route->traceExclude = mprCreateHash(0, 0);
+        trace->exclude = mprCreateHash(0, 0);
         line = sclone(exclude);
         word = stok(line, ", \t\r\n", &tok);
         while (word) {
             if (word[0] == '*' && word[1] == '.') {
                 word += 2;
             }
-            mprAddKey(route->traceExclude, word, route);
+            mprAddKey(trace->exclude, word, route);
             word = stok(NULL, ", \t\r\n", &tok);
         }
     }
