@@ -93,7 +93,6 @@ void httpWriteRouteLog(HttpRoute *route, cchar *buf, ssize len)
 
 void httpLogRequest(HttpConn *conn)
 {
-    HttpHost    *host;
     HttpRx      *rx;
     HttpTx      *tx;
     HttpRoute   *route;
@@ -107,7 +106,6 @@ void httpLogRequest(HttpConn *conn)
     if (!route->log) {
         return;
     }
-    host = httpGetConnContext(conn);
     fmt = route->logFormat;
     if (fmt == 0) {
         fmt = HTTP_LOG_FORMAT;

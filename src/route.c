@@ -709,7 +709,7 @@ int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions)
 {
     Http            *http;
     HttpStage       *handler;
-    char            *extlist, *word, *tok, *hostName;
+    char            *extlist, *word, *tok;
 
     mprAssert(route);
 
@@ -718,7 +718,6 @@ int httpAddRouteHandler(HttpRoute *route, cchar *name, cchar *extensions)
         mprError("Can't find stage %s", name); 
         return MPR_ERR_CANT_FIND;
     }
-    hostName = route->host->name ? route->host->name : "default"; 
     GRADUATE_HASH(route, extensions);
 
     if (extensions && *extensions) {
