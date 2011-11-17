@@ -1348,7 +1348,7 @@ void mprMarkBlock(cvoid *ptr)
     mp = MPR_GET_MEM(ptr);
 #if BLD_DEBUG
     if (!mprIsValid(ptr)) {
-        mprStaticError("Memory block is either not dynamically allocated, or is corrupted");
+        mprError("Memory block is either not dynamically allocated, or is corrupted");
         return;
     }
     mprAssert(!IS_FREE(mp));
@@ -1624,7 +1624,7 @@ void mprVerifyMem()
                 }
                 for (i = 0; i < usize; i++) {
                     if (ptr[i] != 0xFE) {
-                        mprStaticError("Free memory block %x has been modified at offset %d (MprBlk %x, seqno %d)\n"
+                        mprError("Free memory block %x has been modified at offset %d (MprBlk %x, seqno %d)\n"
                                        "Memory was last allocated by %s", GET_PTR(mp), i, mp, mp->seqno, mp->name);
                     }
                 }
@@ -1908,7 +1908,7 @@ void mprCheckBlock(MprMem *mp)
 
     size = GET_SIZE(mp);
     if (mp->magic != MPR_ALLOC_MAGIC || size <= 0) {
-        mprStaticError("Memory corruption in memory block %x (MprBlk %x, seqno %d)\n"
+        mprError("Memory corruption in memory block %x (MprBlk %x, seqno %d)\n"
             "This most likely happend earlier in the program execution", GET_PTR(mp), mp, mp->seqno);
     }
 }
@@ -1928,7 +1928,7 @@ static void checkFreeMem(MprMem *mp)
         }
         for (i = 0; i < usize; i++) {
             if (ptr[i] != 0xFE) {
-                mprStaticError("Free memory block %x has been modified at offset %d (MprBlk %x, seqno %d)\n"
+                mprError("Free memory block %x has been modified at offset %d (MprBlk %x, seqno %d)\n"
                     "Memory was last allocated by %s", GET_PTR(mp), i, mp, mp->seqno, mp->name);
                 break;
             }
@@ -2044,22 +2044,22 @@ static void allocException(int cause, ssize size)
 
     if (cause == MPR_MEM_FAIL) {
         heap->hasError = 1;
-        mprStaticError("%s: Can't allocate memory block of size %,d bytes.", MPR->name, size);
+        mprLog(0, "%s: Can't allocate memory block of size %,d bytes.", MPR->name, size);
 
     } else if (cause == MPR_MEM_TOO_BIG) {
         heap->hasError = 1;
-        mprStaticError("%s: Can't allocate memory block of size %,d bytes.", MPR->name, size);
+        mprLog(0, "%s: Can't allocate memory block of size %,d bytes.", MPR->name, size);
 
     } else if (cause == MPR_MEM_REDLINE) {
-        mprStaticError("%s: Memory request for %,d bytes exceeds memory red-line.", MPR->name, size);
+        mprLog(0, "%s: Memory request for %,d bytes exceeds memory red-line.", MPR->name, size);
         mprPruneCache(NULL);
 
     } else if (cause == MPR_MEM_LIMIT) {
-        mprStaticError("%s: Memory request for %,d bytes exceeds memory limit.", MPR->name, size);
+        mprLog(0, "%s: Memory request for %,d bytes exceeds memory limit.", MPR->name, size);
     }
-    mprStaticError("%s: Memory used %,d, redline %,d, limit %,d.", MPR->name, (int) used, (int) MPR->heap.stats.redLine,
+    mprLog(0, "%s: Memory used %,d, redline %,d, limit %,d.", MPR->name, (int) used, (int) MPR->heap.stats.redLine,
         (int) MPR->heap.stats.maxMemory);
-    mprStaticError("%s: Consider increasing memory limit.", MPR->name);
+    mprLog(0, "%s: Consider increasing memory limit.", MPR->name);
     
     if (heap->notifier) {
         (heap->notifier)(cause, heap->allocPolicy,  size, used);
@@ -2609,7 +2609,6 @@ static void checkYielded()
 static void getArgs(Mpr *mpr, int argc, char **argv);
 static void manageMpr(Mpr *mpr, int flags);
 static void serviceEventsThread(void *data, MprThread *tp);
-static void startThreads(int flags);
 
 /*
     Create and initialize the MPR service.
@@ -2671,7 +2670,12 @@ Mpr *mprCreate(int argc, char **argv, int flags)
     mpr->nonBlock = mprCreateDispatcher("nonblock", 1);
     mpr->pathEnv = sclone(getenv("PATH"));
 
-    startThreads(flags);
+    if (flags & MPR_USER_EVENTS_THREAD) {
+        mprInitWindow();
+    } else {
+        mprStartEventsThread(flags);
+    }
+    mprStartGCService();
 
     if (MPR->hasError || mprHasMemError()) {
         return 0;
@@ -2914,22 +2918,18 @@ int mprStart()
 }
 
 
-static void startThreads(int flags)
+int mprStartEventsThread()
 {
     MprThread   *tp;
 
-    if (flags & MPR_USER_EVENTS_THREAD) {
-        mprInitWindow();
+    if ((tp = mprCreateThread("events", serviceEventsThread, NULL, 0)) == 0) {
+        MPR->hasError = 1;
     } else {
-        if ((tp = mprCreateThread("events", serviceEventsThread, NULL, 0)) == 0) {
-            MPR->hasError = 1;
-        } else {
-            MPR->cond = mprCreateCond();
-            mprStartThread(tp);
-            mprWaitForCond(MPR->cond, MPR_TIMEOUT_START_TASK);
-        }
+        MPR->cond = mprCreateCond();
+        mprStartThread(tp);
+        mprWaitForCond(MPR->cond, MPR_TIMEOUT_START_TASK);
     }
-    mprStartGCService();
+    return 0;
 }
 
 
@@ -4965,7 +4965,7 @@ static void manageCacheItem(CacheItem *item, int flags)
 
 
 static void closeFiles(MprCmd *cmd);
-static void cmdCallback(MprCmd *cmd, int channel, void *data);
+static ssize cmdCallback(MprCmd *cmd, int channel, void *data);
 static int makeChannel(MprCmd *cmd, int index);
 static int makeCmdIO(MprCmd *cmd);
 static void manageCmdService(MprCmdService *cmd, int flags);
@@ -5000,7 +5000,7 @@ static void cmdTaskEntry(char *program, MprCmdTaskFn entry, int cmdArg);
 #endif
 
 
-MprCmdService *mprCreateCmdService(Mpr *mpr)
+MprCmdService *mprCreateCmdService()
 {
     MprCmdService   *cs;
 
@@ -5651,6 +5651,7 @@ int mprWaitForCmd(MprCmd *cmd, MprTime timeout)
  */
 static void reapCmd(MprCmd *cmd)
 {
+    ssize   got, nbytes;
     int     status, rc;
 
     mprLog(6, "reapCmd pid %d, eof %d, required %d\n", cmd->pid, cmd->eofCount, cmd->requiredEof);
@@ -5724,6 +5725,36 @@ static void reapCmd(MprCmd *cmd)
         }
     }
     mprLog(6, "Cmd reaped: status %d, pid %d, eof %d / %d\n", cmd->status, cmd->pid, cmd->eofCount, cmd->requiredEof);
+
+    if (cmd->callback) {
+        /*
+            Read outstanding data
+         */  
+        while (cmd->eofCount < cmd->requiredEof) {
+            got = 0;
+            if (cmd->files[MPR_CMD_STDERR].fd >= 0) {
+                if ((nbytes = (cmd->callback)(cmd, MPR_CMD_STDERR, cmd->callbackData)) > 0) {
+                    got += nbytes;
+                }
+            }
+            if (cmd->files[MPR_CMD_STDOUT].fd >= 0) {
+                if ((nbytes = (cmd->callback)(cmd, MPR_CMD_STDOUT, cmd->callbackData)) > 0) {
+                    got += nbytes;
+                }
+            }
+            if (got <= 0) {
+                break;
+            }
+        }
+        if (cmd->files[MPR_CMD_STDERR].fd >= 0) {
+            mprCloseCmdFd(cmd, MPR_CMD_STDERR);
+        }
+        if (cmd->files[MPR_CMD_STDOUT].fd >= 0) {
+            mprCloseCmdFd(cmd, MPR_CMD_STDOUT);
+        }
+        mprAssert(cmd->eofCount == cmd->requiredEof);
+        mprAssert(cmd->complete);
+    }
 }
 
 
@@ -5731,7 +5762,7 @@ static void reapCmd(MprCmd *cmd)
     Default callback routine for the mprRunCmd routines. Uses may supply their own callback instead of this routine. 
     The callback is run whenever there is I/O to read/write to the CGI gateway.
  */
-static void cmdCallback(MprCmd *cmd, int channel, void *data)
+static ssize cmdCallback(MprCmd *cmd, int channel, void *data)
 {
     MprBuf      *buf;
     ssize       len, space;
@@ -5742,7 +5773,7 @@ static void cmdCallback(MprCmd *cmd, int channel, void *data)
     buf = 0;
     switch (channel) {
     case MPR_CMD_STDIN:
-        return;
+        return 0;
     case MPR_CMD_STDOUT:
         buf = cmd->stdoutBuf;
         break;
@@ -5751,7 +5782,7 @@ static void cmdCallback(MprCmd *cmd, int channel, void *data)
         break;
     default:
         /* Child death notification */
-        return;
+        return 0;
     }
     /*
         Read and aggregate the result into a single string
@@ -5760,7 +5791,7 @@ static void cmdCallback(MprCmd *cmd, int channel, void *data)
     if (space < (MPR_BUFSIZE / 4)) {
         if (mprGrowBuf(buf, MPR_BUFSIZE) < 0) {
             mprCloseCmdFd(cmd, channel);
-            return;
+            return 0;
         }
         space = mprGetBufSpace(buf);
     }
@@ -5770,13 +5801,14 @@ static void cmdCallback(MprCmd *cmd, int channel, void *data)
     if (len <= 0) {
         if (len == 0 || (len < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK))) {
             mprCloseCmdFd(cmd, channel);
-            return;
+            return len;
         }
     } else {
         mprAdjustBufEnd(buf, len);
     }
     mprAddNullToBuf(buf);
     mprEnableCmdEvents(cmd, channel);
+    return len;
 }
 
 
@@ -13318,14 +13350,6 @@ void mprAssertError(cchar *loc, cchar *msg)
         msg = buf;
     }
     mprLog(1, "%s", buf);
-#if UNUSED
-#if BLD_UNIX_LIKE || VXWORKS
-    if (write(2, (char*) msg, slen(msg)) < 0) {}
-#elif BLD_WIN_LIKE
-    if (fprintf(stderr, "%s\n", msg) < 0) {}
-#endif
-    mprBreakpoint();
-#endif
 #endif
 }
 

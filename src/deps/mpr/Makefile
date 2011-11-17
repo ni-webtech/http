@@ -9,25 +9,26 @@
 
 include 			.makedep
 
-MPR_LIB				+= $(BLD_LIB_DIR)/libmpr$(BLD_LIB)
-MPRSSL_LIB			+= $(BLD_LIB_DIR)/libmprssl$(BLD_LIB)
+ifeq ($(BLD_MPR_BUILTIN),1)
+	MPR_LIB				+= $(BLD_LIB_DIR)/libmpr$(BLD_LIB)
+	MPRSSL_LIB			+= $(BLD_LIB_DIR)/libmprssl$(BLD_LIB)
+	TARGETS				+= $(MPR_LIB)
+	MPR_OBJECTS			+= mprLib
+	ifeq ($(BLD_FEATURE_OPENSSL),1)
+		MAKE_IFLAGS		+= $(BLD_OPENSSL_IFLAGS)
+	endif
+	ifeq ($(BLD_FEATURE_MATRIXSSL),1)
+		MAKE_IFLAGS		+= $(BLD_MATRIXSSL_IFLAGS)
+	endif
+	ifeq ($(BLD_FEATURE_SSL),1)
+		TARGETS			+= $(MPRSSL_LIB)
+		SSL_OBJECTS		+= mprSsl
+	endif
+else
+	COMPILE				:= manager.c
+endif
 
-TARGETS				+= $(MPR_LIB)
-MPR_OBJECTS			+= mprLib
-## IMPORTS 			+= $(BLD_OPENSSL_IMPORTS) $(BLD_MATRIXSSL_IMPORTS) $(BLD_MPR_IMPORTS)
-## IMPORTED			+= $(patsubst %,$(BLD_LIB_DIR)/%, $(notdir $(IMPORTS)))
-
-ifeq ($(BLD_FEATURE_OPENSSL),1)
-	MAKE_IFLAGS		+= $(BLD_OPENSSL_IFLAGS)
-endif
-ifeq ($(BLD_FEATURE_MATRIXSSL),1)
-	MAKE_IFLAGS		+= $(BLD_MATRIXSSL_IFLAGS)
-endif
-ifeq ($(BLD_FEATURE_SSL),1)
-	TARGETS			+= $(MPRSSL_LIB)
-	SSL_OBJECTS		+= mprSsl
-endif
-TARGETS				+= $(BLD_BIN_DIR)/angel$(BLD_EXE)
+TARGETS				+= $(BLD_BIN_DIR)/manager$(BLD_EXE)
 TARGETS				+= $(BLD_BIN_DIR)/makerom$(BLD_EXE)
 
 ifeq ($(MACOSX),1)
@@ -45,26 +46,14 @@ $(MPRSSL_LIB): $(OBJECTS)
 $(BLD_BIN_DIR)/makerom$(BLD_EXE): $(OBJECTS) $(MPR_LIB)
 	bld --exe $(BLD_BIN_DIR)/makerom$(BLD_EXE) --search "$(BLD_SSL_LIBPATHS)" --libs "mpr $(BLD_SSL_LIBS)" makerom
 
-$(BLD_BIN_DIR)/angel$(BLD_EXE): $(BLD_LIB_DIR)/libmpr$(BLD_LIB) $(OBJECTS)
+$(BLD_BIN_DIR)/manager$(BLD_EXE): $(BLD_LIB_DIR)/libmpr$(BLD_LIB) $(OBJECTS)
 ifeq ($(BLD_HOST_UNIX),1)
-	bld --exe $(BLD_BIN_DIR)/angel$(BLD_EXE) --search "$(BLD_MPR_LIBPATHS)" --libs "$(BLD_MPR_LIBS)" angel$(BLD_OBJ)
+	bld --exe $(BLD_BIN_DIR)/manager$(BLD_EXE) --search "$(BLD_MPR_LIBPATHS)" --libs "$(BLD_MPR_LIBS)" manager$(BLD_OBJ)
 endif
 ifeq ($(BLD_HOST_WIN),1)
-	bld --graphical --exe $(BLD_BIN_DIR)/angel$(BLD_EXE) --rpath "$(BLD_LIB_PREFIX)" --rpath "../bin" \
-		--search "$(LIBPATH)" $(MODE) --libs "mpr" --syslibs "$(SYSLIBS)" angel$(BLD_OBJ) 
+	bld --graphical --exe $(BLD_BIN_DIR)/manager$(BLD_EXE) --rpath "$(BLD_LIB_PREFIX)" --rpath "../bin" \
+		--search "$(LIBPATH)" $(MODE) --libs "mpr" --syslibs "$(SYSLIBS)" manager$(BLD_OBJ) 
 endif
-
-#
-#	Import required libraries
-#
-## imports: $(IMPORTED)
-## 
-## $(IMPORTED): $(IMPORTS)
-## 	getlib $^
-## ifeq ($(BLD_FEATURE_MATRIXSSL),1)
-## 	[ -x $(BLD_TOP)/projects/MACOSX ] && find $(BLD_TOP)/projects/MACOSX -name Debug | \
-## 		while read d ; do cp $(BLD_MATRIXSSL_IMPORTS) $$d ; done
-## endif
 
 cleanExtra:
 	rm -f $(IMPORTED)
