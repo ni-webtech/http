@@ -31,8 +31,10 @@ endif
 ifeq ($(BUILDING_NATIVE),1)
 	TARGETS				+= $(BLD_BIN_DIR)/makerom$(BLD_EXE)
 else
+ifneq ($(BLD_MANAGER),)
 ifneq ($(BLD_HOST_VXWORKS),1)
 	TARGETS				+= $(BLD_BIN_DIR)/$(BLD_MANAGER)$(BLD_EXE)
+endif
 endif
 endif
 
