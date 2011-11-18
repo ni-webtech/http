@@ -22,6 +22,7 @@ EXPORTS
   httpAddRouteFilter
   httpAddRouteHandler
   httpAddRouteHeader
+  httpAddRouteIndex
   httpAddRouteLanguageDir
   httpAddRouteLanguageSuffix
   httpAddRouteParam
@@ -39,6 +40,7 @@ EXPORTS
   httpAppendHeaderString
   httpAppendQueue
   httpAssignQueue
+  httpBackupRouteLog
   httpCallEvent
   httpCheckAuth
   httpClearRouteStages
@@ -173,6 +175,7 @@ EXPORTS
   httpGetStageData
   httpGetStatus
   httpGetStatusMessage
+  httpGraduateLimits
   httpHandleOptionsTrace
   httpHasNamedVirtualHosts
   httpInitAuth
@@ -195,6 +198,7 @@ EXPORTS
   httpJoinUriPath
   httpLink
   httpLoadSsl
+  httpLogRequest
   httpLogRoutes
   httpLookupEndpoint
   httpLookupHost
@@ -224,6 +228,7 @@ EXPORTS
   httpOpenPassHandler
   httpOpenQueue
   httpOpenRangeFilter
+  httpOpenRouteLog
   httpOpenSendConnector
   httpOpenUploadFilter
   httpParseAcl
@@ -303,11 +308,8 @@ EXPORTS
   httpSetHostDefaultRoute
   httpSetHostHome
   httpSetHostIpAddr
-  httpSetHostLogRotation
   httpSetHostName
   httpSetHostProtocol
-  httpSetHostTrace
-  httpSetHostTraceFilter
   httpSetIOCallback
   httpSetIntParam
   httpSetKeepAliveCount
@@ -331,7 +333,7 @@ EXPORTS
   httpSetRouteFlags
   httpSetRouteHandler
   httpSetRouteHost
-  httpSetRouteIndex
+  httpSetRouteLogFormat
   httpSetRouteMethods
   httpSetRouteName
   httpSetRoutePathVar
@@ -341,6 +343,7 @@ EXPORTS
   httpSetRouteSource
   httpSetRouteTarget
   httpSetRouteTemplate
+  httpSetRouteTraceFilter
   httpSetRouteWorkers
   httpSetSendConnector
   httpSetSoftware
@@ -354,8 +357,12 @@ EXPORTS
   httpShouldTrace
   httpSplitPacket
   httpStartEndpoint
+  httpStartHost
   httpStartPipeline
+  httpStartRoute
   httpStopEndpoint
+  httpStopHost
+  httpStopRoute
   httpTemplate
   httpTestParam
   httpTokenize
@@ -379,6 +386,7 @@ EXPORTS
   httpWriteCached
   httpWriteGroupFile
   httpWriteHeaders
+  httpWriteRouteLog
   httpWriteSafeString
   httpWriteString
   httpWriteUploadData

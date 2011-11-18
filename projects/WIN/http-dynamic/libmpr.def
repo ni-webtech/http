@@ -12,6 +12,7 @@ EXPORTS
   gettimeofday
   itos
   itosbuf
+  itosradix
   mprAcceptSocket
   mprActivateWorker
   mprAddDuplicateKey
@@ -25,6 +26,7 @@ EXPORTS
   mprAddRoot
   mprAddSocketHandler
   mprAddStandardSignals
+  mprAddTerminator
   mprAddTestGroup
   mprAdjustBufEnd
   mprAdjustBufStart
@@ -40,6 +42,7 @@ EXPORTS
   mprAtomicExchange
   mprAtomicListInsert
   mprAttachFileFd
+  mprBackupLog
   mprBlendHash
   mprBreakpoint
   mprCheckBlock
@@ -75,6 +78,7 @@ EXPORTS
   mprCreateKeyPair
   mprCreateList
   mprCreateLock
+  mprCreateLogService
   mprCreateMemService
   mprCreateMimeTypes
   mprCreateModule
@@ -145,13 +149,7 @@ EXPORTS
   mprGetAvailableWorkers
   mprGetBlockFromBuf
   mprGetBlockSize
-  mprGetBuf
-  mprGetBufEnd
-  mprGetBufLength
   mprGetBufRefillProc
-  mprGetBufSize
-  mprGetBufSpace
-  mprGetBufStart
   mprGetCharFromBuf
   mprGetCmdBuf
   mprGetCmdExitStatus
@@ -187,7 +185,6 @@ EXPORTS
   mprGetLastItem
   mprGetLastPathSeparator
   mprGetListCapacity
-  mprGetListLength
   mprGetLogFile
   mprGetLogHandler
   mprGetLogLevel
@@ -274,6 +271,7 @@ EXPORTS
   mprLoadModule
   mprLoadNativeModule
   mprLock
+  mprLockDtoa
   mprLog
   mprLookAtLastCharInBuf
   mprLookAtNextCharInBuf
@@ -297,6 +295,7 @@ EXPORTS
   mprMemcpy
   mprMemdupMem
   mprMemoryError
+  mprNap
   mprNop
   mprNormalizePath
   mprNotifyOn
@@ -310,6 +309,7 @@ EXPORTS
   mprPrintMem
   mprPrintf
   mprPrintfError
+  mprPruneCache
   mprPushItem
   mprPutBlockToBuf
   mprPutCharToBuf
@@ -360,6 +360,7 @@ EXPORTS
   mprResetTestGroup
   mprResetYield
   mprResolvePath
+  mprRestart
   mprRestartContinuousEvent
   mprResumeThreads
   mprRevive
@@ -401,11 +402,12 @@ EXPORTS
   mprSetIpAddr
   mprSetItem
   mprSetListLimits
+  mprSetLogBackup
   mprSetLogFile
   mprSetLogHandler
   mprSetLogLevel
   mprSetManager
-  mprSetMaxSocketClients
+  mprSetMaxSocketAccept
   mprSetMaxWorkers
   mprSetMemError
   mprSetMemLimits
@@ -447,7 +449,9 @@ EXPORTS
   mprSprintfv
   mprStart
   mprStartCmd
+  mprStartEventsThread
   mprStartGCService
+  mprStartLogging
   mprStartModule
   mprStartModuleService
   mprStartOsService
@@ -474,6 +478,7 @@ EXPORTS
   mprUnloadModule
   mprUnloadNativeModule
   mprUnlock
+  mprUnlockDtoa
   mprUriDecode
   mprUriEncode
   mprUserError
@@ -550,6 +555,7 @@ EXPORTS
   ssub
   stemplate
   stoi
+  stoiradix
   stok
   stopAlloc
   stopSeqno
