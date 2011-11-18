@@ -2643,8 +2643,10 @@ Mpr *mprCreate(int argc, char **argv, int flags)
     fs = mprCreateFileSystem("/");
     mprAddFileSystem(fs);
     mprCreateLogService();
-    getArgs(mpr, argc, argv);
 
+    if (argv) {
+        getArgs(mpr, argc, argv);
+    }
     if (mpr->argv && mpr->argv[0] && *mpr->argv[0]) {
         name = mpr->argv[0];
         if ((cp = strrchr(name, '/')) != 0 || (cp = strrchr(name, '\\')) != 0) {
@@ -2879,25 +2881,27 @@ void mprRestart()
  */
 static void getArgs(Mpr *mpr, int argc, char **argv) 
 {
+    if (argv) {
 #if WINCE
-    MprArgs *args = (MprArgs*) argv;
-    command = mprToMulti((uni*) args->command);
-    argc = mprMakeArgv(command, &argv, MPR_ARGV_ARGS_ONLY);
-    mprHold(argv);
-    argv[0] = sclone(args->program);
-    mprHold(argv[0]);
+        MprArgs *args = (MprArgs*) argv;
+        command = mprToMulti((uni*) args->command);
+        argc = mprMakeArgv(command, &argv, MPR_ARGV_ARGS_ONLY);
+        mprHold(argv);
+        argv[0] = sclone(args->program);
+        mprHold(argv[0]);
 #elif VXWORKS
-    MprArgs *args = (MprArgs*) argv;
-    argc = mprMakeArgv("", &argv, MPR_ARGV_ARGS_ONLY);
-    mprHold(argv);
-    argv[0] = sclone(args->program);
-    mprHold(argv[0]);
+        MprArgs *args = (MprArgs*) argv;
+        argc = mprMakeArgv("", &argv, MPR_ARGV_ARGS_ONLY);
+        mprHold(argv);
+        argv[0] = sclone(args->program);
+        mprHold(argv[0]);
 #else
-    argv[0] = mprGetAppPath();
-    mprHold(argv[0]);
+        argv[0] = mprGetAppPath();
+        mprHold(argv[0]);
 #endif
-    mpr->argc = argc;
-    mpr->argv = argv;
+        mpr->argc = argc;
+        mpr->argv = argv;
+    }
 }
 
 
