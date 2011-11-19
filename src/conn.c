@@ -391,6 +391,9 @@ static void readEvent(HttpConn *conn)
         if (conn->readq && conn->readq->count > conn->readq->max) {
             break;
         }
+        if (mprDispatcherHasEvents(conn->dispatcher)) {
+            break;
+        }
     }
 }
 
