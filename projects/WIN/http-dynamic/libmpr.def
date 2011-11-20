@@ -115,6 +115,7 @@ EXPORTS
   mprDisableFileBuffering
   mprDisconnectCmd
   mprDisconnectSocket
+  mprDispatcherHasEvents
   mprDispatchersAreIdle
   mprDoWaitRecall
   mprDtoa
