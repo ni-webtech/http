@@ -148,12 +148,6 @@ void httpLogRequest(HttpConn *conn)
             mprPutStringToBuf(buf, rx->parsedUri->host);
             break;
 
-#if UNUSED
-        case 'l':                           /* Supplied in authorization */
-            mprPutStringToBuf(buf, conn->authUser ? conn->authUser : "-");
-            break;
-#endif
-
         case 'O':                           /* Bytes written (including headers) */
             mprPutIntToBuf(buf, tx->bytesWritten);
             break;

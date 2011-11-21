@@ -9,7 +9,7 @@ include		.makedep
 gen: prep http.html
 
 prep:
-	rm -f http.html
+	touch Makefile
 
 http.html: Makefile
 	make -C http gen

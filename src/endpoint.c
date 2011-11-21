@@ -117,11 +117,6 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
     httpSetHostIpAddr(host, ip, port);
     httpAddHostToEndpoint(endpoint, host);
     httpSetHostHome(host, home);
-#if UNUSED
-    if ((host->mimeTypes = mprCreateMimeTypes("mime.types")) == 0) {
-        host->mimeTypes = MPR->mimeTypes;
-    }
-#endif
     httpSetRouteDir(route, documents);
     httpFinalizeRoute(route);
     return endpoint;
@@ -255,10 +250,6 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
             mprRemoveKey(endpoint->clientLoad, conn->ip);
         }
         endpoint->clientCount = (int) mprGetHashLength(endpoint->clientLoad);
-#if UNUSED
-        LOG(4, "Close connection %d. Active requests %d, active client IP %d.", conn->seqno, endpoint->requestCount, 
-            endpoint->clientCount);
-#endif
         action = "close conn";
         dir = HTTP_TRACE_TX;
         break;
@@ -278,9 +269,6 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
     case HTTP_VALIDATE_CLOSE_REQUEST:
         endpoint->requestCount--;
         mprAssert(endpoint->requestCount >= 0);
-#if UNUSED
-        LOG(4, "Close request. Active requests %d, active client IP %d.", endpoint->requestCount, endpoint->clientCount);
-#endif
         action = "close request";
         dir = HTTP_TRACE_TX;
         break;
