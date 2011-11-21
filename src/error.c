@@ -81,7 +81,7 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
              */
             httpDisconnect(conn);
         } else {
-            httpFormatResponseError(conn, status, conn->errorMsg);
+            httpFormatResponseError(conn, status, "%s", conn->errorMsg);
         }
     } else {
         if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
