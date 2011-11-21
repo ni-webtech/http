@@ -54,14 +54,10 @@ static void startRange(HttpQueue *q)
 
     conn = q->conn;
     tx = conn->tx;
-    mprAssert(tx->outputRanges);
-    if (tx->outputRanges == 0) {
-        mprError("WARNING: outputRanges is null");
-        mprError("rx %x %x", conn->rx, conn->tx);
-        mprError("WARNING: outputRanges is null for %s", conn->rx->uri);
-    }
-
-    if (tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
+    /*
+        The httpContentNotModified routine can set outputRanges to zero if returning not-modified.
+     */
+    if (tx->outputRanges == 0 || tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
         httpRemoveQueue(q);
     } else {
         tx->status = HTTP_CODE_PARTIAL;

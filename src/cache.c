@@ -496,7 +496,8 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
     cache->serverLifespan = serverLifespan;
     cache->flags = flags;
     mprAddItem(route->caching, cache);
-#if UNUSED
+
+#if UNUSED && KEEP
     mprLog(3, "Caching route %s for methods %s, URIs %s, extensions %s, types %s, client lifespan %d, server lifespan %d", 
         route->name,
         (methods) ? methods: "*",

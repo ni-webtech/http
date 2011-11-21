@@ -10,7 +10,7 @@
 
 /************************************ Code ************************************/
 
-void httpSetRouteLogFormat(HttpRoute *route, cchar *path, ssize size, int backup, cchar *format, int flags)
+void httpSetRouteLog(HttpRoute *route, cchar *path, ssize size, int backup, cchar *format, int flags)
 {
     char    *src, *dest;
 
@@ -60,7 +60,6 @@ MprFile *httpOpenRouteLog(HttpRoute *route)
     int         mode;
 
     mprAssert(route->log == 0);
-
     mode = O_CREAT | O_WRONLY | O_TEXT;
     if ((file = mprOpenFile(route->logPath, mode, 0664)) == 0) {
         mprError("Can't open log file %s", route->logPath);
