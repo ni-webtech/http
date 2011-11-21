@@ -219,6 +219,7 @@ static void commonPrep(HttpConn *conn)
     }
     conn->canProceed = 1;
     conn->error = 0;
+    conn->connError = 0;
     conn->errorMsg = 0;
     conn->state = 0;
     conn->responded = 0;

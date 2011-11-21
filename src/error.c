@@ -20,6 +20,7 @@ void httpDisconnect(HttpConn *conn)
         mprDisconnectSocket(conn->sock);
     }
     conn->connError = 1;
+    conn->error = 1;
     conn->keepAliveCount = -1;
     if (conn->rx) {
         conn->rx->eof = 1;
