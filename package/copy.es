@@ -29,7 +29,7 @@ public function copy(src: Path, target: Path = Dir, options = {})
     let owner = options.owner || -1
     let permissions = options.permissions
     let task = options.task 
-    let verbose = options.trace
+    let verbose: Number = options.trace
     let compress = options.compress || false
     let build = options.build
     let log = App.log
@@ -103,7 +103,9 @@ public function copy(src: Path, target: Path = Dir, options = {})
             if (compress) {
                 let destZip: Path = Path("" + dest.name + ".gz")
                 destZip.remove()
-                log.activity("Compress", dest)
+                if (verbose) {
+                    log.activity("Compress", dest)
+                }
                 Cmd.sh("gzip --best " + dest)
                 dest = destZip
             }
@@ -164,12 +166,17 @@ public function preparePrefixes(options)
             "BLD_SAM_PREFIX", "BLD_SPL_PREFIX", "BLD_SRC_PREFIX", "BLD_VER_PREFIX", "BLD_WEB_PREFIX"]) {
         build["ORIG_" + prefix] = Path(build[prefix]).absolute.portable
         let tree: Path
+        let root = Path(options.root)
+        let path = Path(build[prefix])
         if (options.task == "Package") {
             tree = (prefix == "BLD_SRC_PREFIX") ? "/SRC" : "/BIN"
         } else {
             tree = ""
         }
-        build[prefix] = Path("" + options.root + tree + build[prefix]).portable
+        if (path.hasDrive) {
+            path = "/" + path.components.slice(1).join("/")
+        }
+        build[prefix] = Path("" + root + tree + path).portable
     }
     let out = options.top.join("out")
     for (key in build) {
