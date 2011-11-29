@@ -8,8 +8,8 @@ HTTP(1)                          User Commands                         HTTP(1)
        <B>http [options] [files] url</B>
 
        [<I>--benchmark  </I>]  [<I>--chunk  size  </I>] [<I>--continue</I>] [<I>--cookie cookieString</I>]
-       [<I>--data</I>]  [<I>--debugger</I>]  [<I>--delete</I>]  [<I>--form  string</I>]  [<I>--header   'key:</I>
-       <I>value'</I>]   [<I>--host   hostName</I>]   [<I>--iterations  count</I>]  [<I>--log  logSpec</I>]
+       [<I>--data</I>] [<I>--debugger</I>] [<I>--delete</I>]  [<I>--exit</I>]  [<I>--form  string</I>]  [<I>--header</I>
+       <I>'key:  value'</I>]  [<I>--host  hostName</I>] [<I>--iterations count</I>] [<I>--log logSpec</I>]
        [<I>--method HTTP_METHOD</I>] [<I>--nofollow</I>] [<I>--noout</I>] [<I>--out file</I>]  [<I>--password</I>
        <I>pass</I>]  [<I>--post</I>]  [<I>--printable</I>]  [<I>--protocol  version</I>]  [<I>--put</I>] [<I>--range</I>
        <I>byteRanges</I>] [<I>--retries count</I>] [<I>--sequence</I>] [<I>--showHeaders</I>]  [<I>--showSta-</I>
@@ -48,6 +48,8 @@ HTTP(1)                          User Commands                         HTTP(1)
        <B>--delete</B>
               Issue a DELETE request. This is an alias for --method DELETE.
 
+       <B>--exit </B>Exit with a error status for non-200 HTTP results.
+
        <B>--form formData</B>
               String of body data to send with the request. Assumed to be  URL
               encoded. ie. "name=paul&ampaddress=uk".  You cannot use this switch
@@ -68,8 +70,8 @@ HTTP(1)                          User Commands                         HTTP(1)
 
        <B>--log logSpec</B>
               Specify a file to log messages.   The  syntax  is:  <B>"--log  log-</B>
-              <B>Name[,moduleName][:logLevel]"</B>.   Level  3 will trace the request
-              and response headers.
+              <B>File[:logLevel]"</B>.   Level  3 will trace the request and response
+              headers.
 
        <B>--method method</B>
               Set the HTTP method. Values  may  be  "GET",  "PUT",  "OPTIONS",
