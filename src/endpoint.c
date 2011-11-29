@@ -315,6 +315,10 @@ HttpConn *httpAcceptConn(HttpEndpoint *endpoint, MprEvent *event)
     }
     dispatcher = event->dispatcher;
 
+    if (mprShouldDenyNewRequests()) {
+        mprCloseSocket(sock, 0);
+        return 0;
+    }
     if ((conn = httpCreateConn(endpoint->http, endpoint, dispatcher)) == 0) {
         mprCloseSocket(sock, 0);
         return 0;

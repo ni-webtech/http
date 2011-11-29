@@ -21,8 +21,8 @@ $(BLD_BIN_DIR)/testHttp$(BLD_EXE): $(OBJECTS)
 cleanExtra:
 	rm -f trace*.txt *.txt.old
 
-testExtra::
 ifeq	($(BLD_CROSS),0)
+testExtra::
 	testHttp -v
 endif
 

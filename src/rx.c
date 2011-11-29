@@ -167,6 +167,10 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     if (packet == NULL) {
         return 0;
     }
+    if (mprShouldDenyNewRequests()) {
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Server terminating");
+        return 0;
+    }
     if (conn->rx == NULL) {
         conn->rx = httpCreateRx(conn);
         conn->tx = httpCreateTx(conn, NULL);
