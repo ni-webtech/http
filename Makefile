@@ -13,7 +13,7 @@
 #		make test 					# Runs unit tests
 #
 
-DEPS		= tools
+DEPS		= tools mpr pcre
 
 include		build/make/Makefile.top
 include		build/make/Makefile.http
