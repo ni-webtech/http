@@ -2,26 +2,12 @@
 #   ejscript - Ejscript language
 #
 defineComponent() {
-    local deps libs optional path libdir builtin imports incdir iflags present SHOBJ type n
+    local deps libs optional path libdir builtin imports incdir iflags present SHOBJ type n allinone
 
     path="${1}"
     eval SHOBJ=\$BLD_${kind}_SHOBJ
     builtin=`[ "$path" = "" -a -f src/ejs.h ] && echo --builtin`
     eval sqlite=\$CFG_${kind}_SQLITE
-
-    optional="ssl"
-    deps="mpr http"
-    libs="ejs pcre"
-    withlibs="pcre"
-
-    if [ "$BLD_FEATURE_EJSCRIPT_ALL_IN_ONE" = 1 ] ; then
-        optional="$optional sqlite3"
-        sqlite=1
-    fi
-    if [ "$sqlite" = 1 ] ; then
-        withlibs="sqlite3"
-        libs="$libs sqlite3"
-    fi
 
     #
     #   Download flat distribution if requested. Currently just for build-farm use.
@@ -38,6 +24,24 @@ defineComponent() {
         tar -C src/deps/ejs --strip-components 2 -zxf src/deps/ejs.tgz
         rm src/deps/ejs.tgz
         builtin="--builtin"
+    fi
+
+    optional="ssl"
+    deps="mpr http"
+    libs="ejs pcre"
+    withlibs="pcre"
+    allinone=0
+    allinone=
+
+    if [ "$builtin" != "" -a -f src/deps/ejs/ejsLib.c ] ; then
+        optional="$optional sqlite3"
+        sqlite=1
+        allinone=1
+        BLD_FEATURE_EJSCRIPT_ALL_IN_ONE=1
+    fi
+    if [ "$sqlite" = 1 ] ; then
+        withlibs="sqlite3"
+        libs="$libs sqlite3"
     fi
 
     if [ "$builtin" = "" ] ; then
@@ -58,10 +62,8 @@ defineComponent() {
             fi
             libraries="$lib $libraries"
         done
-        if [ "$BLD_FEATURE_EJSCRIPT_ALL_IN_ONE" = 1 ] ; then
-            if isdefined SQLITE ; then
-                libraries="$libraries `echo $libdir/libsqlite3*`"
-            fi
+        if [ "$allinone" = 1 -a "$sqlite" = 1 ] ; then
+            libraries="$libraries `echo $libdir/libsqlite3*`"
         fi
         ejsbin=`probe --exe --name ejs --search "$search" ejs`
 
@@ -98,10 +100,7 @@ defineComponent() {
         ejsbin=`canonPath ${BLD_OUT_DIR}/bin/ejs`
         search="src:src/deps/ejs"
     fi
-echo 
-echo SEARCH $search
     incdir=`probe --name ejs.h --dir --search "$search" "ejs.h" `
-echo INCDIR $incdir
     if [ "$incdir" != "" ] ; then
         headers="`echo $incdir/ejs*.h`"
         imports="$imports $headers"
