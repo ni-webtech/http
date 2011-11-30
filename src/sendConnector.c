@@ -58,7 +58,7 @@ void httpSendOpen(HttpQueue *q)
         mprAssert(tx->fileInfo.valid);
         if (tx->fileInfo.size > conn->limits->transmissionBodySize) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
-                "Http transmission aborted. File size exceeds max body of %d bytes", conn->limits->transmissionBodySize);
+                "Http transmission aborted. File size exceeds max body of %,Ld bytes", conn->limits->transmissionBodySize);
             return;
         }
         tx->file = mprOpenFile(tx->filename, O_RDONLY | O_BINARY, 0);
@@ -102,7 +102,7 @@ void httpSendOutgoingService(HttpQueue *q)
     }
     if ((tx->bytesWritten + q->ioCount) > conn->limits->transmissionBodySize) {
         httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE | ((tx->bytesWritten) ? HTTP_ABORT : 0),
-            "Http transmission aborted. Exceeded max body of %d bytes", conn->limits->transmissionBodySize);
+            "Http transmission aborted. Exceeded max body of %,Ld bytes", conn->limits->transmissionBodySize);
         if (tx->bytesWritten) {
             httpConnectorComplete(conn);
             return;

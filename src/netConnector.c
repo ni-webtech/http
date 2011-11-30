@@ -72,7 +72,7 @@ static void netOutgoingService(HttpQueue *q)
     }
     if ((tx->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
         httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE | ((tx->bytesWritten) ? HTTP_ABORT : 0),
-            "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
+            "Http transmission aborted. Exceeded transmission max body of %,Ld bytes", conn->limits->transmissionBodySize);
         if (tx->bytesWritten) {
             httpConnectorComplete(conn);
             return;

@@ -540,7 +540,8 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 if (rx->length >= conn->limits->receiveBodySize) {
                     httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
-                        "Request content length %Ld bytes is too big. Limit %Ld", rx->length, conn->limits->receiveBodySize);
+                        "Request content length %,Ld bytes is too big. Limit %,Ld", 
+                        rx->length, conn->limits->receiveBodySize);
                     break;
                 }
                 rx->contentLength = sclone(value);
@@ -958,12 +959,12 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
         }
         if (rx->bytesRead >= conn->limits->receiveBodySize) {
             httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, 
-                "Request body of %Ld bytes is too big. Limit %Ld", rx->bytesRead, conn->limits->receiveBodySize);
+                "Request body of %,Ld bytes is too big. Limit %,Ld", rx->bytesRead, conn->limits->receiveBodySize);
             return 1;
         }
         if (rx->form && rx->length >= conn->limits->receiveFormSize) {
             httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, 
-                "Request form of %Ld bytes is too big. Limit %Ld", rx->bytesRead, conn->limits->receiveFormSize);
+                "Request form of %,Ld bytes is too big. Limit %,Ld", rx->bytesRead, conn->limits->receiveFormSize);
             return 1;
         }
         if (packet == rx->headerPacket && nbytes > 0) {
