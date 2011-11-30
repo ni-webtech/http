@@ -57,8 +57,13 @@ static void openPass(HttpQueue *q)
 
 static void processPass(HttpQueue *q)
 {
-    mprAssert(q->conn->finalized);
-    httpFinalize(q->conn);
+    HttpConn    *conn;
+
+    conn = q->conn;
+    if (!conn->finalized) {
+        httpError(conn, HTTP_CODE_NOT_FOUND, "Can't serve request: %s", conn->rx->uri);
+    }
+    httpFinalize(conn);
 }
 
 
@@ -70,6 +75,15 @@ int httpOpenPassHandler(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     http->passHandler = stage;
+    stage->open = openPass;
+    stage->process = processPass;
+
+    /*
+        PassHandler has an alias as the ErrorHandler too
+     */
+    if ((stage = httpCreateHandler(http, "errorHandler", HTTP_STAGE_ALL, NULL)) == 0) {
+        return MPR_ERR_CANT_CREATE;
+    }
     stage->open = openPass;
     stage->process = processPass;
     return 0;

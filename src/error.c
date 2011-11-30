@@ -45,10 +45,13 @@ void httpError(HttpConn *conn, int flags, cchar *fmt, ...)
  */
 static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
 {
+    HttpRx      *rx;
     HttpTx      *tx;
+    cchar       *uri;
     int         status;
 
     mprAssert(fmt);
+    rx = conn->rx;
     tx = conn->tx;
 
     if (conn == 0) {
@@ -57,8 +60,8 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
     if (flags & HTTP_ABORT) {
         conn->connError = 1;
     }
-    if (conn->rx) {
-        conn->rx->eof = 1;
+    if (rx) {
+        rx->eof = 1;
     }
     conn->error = 1;
     status = flags & HTTP_CODE_MASK;
@@ -81,7 +84,11 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
              */
             httpDisconnect(conn);
         } else {
-            httpFormatResponseError(conn, status, "%s", conn->errorMsg);
+            if (rx && tx && (uri = httpLookupRouteErrorDocument(rx->route, tx->status))) {
+                httpRedirect(conn, HTTP_CODE_MOVED_PERMANENTLY, uri);
+            } else {
+                httpFormatResponseError(conn, status, "%s", conn->errorMsg);
+            }
         }
     } else {
         if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {

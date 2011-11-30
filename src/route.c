@@ -1144,7 +1144,7 @@ void httpSetRouteScript(HttpRoute *route, cchar *script, cchar *scriptPath)
     Target names are extensible and hashed in http->routeTargets. 
 
         Target close
-        Target redirect status URI 
+        Target redirect status [URI]
         Target run ${DOCUMENT_ROOT}/${request:uri}.gz
         Target run ${controller}-${name} 
         Target write [-r] status "Hello World\r\n"
@@ -1163,7 +1163,7 @@ int httpSetRouteTarget(HttpRoute *route, cchar *rule, cchar *details)
         route->target = sclone(details);
 
     } else if (scasematch(rule, "redirect")) {
-        if (!httpTokenize(route, details, "%N %S", &route->responseStatus, &redirect)) {
+        if (!httpTokenize(route, details, "%N ?S", &route->responseStatus, &redirect)) {
             return MPR_ERR_BAD_SYNTAX;
         }
         route->target = finalizeReplacement(route, redirect);
@@ -2078,10 +2078,11 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
     mprAssert(conn);
     mprAssert(route);
-    mprAssert(route->target && *route->target);
+    mprAssert(route->target);
 
     rx = conn->rx;
 
+    /* Note: target may be empty */
     target = expandTokens(conn, route->target);
     if (route->responseStatus) {
         httpRedirect(conn, route->responseStatus, target);
