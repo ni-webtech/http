@@ -198,13 +198,13 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     } else {
         parseResponseLine(conn, packet);
     }
-    parseHeaders(conn, packet);
-
+    if (!conn->error) {
+        parseHeaders(conn, packet);
+    }
     if (conn->endpoint) {
         httpMatchHost(conn);
         if (httpSetUri(conn, rx->uri, "") < 0) {
             httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad URL format");
-            return 0;
         }
         if (conn->secure) {
             rx->parsedUri->scheme = sclone("https");
@@ -385,8 +385,10 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     uri = getToken(conn, " ");
     if (*uri == '\0') {
         httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Empty URI");
+        return;
     } else if ((int) strlen(uri) >= conn->limits->uriSize) {
         httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad request. URI too long");
+        return;
     }
     protocol = conn->protocol = supper(getToken(conn, "\r\n"));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
@@ -401,6 +403,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     } else {
         conn->protocol = sclone("HTTP/1.1");
         httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
+        return;
     }
     rx->originalUri = rx->uri = sclone(uri);
     httpSetState(conn, HTTP_STATE_FIRST);
@@ -700,8 +703,8 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             if (strcasecmp(key, "transfer-encoding") == 0) {
                 if (scasecmp(value, "chunked") == 0) {
                     /*  
-                        remainingContent will be revised by the chunk filter as chunks are processed and will be set to zero when the
-                        last chunk has been received.
+                        remainingContent will be revised by the chunk filter as chunks are processed and will 
+                        be set to zero when the last chunk has been received.
                      */
                     rx->flags |= HTTP_CHUNKED;
                     rx->chunkState = HTTP_CHUNK_START;

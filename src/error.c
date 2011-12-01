@@ -60,6 +60,19 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
     if (flags & HTTP_ABORT) {
         conn->connError = 1;
     }
+    if (flags & (HTTP_ABORT | HTTP_CLOSE)) {
+        conn->keepAliveCount = -1;
+    }
+    if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
+        /* 
+            If headers have been sent, must let the other side of the failure - abort is the only way.
+            Disconnect will cause a readable (EOF) event
+         */
+        httpDisconnect(conn);
+    }
+    if (conn->error) {
+        return;
+    }
     if (rx) {
         rx->eof = 1;
     }
@@ -70,29 +83,13 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
     }
     formatErrorv(conn, status, fmt, args);
 
-    if (flags & (HTTP_ABORT | HTTP_CLOSE)) {
-        conn->keepAliveCount = -1;
-    }
-    if (conn->endpoint) {
-        /*
-            Server side must not call httpCloseConn() as it will remove wait handlers.
-         */
-        if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
-            /* 
-                If headers have been sent, must let the client know the request has failed - abort is the only way.
-                Disconnect will cause a readable (EOF) event
-             */
-            httpDisconnect(conn);
-        } else {
-            if (rx && rx->route && (uri = httpLookupRouteErrorDocument(rx->route, tx->status))) {
+    if (conn->endpoint && tx && rx) {
+        if (!(tx->flags & HTTP_TX_HEADERS_CREATED)) {
+            if (rx->route && (uri = httpLookupRouteErrorDocument(rx->route, tx->status))) {
                 httpRedirect(conn, HTTP_CODE_MOVED_PERMANENTLY, uri);
             } else {
                 httpFormatResponseError(conn, status, "%s", conn->errorMsg);
             }
-        }
-    } else {
-        if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
-            httpDisconnect(conn);
         }
     }
     conn->responded = 1;
@@ -108,7 +105,6 @@ static void formatErrorv(HttpConn *conn, int status, cchar *fmt, va_list args)
 {
     if (conn->errorMsg == 0) {
         conn->errorMsg = sfmtv(fmt, args);
-        //  MOB - need an escape option in status
         if (status) {
             if (status < 0) {
                 status = HTTP_CODE_INTERNAL_SERVER_ERROR;
