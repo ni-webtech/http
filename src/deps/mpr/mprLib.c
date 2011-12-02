@@ -2737,6 +2737,10 @@ static void manageMpr(Mpr *mpr, int flags)
     }
 }
 
+static void wgc(int mode)
+{
+    mprRequestGC(mode);
+}
 
 /*
     Destroy the Mpr and all services
@@ -2778,7 +2782,7 @@ void mprDestroy(int how)
     mprStopSignalService();
 
     /* Final GC to run all finalizers */
-    mprRequestGC(gmode);
+    wgc(gmode);
 
     if (how & MPR_EXIT_RESTART) {
         mprLog(2, "Restarting\n\n");
@@ -7629,7 +7633,7 @@ static MprOff seekFile(MprFile *file, int seekType, MprOff distance)
 #if BLD_WIN_LIKE
     return (MprOff) _lseeki64(file->fd, (int64) distance, seekType);
 #elif HAS_OFF64
-    return (MprOff) _lseeki64(file->fd, (off64_t) distance, seekType);
+    return (MprOff) lseek64(file->fd, (off64_t) distance, seekType);
 #else
     return (MprOff) lseek(file->fd, (off_t) distance, seekType);
 #endif
@@ -18857,6 +18861,10 @@ void mprAddStandardSignals()
 #if SIGXFSZ
     mprAddItem(ssp->standard, mprAddSignalHandler(SIGXFSZ, standardSignalHandler, 0, 0, MPR_SIGNAL_AFTER));
 #endif
+#if MACOSX && BLD_DEBUG && 1
+    mprAddItem(ssp->standard, mprAddSignalHandler(SIGBUS, standardSignalHandler, 0, 0, MPR_SIGNAL_AFTER));
+    mprAddItem(ssp->standard, mprAddSignalHandler(SIGSEGV, standardSignalHandler, 0, 0, MPR_SIGNAL_AFTER));
+#endif
 }
 
 
@@ -18880,6 +18888,12 @@ static void standardSignalHandler(void *ignored, MprSignal *sp)
 
     } else if (sp->signo == SIGPIPE || sp->signo == SIGXFSZ) {
         /* Ignore */
+
+#if MACOSX && BLD_DEBUG && 1
+    } else if (sp->signo == SIGSEGV || sp->signo == SIGBUS) {
+        printf("PAUSED for watson to debug\n");
+        sleep(86400 * 7);
+#endif
 
     } else {
         mprTerminate(MPR_EXIT_DEFAULT, -1);
@@ -19927,7 +19941,7 @@ MprOff mprSendFileToSocket(MprSocket *sock, MprFile *file, MprOff offset, MprOff
                 nbytes = (ssize) min(MAXSSIZE, toWriteFile);
 #if LINUX && !__UCLIBC__
     #if HAS_OFF64
-                rc = sendfile64(sock->fd, file->fd, (off64_t) &offset, nbytes);
+                rc = sendfile64(sock->fd, file->fd, &offset, nbytes);
     #else
                 rc = sendfile(sock->fd, file->fd, &off, nbytes);
     #endif
@@ -23189,6 +23203,7 @@ void mprSetMinWorkers(int n)
     ws = MPR->workerService;
     mprLock(ws->mutex);
     ws->minThreads = n; 
+    mprLog(4, "Pre-start %d workers", ws->minThreads);
     
     while (ws->numThreads < ws->minThreads) {
         worker = createWorker(ws, ws->stackSize);
@@ -23360,8 +23375,13 @@ static void pruneWorkers(MprWorkerService *ws, MprEvent *timer)
     if (mprGetDebugMode()) {
         return;
     }
+    mprLog(4, "Check to prune idle workers. Pool has %d workers. Limits %d-%d", 
+        ws->numThreads, ws->minThreads, ws->maxThreads);
     mprLock(ws->mutex);
     for (index = 0; index < ws->idleThreads->length; index++) {
+        if (ws->numThreads <= ws->minThreads) {
+            break;
+        }
         worker = mprGetItem(ws->idleThreads, index);
         if ((worker->lastActivity + MPR_TIMEOUT_WORKER) < MPR->eventService->now) {
             changeState(worker, MPR_WORKER_PRUNED);
@@ -23494,6 +23514,7 @@ static void workerMain(MprWorker *worker, MprThread *tp)
     worker->thread = 0;
     ws->numThreads--;
     mprUnlock(ws->mutex);
+    mprLog(4, "Worker exiting. There are %d workers remaining in the pool.", ws->numThreads);
 }
 
 
