@@ -8384,18 +8384,24 @@ int mprWaitForEvent(MprDispatcher *dispatcher, MprTime timeout)
         mprAssert(!dispatcher->destroyed);
         unlock(es);
         
+        mprAssert(dispatcher->magic == MPR_DISPATCHER_MAGIC);
         mprYield(MPR_YIELD_STICKY);
+        mprAssert(dispatcher->magic == MPR_DISPATCHER_MAGIC);
+
         if (mprWaitForCond(dispatcher->cond, (int) delay) == 0) {
+            mprAssert(dispatcher->magic == MPR_DISPATCHER_MAGIC);
             mprResetYield();
             dispatcher->waitingOnCond = 0;
             if (runEvents) {
                 makeRunnable(dispatcher);
                 dispatchEvents(dispatcher);
             }
+            mprAssert(dispatcher->magic == MPR_DISPATCHER_MAGIC);
             signalled++;
             break;
         }
         mprResetYield();
+        mprAssert(dispatcher->magic == MPR_DISPATCHER_MAGIC);
         dispatcher->waitingOnCond = 0;
         es->now = mprGetTime();
     }
@@ -8405,6 +8411,7 @@ int mprWaitForEvent(MprDispatcher *dispatcher, MprTime timeout)
             dispatcher->owner = 0;
         }
     }
+    mprAssert(dispatcher->magic == MPR_DISPATCHER_MAGIC);
     return signalled ? 0 : MPR_ERR_TIMEOUT;
 }
 
