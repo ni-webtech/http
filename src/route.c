@@ -1359,6 +1359,9 @@ static void finalizePattern(HttpRoute *route)
     if (mprGetListLength(route->tokens) == 0) {
         route->tokens = 0;
     }
+    if (route->patternCompiled) {
+        free(route->patternCompiled);
+    }
     if ((route->patternCompiled = pcre_compile2(route->optimizedPattern, 0, 0, &errMsg, &column, NULL)) == 0) {
         mprError("Can't compile route. Error %s at column %d", errMsg, column); 
     }
