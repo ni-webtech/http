@@ -296,12 +296,10 @@ static bool fetchCachedResponse(HttpConn *conn)
 {
     HttpTx      *tx;
     MprTime     modified, when;
-    HttpCache   *cache;
     cchar       *value, *key, *tag;
     int         status, cacheOk, canUseClientCache;
 
     tx = conn->tx;
-    cache = tx->cache;
     mprAssert(cache);
 
     /*

@@ -179,14 +179,12 @@ void httpCloseConn(HttpConn *conn)
 
 void httpConnTimeout(HttpConn *conn)
 {
-    HttpRx      *rx;
     HttpLimits  *limits;
     MprTime     now;
 
     if (!conn->http) {
         return;
     }
-    rx = conn->rx;
     now = conn->http->now;
     mprAssert(rx);
     limits = conn->limits;
