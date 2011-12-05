@@ -186,7 +186,6 @@ void httpConnTimeout(HttpConn *conn)
         return;
     }
     now = conn->http->now;
-    mprAssert(rx);
     limits = conn->limits;
     mprAssert(limits);
 

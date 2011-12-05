@@ -300,7 +300,6 @@ static bool fetchCachedResponse(HttpConn *conn)
     int         status, cacheOk, canUseClientCache;
 
     tx = conn->tx;
-    mprAssert(cache);
 
     /*
         Transparent caching. Manual caching must manually call httpWriteCached()
