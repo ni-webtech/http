@@ -219,8 +219,9 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->logPath);
 
     } else if (flags & MPR_MANAGE_FREE) {
-        if (route->patternCompiled) {
+        if (route->patternCompiled && (route->flags & HTTP_ROUTE_FREE)) {
             free(route->patternCompiled);
+            route->patternCompiled = 0;
         }
     }
 }
@@ -1359,12 +1360,13 @@ static void finalizePattern(HttpRoute *route)
     if (mprGetListLength(route->tokens) == 0) {
         route->tokens = 0;
     }
-    if (route->patternCompiled) {
+    if (route->patternCompiled && (route->flags & HTTP_ROUTE_FREE)) {
         free(route->patternCompiled);
     }
     if ((route->patternCompiled = pcre_compile2(route->optimizedPattern, 0, 0, &errMsg, &column, NULL)) == 0) {
         mprError("Can't compile route. Error %s at column %d", errMsg, column); 
     }
+    route->flags |= HTTP_ROUTE_FREE;
 }
 
 
