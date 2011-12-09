@@ -445,6 +445,7 @@ void httpUsePrimary(HttpConn *conn)
 void httpEnableConnEvents(HttpConn *conn)
 {
     HttpTx      *tx;
+    HttpRx      *rx;
     HttpQueue   *q;
     MprEvent    *event;
     int         eventMask;
@@ -455,6 +456,7 @@ void httpEnableConnEvents(HttpConn *conn)
         return;
     }
     tx = conn->tx;
+    rx = conn->rx;
     eventMask = 0;
     conn->lastActivity = conn->http->now;
 
@@ -477,7 +479,7 @@ void httpEnableConnEvents(HttpConn *conn)
                 Enable read events if the read queue is not full. 
              */
             q = tx->queue[HTTP_QUEUE_RX]->nextQ;
-            if (q->count < q->max || conn->rx->form) {
+            if (q->count < q->max || rx->form) {
                 eventMask |= MPR_READABLE;
             }
         } else {
@@ -497,6 +499,9 @@ void httpEnableConnEvents(HttpConn *conn)
         }
         mprAssert(conn->dispatcher->enabled);
         unlock(conn->http);
+    }
+    if (tx && tx->handler && tx->handler->module) {
+        tx->handler->module->lastActivity = conn->lastActivity;
     }
 }
 
