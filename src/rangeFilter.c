@@ -15,7 +15,7 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range);
 static HttpPacket *createFinalRangePacket(HttpConn *conn);
 static void outgoingRangeService(HttpQueue *q);
 static bool fixRangeLength(HttpConn *conn);
-static bool matchRange(HttpConn *conn, HttpStage *handler, int dir);
+static int matchRange(HttpConn *conn, HttpRoute *route, int dir);
 static void startRange(HttpQueue *q);
 
 /*********************************** Code *************************************/
@@ -36,11 +36,14 @@ int httpOpenRangeFilter(Http *http)
 }
 
 
-static bool matchRange(HttpConn *conn, HttpStage *handler, int dir)
+static int matchRange(HttpConn *conn, HttpRoute *route, int dir)
 {
     mprAssert(conn->rx);
 
-    return ((dir & HTTP_STAGE_TX) && conn->tx->outputRanges) ? 1 : 0;
+    if ((dir & HTTP_STAGE_TX) && conn->tx->outputRanges) {
+        return HTTP_ROUTE_OK;
+    }
+    return HTTP_ROUTE_REJECT;
 }
 
 
@@ -48,14 +51,13 @@ static void startRange(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpTx      *tx;
-    HttpRx      *rx;
 
     conn = q->conn;
     tx = conn->tx;
-    rx = conn->rx;
-    mprAssert(tx->outputRanges);
-
-    if (tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
+    /*
+        The httpContentNotModified routine can set outputRanges to zero if returning not-modified.
+     */
+    if (tx->outputRanges == 0 || tx->status != HTTP_CODE_OK || !fixRangeLength(conn)) {
         httpRemoveQueue(q);
     } else {
         tx->status = HTTP_CODE_PARTIAL;
@@ -85,13 +87,13 @@ static void outgoingRangeService(HttpQueue *q)
                 Send headers and end packet downstream
              */
             if (packet->flags & HTTP_PACKET_END && tx->rangeBoundary) {
-                httpSendPacketToNext(q, createFinalRangePacket(conn));
+                httpPutPacketToNext(q, createFinalRangePacket(conn));
             }
             if (!httpWillNextQueueAcceptPacket(q, packet)) {
                 httpPutBackPacket(q, packet);
                 return;
             }
-            httpSendPacketToNext(q, packet);
+            httpPutPacketToNext(q, packet);
         }
     }
 }
@@ -152,9 +154,9 @@ static bool applyRange(HttpQueue *q, HttpPacket *packet)
                 return 0;
             }
             if (tx->rangeBoundary) {
-                httpSendPacketToNext(q, createRangePacket(conn, range));
+                httpPutPacketToNext(q, createRangePacket(conn, range));
             }
-            httpSendPacketToNext(q, packet);
+            httpPutPacketToNext(q, packet);
             packet = 0;
             tx->rangePos += count;
         }
@@ -173,22 +175,17 @@ static HttpPacket *createRangePacket(HttpConn *conn, HttpRange *range)
 {
     HttpPacket  *packet;
     HttpTx      *tx;
-    char        lenBuf[16];
+    char        *length;
 
     tx = conn->tx;
 
-    if (tx->entityLength >= 0) {
-        itos(lenBuf, sizeof(lenBuf), tx->entityLength, 10);
-    } else {
-        lenBuf[0] = '*';
-        lenBuf[1] = '\0';
-    }
+    length = (tx->entityLength >= 0) ? itos(tx->entityLength) : "*";
     packet = httpCreatePacket(HTTP_RANGE_BUFSIZE);
     packet->flags |= HTTP_PACKET_RANGE;
     mprPutFmtToBuf(packet->content, 
         "\r\n--%s\r\n"
         "Content-Range: bytes %Ld-%Ld/%s\r\n\r\n",
-        tx->rangeBoundary, range->start, range->end - 1, lenBuf);
+        tx->rangeBoundary, range->start, range->end - 1, length);
     return packet;
 }
 
@@ -221,7 +218,7 @@ static void createRangeBoundary(HttpConn *conn)
     tx = conn->tx;
     mprAssert(tx->rangeBoundary == 0);
     when = (int) conn->http->now;
-    tx->rangeBoundary = mprAsprintf("%08X%08X", PTOI(tx) + PTOI(conn) * when, when);
+    tx->rangeBoundary = sfmt("%08X%08X", PTOI(tx) + PTOI(conn) * when, when);
 }
 
 
@@ -230,12 +227,10 @@ static void createRangeBoundary(HttpConn *conn)
  */
 static bool fixRangeLength(HttpConn *conn)
 {
-    HttpRx      *rx;
     HttpTx      *tx;
     HttpRange   *range;
     MprOff      length;
 
-    rx = conn->rx;
     tx = conn->tx;
     length = tx->entityLength ? tx->entityLength : tx->length;
 
@@ -295,7 +290,7 @@ static bool fixRangeLength(HttpConn *conn)
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -304,7 +299,7 @@ static bool fixRangeLength(HttpConn *conn)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4

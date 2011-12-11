@@ -1,0 +1,49 @@
+#
+#	makeInstall.mpr - Called by makeInstall
+#
+#	Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
+#
+################################################################################
+
+#
+#	Configure a product
+#
+#	Usage:	configureProduct configure|initialize|install|remove|start|stop
+#
+configureProduct() {
+
+	local action sw
+
+	[ "$DRY_RUN" = 1 ] && return
+
+	action=$1
+
+	case $action in
+	cleanup)
+		;;
+
+    complete)
+        [ $TASK != Package -a $QUIET = 0 ] && log ${TASK} Complete ; true
+        ;;
+
+	configure)
+		# [ $QUIET = 0 ] && log Configure ${BLD_NAME} ; true
+		;;
+
+	copy)
+		;;
+
+	initialize)
+		;;
+	
+	install)
+		;;
+
+	remove)
+		;;
+
+	start|stop)
+		;;
+
+	esac
+}

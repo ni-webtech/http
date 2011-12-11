@@ -13,16 +13,34 @@ static void manageAuth(HttpAuth *auth, int flags);
 
 /*********************************** Code *************************************/
 
-HttpAuth *httpCreateAuth(HttpAuth *parent)
+HttpAuth *httpCreateAuth()
+{
+    HttpAuth      *auth;
+
+    auth = mprAllocObj(HttpAuth, manageAuth);
+#if BLD_FEATURE_AUTH_PAM
+    auth->backend = HTTP_AUTH_METHOD_PAM;
+#elif BLD_FEATURE_AUTH_FILE
+    auth->backend = HTTP_AUTH_METHOD_FILE;
+#endif
+    return auth;
+}
+
+
+HttpAuth *httpCreateInheritedAuth(HttpAuth *parent)
 {
     HttpAuth      *auth;
 
     auth = mprAllocObj(HttpAuth, manageAuth);
     if (parent) {
-        auth->allow = parent->allow;
+        if (parent->allow) {
+            auth->allow = mprCloneHash(parent->allow);
+        }
+        if (parent->deny) {
+            auth->deny = mprCloneHash(parent->deny);
+        }
         auth->anyValidUser = parent->anyValidUser;
         auth->type = parent->type;
-        auth->deny = parent->deny;
         auth->backend = parent->backend;
         auth->flags = parent->flags;
         auth->order = parent->order;
@@ -66,7 +84,10 @@ static void manageAuth(HttpAuth *auth, int flags)
 
 void httpSetAuthAllow(HttpAuth *auth, cchar *allow)
 {
-    auth->allow = sclone(allow);
+    if (auth->allow == 0) {
+        auth->allow = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
+    }
+    mprAddKey(auth->allow, sclone(allow), "");
 }
 
 
@@ -77,15 +98,12 @@ void httpSetAuthAnyValidUser(HttpAuth *auth)
 }
 
 
-void httpSetAuthDeny(HttpAuth *auth, cchar *deny)
+void httpSetAuthDeny(HttpAuth *auth, cchar *client)
 {
-    auth->deny = sclone(deny);
-}
-
-
-void httpSetAuthGroup(HttpConn *conn, cchar *group)
-{
-    conn->authGroup = sclone(group);
+    if (auth->deny == 0) {
+        auth->deny = mprCreateHash(-1, MPR_HASH_STATIC_VALUES);
+    }
+    mprAddKey(auth->deny, sclone(client), "");
 }
 
 
@@ -144,7 +162,7 @@ static bool validateCred(HttpAuth *auth, cchar *realm, char *user, cchar *passwo
     if (0) {
 #if BLD_FEATURE_AUTH_FILE
     } else if (auth->backend == HTTP_AUTH_METHOD_FILE) {
-        return httpValidateNativeCredentials(auth, realm, user, password, requiredPass, msg);
+        return httpValidateFileCredentials(auth, realm, user, password, requiredPass, msg);
 #endif
 #if BLD_FEATURE_AUTH_PAM
     } else if (auth->backend == HTTP_AUTH_METHOD_PAM) {
@@ -168,7 +186,7 @@ static cchar *getPassword(HttpAuth *auth, cchar *realm, cchar *user)
     if (0) {
 #if BLD_FEATURE_AUTH_FILE
     } else if (auth->backend == HTTP_AUTH_METHOD_FILE) {
-        return httpGetNativePassword(auth, realm, user);
+        return httpGetFilePassword(auth, realm, user);
 #endif
 #if BLD_FEATURE_AUTH_PAM
     } else if (auth->backend == HTTP_AUTH_METHOD_PAM) {
@@ -202,7 +220,7 @@ void httpInitAuth(Http *http)
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -211,7 +229,7 @@ void httpInitAuth(Http *http)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4

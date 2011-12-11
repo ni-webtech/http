@@ -9,6 +9,45 @@
 
 /*********************************** Code *************************************/
 
+void httpSetRouteTraceFilter(HttpRoute *route, int dir, int levels[HTTP_TRACE_MAX_ITEM], ssize len, 
+    cchar *include, cchar *exclude)
+{
+    HttpTrace   *trace;
+    char        *word, *tok, *line;
+    int         i;
+
+    trace = &route->trace[dir];
+    trace->size = len;
+    for (i = 0; i < HTTP_TRACE_MAX_ITEM; i++) {
+        trace->levels[i] = levels[i];
+    }
+    if (include && strcmp(include, "*") != 0) {
+        trace->include = mprCreateHash(0, 0);
+        line = sclone(include);
+        word = stok(line, ", \t\r\n", &tok);
+        while (word) {
+            if (word[0] == '*' && word[1] == '.') {
+                word += 2;
+            }
+            mprAddKey(trace->include, word, route);
+            word = stok(NULL, ", \t\r\n", &tok);
+        }
+    }
+    if (exclude) {
+        trace->exclude = mprCreateHash(0, 0);
+        line = sclone(exclude);
+        word = stok(line, ", \t\r\n", &tok);
+        while (word) {
+            if (word[0] == '*' && word[1] == '.') {
+                word += 2;
+            }
+            mprAddKey(trace->exclude, word, route);
+            word = stok(NULL, ", \t\r\n", &tok);
+        }
+    }
+}
+
+
 void httpManageTrace(HttpTrace *trace, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
@@ -29,24 +68,25 @@ void httpInitTrace(HttpTrace *trace)
         trace[dir].levels[HTTP_TRACE_FIRST] = 2;
         trace[dir].levels[HTTP_TRACE_HEADER] = 3;
         trace[dir].levels[HTTP_TRACE_BODY] = 4;
+        trace[dir].levels[HTTP_TRACE_LIMITS] = 5;
+        trace[dir].levels[HTTP_TRACE_TIME] = 6;
         trace[dir].size = -1;
     }
 }
 
 
 /*
-    Return the level at which tracing should occur
+    If tracing should occur, return the level
  */
 int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext)
 {
     HttpTrace   *trace;
-    int         mprLevel;
 
     mprAssert(0 <= dir && dir < HTTP_TRACE_MAX_DIR);
     mprAssert(0 <= item && item < HTTP_TRACE_MAX_ITEM);
 
     trace = &conn->trace[dir];
-    if (trace->disable) {
+    if (trace->disable || trace->levels[item] > MPR->logLevel) {
         return -1;
     }
     if (ext) {
@@ -59,24 +99,25 @@ int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext)
             return -1;
         }
     }
-    mprLevel = mprGetLogLevel(conn);
-    if (trace->levels[item] <= mprLevel) {
-        return trace->levels[item];
-    }
-    return -1;
+    return trace->levels[item];
 }
 
 
+//  MOB OPT
 static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf, ssize len)
 {
-    cchar       *cp, *tag, *digits;
+    cchar       *start, *cp, *tag, *digits;
     char        *data, *dp;
     static int  txSeq = 0;
     static int  rxSeq = 0;
     int         seqno, i, printable;
 
+    start = buf;
+    if (len > 3 && start[0] == (char) 0xef && start[1] == (char) 0xbb && start[2] == (char) 0xbf) {
+        start += 3;
+    }
     for (printable = 1, i = 0; i < len; i++) {
-        if (!isascii(buf[i])) {
+        if (!isascii(start[i])) {
             printable = 0;
         }
     }
@@ -89,7 +130,7 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
     }
     if (printable) {
         data = mprAlloc(len + 1);
-        memcpy(data, buf, len);
+        memcpy(data, start, len);
         data[len] = '\0';
         mprRawLog(level, "\n>>>>>>>>>> %s %s packet %d, len %d (conn %d) >>>>>>>>>>\n%s", tag, msg, seqno, 
             len, conn->seqno, data);
@@ -98,7 +139,7 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
             len, conn->seqno);
         data = mprAlloc(len * 3 + ((len / 16) + 1) + 1);
         digits = "0123456789ABCDEF";
-        for (i = 0, cp = buf, dp = data; cp < &buf[len]; cp++) {
+        for (i = 0, cp = start, dp = data; cp < &start[len]; cp++) {
             *dp++ = digits[(*cp >> 4) & 0x0f];
             *dp++ = digits[*cp++ & 0x0f];
             *dp++ = ' ';
@@ -160,7 +201,7 @@ void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssi
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -169,7 +210,7 @@ void httpTraceContent(HttpConn *conn, int dir, int item, HttpPacket *packet, ssi
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
+    Software at http://embedthis.com
  
     Local variables:
     tab-width: 4

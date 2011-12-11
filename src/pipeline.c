@@ -9,24 +9,23 @@
 
 /********************************** Forward ***********************************/
 
-static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir);
+static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir);
 static void openQueues(HttpConn *conn);
 static void pairQueues(HttpConn *conn);
-static void setVars(HttpConn *conn);
 
 /*********************************** Code *************************************/
 
-void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc)
+void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
 {
     Http        *http;
     HttpTx      *tx;
     HttpRx      *rx;
     HttpQueue   *q;
     HttpStage   *stage, *filter;
-    int         next;
+    int         next, hasOutputFilters;
 
     mprAssert(conn);
-    mprAssert(loc);
+    mprAssert(route);
 
     http = conn->http;
     rx = conn->rx;
@@ -38,20 +37,21 @@ void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc)
     }
     mprAddItem(tx->outputPipeline, tx->handler);
 
-    if (loc->outputStages) {
-        for (next = 0; (filter = mprGetNextItem(loc->outputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter, HTTP_STAGE_TX)) {
+    hasOutputFilters = 0;
+    if (route->outputStages) {
+        for (next = 0; (filter = mprGetNextItem(route->outputStages, &next)) != 0; ) {
+            if (matchFilter(conn, filter, route, HTTP_STAGE_TX) == HTTP_ROUTE_OK) {
                 mprAddItem(tx->outputPipeline, filter);
+                hasOutputFilters = 1;
             }
         }
     }
     if (tx->connector == 0) {
-        if (tx->handler == http->fileHandler && rx->flags & HTTP_GET && !tx->outputRanges && 
-                !conn->secure && tx->chunkSize <= 0 &&
-                httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->extension) < 0) {
+        if (tx->handler == http->fileHandler && (rx->flags & HTTP_GET) && !hasOutputFilters && 
+                !conn->secure && httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_BODY, tx->ext) < 0) {
             tx->connector = http->sendConnector;
-        } else if (loc && loc->connector) {
-            tx->connector = loc->connector;
+        } else if (route && route->connector) {
+            tx->connector = route->connector;
         } else {
             tx->connector = http->netConnector;
         }
@@ -64,21 +64,28 @@ void httpCreateTxPipeline(HttpConn *conn, HttpLoc *loc)
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_TX, q);
     }
     conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
-    conn->connq = tx->queue[HTTP_QUEUE_TX]->prevQ;
+    conn->connectorq = tx->queue[HTTP_QUEUE_TX]->prevQ;
 
-    if ((tx->handler->flags & HTTP_STAGE_VERIFY_ENTITY) && !tx->fileInfo.valid && !(rx->flags & HTTP_PUT)) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Can't open document: %s", tx->filename);
-    }
-    setVars(conn);
     pairQueues(conn);
+    /*
+        Put the header before opening the queues incase an open routine actually services and completes the request
+        httpHandleOptionsTrace does this when called from openFile() in fileHandler.
+     */
+    httpPutForService(conn->writeq, httpCreateHeaderPacket(), HTTP_DELAY_SERVICE);
     openQueues(conn);
-    httpPutForService(conn->writeq, httpCreateHeaderPacket(), 0);
+
+    /*
+        Refinalize if httpFinalize was called before the Tx pipeline was created
+     */
+    if (conn->refinalize) {
+        conn->finalized = 0;
+        httpFinalize(conn);
+    }
 }
 
 
-void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
+void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
 {
-    Http        *http;
     HttpTx      *tx;
     HttpRx      *rx;
     HttpQueue   *q;
@@ -86,22 +93,16 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
     int         next;
 
     mprAssert(conn);
-    mprAssert(loc);
+    mprAssert(route);
 
-    http = conn->http;
     rx = conn->rx;
     tx = conn->tx;
-
     rx->inputPipeline = mprCreateList(-1, 0);
-#if UNUSED
-    mprAddItem(rx->inputPipeline, http->netConnector);
-#endif
-    if (loc) {
-        for (next = 0; (filter = mprGetNextItem(loc->inputStages, &next)) != 0; ) {
-            if (!matchFilter(conn, filter, HTTP_STAGE_RX)) {
-                continue;
+    if (route) {
+        for (next = 0; (filter = mprGetNextItem(route->inputStages, &next)) != 0; ) {
+            if (matchFilter(conn, filter, route, HTTP_STAGE_RX) == HTTP_ROUTE_OK) {
+                mprAddItem(rx->inputPipeline, filter);
             }
-            mprAddItem(rx->inputPipeline, filter);
         }
     }
     mprAddItem(rx->inputPipeline, tx->handler);
@@ -113,7 +114,7 @@ void httpCreateRxPipeline(HttpConn *conn, HttpLoc *loc)
     }
     conn->readq = tx->queue[HTTP_QUEUE_RX]->prevQ;
 
-    if (!conn->server) {
+    if (!conn->endpoint) {
         pairQueues(conn);
         openQueues(conn);
     }
@@ -188,8 +189,8 @@ void httpDestroyPipeline(HttpConn *conn)
     HttpQueue   *q, *qhead;
     int         i;
 
-    if (conn->tx) {
-        tx = conn->tx;
+    tx = conn->tx;
+    if (tx) {
         for (i = 0; i < HTTP_MAX_QUEUE; i++) {
             qhead = tx->queue[i];
             for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
@@ -207,17 +208,22 @@ void httpStartPipeline(HttpConn *conn)
 {
     HttpQueue   *qhead, *q, *prevQ, *nextQ;
     HttpTx      *tx;
+    HttpRx      *rx;
     
     tx = conn->tx;
-
-    if (conn->rx->needInputPipeline) {
+    if (tx->started) {
+        return;
+    }
+    tx->started = 1;
+    rx = conn->rx;
+    if (rx->needInputPipeline) {
         qhead = tx->queue[HTTP_QUEUE_RX];
         for (q = qhead->nextQ; q->nextQ != qhead; q = nextQ) {
             nextQ = q->nextQ;
             if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_STARTED)) {
                     q->flags |= HTTP_QUEUE_STARTED;
-                    HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
+                    q->stage->start(q);
                 }
             }
         }
@@ -227,7 +233,7 @@ void httpStartPipeline(HttpConn *conn)
         prevQ = q->prevQ;
         if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
             q->flags |= HTTP_QUEUE_STARTED;
-            HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
+            q->stage->start(q);
         }
     }
     /* Start the handler last */
@@ -235,10 +241,9 @@ void httpStartPipeline(HttpConn *conn)
     if (q->start) {
         mprAssert(!(q->flags & HTTP_QUEUE_STARTED));
         q->flags |= HTTP_QUEUE_STARTED;
-        HTTP_TIME(conn, q->stage->name, "start", q->stage->start(q));
+        q->stage->start(q);
     }
-
-    if (!conn->error && !conn->writeComplete && conn->rx->remainingContent > 0) {
+    if (!conn->error && !conn->connectorComplete && rx->remainingContent > 0) {
         /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
         httpWritable(conn);
     }
@@ -257,7 +262,7 @@ void httpProcessPipeline(HttpConn *conn)
     }
     q = conn->tx->queue[HTTP_QUEUE_TX]->nextQ;
     if (q->stage->process) {
-        HTTP_TIME(conn, q->stage->name, "process", q->stage->process(q));
+        q->stage->process(q);
     }
 }
 
@@ -300,74 +305,16 @@ void httpDiscardTransmitData(HttpConn *conn)
 }
 
 
-static void trimExtraPath(HttpConn *conn)
-{
-    HttpAlias   *alias;
-    HttpRx      *rx;
-    HttpTx      *tx;
-    char        *cp, *extra, *start;
-    ssize       len;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    alias = rx->alias;
-
-    /*
-        Find the script name in the uri. This is assumed to be either:
-        - The original uri up to and including first path component containing a ".", or
-        - The entire original uri
-        Once found, set the scriptName and trim the extraPath from pathInfo
-        The filename is used to search for a component with "." because we want to skip the alias prefix.
-     */
-    start = &tx->filename[strlen(alias->filename)];
-    if ((cp = strchr(start, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
-        len = alias->prefixLen + extra - start;
-        if (0 < len && len < slen(rx->pathInfo)) {
-            *extra = '\0';
-            rx->extraPath = sclone(&rx->pathInfo[len]);
-            rx->pathInfo[len] = '\0';
-            return;
-        }
-    }
-}
-
-
-/*
-    Create the form variables based on the URI query. Also create formVars for CGI style programs (cgi | egi)
- */
-static void setVars(HttpConn *conn)
-{
-    HttpRx      *rx;
-    HttpTx      *tx;
-
-    rx = conn->rx;
-    tx = conn->tx;
-
-    if (tx->handler->flags & HTTP_STAGE_EXTRA_PATH) {
-        trimExtraPath(conn);
-    }
-    if (tx->handler->flags & HTTP_STAGE_QUERY_VARS && rx->parsedUri->query) {
-        rx->formVars = httpAddVars(rx->formVars, rx->parsedUri->query, slen(rx->parsedUri->query));
-    }
-    if (tx->handler->flags & HTTP_STAGE_CGI_VARS) {
-        httpCreateCGIVars(conn);
-    }
-}
-
-
-/*
-    Match a filter by extension
- */
-static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir)
+static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir)
 {
     HttpTx      *tx;
 
     tx = conn->tx;
     if (filter->match) {
-        return filter->match(conn, filter, dir);
+        return filter->match(conn, route, dir);
     }
-    if (filter->extensions && tx->extension) {
-        return mprLookupKey(filter->extensions, tx->extension) != 0;
+    if (filter->extensions && tx->ext) {
+        return mprLookupKey(filter->extensions, tx->ext) != 0;
     }
     return 1;
 }
@@ -389,7 +336,7 @@ static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir)
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -398,7 +345,7 @@ static bool matchFilter(HttpConn *conn, HttpStage *filter, int dir)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
+    Software at http://embedthis.com
 
     Local variables:
     tab-width: 4

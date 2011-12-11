@@ -11,67 +11,76 @@
 /*
     Define standard CGI variables
  */
-void httpCreateCGIVars(HttpConn *conn)
+void httpCreateCGIParams(HttpConn *conn)
 {
     HttpRx          *rx;
     HttpTx          *tx;
     HttpHost        *host;
     HttpUploadFile  *up;
     MprSocket       *sock;
-    MprHashTable    *table;
-    MprHash         *hp;
+    MprHash         *vars, *svars;
+    MprKey          *kp;
     int             index;
 
     rx = conn->rx;
+    if ((svars = rx->svars) != 0) {
+        /* Do only once */
+        return;
+    }
+    svars = rx->svars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
     tx = conn->tx;
     host = conn->host;
     sock = conn->sock;
 
-    if ((table = rx->formVars) == 0) {
-        table = rx->formVars = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-    }
-    mprAddKey(table, "AUTH_TYPE", rx->authType);
-    mprAddKey(table, "AUTH_USER", conn->authUser);
-    mprAddKey(table, "AUTH_GROUP", conn->authGroup);
-    mprAddKey(table, "AUTH_ACL", MPR->emptyString);
-    mprAddKey(table, "CONTENT_LENGTH", rx->contentLength);
-    mprAddKey(table, "CONTENT_TYPE", rx->mimeType);
-    mprAddKey(table, "DOCUMENT_ROOT", host->documentRoot);
-    mprAddKey(table, "GATEWAY_INTERFACE", sclone("CGI/1.1"));
-    mprAddKey(table, "QUERY_STRING", rx->parsedUri->query);
-    mprAddKey(table, "REMOTE_ADDR", conn->ip);
-    mprAddKeyFmt(table, "REMOTE_PORT", "%d", conn->port);
-    mprAddKey(table, "REMOTE_USER", conn->authUser);
-    mprAddKey(table, "REQUEST_METHOD", rx->method);
-    mprAddKey(table, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
-    mprAddKey(table, "SERVER_ADDR", sock->acceptIp);
-    mprAddKey(table, "SERVER_NAME", host->name);
-    mprAddKeyFmt(table, "SERVER_PORT", "%d", sock->acceptPort);
-    mprAddKey(table, "SERVER_PROTOCOL", conn->protocol);
-    mprAddKey(table, "SERVER_ROOT", host->serverRoot);
-    mprAddKey(table, "SERVER_SOFTWARE", conn->http->software);
-    mprAddKey(table, "REQUEST_URI", rx->originalUri);
+    mprAddKey(svars, "AUTH_TYPE", rx->authType);
+    mprAddKey(svars, "AUTH_USER", conn->authUser);
+    mprAddKey(svars, "AUTH_ACL", MPR->emptyString);
+    mprAddKey(svars, "CONTENT_LENGTH", rx->contentLength);
+    mprAddKey(svars, "CONTENT_TYPE", rx->mimeType);
+    mprAddKey(svars, "DOCUMENT_ROOT", rx->route->dir);
+    mprAddKey(svars, "GATEWAY_INTERFACE", sclone("CGI/1.1"));
+    mprAddKey(svars, "QUERY_STRING", rx->parsedUri->query);
+    mprAddKey(svars, "REMOTE_ADDR", conn->ip);
+    mprAddKeyFmt(svars, "REMOTE_PORT", "%d", conn->port);
+    mprAddKey(svars, "REMOTE_USER", conn->authUser);
+    mprAddKey(svars, "REQUEST_METHOD", rx->method);
+    mprAddKey(svars, "REQUEST_TRANSPORT", sclone((char*) ((conn->secure) ? "https" : "http")));
+    mprAddKey(svars, "SERVER_ADDR", sock->acceptIp);
+    mprAddKey(svars, "SERVER_NAME", host->name);
+    mprAddKeyFmt(svars, "SERVER_PORT", "%d", sock->acceptPort);
+    mprAddKey(svars, "SERVER_PROTOCOL", conn->protocol);
+    mprAddKey(svars, "SERVER_ROOT", host->home);
+    mprAddKey(svars, "SERVER_SOFTWARE", conn->http->software);
+    /*
+        For PHP, REQUEST_URI must be the original URI. The SCRIPT_NAME will refer to the new pathInfo
+     */
+    mprAddKey(svars, "REQUEST_URI", rx->originalUri);
     /*  
         URIs are broken into the following: http://{SERVER_NAME}:{SERVER_PORT}{SCRIPT_NAME}{PATH_INFO} 
-        NOTE: For CGI|PHP, scriptName is empty and pathInfo has the script. PATH_INFO is stored in extraPath.
+        NOTE: Appweb refers to pathInfo as the app relative URI and scriptName as the app address before the pathInfo.
+        In CGI|PHP terms, the scriptName is the appweb rx->pathInfo and the PATH_INFO is the extraPath. 
      */
-    mprAddKey(table, "PATH_INFO", rx->extraPath);
-    mprAddKey(table, "SCRIPT_NAME", rx->pathInfo);
-    mprAddKey(table, "SCRIPT_FILENAME", tx->filename);
+    mprAddKey(svars, "PATH_INFO", rx->extraPath);
+    mprAddKeyFmt(svars, "SCRIPT_NAME", "%s%s", rx->scriptName, rx->pathInfo);
+    mprAddKey(svars, "SCRIPT_FILENAME", tx->filename);
     if (rx->extraPath) {
         /*  
             Only set PATH_TRANSLATED if extraPath is set (CGI spec) 
          */
-        mprAddKey(table, "PATH_TRANSLATED", httpMakeFilename(conn, rx->alias, rx->extraPath, 0));
+        mprAssert(rx->extraPath[0] == '/');
+        mprAddKey(svars, "PATH_TRANSLATED", mprNormalizePath(sfmt("%s%s", rx->route->dir, rx->extraPath)));
     }
+
     if (rx->files) {
-        for (index = 0, hp = 0; (hp = mprGetNextKey(conn->rx->files, hp)) != 0; index++) {
-            up = (HttpUploadFile*) hp->data;
-            mprAddKey(table, mprAsprintf("FILE_%d_FILENAME", index), up->filename);
-            mprAddKey(table, mprAsprintf("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
-            mprAddKey(table, mprAsprintf("FILE_%d_CONTENT_TYPE", index), up->contentType);
-            mprAddKey(table, mprAsprintf("FILE_%d_NAME", index), hp->key);
-            mprAddKeyFmt(table, mprAsprintf("FILE_%d_SIZE", index), "%d", up->size);
+        vars = httpGetParams(conn);
+        mprAssert(vars);
+        for (index = 0, kp = 0; (kp = mprGetNextKey(conn->rx->files, kp)) != 0; index++) {
+            up = (HttpUploadFile*) kp->data;
+            mprAddKey(vars, sfmt("FILE_%d_FILENAME", index), up->filename);
+            mprAddKey(vars, sfmt("FILE_%d_CLIENT_FILENAME", index), up->clientFilename);
+            mprAddKey(vars, sfmt("FILE_%d_CONTENT_TYPE", index), up->contentType);
+            mprAddKey(vars, sfmt("FILE_%d_NAME", index), kp->key);
+            mprAddKeyFmt(vars, sfmt("FILE_%d_SIZE", index), "%d", up->size);
         }
     }
     if (conn->http->envCallback) {
@@ -85,14 +94,14 @@ void httpCreateCGIVars(HttpConn *conn)
     Make variables for each keyword in a query string. The buffer must be url encoded (ie. key=value&key2=value2..., 
     spaces converted to '+' and all else should be %HEX encoded).
  */
-MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
+static void addParamsFromBuf(HttpConn *conn, cchar *buf, ssize len)
 {
-    cchar   *oldValue;
-    char    *newValue, *decoded, *keyword, *value, *tok;
+    MprHash     *vars;
+    cchar       *oldValue;
+    char        *newValue, *decoded, *keyword, *value, *tok;
 
-    if (table == 0) {
-        table = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
-    }
+    mprAssert(conn);
+    vars = httpGetParams(conn);
     decoded = mprAlloc(len + 1);
     decoded[len] = '\0';
     memcpy(decoded, buf, len);
@@ -111,23 +120,22 @@ MprHashTable *httpAddVars(MprHashTable *table, cchar *buf, ssize len)
             /*  
                 Append to existing keywords
              */
-            oldValue = mprLookupKey(table, keyword);
+            oldValue = mprLookupKey(vars, keyword);
             if (oldValue != 0 && *oldValue) {
                 if (*value) {
                     newValue = sjoin(oldValue, " ", value, NULL);
-                    mprAddKey(table, keyword, newValue);
+                    mprAddKey(vars, keyword, newValue);
                 }
             } else {
-                mprAddKey(table, keyword, sclone(value));
+                mprAddKey(vars, keyword, sclone(value));
             }
         }
         keyword = stok(0, "&", &tok);
     }
-    return table;
 }
 
 
-MprHashTable *httpAddVarsFromQueue(MprHashTable *table, HttpQueue *q)
+static void addParamsFromQueue(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpRx      *rx;
@@ -143,81 +151,158 @@ MprHashTable *httpAddVarsFromQueue(MprHashTable *table, HttpQueue *q)
         content = q->first->content;
         mprAddNullToBuf(content);
         mprLog(6, "Form body data: length %d, \"%s\"", mprGetBufLength(content), mprGetBufStart(content));
-        table = httpAddVars(table, mprGetBufStart(content), mprGetBufLength(content));
+        addParamsFromBuf(conn, mprGetBufStart(content), mprGetBufLength(content));
     }
-    return table;
 }
 
 
-int httpTestFormVar(HttpConn *conn, cchar *var)
+static void addQueryParams(HttpConn *conn) 
 {
-    MprHashTable    *vars;
-    
-    if ((vars = conn->rx->formVars) == 0) {
-        return 0;
+    HttpRx      *rx;
+
+    rx = conn->rx;
+    if (rx->parsedUri->query && !(rx->flags & HTTP_ADDED_QUERY_PARAMS)) {
+        addParamsFromBuf(conn, rx->parsedUri->query, slen(rx->parsedUri->query));
+        rx->flags |= HTTP_ADDED_QUERY_PARAMS;
     }
+}
+
+
+static void addBodyParams(HttpConn *conn)
+{
+    HttpRx      *rx;
+
+    rx = conn->rx;
+    if (rx->form) {
+        if (!(rx->flags & HTTP_ADDED_FORM_PARAMS)) {
+            conn->readq = conn->tx->queue[HTTP_QUEUE_RX]->prevQ;
+            addParamsFromQueue(conn->readq);
+            rx->flags |= HTTP_ADDED_FORM_PARAMS;
+        }
+    }
+}
+
+
+void httpAddParams(HttpConn *conn)
+{
+    addQueryParams(conn);
+    addBodyParams(conn);
+}
+
+
+MprHash *httpGetParams(HttpConn *conn)
+{ 
+    if (conn->rx->params == 0) {
+        conn->rx->params = mprCreateHash(HTTP_MED_HASH_SIZE, 0);
+    }
+    return conn->rx->params;
+}
+
+
+//  MOB - sort file
+int httpTestParam(HttpConn *conn, cchar *var)
+{
+    MprHash    *vars;
+    
+    vars = httpGetParams(conn);
     return vars && mprLookupKey(vars, var) != 0;
 }
 
 
-cchar *httpGetFormVar(HttpConn *conn, cchar *var, cchar *defaultValue)
+cchar *httpGetParam(HttpConn *conn, cchar *var, cchar *defaultValue)
 {
-    MprHashTable    *vars;
-    cchar           *value;
+    MprHash     *vars;
+    cchar       *value;
     
-    if ((vars = conn->rx->formVars) == 0) {
-        value = mprLookupKey(vars, var);
-        return (value) ? value : defaultValue;
-    }
-    return defaultValue;
+    vars = httpGetParams(conn);
+    value = mprLookupKey(vars, var);
+    return (value) ? value : defaultValue;
 }
 
 
-int httpGetIntFormVar(HttpConn *conn, cchar *var, int defaultValue)
+int httpGetIntParam(HttpConn *conn, cchar *var, int defaultValue)
 {
-    MprHashTable    *vars;
-    cchar           *value;
+    MprHash     *vars;
+    cchar       *value;
     
-    if ((vars = conn->rx->formVars) == 0) {
-        value = mprLookupKey(vars, var);
-        return (value) ? (int) stoi(value, 10, NULL) : defaultValue;
-    }
-    return defaultValue;
+    vars = httpGetParams(conn);
+    value = mprLookupKey(vars, var);
+    return (value) ? (int) stoi(value) : defaultValue;
 }
 
 
-void httpSetFormVar(HttpConn *conn, cchar *var, cchar *value) 
+static int sortParam(MprKey **h1, MprKey **h2)
 {
-    MprHashTable    *vars;
-    
-    if ((vars = conn->rx->formVars) == 0) {
-        /* This is allowed. Upload filter uses this when uploading to the file handler */
-        return;
+    return scmp((*h1)->key, (*h2)->key);
+}
+
+
+/*
+    Return the request parameters as a string. 
+    This will return the exact same string regardless of the order of form parameters.
+ */
+char *httpGetParamsString(HttpConn *conn)
+{
+    HttpRx      *rx;
+    MprHash     *params;
+    MprKey      *kp;
+    MprList     *list;
+    char        *buf, *cp;
+    ssize       len;
+    int         next;
+
+    mprAssert(conn);
+
+    rx = conn->rx;
+
+    if (rx->paramString == 0) {
+        if ((params = conn->rx->params) != 0) {
+            if ((list = mprCreateList(mprGetHashLength(params), 0)) != 0) {
+                len = 0;
+                for (kp = 0; (kp = mprGetNextKey(params, kp)) != NULL; ) {
+                    mprAddItem(list, kp);
+                    len += slen(kp->key) + slen(kp->data) + 2;
+                }
+                if ((buf = mprAlloc(len + 1)) != 0) {
+                    mprSortList(list, sortParam);
+                    cp = buf;
+                    for (next = 0; (kp = mprGetNextItem(list, &next)) != 0; ) {
+                        strcpy(cp, kp->key); cp += slen(kp->key);
+                        *cp++ = '=';
+                        strcpy(cp, kp->data); cp += slen(kp->data);
+                        *cp++ = '&';
+                    }
+                    cp[-1] = '\0';
+                    rx->paramString = buf;
+                }
+            }
+        }
     }
+    return rx->paramString;
+}
+
+
+void httpSetParam(HttpConn *conn, cchar *var, cchar *value) 
+{
+    MprHash     *vars;
+
+    vars = httpGetParams(conn);
     mprAddKey(vars, var, sclone(value));
 }
 
 
-void httpSetIntFormVar(HttpConn *conn, cchar *var, int value) 
+void httpSetIntParam(HttpConn *conn, cchar *var, int value) 
 {
-    MprHashTable    *vars;
+    MprHash     *vars;
     
-    if ((vars = conn->rx->formVars) == 0) {
-        /* This is allowed. Upload filter uses this when uploading to the file handler */
-        return;
-    }
-    mprAddKey(vars, var, mprAsprintf("%d", value));
+    vars = httpGetParams(conn);
+    mprAddKey(vars, var, sfmt("%d", value));
 }
 
 
-int httpCompareFormVar(HttpConn *conn, cchar *var, cchar *value)
+bool httpMatchParam(HttpConn *conn, cchar *var, cchar *value)
 {
-    MprHashTable    *vars;
-    
-    if ((vars = conn->rx->formVars) == 0) {
-        return 0;
-    }
-    if (strcmp(value, httpGetFormVar(conn, var, " __UNDEF__ ")) == 0) {
+    if (strcmp(value, httpGetParam(conn, var, " __UNDEF__ ")) == 0) {
         return 1;
     }
     return 0;
@@ -255,12 +340,12 @@ void httpRemoveAllUploadedFiles(HttpConn *conn)
 {
     HttpRx          *rx;
     HttpUploadFile  *upfile;
-    MprHash         *hp;
+    MprKey          *kp;
 
     rx = conn->rx;
 
-    for (hp = 0; rx->files && (hp = mprGetNextKey(rx->files, hp)) != 0; ) {
-        upfile = (HttpUploadFile*) hp->data;
+    for (kp = 0; rx->files && (kp = mprGetNextKey(rx->files, kp)) != 0; ) {
+        upfile = (HttpUploadFile*) kp->data;
         if (upfile->filename) {
             mprDeletePath(upfile->filename);
             upfile->filename = 0;
@@ -284,7 +369,7 @@ void httpRemoveAllUploadedFiles(HttpConn *conn)
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -293,7 +378,7 @@ void httpRemoveAllUploadedFiles(HttpConn *conn)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4

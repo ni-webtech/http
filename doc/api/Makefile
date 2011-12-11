@@ -6,16 +6,16 @@
 
 include		.makedep
 
-gen: prep mpr.html
+gen: prep http.html
 
 prep:
-	rm -f mpr.html
+	touch Makefile
 
-mpr.html: Makefile
-	make -C mpr doc
+http.html: Makefile
+	make -C http gen
 
 tidy:
-	tidy -q -config tidy.conf mpr.html
+	tidy -q -config tidy.conf http.html
 
 #
 #   Local variables:

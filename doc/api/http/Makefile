@@ -1,33 +1,42 @@
 #
-#	Makefile -- MPR API Documentation
+#	Makefile -- Http API Documentation
 #
 #	Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
 #
 
-NAME		= http
+NAME		:= http
+STAGING		:= staging
 
 include		.makedep
 
-doc:
-	rm ../../../all/*.c
-	make -C ../../../all
-	rm -fr xml html
-	mkdir -p xml html
-	doxygen $(NAME).spec
-	ejs $(BLD_TOOLS_DIR)/gendoc.es --bare --title "Mpr - Portable Runtime Native API" --tags ../$(NAME).tags \
-		xml/$(NAME).xml xml/group* xml/struct_*.xml >../$(NAME)Bare.html
-	ejs $(BLD_TOOLS_DIR)/gendoc.es --title "Mpr - Portable Runtime Native API" --tags ../$(NAME).tags \
-		xml/$(NAME)_8h.xml xml/group* xml/struct_*.xml >../$(NAME).html
+gen: dox next rest
 
-x:
-	ejs $(BLD_TOOLS_DIR)/gendoc.es --title "Mpr - Portable Runtime Native API" --tags ../$(NAME).tags \
-		xml/$(NAME)_8h.xml xml/group* xml/struct_*.xml >../$(NAME).html
+dox:
+	make -C ../../..
+	make SKIP_CLEAN=1 -C ../../.. packageCombo
+	rm -fr ./$(STAGING) xml html
+	mkdir -p ./$(STAGING) xml html
+	tar xf $(BLD_OUT_DIR)/releases/$(BLD_PRODUCT)-combo.tgz -C $(STAGING)
+	mv $(STAGING)/$(NAME)-$(BLD_VERSION)/* $(STAGING)
+	rmdir $(STAGING)/$(NAME)-$(BLD_VERSION)
+	$(call log) "[Generate]" "doxygen $(NAME).spec"
+	doxygen $(NAME).spec
+
+next:
+	$(call log) "[Transform]" "gendoc"
+	ejs $(BLD_TOOLS_DIR)/gendoc.es --title "Http - Embedthis Http Library" --tags ../mpr.tags --out ../$(NAME).html \
+		xml/$(NAME)_8h.xml xml/group* xml/struct_*.xml
+
+rest:
+	ejs $(BLD_TOOLS_DIR)/gendoc.es --bare --title "Http - Embedthis Http Library" --tags ../mpr.tags \
+		--out ../$(NAME)Bare.html xml/$(NAME)_8h.xml xml/group* xml/struct_*.xml
+	rm -fr ./$(STAGING) xml html
 
 cleanExtra:
-	rm -rf xml html ../$(NAME).tags
+	rm -rf xml html 
 
 clobberExtra:
-	rm -f ../$(NAME).html ../$(NAME)Bare.html
+	rm -fr ./$(STAGING)
 
 #
 #   Local variables:

@@ -13,24 +13,23 @@
 
 /*********************************** Code *************************************/
 
-void httpHandleOptionsTrace(HttpQueue *q)
+void httpHandleOptionsTrace(HttpConn *conn)
 {
     HttpRx      *rx;
     HttpTx      *tx;
-    HttpConn    *conn;
     int         flags;
 
-    conn = q->conn;
     tx = conn->tx;
     rx = conn->rx;
 
     if (rx->flags & HTTP_TRACE) {
         if (!conn->limits->enableTraceMethod) {
             tx->status = HTTP_CODE_NOT_ACCEPTABLE;
-            httpFormatBody(conn, "Trace Request Denied", "<p>The TRACE method is disabled on this server.</p>");
+            httpFormatResponseBody(conn, "Trace Request Denied", "The TRACE method is disabled on this server.");
         } else {
-            tx->altBody = mprAsprintf("%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
+            httpFormatResponse(conn, "%s %s %s\r\n", rx->method, rx->uri, conn->protocol);
         }
+        httpFinalize(conn);
 
     } else if (rx->flags & HTTP_OPTIONS) {
         flags = tx->traceMethods;
@@ -41,7 +40,8 @@ void httpHandleOptionsTrace(HttpQueue *q)
             (flags & HTTP_STAGE_POST) ? ",POST" : "",
             (flags & HTTP_STAGE_PUT) ? ",PUT" : "",
             (flags & HTTP_STAGE_DELETE) ? ",DELETE" : "");
-        tx->length = 0;
+        httpOmitBody(conn);
+        httpFinalize(conn);
     }
 }
 
@@ -50,14 +50,20 @@ static void openPass(HttpQueue *q)
 {
     mprLog(5, "Open passHandler");
     if (q->conn->rx->flags & (HTTP_OPTIONS | HTTP_TRACE)) {
-        httpHandleOptionsTrace(q);
+        httpHandleOptionsTrace(q->conn);
     }
 }
 
 
 static void processPass(HttpQueue *q)
 {
-    httpFinalize(q->conn);
+    HttpConn    *conn;
+
+    conn = q->conn;
+    if (!conn->finalized) {
+        httpError(conn, HTTP_CODE_NOT_FOUND, "Can't serve request: %s", conn->rx->uri);
+    }
+    httpFinalize(conn);
 }
 
 
@@ -65,10 +71,19 @@ int httpOpenPassHandler(Http *http)
 {
     HttpStage     *stage;
 
-    if ((stage = httpCreateHandler(http, "passHandler", HTTP_STAGE_ALL | HTTP_STAGE_VIRTUAL, NULL)) == 0) {
+    if ((stage = httpCreateHandler(http, "passHandler", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
     http->passHandler = stage;
+    stage->open = openPass;
+    stage->process = processPass;
+
+    /*
+        PassHandler has an alias as the ErrorHandler too
+     */
+    if ((stage = httpCreateHandler(http, "errorHandler", HTTP_STAGE_ALL, NULL)) == 0) {
+        return MPR_ERR_CANT_CREATE;
+    }
     stage->open = openPass;
     stage->process = processPass;
     return 0;
@@ -91,7 +106,7 @@ int httpOpenPassHandler(Http *http)
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -100,7 +115,7 @@ int httpOpenPassHandler(Http *http)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
+    Software at http://embedthis.com
 
     Local variables:
     tab-width: 4

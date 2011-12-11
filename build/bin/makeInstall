@@ -27,7 +27,6 @@
 #
 ################################################################################
 
-PACKS=
 BARE=0
 BROWSER=
 BLD_DATE=`date '+%c'`
@@ -44,13 +43,23 @@ TASK=${TASK:-Install}
 processPackage() {
     local fileList
     
-    fileList="package/$1"
-    if [ ! -f "$fileList" ] ; then
-        echo -e "\nCan't open $fileList. Exiting" 1>&2
-        exit 255
+    if [ "${BLD_EJS}" = "" ] ; then
+        if ! type -p ejs ; then
+            echo -e "\nRequire \"ejs\" shell to create packages. Exiting." 1>&2
+            exit 255
+        fi
+        BLD_EJS=`type ejs`
     fi
-    [ "$QUIET" = 0 ] && log ${VERB} ${fileList} ...
-    . "${fileList}"
+    if [ -f package/$1.es ] ; then
+        [ "$QUIET" = 0 ] && log ${VERB} package/$1.es ...
+        ${BLD_EJS} package/$1.es $TASK $ROOT_DIR $BARE
+    elif [ -f package/$1.files ] ; then
+        [ "$QUIET" = 0 ] && log ${VERB} package/$1.files ...
+        . "package/$1.files"
+    else
+        echo -e "\nCan't open $1.files. Exiting." 1>&2
+        exit 255
+    fi 
 }
 
 cleanupSystem() {
@@ -187,27 +196,12 @@ copyRemoveFiles() {
 
     local home dir packName root
 
-    [ "$QUIET" = 0 ] && log $VERB File packages
-
     for packName in $PACKS
     do
-        processPackage ${packName}.files
+        processPackage ${packName}
         installRemoveLog ${packName}
     done
-
-    configureProduct --quiet copy
-
-    #
-    #   Don't remove empty directories if installing to "/"
-    #
-    root=/
-    [ $BLD_BUILD_OS = WIN ] && root=`cygpath -m "/"`
-    if [ "$ORIGINAL_ROOT_DIR" != "" -o "$TASK" = Package -a "$ROOT_DIR" != "$root" ] ; then
-        #
-        #   Do it this way as the path may have spaces. find --exec has problems in cygwin
-        #
-        find "$ROOT_DIR" -depth -type d -empty | while read f ; do rmdir "$f" ; done
-    fi
+    configureProduct copy
 }
 
 #
@@ -236,17 +230,16 @@ setup() {
 
     umask 022
 
-    #
-    #   If ROOT_DIR is set, it defines a ROOT directory under which the installation will occurr.
-    #
-    ORIGINAL_ROOT_DIR="$ROOT_DIR"
-    ROOT_DIR=${ROOT_DIR:-/}
-    export ROOT_DIR ORIGINAL_ROOT_DIR
-
     cd ${BLD_TOP}
     BLD_TOP=.
+    ORIGINAL_ROOT_DIR="$ROOT_DIR"
 
-    . `cacheConfig ${BLD_TOP}/out/include/buildConfig.h`
+    . `cacheConfig ${BLD_TOP}/out/inc/buildConfig.h`
+
+    if [ "$ROOT_DIR" = "" ] ; then
+        ROOT_DIR=$BLD_ROOT_PREFIX
+    fi
+    export ROOT_DIR ORIGINAL_ROOT_DIR
 
     . ${BLD_TOP}/build/bin/makePackage.common
     . package/makeInstall.${BLD_PRODUCT}
@@ -255,11 +248,11 @@ setup() {
     [ $TASK = Package ] && VERB=Copy
     [ $TASK = Remove ] && VERB=Removing
 
-    if [ ! -x "${BLD_BUILD_BIN_DIR}/dsi${BLD_EXE}" ] ; then
+    if [ ! -x "${BLD_BUILD_BIN_DIR}/dsi${BLD_BUILD_EXE}" ] ; then
         echo "Must compile first before $VERB"
         exit 255
     fi
-    ROOT_DIR=`${BLD_OUT_DIR}/bin/getpath -a "${ROOT_DIR}"`
+#   ROOT_DIR=`${BLD_OUT_DIR}/bin/getpath -a "${ROOT_DIR}"`
 
     if [ "$DRY_RUN" = 1 ] ; then
         CHGRP="true chgrp"
@@ -278,7 +271,6 @@ setup() {
         ROOT_DIR=`cygpath -u $ROOT_DIR`
         ROOT_DIR=`cygpath -am $ROOT_DIR`
     fi
-
     if [ $TASK = Package ] ; then
         dir=$ROOT_DIR
         if type cygpath >/dev/null 2>&1 ; then
@@ -448,9 +440,9 @@ while [ "${1#--}" != "$1" -o "${1#-}" != "$1" ] ; do
 done
 
 PACKS=${*:-binary}
-
 setup
-configureProduct --quiet initialize
+
+configureProduct initialize
 
 if [ $TASK = Remove ] ; then
     #
@@ -458,7 +450,6 @@ if [ $TASK = Remove ] ; then
     #
     copyRemoveFiles
     cleanupSystem
-
 else 
     #
     #   Installing and Packaging
@@ -478,11 +469,10 @@ if [ "$BARE" = 1 ] ; then
         echo "WARNING: Can't do bare deploy to the root directory"
         exit 255
     fi
-    mkdir -p ${ROOT_DIR}/bin ${ROOT_DIR}/lib ${ROOT_DIR}/mod
+    mkdir -p ${ROOT_DIR}/bin ${ROOT_DIR}/lib 
 	mv ${BLD_BIN_PREFIX}/* ${ROOT_DIR}/bin
 	mv ${BLD_LIB_PREFIX}/* ${ROOT_DIR}/lib
-	mv ${BLD_MOD_PREFIX}/* ${ROOT_DIR}/mod
-	rm -f ${BLD_MOD_PREFIX}/fileList.txt
+	rm -f ${BLD_LIB_PREFIX}/fileList.txt
     #
     #   Try to be careful with removals
     #
@@ -490,3 +480,4 @@ if [ "$BARE" = 1 ] ; then
 	rmdir ${ROOT_DIR}/usr/lib
 	rmdir ${ROOT_DIR}/usr
 fi
+

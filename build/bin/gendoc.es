@@ -8,14 +8,17 @@ module embedthis.doc {
 
     var all: Boolean
     var bare: Boolean
-    var out: String
+    var out: File
+    var outPath: Path
     var symbols = {}
+    var reserved = {"int": true, "char": true, "long": true, "void": true, "...": true, "va_list": true, "struct": true,
+        "...)": true, ")": true, "": true, "double": true, "HWND": true, "volatile": true }
     var seeAlso = {}
     var tagFile = null
     var title: String = "Documentation"
 
     function usage(): String {
-        return "usage: getdoc [--tags tagfile] [--title Title] files..."
+        return "usage: gendoc [--all] [--bare] [--tags tagfile] [--out outFile] [--title Title] files..."
     }
 
     function parseArgs(): Array {
@@ -33,20 +36,18 @@ module embedthis.doc {
                 break
 
             case "--out":
-                /*
-                    FUTURE - not supported
-                 */
                 if (++argind >= App.args.length) {
                     throw usage()
                 }
-                out = App.args[argind]
+                outPath = App.args[argind]
+                out = File(outPath, "w")
                 break
 
             case "--tags":
                 if (++argind >= App.args.length) {
                     throw usage()
                 }
-                tagFile = App.args[argind]
+                let tags = blend(symbols, Path(App.args[argind]).readJSON())
                 break
 
             case "--title":
@@ -61,12 +62,15 @@ module embedthis.doc {
                 argind = App.args.length
             }
         }
+        if (out == null) {
+            throw usage()
+        }
         return files
     }
 
 
     function emit(...args) {
-        print(args.toString())
+        out.write(args.toString() + "\n")
     }
 
 
@@ -74,12 +78,10 @@ module embedthis.doc {
         if (bare) {
             return
         }
-        emit('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"')
-        emit('"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">')
-        emit('<html xmlns="http://www.w3.org/1999/xhtml">')
+        emit('<!DOCTYPE html>')
+        emit('<html lang="en">')
         emit('<head>')
-        emit('<meta http-equiv="Content-Type" content="text/html; charset=us-ascii" />')
-
+        emit('<meta charset="utf-8"/>')
         emit('<title>' + title + ' Documentation</title>')
         emit('<link href="api.css" rel="stylesheet" type="text/css" />')
         emit('</head>\n<body>\n')
@@ -93,7 +95,7 @@ module embedthis.doc {
         }
         emit('<div class="footnote">Generated on ' + new Date + '<br/>')
         emit('  Copyright &copy; <a href="http://www.embedthis.com">Embedthis Software</a> ' + 
-            new Date().fullYear + '.')
+            new Date().year + '.')
         emit('</div></div></body></html>')
     }
 
@@ -119,7 +121,6 @@ module embedthis.doc {
         Parse all symbol references and build an index of symbols
      */
     function parseReferences(xml: XML) {
-
         for each (def in xml) {
             if (def.@kind == "group" || def.@kind == "struct") {
                 symbols[def.compoundname] = def.@id
@@ -131,7 +132,6 @@ module embedthis.doc {
                 }
             }
         }
-
         var sections: XML = xml.compounddef.sectiondef
         for each (section in sections) {
             var members: XML = section.memberdef
@@ -154,13 +154,21 @@ module embedthis.doc {
         typeSpec = parts.slice(0, 1)
         rest = parts.slice(1)
         sym = typeSpec.toString().trim("*")
-
-        if (symbols[sym]) {
-            result = '<a href="#' + symbols[sym] + '" class="ref">' + typeSpec + '</a>'
+        let value = symbols[sym]
+        if (value) {
+            let result
+            if (value.toString().contains("#")) {
+                result = '<a href="' + symbols[sym] + '" class="ref">' + typeSpec + '</a>'
+            } else {
+                result = '<a href="#' + symbols[sym] + '" class="ref">' + typeSpec + '</a>'
+            }
             if (rest && rest != "") {
                result += " " + rest
             }
             return result
+        }
+        if (!reserved[sym]) {
+            App.log.error("Can't find link symbol \"" + sym + "\"")
         }
         return name
     }
@@ -184,34 +192,43 @@ module embedthis.doc {
 
 
     /*
-        Remove or map XML tags into HTML
+        Remove or map XML elements into HTML
      */
     function clean(str: String): String {
         if (str == "") {
             return str
         }
         str = str.replace(/<para>|<emphasis>|<title>|<type>|<\/para>|<\/emphasis>|<\/title>|<\/type>/g, "")
-        str = str.replace(/<ref refid="/g, '<a class="ref" href="#')
+        str = str.replace(/<ref refid="([^"]*#[^"]*)"/g, '<a class="ref" AAA href="$1"')
+        str = str.replace(/<ref refid="/g, '<a class="ref" BBB href="#')
         str = str.replace(/<\/ref>/g, '</a>')
         str = str.replace(/ kindref="[^"]*"/g, "")
         str = str.replace(/itemizedlist>/g, 'ul>')
         str = str.replace(/listitem>/g, 'li>')
         str = str.replace(/<linebreak\/>/g, "<br/>")
         str = str.replace(/bold>/g, "b>")
+        str = str.replace(/<row>/g, "<tr>")
+        str = str.replace(/<entry thead="no">/g, "<td>")
+        str = str.replace(/<table rows=[^>]*>/g, "<table class='info'>")
+        str = str.replace(/<\/entry>/g, "</td>")
         str = str.trim().trim(".").trim().trim(".")
+        str = str.replace(/--/g, "&mdash;")
         return str
     }
 
 
     /*
-        Clean the string of XML tags and append a "."
+        Clean the string of XML elements and append a "."
      */
     function cleanDot(str: String): String {
         s = clean(str)
         if (s == "") {
             return s
         }
-        return s + "."
+        if (!s.endsWith(">")) {
+            s = s + "."
+        }
+        return s
     }
 
 
@@ -229,7 +246,6 @@ module embedthis.doc {
         Emit a file level overview
      */
     function emitOverview(xml: XML) {
-
         emit("<h1>" + title + "</h1>")
         for each (def in xml) {
             if (def.@kind != "file") {
@@ -264,7 +280,6 @@ module embedthis.doc {
         Emit an index of all services
      */
     function emitServiceIndex(def: XML) {
-
         if (all || def.briefdescription != "" || def.detaileddescription != '') {
             emit('<tr class="apiDef">')
             emit('<td class="apiName"><a href="#' + def.@id + '" class="nameRef">' + def.compoundname + '</a></td>')
@@ -275,10 +290,9 @@ module embedthis.doc {
 
 
     /*
-        Emit an index of all functions
+        Generate an index of all functions
      */
-    function emitFunctionIndex(def: XML, section: XML) {
-
+    function genFunctionIndex(def: XML, section: XML, index: Object) {
         var members: XML = section.memberdef
 
         for each (m in members) {
@@ -289,29 +303,27 @@ module embedthis.doc {
                 if (def.@kind == "file" && m.@id.toString().startsWith("group__")) {
                     continue
                 }
-
                 let definition = m.definition.toString().split(" ")
                 typedef = definition.slice(0, -1).join(" ")
                 name = definition.slice(-1)
 
-                emit('<tr class="apiDef">')
-                str = '<td class="apiType">' + ref(typedef) + '</td><td>'
+                let str = '<tr class="apiDef"><td class="apiType">' + ref(typedef) + '</td><td>'
                 str += '<a href="#' + m.@id + '" class="nameRef">' + name + '</a>'
 
                 args = m.argsstring.toString().trim('(').split(",")
                 if (args.length > 0) {
                     result = []
                     for (i in args) {
-                        arg = args[i]
+                        arg = args[i].trim()
                         result.append(ref(arg))
                     }
                     str += "(" + result.join(", ")
                 }
-                emit(str + '</td></tr>')
+                str += '</td></tr>'
                 if (m.briefdescription != "") {
-                    emit('<tr class="apiBrief"><td>&nbsp;</td><td>' + 
-                        cleanDot(m.briefdescription.para) + '</td></tr>')
+                    str += '<tr class="apiBrief"><td>&nbsp;</td><td>' + cleanDot(m.briefdescription.para) + '</td></tr>'
                 }
+                index[name] = str
             }
         }
     }
@@ -321,7 +333,6 @@ module embedthis.doc {
         Emit an index of all #define directives
      */
     function emitDefineIndex(section: XML) {
-
         var members: XML = section.memberdef
 
         for each (m in members) {
@@ -347,16 +358,16 @@ module embedthis.doc {
     /*
         Emit an index of struct based typedefs
      */
-    function emitTypeIndex(def: XML) {
-
+    function emitTypeIndex(def: XML, index: Object) {
+        var str
         if (all || def.briefdescription != "" || def.detaileddescription != '') {
-            emit('<tr class="apiDef">')
             name = def.compoundname
-
             symbols[name] = def.@id
-
-            emit('<td class="apiName"><a href="#' + symbols[name] + '" class="nameRef">' + name + '</a></td>')
-            emit('<td class="apiBrief">' + cleanDot(def.briefdescription.para) + '</td></tr>')
+            str = '<tr class="apiDef">'
+            str += '<td class="apiName">'
+            str += '<a href="#' + symbols[name] + '" class="nameRef">' + name + '</a></td>'
+            str += '<td class="apiBrief">' + cleanDot(def.briefdescription.para) + '</td></tr>'
+            index[name] = str
         }
     }
 
@@ -364,9 +375,9 @@ module embedthis.doc {
     /*
         Emit an index of all simple (non-struct) typedefs
      */
-    function emitStructTypeIndex(section: XML) {
-
+    function emitStructTypeIndex(section: XML, index: Object) {
         var members: XML = section.memberdef
+        var str
 
         for each (m in members) {
             if (m.@kind == 'typedef') {
@@ -374,23 +385,22 @@ module embedthis.doc {
                     continue
                 }
                 symbols[m.name] = m.@id
-
                 def = m.definition.toString()
                 if (def.contains("(")) {
                     /* Parse "typedef void(* MprLogHandler)(cchar *file, ... cchar *msg) */
                     name = def.toString().replace(/typedef[^\(]*\([^\w]*([\w]+).*/, "$1")
-
                 } else {
                     def = def.toString().split(" ")
                     typedef = def.slice(0, -1).join(" ")
                     name = def.slice(-1)
                 }
-
-                emit('<tr class="apiDef">')
-                emit('<td class="apiName"><a href="#' + m.@id + '" class="nameRef">' + name + '</a></td>')
+                str = '<tr class="apiDef">'
+                str += '<td class="apiName">'
+                str += '<a href="#' + m.@id + '" class="nameRef">' + name + '</a></td>'
                 if (m.briefdescription != "") {
-                    emit('<td class="apiBrief">' + cleanDot(m.briefdescription.para) + '</td></tr>')
+                    str += '<td class="apiBrief">' + cleanDot(m.briefdescription.para) + '</td></tr>'
                 }
+                index[name] = str
             }
         }
     }
@@ -463,13 +473,12 @@ module embedthis.doc {
         Emit function args
      */
     function emitArgs(args: XML) {
-
         result = []
         for each (p in args.param) {
             if (p.type == "...") {
                 result.append("...")
             } else {
-                s = clean(p.type) + " " + p.declname
+                s = ref(strip(p.type)) + " " + p.declname
                 s = s.replace(/ ([\*]*) /, " $1")
                 result.append(s)
             }
@@ -482,7 +491,6 @@ module embedthis.doc {
         Used for function and simple typedef details
      */
     function emitDetail(def: XML, section: XML) {
-
         var members: XML = section.memberdef
 
         if (section.@kind == "func") {
@@ -491,7 +499,6 @@ module embedthis.doc {
         } else if (section.@kind == "typedef") {
             kind = "typedef"
         }
-
         for each (m in members) {
             if (m.@kind == kind) {
                 if (!all && m.briefdescription == '' && m.detaileddescription == '') {
@@ -500,9 +507,7 @@ module embedthis.doc {
                 if (def.@kind == "file" && m.@id.toString().startsWith("group__")) {
                     continue
                 }
-
                 emit('<a name="' + m.@id + '"></a>')
-
                 emit('<div class="api">')
                 emit('  <div class="prototype">')
 
@@ -628,7 +633,6 @@ module embedthis.doc {
 
 
     function emitIndicies(xml: XML) {
-
         var sections: XML
 
         /*
@@ -650,29 +654,39 @@ module embedthis.doc {
         emit('<a name="Functions"></a><h1>Functions</h1>')
         emit('  <table class="apiIndex" summary="Functions">')
 
+        let functionIndex = {}
         for each (def in xml) {
             sections = def.sectiondef
             for each (section in sections) {
                 if (section.@kind == "func") {
-                    emitFunctionIndex(def, section)
+                    genFunctionIndex(def, section, functionIndex)
                 }
             }
+        }
+        Object.sortProperties(functionIndex)
+        for each (i in functionIndex) {
+            emit(i)
         }
         emit('</table>')
 
         emit('<a name="Typedefs"></a><h1>Typedefs</h1>')
         emit('<table class="apiIndex" summary="typedefs">')
+        let typeIndex = {}
         for each (def in xml) {
             if (def.@kind == "struct") {
-                emitTypeIndex(def)
+                emitTypeIndex(def, typeIndex)
             } else {
                 sections = def.sectiondef
                 for each (section in sections) {
                     if (section.@kind == "typedef") {
-                        emitStructTypeIndex(section)
+                        emitStructTypeIndex(section, typeIndex)
                     }
                 }
             }
+        }
+        Object.sortProperties(typeIndex)
+        for each (i in typeIndex) {
+            emit(i)
         }
         emit('</table>')
 
@@ -766,9 +780,12 @@ module embedthis.doc {
 
 
     function saveTags() {
-        if (tagFile) {
-            Path(tagFile).write(serialize(symbols))
+        let name = outPath.basename
+        let tags = outPath.replaceExt("tags");
+        for (s in symbols) {
+            symbols[s] = name + "#" + symbols[s]
         }
+        Path(tags).write(serialize(symbols))
     }
 
 
@@ -784,12 +801,8 @@ module embedthis.doc {
                 xml = tmp
             }
         }
-/*
-for each (n in xml) {
-    e("id " + n.@id)
-}
-*/
         parse(xml)
+        out.close()
         saveTags()
     }
 

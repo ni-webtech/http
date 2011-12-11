@@ -11,6 +11,8 @@ EXPORTS
   gethex
   gettimeofday
   itos
+  itosbuf
+  itosradix
   mprAcceptSocket
   mprActivateWorker
   mprAddDuplicateKey
@@ -19,10 +21,12 @@ EXPORTS
   mprAddKey
   mprAddKeyFmt
   mprAddMime
+  mprAddNullItem
   mprAddNullToBuf
   mprAddRoot
   mprAddSocketHandler
   mprAddStandardSignals
+  mprAddTerminator
   mprAddTestGroup
   mprAdjustBufEnd
   mprAdjustBufStart
@@ -38,6 +42,8 @@ EXPORTS
   mprAtomicExchange
   mprAtomicListInsert
   mprAttachFileFd
+  mprBackupLog
+  mprBlendHash
   mprBreakpoint
   mprCheckBlock
   mprClaimDispatcher
@@ -51,12 +57,13 @@ EXPORTS
   mprCompactBuf
   mprCompareTime
   mprConnectSocket
-  mprCopyList
+  mprCopyListContents
   mprCopyName
   mprCopyPath
   mprCopyright
   mprCreate
   mprCreateBuf
+  mprCreateCache
   mprCreateCmd
   mprCreateCmdService
   mprCreateCond
@@ -67,9 +74,11 @@ EXPORTS
   mprCreateEventService
   mprCreateFileSystem
   mprCreateHash
+  mprCreateHashFromWords
   mprCreateKeyPair
   mprCreateList
   mprCreateLock
+  mprCreateLogService
   mprCreateMemService
   mprCreateMimeTypes
   mprCreateModule
@@ -95,7 +104,10 @@ EXPORTS
   mprDedicateWorker
   mprDedicateWorkerToDispatcher
   mprDeletePath
+  mprDeserialize
+  mprDeserializeCustom
   mprDestroy
+  mprDestroyCache
   mprDestroyCmd
   mprDestroyDispatcher
   mprDestroyMemService
@@ -103,6 +115,7 @@ EXPORTS
   mprDisableFileBuffering
   mprDisconnectCmd
   mprDisconnectSocket
+  mprDispatcherHasEvents
   mprDispatchersAreIdle
   mprDoWaitRecall
   mprDtoa
@@ -117,13 +130,15 @@ EXPORTS
   mprError
   mprEscapeCmd
   mprEscapeHtml
+  mprExpireCache
   mprFatalError
   mprFinalizeCmd
   mprFlushBuf
   mprFlushFile
   mprFlushSocket
   mprFormatLocalTime
-  mprFormatTime
+  mprFormatTm
+  mprFormatUniversalTime
   mprFprintf
   mprGet
   mprGetAbsPath
@@ -135,13 +150,7 @@ EXPORTS
   mprGetAvailableWorkers
   mprGetBlockFromBuf
   mprGetBlockSize
-  mprGetBufEnd
-  mprGetBufLength
-  mprGetBufOrigin
   mprGetBufRefillProc
-  mprGetBufSize
-  mprGetBufSpace
-  mprGetBufStart
   mprGetCharFromBuf
   mprGetCmdBuf
   mprGetCmdExitStatus
@@ -152,6 +161,7 @@ EXPORTS
   mprGetCurrentThread
   mprGetCurrentThreadName
   mprGetCurrentWorker
+  mprGetDate
   mprGetDebugMode
   mprGetDispatcher
   mprGetDomainName
@@ -163,7 +173,6 @@ EXPORTS
   mprGetFileFd
   mprGetFilePosition
   mprGetFileSize
-  mprGetFileString
   mprGetFirstItem
   mprGetFirstKey
   mprGetFirstPathSeparator
@@ -177,11 +186,11 @@ EXPORTS
   mprGetLastItem
   mprGetLastPathSeparator
   mprGetListCapacity
-  mprGetListLength
   mprGetLogFile
   mprGetLogHandler
   mprGetLogLevel
-  mprGetMD5Hash
+  mprGetMD5
+  mprGetMD5WithPrefix
   mprGetMaxWorkers
   mprGetMem
   mprGetMemStats
@@ -193,18 +202,18 @@ EXPORTS
   mprGetNextItem
   mprGetNextKey
   mprGetNonBlockDispatcher
-  mprGetNormalizedPath
   mprGetOsError
   mprGetPageSize
   mprGetPathBase
   mprGetPathDir
-  mprGetPathExtension
+  mprGetPathExt
   mprGetPathFiles
   mprGetPathInfo
   mprGetPathLink
   mprGetPathNewline
   mprGetPathParent
   mprGetPathSeparators
+  mprGetPathTree
   mprGetPortablePath
   mprGetPrevItem
   mprGetRandomBytes
@@ -225,7 +234,7 @@ EXPORTS
   mprGetTicks
   mprGetTime
   mprGetTimeZoneOffset
-  mprGetTransformedPath
+  mprGetWinPath
   mprGetWorkerServiceStats
   mprGlobalLock
   mprGlobalUnlock
@@ -233,13 +242,13 @@ EXPORTS
   mprHasMemError
   mprHasSecureSockets
   mprHold
+  mprIncCache
   mprInitList
   mprInitLock
   mprInitSpinLock
   mprInitWindow
   mprInsertCharToBuf
   mprInsertItemAtPos
-  mprIsAbsPath
   mprIsCmdComplete
   mprIsCmdRunning
   mprIsDead
@@ -247,8 +256,9 @@ EXPORTS
   mprIsIdle
   mprIsInfinite
   mprIsNan
+  mprIsPathAbs
+  mprIsPathRel
   mprIsPathSeparator
-  mprIsRelPath
   mprIsSocketEof
   mprIsSocketSecure
   mprIsStopping
@@ -257,10 +267,12 @@ EXPORTS
   mprIsZero
   mprJoinPath
   mprJoinPathExt
+  mprJsonParseError
   mprListenOnSocket
   mprLoadModule
   mprLoadNativeModule
   mprLock
+  mprLockDtoa
   mprLog
   mprLookAtLastCharInBuf
   mprLookAtNextCharInBuf
@@ -284,10 +296,12 @@ EXPORTS
   mprMemcpy
   mprMemdupMem
   mprMemoryError
+  mprNap
   mprNop
+  mprNormalizePath
   mprNotifyOn
   mprOpenFile
-  mprParseIp
+  mprParseSocketAddress
   mprParseTestArgs
   mprParseTime
   mprPathExists
@@ -296,6 +310,7 @@ EXPORTS
   mprPrintMem
   mprPrintf
   mprPrintfError
+  mprPruneCache
   mprPushItem
   mprPutBlockToBuf
   mprPutCharToBuf
@@ -310,8 +325,11 @@ EXPORTS
   mprQueueIOEvent
   mprRandom
   mprRawLog
+  mprReadCache
   mprReadCmd
   mprReadFile
+  mprReadLine
+  mprReadPathContents
   mprReadRegistry
   mprReadSocket
   mprReallocMem
@@ -322,6 +340,7 @@ EXPORTS
   mprRelease
   mprReleaseWorker
   mprReleaseWorkerFromDispatcher
+  mprRemoveCache
   mprRemoveEvent
   mprRemoveItem
   mprRemoveItemAtPos
@@ -332,6 +351,7 @@ EXPORTS
   mprRemoveSignalHandler
   mprRemoveSocketHandler
   mprRemoveWaitHandler
+  mprReplacePathExt
   mprReportTestResults
   mprRequestGC
   mprRescheduleEvent
@@ -341,6 +361,7 @@ EXPORTS
   mprResetTestGroup
   mprResetYield
   mprResolvePath
+  mprRestart
   mprRestartContinuousEvent
   mprResumeThreads
   mprRevive
@@ -354,6 +375,7 @@ EXPORTS
   mprSearchPath
   mprSeekFile
   mprSendFileToSocket
+  mprSerialize
   mprServiceEvents
   mprServiceSignals
   mprServiceWinIO
@@ -363,8 +385,11 @@ EXPORTS
   mprSetBufMax
   mprSetBufRefillProc
   mprSetBufSize
+  mprSetCacheLimits
   mprSetCmdCallback
+  mprSetCmdDefaultEnv
   mprSetCmdDir
+  mprSetCmdSearchPath
   mprSetCmdTimeout
   mprSetCmdlineLogging
   mprSetCurrentThreadPriority
@@ -378,11 +403,12 @@ EXPORTS
   mprSetIpAddr
   mprSetItem
   mprSetListLimits
+  mprSetLogBackup
   mprSetLogFile
   mprSetLogHandler
   mprSetLogLevel
   mprSetManager
-  mprSetMaxSocketClients
+  mprSetMaxSocketAccept
   mprSetMaxWorkers
   mprSetMemError
   mprSetMemLimits
@@ -408,6 +434,7 @@ EXPORTS
   mprSetThreadStackSize
   mprSetWinMsgCallback
   mprSetWorkerStackSize
+  mprSetWorkerStartCallback
   mprShouldAbortRequests
   mprShouldDenyNewRequests
   mprSignalCond
@@ -423,7 +450,9 @@ EXPORTS
   mprSprintfv
   mprStart
   mprStartCmd
+  mprStartEventsThread
   mprStartGCService
+  mprStartLogging
   mprStartModule
   mprStartModuleService
   mprStartOsService
@@ -442,13 +471,15 @@ EXPORTS
   mprStopSignalService
   mprStopThreadService
   mprTerminate
-  mprTrimPathExtension
+  mprTransformPath
+  mprTrimPathExt
   mprTruncateFile
   mprTryLock
   mprTrySpinLock
   mprUnloadModule
   mprUnloadNativeModule
   mprUnlock
+  mprUnlockDtoa
   mprUriDecode
   mprUriEncode
   mprUserError
@@ -470,10 +501,12 @@ EXPORTS
   mprWakeNotifier
   mprWakeWorkers
   mprWarn
+  mprWriteCache
   mprWriteCmd
   mprWriteFile
-  mprWriteFileFormat
+  mprWriteFileFmt
   mprWriteFileString
+  mprWritePathContents
   mprWriteRegistry
   mprWriteSocket
   mprWriteSocketString
@@ -489,7 +522,9 @@ EXPORTS
   mprXmlSetParserHandler
   mprYield
   print
+  scamel
   scasecmp
+  scasematch
   schr
   sclone
   scmp
@@ -504,18 +539,24 @@ EXPORTS
   sjoinv
   slen
   slower
+  smatch
   sncasecmp
   snclone
   sncmp
   sncopy
+  snumber
+  spascal
   spbrk
   srchr
   srejoin
   srejoinv
+  sreplace
   sspn
   sstarts
   ssub
+  stemplate
   stoi
+  stoiradix
   stok
   stopAlloc
   stopSeqno

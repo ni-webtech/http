@@ -120,7 +120,7 @@ setp() {
         [ "$owner" = "root" -o "$owner" = 0 ] && owner=Administrators
         [ "$group" = "root" -o "$group" = 0 ] && group=SYSTEM
         # Cygwin bug when using "c:/" 
-        f="${f##C:}"
+        # f="${f##C:}"
         ${CHOWN} ${owner} "${f}"
         ${CHGRP} ${group} "${f}"
     else
@@ -135,9 +135,6 @@ getDefaultMode() {
 
     ext=${1##*.}
     case "$ext" in
-    exe|lib|so|dylib|sh|ksh)
-        mode=0755
-        ;;
     exe|lib|so|dylib|sh|ksh)
         mode=0755
         ;;
@@ -257,7 +254,7 @@ cpy() {
         optind=$((optind + 1))
     done
 
-    [ $v -gt 0 ] && echo -e "\ncpy $*"
+    [ $v -gt 0 ] && echo -e "\n# cpy $*"
 
     argc=$((argc - 1))
     if [ $optind -le $argc ] ; then
@@ -276,7 +273,7 @@ cpy() {
         pattern="*"
 
         files=${files##./}
-        [ $v -gt 0 ] && echo find ${files} -name "$pattern"
+        [ $v -gt 0 ] && echo "\# " find ${files} -name "$pattern"
         find ${files} -name "$pattern" | egrep -v "$stndFilter" | egrep -v "$filter" | egrep "$check" | while read src 
         do
             [ -d "${src#}" ] && continue
@@ -340,7 +337,7 @@ cpy() {
             fi
 
             [ $v -gt 0 ] && echo -e "cp -pf ${src} ${dest}"
-            ${CP} -pf "${src}" "${dest}"
+            ${CP} -P -pf "${src}" "${dest}"
             if [ $? != 0 ] ; then
                 echo "# Can't copy: cp -pf $src $dest"
                 echo -e "\nIf installing to system directories, become administrator or attain"
@@ -432,13 +429,15 @@ preparePrefixes() {
     #   Update prefixes
     #
     for name in PREFIX ROOT_PREFIX BIN_PREFIX CFG_PREFIX DOC_PREFIX JEM_PREFIX INC_PREFIX LIB_PREFIX LOG_PREFIX MAN_PREFIX \
-        MOD_PREFIX PRD_PREFIX SAM_PREFIX SRC_PREFIX VER_PREFIX WEB_PREFIX
+        MOD_PREFIX PRD_PREFIX SAM_PREFIX SPL_PREFIX SRC_PREFIX VER_PREFIX WEB_PREFIX
     do
         eval path="\${BLD_${name}}"
         path=`getpath -a "${path}"`
         eval export ORIG_BLD_${name}=\"${path}\"
         d=BLD_${name}
         eval dir=\$BLD_${name}
+        dir=${dir/C:/}
+        dir=${dir/c:/}
 
         subdir=
         if [ "$TASK" = Package ] ; then

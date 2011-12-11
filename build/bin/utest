@@ -74,12 +74,13 @@ enumerable class Test {
             throw "Can't find configure"
         }
         _top = path.dirname.absolute
-        _bin = App.exeDir
+        // _bin = App.exeDir
+        _bin = Path(Cmd.locate("edep")).dirname
         _lib = App.exeDir.join("../lib")
         if (!_lib.exists) {
             _lib = _bin
         }
-        parseBuildConfig(_top.join("out/include/buildConfig.h"));
+        parseBuildConfig(_top.join("out/inc/buildConfig.h"));
     }
 
     /*
@@ -96,6 +97,9 @@ enumerable class Test {
                 noserver = true
                 App.putenv("SECOND", "1")
                 App.putenv("NOSERVER", "1")
+                break
+            case "--chdir":
+                App.chdir(args[++i])
                 break
             case "-c" : case "--continue":
                 continueOnErrors = true
@@ -153,6 +157,7 @@ enumerable class Test {
 
     function usage(): Void {
         error("Usage: " + program + " [options] [filter patterns...]\n" +
+            "  --chdir dir           # Change to directory before testing\n" + 
             "  --continue            # Continue on errors\n" + 
             "  --depth number        # Zero == basic, 1 == throrough, 2 extensive\n" + 
             "  --debug               # Run in debug mode\n" + 
@@ -173,6 +178,7 @@ enumerable class Test {
     function initialize(): Void {
         if (logSpec) {
             App.log.redirect(logSpec)
+            App.mprLog.redirect(logSpec)
         }
         if (echo) {
             log.activity("Test", App.args.join(" "))
@@ -489,9 +495,10 @@ enumerable class Test {
         config["debug"] = getKey(data, "BLD_DEBUG")
         data = data.match(/BLD_FEATURE.*|BLD_HTTP_PORT.*|BLD_SSL_PORT.*/g)
         for each (item in data) {
-            pair = item.split("=")
-            key = pair[0]
-            value = pair[1]
+            if (!item.contains("=")) {
+                continue
+            }
+            let [key, value] = item.split("=")
             key = key.replace(/BLD_FEATURE_/, "")
             key = key.replace(/BLD_/, "").toLowerCase()
             if (value == "1" || value == "0") {

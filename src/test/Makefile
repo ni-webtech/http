@@ -15,14 +15,14 @@ OBJECTS			= $(patsubst %.c,$(BLD_OBJ_DIR)/%$(BLD_OBJ),$(wildcard test*.c))
 compileTargets:	$(TARGETS)
 
 $(BLD_BIN_DIR)/testHttp$(BLD_EXE): $(OBJECTS)
-	bld --exe $(BLD_BIN_DIR)/testHttp$(BLD_EXE) --search "$(BLD_MPR_LIBPATHS) $(BLD_SSL_LIBPATHS)" \
-		--libs "mpr $(BLD_SSL_LIBS) http" $(OBJECTS)
+	bld --exe $(BLD_BIN_DIR)/testHttp$(BLD_EXE) --search "$(BLD_SSL_LIBPATHS)" \
+		--libs "$(BLD_HTTP_WITHLIBS) $(BLD_MPR_LIBS) $(BLD_SSL_LIBS) http" $(OBJECTS)
 
 cleanExtra:
 	rm -f trace*.txt *.txt.old
 
 ifeq	($(BLD_CROSS),0)
-testExtra:
+testExtra::
 	testHttp -v
 endif
 

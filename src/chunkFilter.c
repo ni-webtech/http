@@ -10,8 +10,7 @@
 
 /********************************** Forwards **********************************/
 
-static void incomingChunkData(HttpQueue *q, HttpPacket *packet);
-static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir);
+static int matchChunk(HttpConn *conn, HttpRoute *route, int dir);
 static void openChunk(HttpQueue *q);
 static void outgoingChunkService(HttpQueue *q);
 static void setChunkPrefix(HttpQueue *q, HttpPacket *packet);
@@ -29,15 +28,14 @@ int httpOpenChunkFilter(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     http->chunkFilter = filter;
-    filter->open = openChunk; 
     filter->match = matchChunk; 
+    filter->open = openChunk; 
     filter->outgoingService = outgoingChunkService; 
-    filter->incomingData = incomingChunkData; 
     return 0;
 }
 
 
-static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir)
+static int matchChunk(HttpConn *conn, HttpRoute *route, int dir)
 {
     HttpTx  *tx;
 
@@ -47,35 +45,31 @@ static bool matchChunk(HttpConn *conn, HttpStage *handler, int dir)
             size to zero. Also remove if the response length is already known.
          */
         tx = conn->tx;
-        return (tx->length < 0 && tx->chunkSize != 0) ? 1 : 0;
-
-    } else {
-        /* 
-            Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
-            know what the response data looks like (chunked or not).
-         */
-        return 1;
+        if (tx->length < 0 && tx->chunkSize != 0) {
+            return HTTP_ROUTE_OK;
+        }
+        return HTTP_ROUTE_REJECT;
     }
+    /* 
+        Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
+        know what the response data looks like (chunked or not).
+     */
+    return HTTP_ROUTE_OK;
 }
 
 
 static void openChunk(HttpQueue *q)
 {
     HttpConn    *conn;
-    HttpRx      *rx;
 
     conn = q->conn;
-    rx = conn->rx;
-
     q->packetSize = min(conn->limits->chunkSize, q->max);
-#if UNUSED
-    rx->chunkState = HTTP_CHUNK_START;
-#endif
 }
 
 
 /*  
-    Get the next chunk size. Chunked data format is:
+    Filter chunk headers and leave behind pure data. This is called for chunked and unchunked data.
+    Chunked data format is:
         Chunk spec <CRLF>
         Data <CRLF>
         Chunk spec (size == 0) <CRLF>
@@ -84,63 +78,62 @@ static void openChunk(HttpQueue *q)
     As an optimization, use "\r\nSIZE ...\r\n" as the delimiter so that the CRLF after data does not special consideration.
     Achive this by parseHeaders reversing the input start by 2.
  */
-static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
+ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet)
 {
     HttpConn    *conn;
     HttpRx      *rx;
     MprBuf      *buf;
+    ssize       chunkSize;
     char        *start, *cp;
     int         bad;
 
     conn = q->conn;
     rx = conn->rx;
-
-    if (!(rx->flags & HTTP_CHUNKED)) {
-        httpSendPacketToNext(q, packet);
-        return;
-    }
+    mprAssert(packet);
     buf = packet->content;
+    mprAssert(buf);
 
-    if (buf == 0) {
-        if (rx->chunkState == HTTP_CHUNK_DATA) {
-            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk state");
-            return;
-        }
-        rx->chunkState = HTTP_CHUNK_EOF;
-    }
-    
-    /*  
-        NOTE: the request head ensures that packets are correctly sized by packet inspection. The packet will never
-        have more data than the chunk state expects.
-     */
     switch (rx->chunkState) {
+    case HTTP_CHUNK_UNCHUNKED:
+        return (ssize) min(rx->remainingContent, mprGetBufLength(buf));
+
+    case HTTP_CHUNK_DATA:
+        mprLog(7, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), rx->remainingContent);
+        if (rx->remainingContent > 0) {
+            return (ssize) min(rx->remainingContent, mprGetBufLength(buf));
+        }
+        /* End of chunk - prep for the next chunk */
+        rx->remainingContent = HTTP_BUFSIZE;
+        rx->chunkState = HTTP_CHUNK_START;
+        /* Fall through */
+
     case HTTP_CHUNK_START:
         /*  
             Validate:  "\r\nSIZE.*\r\n"
          */
         if (mprGetBufLength(buf) < 5) {
-            break;
+            return MPR_ERR_NOT_READY;
         }
         start = mprGetBufStart(buf);
         bad = (start[0] != '\r' || start[1] != '\n');
         for (cp = &start[2]; cp < buf->end && *cp != '\n'; cp++) {}
         if (*cp != '\n' && (cp - start) < 80) {
-            break;
+            return MPR_ERR_NOT_READY;
         }
         bad += (cp[-1] != '\r' || cp[0] != '\n');
         if (bad) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
-            return;
+            return 0;
         }
-        rx->chunkSize = (int) stoi(&start[2], 16, NULL);
-        if (!isxdigit((int) start[2]) || rx->chunkSize < 0) {
+        chunkSize = (int) stoiradix(&start[2], 16, NULL);
+        if (!isxdigit((int) start[2]) || chunkSize < 0) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
-            return;
+            return 0;
         }
         mprAdjustBufStart(buf, (cp - start + 1));
-        rx->remainingContent = rx->chunkSize;
-        if (rx->chunkSize == 0) {
-            rx->chunkState = HTTP_CHUNK_EOF;
+        /* Remaining content is set to the next chunk size */
+        rx->remainingContent = chunkSize;
+        if (chunkSize == 0) {
             /*
                 We are lenient if the request does not have a trailing "\r\n" after the last chunk
              */
@@ -148,67 +141,55 @@ static void incomingChunkData(HttpQueue *q, HttpPacket *packet)
             if (mprGetBufLength(buf) == 2 && *cp == '\r' && cp[1] == '\n') {
                 mprAdjustBufStart(buf, 2);
             }
+            rx->chunkState = HTTP_CHUNK_EOF;
+            rx->eof = 1;
         } else {
             rx->chunkState = HTTP_CHUNK_DATA;
         }
-        mprAssert(mprGetBufLength(buf) == 0);
-        mprLog(5, "chunkFilter: start incoming chunk of %d bytes", rx->chunkSize);
-        break;
-
-    case HTTP_CHUNK_DATA:
-        mprAssert(httpGetPacketLength(packet) <= rx->chunkSize);
-        mprLog(5, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), 
-            rx->remainingContent);
-        httpSendPacketToNext(q, packet);
-        if (rx->remainingContent == 0) {
-            rx->chunkState = HTTP_CHUNK_START;
-            rx->remainingContent = HTTP_BUFSIZE;
-        }
-        break;
-
-    case HTTP_CHUNK_EOF:
-        mprAssert(httpGetPacketLength(packet) == 0);
-        httpSendPacketToNext(q, packet);
-        mprLog(5, "chunkFilter: last chunk");
-        break;    
+        mprLog(7, "chunkFilter: start incoming chunk of %d bytes", chunkSize);
+        return min(chunkSize, mprGetBufLength(buf));
 
     default:
-        mprAssert(0);
+        mprError("chunkFilter: bad state %d", rx->chunkState);
     }
+    return 0;
 }
 
 
-/*  
-    Apply chunks to dynamic outgoing data. 
- */
 static void outgoingChunkService(HttpQueue *q)
 {
     HttpConn    *conn;
     HttpPacket  *packet;
     HttpTx      *tx;
+    cchar       *value;
 
     conn = q->conn;
     tx = conn->tx;
 
     if (!(q->flags & HTTP_QUEUE_SERVICED)) {
         /*  
-            If the last packet is the end packet, we have all the data. Thus we know the actual content length 
-            and can bypass the chunk handler.
+            If we don't know the content length (tx->length < 0) and if the last packet is the end packet. Then
+            we have all the data. Thus we can determine the actual content length and can bypass the chunk handler.
          */
-        if (q->last->flags & HTTP_PACKET_END) {
-            if (tx->chunkSize < 0 && tx->length <= 0) {
-                /*  
-                    Set the response content length and thus disable chunking -- not needed as we know the entity length.
-                 */
-                tx->length = (int) q->count;
-            }
-        } else {
-            if (tx->chunkSize < 0) {
-                tx->chunkSize = min(conn->limits->chunkSize, q->max);
+        if (tx->length < 0 && (value = mprLookupKey(tx->headers, "Content-Length")) != 0) {
+            tx->length = stoi(value);
+        }
+        if (tx->length < 0) {
+            if (q->last->flags & HTTP_PACKET_END) {
+                if (tx->chunkSize < 0 && tx->length <= 0) {
+                    /*  
+                        Set the response content length and thus disable chunking -- not needed as we know the entity length.
+                     */
+                    tx->length = (int) q->count;
+                }
+            } else {
+                if (tx->chunkSize < 0) {
+                    tx->chunkSize = min(conn->limits->chunkSize, q->max);
+                }
             }
         }
     }
-    if (tx->chunkSize <= 0 || tx->altBody) {
+    if (tx->chunkSize <= 0) {
         httpDefaultOutgoingServiceStage(q);
     } else {
         for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
@@ -227,7 +208,7 @@ static void outgoingChunkService(HttpQueue *q)
             if (!(packet->flags & HTTP_PACKET_HEADER)) {
                 setChunkPrefix(q, packet);
             }
-            httpSendPacketToNext(q, packet);
+            httpPutPacketToNext(q, packet);
         }
     }
 }
@@ -266,7 +247,7 @@ static void setChunkPrefix(HttpQueue *q, HttpPacket *packet)
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -275,7 +256,7 @@ static void setChunkPrefix(HttpQueue *q, HttpPacket *packet)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4

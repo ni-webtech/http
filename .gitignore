@@ -15,7 +15,7 @@ bin/testHttp
 bin/http
 build/bin/buildConfig.sh
 doc/api/http/xml
-doc/api/mpr
+doc/api/http/html
 src/include/buildConfig.h
 *.mod
 buildConfig.make
@@ -44,3 +44,7 @@ x64
 xcuserdata
 mob.*
 .embedthis
+.publisher
+src/test/appweb/trace.txt
+.DS_Store
+*.guid

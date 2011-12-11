@@ -17,35 +17,7 @@ static void manageHost(HttpHost *host, int flags);
 
 /*********************************** Code *************************************/
 
-static void manageHost(HttpHost *host, int flags)
-{
-    if (flags & MPR_MANAGE_MARK) {
-        mprMark(host->name);
-        mprMark(host->ip);
-        mprMark(host->parent);
-        mprMark(host->aliases);
-        mprMark(host->dirs);
-        mprMark(host->locations);
-        mprMark(host->loc);
-        mprMark(host->mimeTypes);
-        mprMark(host->documentRoot);
-        mprMark(host->serverRoot);
-        mprMark(host->traceInclude);
-        mprMark(host->traceExclude);
-        mprMark(host->protocol);
-        mprMark(host->mutex);
-        mprMark(host->log);
-        mprMark(host->logFormat);
-        mprMark(host->logPath);
-        mprMark(host->limits);
-
-    } else if (flags & MPR_MANAGE_FREE) {
-        httpRemoveHost(MPR->httpService, host);
-    }
-}
-
-
-HttpHost *httpCreateHost(HttpLoc *loc)
+HttpHost *httpCreateHost()
 {
     HttpHost    *host;
     Http        *http;
@@ -54,24 +26,16 @@ HttpHost *httpCreateHost(HttpLoc *loc)
     if ((host = mprAllocObj(HttpHost, manageHost)) == 0) {
         return 0;
     }
+    if ((host->responseCache = mprCreateCache(MPR_CACHE_SHARED)) == 0) {
+        return 0;
+    }
+    mprSetCacheLimits(host->responseCache, 0, HTTP_CACHE_LIFESPAN, 0, 0);
+
     host->mutex = mprCreateLock();
-    host->aliases = mprCreateList(-1, 0);
-    host->dirs = mprCreateList(-1, 0);
-    host->locations = mprCreateList(-1, 0);
-    host->limits = mprMemdup(http->serverLimits, sizeof(HttpLimits));
+    host->routes = mprCreateList(-1, 0);
     host->flags = HTTP_HOST_NO_TRACE;
     host->protocol = sclone("HTTP/1.1");
-    host->mimeTypes = MPR->mimeTypes;
-    host->documentRoot = host->serverRoot = sclone(".");
-
-    host->traceMask = HTTP_TRACE_TX | HTTP_TRACE_RX | HTTP_TRACE_FIRST | HTTP_TRACE_HEADER;
-    host->traceLevel = 3;
-    host->traceMaxLength = MAXINT;
-
-    host->loc = (loc) ? loc : httpCreateLocation();
-    httpAddLocation(host, host->loc);
-    host->loc->auth = httpCreateAuth(host->loc->auth);
-    httpAddDir(host, httpCreateBareDir("."));
+    host->home = sclone(".");
     httpAddHost(http, host);
     return host;
 }
@@ -90,87 +54,173 @@ HttpHost *httpCloneHost(HttpHost *parent)
     host->mutex = mprCreateLock();
 
     /*  
-        The aliases, dirs and locations are all copy-on-write
+        The dirs and routes are all copy-on-write.
+        Don't clone ip, port and name
      */
     host->parent = parent;
-    host->aliases = parent->aliases;
-    host->dirs = parent->dirs;
-    host->locations = parent->locations;
+    host->responseCache = parent->responseCache;
+    host->home = parent->home;
+    host->routes = parent->routes;
     host->flags = parent->flags | HTTP_HOST_VHOST;
     host->protocol = parent->protocol;
-    host->mimeTypes = parent->mimeTypes;
-    host->limits = mprMemdup(parent->limits, sizeof(HttpLimits));
-    host->documentRoot = parent->documentRoot;
-    host->serverRoot = parent->serverRoot;
-    host->loc = httpCreateInheritedLocation(parent->loc);
-    host->traceMask = parent->traceMask;
-    host->traceLevel = parent->traceLevel;
-    host->traceMaxLength = parent->traceMaxLength;
-    if (parent->traceInclude) {
-        host->traceInclude = mprCloneHash(parent->traceInclude);
-    }
-    if (parent->traceExclude) {
-        host->traceExclude = mprCloneHash(parent->traceExclude);
-    }
-    httpAddLocation(host, host->loc);
     httpAddHost(http, host);
     return host;
 }
 
 
-void httpSetHostDocumentRoot(HttpHost *host, cchar *dir)
+static void manageHost(HttpHost *host, int flags)
 {
-    char    *doc;
-    int     len;
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(host->name);
+        mprMark(host->ip);
+        mprMark(host->parent);
+        mprMark(host->responseCache);
+        mprMark(host->routes);
+        mprMark(host->defaultRoute);
+        mprMark(host->protocol);
+        mprMark(host->mutex);
+        mprMark(host->home);
 
-    doc = host->documentRoot = httpMakePath(host, dir);
-    len = (int) strlen(doc);
-    if (doc[len - 1] == '/') {
-        doc[len - 1] = '\0';
+    } else if (flags & MPR_MANAGE_FREE) {
+        /* The http->hosts list is static. ie. The hosts won't be marked via http->hosts */
+        httpRemoveHost(MPR->httpService, host);
     }
-    /*  Create a catch-all alias */
-    httpAddAlias(host, httpCreateAlias("", doc, 0));
 }
 
 
-void httpSetHostLogRotation(HttpHost *host, int logCount, int logSize)
+int httpStartHost(HttpHost *host)
 {
-    host->logCount = logCount;
-    host->logSize = logSize;
+    HttpRoute   *route;
+    int         next;
+
+    for (ITERATE_ITEMS(host->routes, route, next)) {
+        httpStartRoute(route);
+    }
+    for (ITERATE_ITEMS(host->routes, route, next)) {
+        if (!route->log && route->parent && route->parent->log) {
+            route->log = route->parent->log;
+        }
+    }
+    return 0;
 }
 
 
-void httpSetHostServerRoot(HttpHost *host, cchar *serverRoot)
+void httpStopHost(HttpHost *host)
 {
-    host->serverRoot = mprGetAbsPath(serverRoot);
+    HttpRoute   *route;
+    int         next;
+
+    for (ITERATE_ITEMS(host->routes, route, next)) {
+        httpStopRoute(route);
+    }
+}
+
+
+HttpRoute *httpGetHostDefaultRoute(HttpHost *host)
+{
+    return host->defaultRoute;
+}
+
+
+static void printRoute(HttpRoute *route, int next, bool full)
+{
+    cchar   *methods, *pattern, *target, *index;
+    int     nextIndex;
+
+    methods = httpGetRouteMethods(route);
+    methods = methods ? methods : "*";
+    pattern = (route->pattern && *route->pattern) ? route->pattern : "^/";
+    target = (route->target && *route->target) ? route->target : "$&";
+    if (full) {
+        mprRawLog(0, "\n%d. %s\n", next, route->name);
+        mprRawLog(0, "    Pattern:      %s\n", pattern);
+        mprRawLog(0, "    StartSegment: %s\n", route->startSegment);
+        mprRawLog(0, "    StartsWith:   %s\n", route->startWith);
+        mprRawLog(0, "    RegExp:       %s\n", route->optimizedPattern);
+        mprRawLog(0, "    Methods:      %s\n", methods);
+        mprRawLog(0, "    Prefix:       %s\n", route->prefix);
+        mprRawLog(0, "    Target:       %s\n", target);
+        mprRawLog(0, "    Directory:    %s\n", route->dir);
+        if (route->indicies) {
+            mprRawLog(0, "    Indicies      ");
+            for (ITERATE_ITEMS(route->indicies, index, nextIndex)) {
+                mprRawLog(0, "%s ", index);
+            }
+        }
+        mprRawLog(0, "\n    Next Group    %d\n", route->nextGroup);
+        if (route->handler) {
+            mprRawLog(0, "    Handler:      %s\n", route->handler->name);
+        }
+        mprRawLog(0, "\n");
+    } else {
+        mprRawLog(0, "%-20s %-12s %-40s %-14s\n", route->name, methods ? methods : "*", pattern, target);
+    }
+}
+
+
+void httpLogRoutes(HttpHost *host, bool full)
+{
+    HttpRoute   *route;
+    int         next, foundDefault;
+
+    if (!full) {
+        mprRawLog(0, "%-20s %-12s %-40s %-14s\n", "Name", "Methods", "Pattern", "Target");
+    }
+    for (foundDefault = next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
+        printRoute(route, next - 1, full);
+        if (route == host->defaultRoute) {
+            foundDefault++;
+        }
+    }
+    /*
+        Add the default so LogRoutes can print the default route which has yet been added to host->routes
+     */
+    if (!foundDefault && host->defaultRoute) {
+        printRoute(host->defaultRoute, next - 1, full);
+    }
+    mprRawLog(0, "\n");
+}
+
+
+void httpSetHostHome(HttpHost *host, cchar *home)
+{
+    host->home = mprGetAbsPath(home);
 }
 
 
 /*
-    Set the host name intelligently from the name specified by ip:port. Port may be set to -1 and ip may contain a port
-    specifier, ie. "address:port". This routines sets host->name and host->ip, host->port which is used for vhost matching.
+    IP may be null in which case the host is listening on all interfaces. Port may be set to -1 and ip may contain a port
+    specifier, ie. "address:port".
  */
-void httpSetHostName(HttpHost *host, cchar *ip, int port)
+void httpSetHostIpAddr(HttpHost *host, cchar *ip, int port)
 {
+    char    *pip;
+
     if (port < 0 && schr(ip, ':')) {
-        char *pip;
-        mprParseIp(ip, &pip, &port, -1);
+        mprParseSocketAddress(ip, &pip, &port, -1);
         ip = pip;
     }
-    if (ip) {
-        if (port > 0) {
-            host->name = mprAsprintf("%s:%d", ip, port);
+    host->ip = sclone(ip);
+    host->port = port;
+
+    if (!host->name) {
+        if (ip) {
+            if (port > 0) {
+                host->name = sfmt("%s:%d", ip, port);
+            } else {
+                host->name = sclone(ip);
+            }
         } else {
-            host->name = sclone(ip);
+            mprAssert(port > 0);
+            host->name = sfmt("*:%d", port);
         }
-    } else {
-        mprAssert(port > 0);
-        host->name = mprAsprintf("*:%d", port);
     }
-    if (scmp(ip, "default") != 0) {
-        host->ip = sclone(ip);
-        host->port = port;
-    }
+}
+
+
+void httpSetHostName(HttpHost *host, cchar *name)
+{
+    host->name = sclone(name);
 }
 
 
@@ -180,365 +230,66 @@ void httpSetHostProtocol(HttpHost *host, cchar *protocol)
 }
 
 
-int httpAddAlias(HttpHost *host, HttpAlias *newAlias)
+int httpAddRoute(HttpHost *host, HttpRoute *route)
 {
-    HttpAlias   *alias;
-    int         next, rc;
+    HttpRoute   *prev, *item;
+    int         i, thisRoute;
 
-    if (host->parent && host->aliases == host->parent->aliases) {
-        host->aliases = mprCloneList(host->parent->aliases);
-    }
-
-    /*  
-        Sort in reverse order. Make sure that /abc/def sorts before /abc. But we sort redirects with status codes first.
-     */
-    for (next = 0; (alias = mprGetNextItem(host->aliases, &next)) != 0; ) {
-        rc = strcmp(newAlias->prefix, alias->prefix);
-        if (rc == 0) {
-            if (newAlias->redirectCode > alias->redirectCode) {
-                mprInsertItemAtPos(host->aliases, next - 1, newAlias);
-
-            } else if (newAlias->redirectCode == alias->redirectCode) {
-                mprRemoveItem(host->aliases, alias);
-                mprInsertItemAtPos(host->aliases, next - 1, newAlias);
-            }
-            return 0;
-            
-        } else if (rc > 0) {
-            mprInsertItemAtPos(host->aliases, next - 1, newAlias);
-            return 0;
-        }
-    }
-    mprAddItem(host->aliases, newAlias);
-    return 0;
-}
-
-
-int httpAddDir(HttpHost *host, HttpDir *dir)
-{
-    HttpDir     *dp;
-    int         next, rc;
-
-    mprAssert(dir);
-    mprAssert(dir->path);
+    mprAssert(route);
     
-    if (host->parent && host->dirs == host->parent->dirs) {
-        host->dirs = mprCloneList(host->parent->dirs);
+    if (host->parent && host->routes == host->parent->routes) {
+        host->routes = mprCloneList(host->parent->routes);
     }
-
-    /*
-        Sort in reverse collating sequence. Must make sure that /abc/def sorts before /abc
-     */
-    for (next = 0; (dp = mprGetNextItem(host->dirs, &next)) != 0; ) {
-        mprAssert(dp->path);
-        rc = strcmp(dir->path, dp->path);
-        if (rc == 0) {
-            mprRemoveItem(host->dirs, dir);
-            mprInsertItemAtPos(host->dirs, next - 1, dir);
-            return 0;
-
-        } else if (rc > 0) {
-            mprInsertItemAtPos(host->dirs, next - 1, dir);
-            return 0;
-        }
-    }
-    mprAddItem(host->dirs, dir);
-    return 0;
-}
-
-
-int httpAddLocation(HttpHost *host, HttpLoc *newLocation)
-{
-    HttpLoc     *loc;
-    int         next, rc;
-
-    mprAssert(newLocation);
-    mprAssert(newLocation->prefix);
-    
-    if (host->parent && host->locations == host->parent->locations) {
-        host->locations = mprCloneList(host->parent->locations);
-    }
-
-    /*
-        Sort in reverse collating sequence. Must make sure that /abc/def sorts before /abc
-     */
-    for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
-        rc = strcmp(newLocation->prefix, loc->prefix);
-        if (rc == 0) {
-            mprRemoveItem(host->locations, loc);
-            mprInsertItemAtPos(host->locations, next - 1, newLocation);
-            return 0;
-        }
-        if (strcmp(newLocation->prefix, loc->prefix) > 0) {
-            mprInsertItemAtPos(host->locations, next - 1, newLocation);
-            return 0;
-        }
-    }
-    mprAddItem(host->locations, newLocation);
-    return 0;
-}
-
-
-HttpAlias *httpGetAlias(HttpHost *host, cchar *uri)
-{
-    HttpAlias     *alias;
-    int           next;
-
-    if (uri) {
-        for (next = 0; (alias = mprGetNextItem(host->aliases, &next)) != 0; ) {
-            if (strncmp(alias->prefix, uri, alias->prefixLen) == 0) {
-#if UNUSED
-                if (uri[alias->prefixLen] == '\0' || uri[alias->prefixLen] == '/') {
-                    return alias;
-                }
-#endif
-                return alias;
-            }
-        }
-    }
-    /*
-        Must always return an alias. The last is the catch-all.
-     */
-    return mprGetLastItem(host->aliases);
-}
-
-
-HttpAlias *httpLookupAlias(HttpHost *host, cchar *prefix)
-{
-    HttpAlias   *alias;
-    int         next;
-
-    for (next = 0; (alias = mprGetNextItem(host->aliases, &next)) != 0; ) {
-        if (strcmp(alias->prefix, prefix) == 0) {
-            return alias;
-        }
-    }
-    return 0;
-}
-
-
-HttpDir *httpLookupDir(HttpHost *host, cchar *pathArg)
-{
-    HttpDir     *dir;
-    char        *path, *tmpPath;
-    int         next;
-
-    if (!mprIsAbsPath(pathArg)) {
-        path = tmpPath = mprGetAbsPath(pathArg);
-    } else {
-        path = (char*) pathArg;
-        tmpPath = 0;
-    }
-    for (next = 0; (dir = mprGetNextItem(host->dirs, &next)) != 0; ) {
-        mprAssert(strlen(dir->path) == 0 || dir->path[strlen(dir->path) - 1] != '/');
-        if (dir->path != 0) {
-            if (mprSamePath(dir->path, path)) {
-                return dir;
-            }
-        }
-    }
-    return 0;
-}
-
-
-/*  
-    Find the directory entry that this file (path) resides in. path is a physical file path. We find the most specific
-    (longest) directory that matches. The directory must match or be a parent of path. Not called with raw files names.
-    They will be lower case and only have forward slashes. For windows, the will be in cannonical format with drive
-    specifiers.
- */
-HttpDir *httpLookupBestDir(HttpHost *host, cchar *path)
-{
-    HttpDir     *dir;
-    ssize       dlen;
-    int         next;
-
-    for (next = 0; (dir = mprGetNextItem(host->dirs, &next)) != 0; ) {
-        dlen = dir->pathLen;
-        mprAssert(dlen == 0 || dir->path[dlen - 1] != '/');
-        if (mprSamePathCount(dir->path, path, dlen)) {
-            if (dlen >= 0) {
-                return dir;
-            }
-        }
-    }
-    return 0;
-}
-
-
-HttpLoc *httpLookupLocation(HttpHost *host, cchar *prefix)
-{
-    HttpLoc     *loc;
-    int         next;
-
-    mprAssert(host);
-
-    for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
-        if (strcmp(prefix, loc->prefix) == 0) {
-            return loc;
-        }
-    }
-    return 0;
-}
-
-
-HttpLoc *httpLookupBestLocation(HttpHost *host, cchar *uri)
-{
-    HttpLoc     *loc;
-    int         next, rc;
-
-    if (uri) {
-        mprAssert(host);
-        for (next = 0; (loc = mprGetNextItem(host->locations, &next)) != 0; ) {
-            rc = sncmp(loc->prefix, uri, loc->prefixLen);
-            if (rc == 0) {
-                return loc;
-            }
-        }
-    }
-    return mprGetLastItem(host->locations);
-}
-
-
-void httpSetHostTrace(HttpHost *host, int level, int mask)
-{
-    host->traceMask = mask;
-    host->traceLevel = level;
-}
-
-
-void httpSetHostTraceFilter(HttpHost *host, ssize len, cchar *include, cchar *exclude)
-{
-    char    *word, *tok, *line;
-
-    host->traceMaxLength = (int) len;
-
-    if (include && strcmp(include, "*") != 0) {
-        host->traceInclude = mprCreateHash(0, 0);
-        line = sclone(include);
-        word = stok(line, ", \t\r\n", &tok);
-        while (word) {
-            if (word[0] == '*' && word[1] == '.') {
-                word += 2;
-            }
-            mprAddKey(host->traceInclude, word, host);
-            word = stok(NULL, ", \t\r\n", &tok);
-        }
-    }
-    if (exclude) {
-        host->traceExclude = mprCreateHash(0, 0);
-        line = sclone(exclude);
-        word = stok(line, ", \t\r\n", &tok);
-        while (word) {
-            if (word[0] == '*' && word[1] == '.') {
-                word += 2;
-            }
-            mprAddKey(host->traceExclude, word, host);
-            word = stok(NULL, ", \t\r\n", &tok);
-        }
-    }
-}
-
-
-int httpSetupTrace(HttpHost *host, cchar *ext)
-{
-    if (ext) {
-        if (host->traceInclude && !mprLookupKey(host->traceInclude, ext)) {
-            return 0;
-        }
-        if (host->traceExclude && mprLookupKey(host->traceExclude, ext)) {
-            return 0;
-        }
-    }
-    return host->traceMask;
-}
-
-
-/*
-    Make a path name. This replaces $references, converts to an absolute path name, cleans the path and maps delimiters.
- */
-char *httpMakePath(HttpHost *host, cchar *file)
-{
-    char    *result, *path;
-
-    mprAssert(file);
-
-    if ((path = httpReplaceReferences(host, file)) == 0) {
-        /*  Overflow */
-        return 0;
-    }
-    if (*path == '\0' || strcmp(path, ".") == 0) {
-        result = sclone(host->serverRoot);
-
-#if BLD_WIN_LIKE
-    } else if (*path != '/' && path[1] != ':' && path[2] != '/') {
-        result = mprJoinPath(host->serverRoot, path);
-#elif VXWORKS
-    } else if (strchr((path), ':') == 0 && *path != '/') {
-        result = mprJoinPath(host->serverRoot, path);
-#else
-    } else if (*path != '/') {
-        result = mprJoinPath(host->serverRoot, path);
-#endif
-    } else {
-        result = mprGetAbsPath(path);
-    }
-    return result;
-}
-
-
-static int matchRef(cchar *key, char **src)
-{
-    ssize   len;
-
-    mprAssert(src);
-    mprAssert(key && *key);
-
-    len = strlen(key);
-    if (strncmp(*src, key, len) == 0) {
-        *src += len;
-        return 1;
-    }
-    return 0;
-}
-
-
-/*
-    Replace a limited set of $VAR references. Currently support DOCUMENT_ROOT, SERVER_ROOT and PRODUCT
-    TODO - Expand and formalize this. Should support many more variables.
- */
-char *httpReplaceReferences(HttpHost *host, cchar *str)
-{
-    MprBuf  *buf;
-    char    *src;
-    char    *result;
-
-    buf = mprCreateBuf(0, 0);
-    if (str) {
-        for (src = (char*) str; *src; ) {
-            if (*src == '$') {
-                ++src;
-                if (matchRef("DOCUMENT_ROOT", &src)) {
-                    mprPutStringToBuf(buf, host->documentRoot);
-                    continue;
-
-                } else if (matchRef("SERVER_ROOT", &src)) {
-                    mprPutStringToBuf(buf, host->serverRoot);
-                    continue;
-
-                } else if (matchRef("PRODUCT", &src)) {
-                    mprPutStringToBuf(buf, BLD_PRODUCT);
-                    continue;
+    if (mprLookupItem(host->routes, route) < 0) {
+        thisRoute = mprAddItem(host->routes, route);
+        if (thisRoute > 0) {
+            prev = mprGetItem(host->routes, thisRoute - 1);
+            if (!smatch(prev->startSegment, route->startSegment)) {
+                prev->nextGroup = thisRoute;
+                for (i = thisRoute - 2; i >= 0; i--) {
+                    item = mprGetItem(host->routes, i);
+                    if (smatch(item->startSegment, prev->startSegment)) {
+                        item->nextGroup = thisRoute;
+                    } else {
+                        break;
+                    }
                 }
             }
-            mprPutCharToBuf(buf, *src++);
         }
     }
-    mprAddNullToBuf(buf);
-    result = sclone(mprGetBufStart(buf));
-    return result;
+    httpSetRouteHost(route, host);
+    return 0;
 }
 
+
+HttpRoute *httpLookupRoute(HttpHost *host, cchar *name)
+{
+    HttpRoute   *route;
+    int         next;
+
+    if (name == 0 || *name == '\0') {
+        name = "default";
+    }
+    for (next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
+        mprAssert(route->name);
+        if (smatch(route->name, name)) {
+            return route;
+        }
+    }
+    return 0;
+}
+
+
+void httpResetRoutes(HttpHost *host)
+{
+    host->routes = mprCreateList(-1, 0);
+}
+
+
+void httpSetHostDefaultRoute(HttpHost *host, HttpRoute *route)
+{
+    host->defaultRoute = route;
+}
 
 /*
     @copy   default
@@ -556,7 +307,7 @@ char *httpReplaceReferences(HttpHost *host, cchar *str)
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -565,7 +316,7 @@ char *httpReplaceReferences(HttpHost *host, cchar *str)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
+    Software at http://embedthis.com
 
     Local variables:
     tab-width: 4

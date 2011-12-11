@@ -1,0 +1,55 @@
+#
+#   combo.files - Files needed for the combo http installation
+#
+#   Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
+#
+
+S=${BLD_TOP}/src
+
+#
+#   Output directories
+#
+WHERE="$1"
+DIR="${BLD_OUT_DIR}/${WHERE}/${BLD_PRODUCT}-${BLD_VERSION}"
+SRC="${DIR}/src/deps/http"
+DOC="${DIR}/doc"
+
+#
+#	Order of headers matters
+#
+HEADERS=${BLD_INC_DIR}/http.h
+HTTP_SOURCES=${S}/*.c
+
+#
+#	Build files
+#
+mkdir -p ${SRC} ${DOC}/man ${DOC}/api
+cp ${BLD_TOP}/package/Makefile.combo "${SRC}/Makefile"
+# cp ${BLD_INC_DIR}/buildConfig.h "${DIR}/buildConfig.h"
+
+#
+#	http.h
+#
+TITLE="${BLD_NAME} Header" \
+combo ${HEADERS} | egrep -v '#include.*http|#inc.*config.h|#inc.*ucp.*\.h|#inc.*pcre' >${SRC}/http.h
+
+#
+#	httpLib.c
+#
+echo '#include "http.h"' >${SRC}/httpLib.c
+TITLE="${BLD_NAME} Library Source" combo ${HTTP_SOURCES} | egrep -v '#inc.*http' >>${SRC}/httpLib.c
+
+cp ${S}/utils/http.c ${SRC}/http.c
+
+cp ${BLD_TOP}/doc/api/http.html ${DOC}/api
+cp ${BLD_TOP}/doc/api/httpBare.html ${DOC}/api
+cp ${BLD_TOP}/doc/api/http.*tags ${DOC}/api
+cp ${BLD_TOP}/doc/man/*.1 ${DOC}/man
+
+#
+#   Local variables:
+#   tab-width: 4
+#   c-basic-offset: 4
+#   End:
+#   vim: sw=4 ts=4 noexpandtab
+#

@@ -41,8 +41,10 @@ static void outgoingData(HttpQueue *q, HttpPacket *packet)
     /*  
         Handlers service routines must only be auto-enabled if in the running state.
      */
+    mprAssert(httpVerifyQueue(q));
     enableService = !(q->stage->flags & HTTP_STAGE_HANDLER) || (q->conn->state == HTTP_STATE_RUNNING) ? 1 : 0;
     httpPutForService(q, packet, enableService);
+    mprAssert(httpVerifyQueue(q));
 }
 
 
@@ -53,9 +55,10 @@ static void incomingData(HttpQueue *q, HttpPacket *packet)
 {
     mprAssert(q);
     mprAssert(packet);
+    mprAssert(httpVerifyQueue(q));
     
     if (q->nextQ->put) {
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
     } else {
         /* This queue is the last queue in the pipeline */
         //  TODO - should this call WillAccept?
@@ -64,10 +67,11 @@ static void incomingData(HttpQueue *q, HttpPacket *packet)
             HTTP_NOTIFY(q->conn, 0, HTTP_NOTIFY_READABLE);
         } else {
             /* Zero length packet means eof */
-            httpPutForService(q, packet, 0);
+            httpPutForService(q, packet, HTTP_DELAY_SERVICE);
             HTTP_NOTIFY(q->conn, 0, HTTP_NOTIFY_READABLE);
         }
     }
+    mprAssert(httpVerifyQueue(q));
 }
 
 
@@ -80,7 +84,7 @@ void httpDefaultOutgoingServiceStage(HttpQueue *q)
             httpPutBackPacket(q, packet);
             return;
         }
-        httpSendPacketToNext(q, packet);
+        httpPutPacketToNext(q, packet);
     }
 }
 
@@ -127,8 +131,8 @@ static void manageStage(HttpStage *stage, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(stage->name);
         mprMark(stage->path);
-        mprMark(stage->module);
         mprMark(stage->stageData);
+        mprMark(stage->module);
         mprMark(stage->extensions);
     }
 }
@@ -180,7 +184,7 @@ HttpStage *httpCreateConnector(Http *http, cchar *name, int flags, MprModule *mo
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -189,7 +193,7 @@ HttpStage *httpCreateConnector(Http *http, cchar *name, int flags, MprModule *mo
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4

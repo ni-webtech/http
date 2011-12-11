@@ -140,7 +140,7 @@ HttpUri *httpCreateUriFromParts(cchar *scheme, cchar *host, int port, cchar *pat
     if (host) {
         up->host = sclone(host);
         if ((cp = schr(host, ':')) && port == 0) {
-            port = (int) stoi(++cp, 10, NULL);
+            port = (int) stoi(++cp);
         }
     } else if (complete) {
         up->host = sclone("localhost");
@@ -196,7 +196,7 @@ HttpUri *httpCloneUri(HttpUri *base, int complete)
     if (base->host) {
         up->host = sclone(base->host);
         if ((cp = schr(base->host, ':')) && port == 0) {
-            port = (int) stoi(++cp, 10, NULL);
+            port = (int) stoi(++cp);
         }
     } else if (complete) {
         base->host = sclone("localhost");
@@ -263,8 +263,8 @@ HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing)
  */
 char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *reference, cchar *query, int complete)
 {
-    char    portBuf[16], *uri;
-    cchar   *hostDelim, *portDelim, *pathDelim, *queryDelim, *referenceDelim;
+    char    *uri;
+    cchar   *portStr, *hostDelim, *portDelim, *pathDelim, *queryDelim, *referenceDelim;
 
     if (complete || host || scheme) {
         if (scheme == 0 || *scheme == '\0') {
@@ -277,17 +277,18 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
     } else {
         host = hostDelim = "";
     }
-
-    /*  Hosts with integral port specifiers override
+    /*  
+        Hosts with integral port specifiers override
      */
     if (host && schr(host, ':')) {
-        portDelim = 0;
+        portDelim = "";
+        portStr = "";
     } else {
         if (port != 0 && port != getDefaultPort(scheme)) {
-            itos(portBuf, sizeof(portBuf), port, 10);
+            portStr = itos(port);
             portDelim = ":";
         } else {
-            portBuf[0] = '\0';
+            portStr = "";
             portDelim = "";
         }
     }
@@ -314,7 +315,7 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
         queryDelim = query = "";
     }
     if (portDelim) {
-        uri = sjoin(scheme, hostDelim, host, portDelim, portBuf, pathDelim, path, referenceDelim, reference, 
+        uri = sjoin(scheme, hostDelim, host, portDelim, portStr, pathDelim, path, referenceDelim, reference, 
             queryDelim, query, NULL);
     } else {
         uri = sjoin(scheme, hostDelim, host, pathDelim, path, referenceDelim, reference, queryDelim, query, NULL);
@@ -328,27 +329,27 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
 
     uri = target.relative(base)
  */
-HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int dup)
+HttpUri *httpGetRelativeUri(HttpUri *base, HttpUri *target, int clone)
 {
     HttpUri     *uri;
     char        *basePath, *bp, *cp, *tp, *startDiff;
     int         i, baseSegments, commonSegments;
 
     if (target == 0) {
-        return (dup) ? httpCloneUri(base, 0) : base;
+        return (clone) ? httpCloneUri(base, 0) : base;
     }
     if (!(target->path && target->path[0] == '/') || !((base->path && base->path[0] == '/'))) {
         /* If target is relative, just use it. If base is relative, can't use it because we don't know where it is */
-        return (dup) ? httpCloneUri(target, 0) : target;
+        return (clone) ? httpCloneUri(target, 0) : target;
     }
     if (base->scheme && target->scheme && scmp(base->scheme, target->scheme) != 0) {
-        return (dup) ? httpCloneUri(target, 0) : target;
+        return (clone) ? httpCloneUri(target, 0) : target;
     }
     if (base->host && target->host && (base->host && scmp(base->host, target->host) != 0)) {
-        return (dup) ? httpCloneUri(target, 0) : target;
+        return (clone) ? httpCloneUri(target, 0) : target;
     }
     if (getPort(base) != getPort(target)) {
-        return (dup) ? httpCloneUri(target, 0) : target;
+        return (clone) ? httpCloneUri(target, 0) : target;
     }
     basePath = httpNormalizeUriPath(base->path);
 
@@ -461,7 +462,7 @@ HttpUri *httpJoinUri(HttpUri *uri, int argc, HttpUri **others)
             uri->query = sclone(other->query);
         }
     }
-    uri->ext = mprGetPathExtension(uri->path);
+    uri->ext = mprGetPathExt(uri->path);
     return uri;
 }
 
@@ -560,7 +561,7 @@ char *httpNormalizeUriPath(cchar *pathArg)
 }
 
 
-HttpUri *httpResolveUri(HttpUri *base, int argc, HttpUri **others, int local)
+HttpUri *httpResolveUri(HttpUri *base, int argc, HttpUri **others, bool local)
 {
     HttpUri     *current, *other;
     int         i;
@@ -601,7 +602,7 @@ HttpUri *httpResolveUri(HttpUri *base, int argc, HttpUri **others, int local)
             current->query = sclone(other->query);
         }
     }
-    current->ext = mprGetPathExtension(current->path);
+    current->ext = mprGetPathExt(current->path);
     return current;
 }
 
@@ -668,7 +669,7 @@ static void trimPathToDirname(HttpUri *uri)
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -677,7 +678,7 @@ static void trimPathToDirname(HttpUri *uri)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
+    Software at http://embedthis.com
 
     Local variables:
     tab-width: 4

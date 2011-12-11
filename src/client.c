@@ -89,7 +89,6 @@ static int setClientHeaders(HttpConn *conn)
     HttpTx      *tx;
     HttpUri     *parsedUri;
     char        *encoded;
-    ssize       len;
 
     mprAssert(conn);
 
@@ -110,14 +109,12 @@ static int setClientHeaders(HttpConn *conn)
             mprLog(MPR_ERROR, "Http: Can't create secret for digest authentication");
             return MPR_ERR_CANT_CREATE;
         }
-        conn->authCnonce = mprAsprintf("%s:%s:%x", http->secret, conn->authRealm, (int) http->now);
+        conn->authCnonce = sfmt("%s:%s:%x", http->secret, conn->authRealm, (int) http->now);
 
         mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
-        len = strlen(a1Buf);
-        ha1 = mprGetMD5Hash(a1Buf, len, NULL);
+        ha1 = mprGetMD5(a1Buf);
         mprSprintf(a2Buf, sizeof(a2Buf), "%s:%s", tx->method, parsedUri->path);
-        len = strlen(a2Buf);
-        ha2 = mprGetMD5Hash(a2Buf, len, NULL);
+        ha2 = mprGetMD5(a2Buf);
         qop = (conn->authQop) ? conn->authQop : (char*) "";
 
         conn->authNc++;
@@ -131,15 +128,15 @@ static int setClientHeaders(HttpConn *conn)
             qop = "";
             mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, conn->authNonce, ha2);
         }
-        digest = mprGetMD5Hash(digestBuf, strlen(digestBuf), NULL);
+        digest = mprGetMD5(digestBuf);
 
         if (*qop == '\0') {
-            httpAddHeader(conn, "Authorization", "Digest user=\"%s\", realm=\"%s\", nonce=\"%s\", "
+            httpAddHeader(conn, "Authorization", "Digest username=\"%s\", realm=\"%s\", nonce=\"%s\", "
                 "uri=\"%s\", response=\"%s\"",
                 conn->authUser, conn->authRealm, conn->authNonce, parsedUri->path, digest);
 
         } else if (strcmp(qop, "auth") == 0) {
-            httpAddHeader(conn, "Authorization", "Digest user=\"%s\", realm=\"%s\", domain=\"%s\", "
+            httpAddHeader(conn, "Authorization", "Digest username=\"%s\", realm=\"%s\", domain=\"%s\", "
                 "algorithm=\"MD5\", qop=\"%s\", cnonce=\"%s\", nc=\"%08x\", nonce=\"%s\", opaque=\"%s\", "
                 "stale=\"FALSE\", uri=\"%s\", response=\"%s\"",
                 conn->authUser, conn->authRealm, conn->authDomain, conn->authQop, conn->authCnonce, conn->authNc,
@@ -179,7 +176,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     mprAssert(method && *method);
     mprAssert(url && *url);
 
-    if (conn->server) {
+    if (conn->endpoint) {
         httpError(conn, HTTP_CODE_BAD_GATEWAY, "Can't call connect in a server");
         return MPR_ERR_BAD_STATE;
     }
@@ -203,7 +200,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     if (openConnection(conn, url) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    httpCreateTxPipeline(conn, conn->http->clientLocation);
+    httpCreateTxPipeline(conn, conn->http->clientRoute);
 
     if (setClientHeaders(conn) < 0) {
         return MPR_ERR_CANT_INITIALIZE;
@@ -253,7 +250,7 @@ bool httpNeedRetry(HttpConn *conn, char **url)
  */
 void httpEnableUpload(HttpConn *conn)
 {
-    conn->boundary = mprAsprintf("--BOUNDARY--%Ld", conn->http->now);
+    conn->boundary = sfmt("--BOUNDARY--%Ld", conn->http->now);
     httpSetHeader(conn, "Content-Type", "multipart/form-data; boundary=%s", &conn->boundary[2]);
 }
 
@@ -343,7 +340,7 @@ ssize httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -352,7 +349,7 @@ ssize httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
+    Software at http://embedthis.com
 
     Local variables:
     tab-width: 4

@@ -1,9 +1,8 @@
 /*
- *  methods.tst - Test various http methods
+    methods.tst - Test various http methods
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Options/Trace
 run("--method OPTIONS /index.html")

@@ -1,5 +1,5 @@
 /*
-    authFile.c - File based authorization using httpPassword files.
+    authFile.c - File based authorization using password files.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
@@ -17,7 +17,7 @@ static void manageUser(HttpUser *user, int flags);
 
 /*********************************** Code *************************************/
 
-cchar *httpGetNativePassword(HttpAuth *auth, cchar *realm, cchar *user)
+cchar *httpGetFilePassword(HttpAuth *auth, cchar *realm, cchar *user)
 {
     HttpUser    *up;
     char        *key;
@@ -34,18 +34,16 @@ cchar *httpGetNativePassword(HttpAuth *auth, cchar *realm, cchar *user)
 }
 
 
-bool httpValidateNativeCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, cchar *requiredPassword, 
+bool httpValidateFileCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, cchar *requiredPassword, 
     char **msg)
 {
     char    passbuf[HTTP_MAX_PASS * 2], *hashedPassword;
-    ssize   len;
 
     hashedPassword = 0;
     
     if (auth->type == HTTP_AUTH_BASIC) {
         mprSprintf(passbuf, sizeof(passbuf), "%s:%s:%s", user, realm, password);
-        len = strlen(passbuf);
-        hashedPassword = mprGetMD5Hash(passbuf, len, NULL);
+        hashedPassword = mprGetMD5(passbuf);
         password = hashedPassword;
     }
     if (!isUserValid(auth, realm, user)) {
@@ -257,7 +255,7 @@ int httpAddUsersToGroup(HttpAuth *auth, cchar *group, cchar *userList)
     }
     tok = NULL;
     users = sclone(userList);
-    user = stok(users, " \t", &tok);
+    user = stok(users, " ,\t", &tok);
     while (user) {
         /* Ignore already exists errors */
         httpAddUserToGroup(auth, gp, user);
@@ -394,9 +392,9 @@ HttpAcl httpParseAcl(HttpAuth *auth, cchar *aclStr)
  */
 void httpUpdateUserAcls(HttpAuth *auth)
 {
-    MprHash     *groupHash, *userHash;
-    HttpUser      *user;
-    HttpGroup     *gp;
+    MprKey      *groupHash, *userHash;
+    HttpUser    *user;
+    HttpGroup   *gp;
     
     /*
         Reset the ACL for each user
@@ -448,6 +446,7 @@ int httpRemoveUser(HttpAuth *auth, cchar *realm, cchar *user)
 }
 
 
+//  MOB - inconsistent. This takes a "group" string. httpRemoveUserFromGroup takes a "gp"
 int httpRemoveUsersFromGroup(HttpAuth *auth, cchar *group, cchar *userList)
 {
     HttpGroup   *gp;
@@ -502,7 +501,7 @@ int httpRemoveUserFromGroup(HttpGroup *gp, cchar *user)
 }
 
 
-int httpReadGroupFile(Http *http, HttpAuth *auth, char *path)
+int httpReadGroupFile(HttpAuth *auth, char *path)
 {
     MprFile     *file;
     HttpAcl     acl;
@@ -514,7 +513,7 @@ int httpReadGroupFile(Http *http, HttpAuth *auth, char *path)
     if ((file = mprOpenFile(path, O_RDONLY | O_TEXT, 0444)) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    while ((buf = mprGetFileString(file, MPR_BUFSIZE, NULL)) != NULL) {
+    while ((buf = mprReadLine(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
         for (cp = enabled; isspace((int) *cp); cp++) {
             ;
@@ -536,7 +535,7 @@ int httpReadGroupFile(Http *http, HttpAuth *auth, char *path)
 }
 
 
-int httpReadUserFile(Http *http, HttpAuth *auth, char *path)
+int httpReadUserFile(HttpAuth *auth, char *path)
 {
     MprFile     *file;
     char        *buf;
@@ -547,7 +546,7 @@ int httpReadUserFile(Http *http, HttpAuth *auth, char *path)
     if ((file = mprOpenFile(path, O_RDONLY | O_TEXT, 0444)) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    while ((buf = mprGetFileString(file, MPR_BUFSIZE, NULL)) != NULL) {
+    while ((buf = mprReadLine(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
         for (cp = enabled; isspace((int) *cp); cp++) {
             ;
@@ -571,10 +570,10 @@ int httpReadUserFile(Http *http, HttpAuth *auth, char *path)
 }
 
 
-int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
+int httpWriteUserFile(HttpAuth *auth, char *path)
 {
     MprFile         *file;
-    MprHash         *hp;
+    MprKey          *kp;
     HttpUser        *up;
     char            buf[HTTP_MAX_PASS * 2];
     char            *tempFile;
@@ -584,12 +583,12 @@ int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
         mprError("Can't open %s", tempFile);
         return MPR_ERR_CANT_OPEN;
     }
-    hp = mprGetNextKey(auth->users, 0);
-    while (hp) {
-        up = (HttpUser*) hp->data;
+    kp = mprGetNextKey(auth->users, 0);
+    while (kp) {
+        up = (HttpUser*) kp->data;
         mprSprintf(buf, sizeof(buf), "%d: %s: %s: %s\n", up->enabled, up->name, up->realm, up->password);
         mprWriteFile(file, buf, (int) strlen(buf));
-        hp = mprGetNextKey(auth->users, hp);
+        kp = mprGetNextKey(auth->users, kp);
     }
     mprCloseFile(file);
     unlink(path);
@@ -601,9 +600,9 @@ int httpWriteUserFile(Http *http, HttpAuth *auth, char *path)
 }
 
 
-int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
+int httpWriteGroupFile(HttpAuth *auth, char *path)
 {
-    MprHash         *hp;
+    MprKey          *kp;
     MprFile         *file;
     HttpGroup       *gp;
     char            buf[MPR_MAX_STRING], *tempFile, *name;
@@ -614,17 +613,16 @@ int httpWriteGroupFile(Http *http, HttpAuth *auth, char *path)
         mprError("Can't open %s", tempFile);
         return MPR_ERR_CANT_OPEN;
     }
-
-    hp = mprGetNextKey(auth->groups, 0);
-    while (hp) {
-        gp = (HttpGroup*) hp->data;
+    kp = mprGetNextKey(auth->groups, 0);
+    while (kp) {
+        gp = (HttpGroup*) kp->data;
         mprSprintf(buf, sizeof(buf), "%d: %x: %s: ", gp->enabled, gp->acl, gp->name);
         mprWriteFile(file, buf, strlen(buf));
         for (next = 0; (name = mprGetNextItem(gp->users, &next)) != 0; ) {
             mprWriteFile(file, name, strlen(name));
         }
         mprWriteFile(file, "\n", 1);
-        hp = mprGetNextKey(auth->groups, hp);
+        kp = mprGetNextKey(auth->groups, kp);
     }
     mprCloseFile(file);
     unlink(path);
@@ -655,7 +653,7 @@ void __nativeAuthFile() {}
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -664,7 +662,7 @@ void __nativeAuthFile() {}
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4

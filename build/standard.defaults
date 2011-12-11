@@ -44,12 +44,14 @@ with --os=linux ranlib
 with --os=macosx ranlib
 with --os=win ld mt rc
 with --os=wince ld
+with --optional ejs
 
 with --build --optional doxygen
 with --os=win --build --optional pkg
 
 with mpr
-with --host --optional matrixssl openssl ssl
+with --optional pcre
+with --host --optional openssl ssl
 with http
 
 ###############################################################################

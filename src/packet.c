@@ -39,6 +39,7 @@ static void managePacket(HttpPacket *packet, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(packet->prefix);
         mprMark(packet->content);
+        /* Don't mark next packet. List owner will mark */
     }
 }
 
@@ -94,9 +95,48 @@ HttpPacket *httpCreateHeaderPacket()
 }
 
 
-/* 
-   Get the next packet from the queue
- */
+HttpPacket *httpClonePacket(HttpPacket *orig)
+{
+    HttpPacket  *packet;
+
+    if ((packet = httpCreatePacket(0)) == 0) {
+        return 0;
+    }
+    if (orig->content) {
+        packet->content = mprCloneBuf(orig->content);
+    }
+    if (orig->prefix) {
+        packet->prefix = mprCloneBuf(orig->prefix);
+    }
+    packet->flags = orig->flags;
+    packet->esize = orig->esize;
+    packet->epos = orig->epos;
+    packet->fill = orig->fill;
+    return packet;
+}
+
+
+void httpAdjustPacketStart(HttpPacket *packet, MprOff size)
+{
+    if (packet->esize) {
+        packet->epos += size;
+        packet->esize -= size;
+    } else if (packet->content) {
+        mprAdjustBufStart(packet->content, (ssize) size);
+    }
+}
+
+
+void httpAdjustPacketEnd(HttpPacket *packet, MprOff size)
+{
+    if (packet->esize) {
+        packet->esize += size;
+    } else if (packet->content) {
+        mprAdjustBufEnd(packet->content, (ssize) size);
+    }
+}
+
+
 HttpPacket *httpGetPacket(HttpQueue *q)
 {
     HttpQueue     *prev;
@@ -148,10 +188,9 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 {
     if (q->first == 0) {
         /*  Just use the service queue as a holding queue while we aggregate the post data.  */
-        httpPutForService(q, packet, 0);
+        httpPutForService(q, packet, HTTP_DELAY_SERVICE);
 
     } else {
-        q->count += httpGetPacketLength(packet);
         /* Skip over the header packet */
         if (q->first && q->first->flags & HTTP_PACKET_HEADER) {
             packet = q->first->next;
@@ -160,7 +199,9 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
             /* Aggregate all data into one packet and free the packet.  */
             httpJoinPacket(q->first, packet);
         }
+        q->count += httpGetPacketLength(packet);
     }
+    mprAssert(httpVerifyQueue(q));
     if (serviceQ && !(q->flags & HTTP_QUEUE_DISABLED))  {
         httpScheduleQueue(q);
     }
@@ -169,6 +210,7 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
 
 /*  
     Join two packets by pulling the content from the second into the first.
+    WARNING: this will not update the queue count. Assumes the either both are on the queue or neither. 
  */
 int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 {
@@ -179,6 +221,7 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 
     len = httpGetPacketLength(p);
     if (mprPutBlockToBuf(packet->content, mprGetBufStart(p->content), (ssize) len) != len) {
+        mprAssert(0);
         return MPR_ERR_MEMORY;
     }
     return 0;
@@ -187,11 +230,12 @@ int httpJoinPacket(HttpPacket *packet, HttpPacket *p)
 
 /*
     Join queue packets up to the maximum of the given size and the downstream queue packet size.
+    WARNING: this will not update the queue count.
  */
 void httpJoinPackets(HttpQueue *q, ssize size)
 {
     HttpPacket  *packet, *first;
-    ssize       maxPacketSize, len;
+    ssize       len;
 
     if (size < 0) {
         size = MAXINT;
@@ -201,18 +245,46 @@ void httpJoinPackets(HttpQueue *q, ssize size)
             /* Step over a header packet */
             first = first->next;
         }
-        maxPacketSize = min(q->nextQ->packetSize, size);
         for (packet = first->next; packet; packet = packet->next) {
             if (packet->content == 0 || (len = httpGetPacketLength(packet)) == 0) {
                 break;
             }
-            if ((httpGetPacketLength(first) + len) > maxPacketSize) {
-                break;
-            }
+            mprAssert(!(packet->flags & HTTP_PACKET_END));
             httpJoinPacket(first, packet);
             /* Unlink the packet */
             first->next = packet->next;
         }
+    }
+}
+
+
+void httpPutPacket(HttpQueue *q, HttpPacket *packet)
+{
+    mprAssert(packet);
+    mprAssert(q->put);
+
+    q->put(q, packet);
+}
+
+
+/*  
+    Pass to the next queue
+ */
+void httpPutPacketToNext(HttpQueue *q, HttpPacket *packet)
+{
+    mprAssert(packet);
+    mprAssert(q->nextQ->put);
+
+    q->nextQ->put(q->nextQ, packet);
+}
+
+
+void httpPutPackets(HttpQueue *q)
+{
+    HttpPacket    *packet;
+
+    for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
+        httpPutPacketToNext(q, packet);
     }
 }
 
@@ -297,61 +369,6 @@ int httpResizePacket(HttpQueue *q, HttpPacket *packet, ssize size)
 }
 
 
-HttpPacket *httpClonePacket(HttpPacket *orig)
-{
-    HttpPacket  *packet;
-
-    if ((packet = httpCreatePacket(0)) == 0) {
-        return 0;
-    }
-    if (orig->content) {
-        packet->content = mprCloneBuf(orig->content);
-    }
-    if (orig->prefix) {
-        packet->prefix = mprCloneBuf(orig->prefix);
-    }
-    packet->flags = orig->flags;
-    packet->esize = orig->esize;
-    packet->epos = orig->epos;
-    packet->fill = orig->fill;
-    return packet;
-}
-
-
-/*  
-    Pass to a queue
- */
-void httpSendPacket(HttpQueue *q, HttpPacket *packet)
-{
-    mprAssert(packet);
-    mprAssert(q->put);
-
-    q->put(q, packet);
-}
-
-
-/*  
-    Pass to the next queue
- */
-void httpSendPacketToNext(HttpQueue *q, HttpPacket *packet)
-{
-    mprAssert(packet);
-    mprAssert(q->nextQ->put);
-
-    q->nextQ->put(q->nextQ, packet);
-}
-
-
-void httpSendPackets(HttpQueue *q)
-{
-    HttpPacket    *packet;
-
-    for (packet = httpGetPacket(q); packet; packet = httpGetPacket(q)) {
-        httpSendPacketToNext(q, packet);
-    }
-}
-
-
 /*  
     Split a packet at a given offset and return a new packet containing the data after the offset.
     The prefix data remains with the original packet. 
@@ -391,27 +408,6 @@ HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
 }
 
 
-void httpAdjustPacketStart(HttpPacket *packet, MprOff size)
-{
-    if (packet->esize) {
-        packet->epos += size;
-        packet->esize -= size;
-    } else if (packet->content) {
-        mprAdjustBufStart(packet->content, (ssize) size);
-    }
-}
-
-
-void httpAdjustPacketEnd(HttpPacket *packet, MprOff size)
-{
-    if (packet->esize) {
-        packet->esize += size;
-    } else if (packet->content) {
-        mprAdjustBufEnd(packet->content, (ssize) size);
-    }
-}
-
-
 /*
     @copy   default
     
@@ -428,7 +424,7 @@ void httpAdjustPacketEnd(HttpPacket *packet, MprOff size)
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -437,7 +433,7 @@ void httpAdjustPacketEnd(HttpPacket *packet, MprOff size)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4

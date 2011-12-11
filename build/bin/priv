@@ -6,14 +6,14 @@
 #
 ################################################################################
 
-if [ "$HEADLESS" = 1 -o `id -u` = 0 -o "$OPENWRTVERSION" != "" ] ; then
+if [ "$HEADLESS" = 1 -o "$OPENWRTVERSION" != "" ] ; then
     sh -c "$*"
 
 else
     if type sudo >/dev/null 2>&1 ; then
-        echo
+        [ `id -u` != 0 ] && echo
         PASS_PROMPT="Root privilege required, please enter the root password: "
-        sudo -S -p "$PASS_PROMPT" sh -c "$*"
+        sudo "PATH=$PATH" -S -p "$PASS_PROMPT" sh -c "$*"
     else
         sh -c "$*"
     fi

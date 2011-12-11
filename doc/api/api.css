@@ -78,13 +78,28 @@ div.apiDetail {
 	-moz-border-radius-bottomright: 10px;
 }
 
+table.info {
+	border: 1px solid #84b0c7;	
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+table.info tr td {
+    padding: 4px;
+	border: 1px solid #84b0c7;	
+}
+
 table.parameters {
-    border-collapse: separate;
-    padding: 5px;
+    margin: 0;
+    border: 0;
+    -webkit-box-shadow: 0px 0px 0px #000;
 }
 
 table.parameters td {
+    border: 0;
     padding-right: 10px;
+    padding-bottom: 5px;
+    vertical-align: top;
 }
 
 td.param {

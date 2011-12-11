@@ -12,9 +12,6 @@
 #		make compile				# Compiles the source
 #		make depend					# Generates the make dependencies
 #		make test 					# Runs unit tests
-#		make leakTest 				# Runs memory leak tests
-#		make loadTest 				# Runs load tests
-#		make benchmark 				# Runs benchmarks
 #		make package				# Creates an installable package
 #
 #	Additional targets for this makefile:
@@ -25,21 +22,22 @@
 #		install:
 #
 #		make install				# Call install-binary
-#		make install-binary			# Install binary files
-#		make install-dev			# Install development libraries and headers
 #
 #	To remove, use make uninstall-ITEM, where ITEM is a component above.
 #
 
+SHELL		= bash
+BUILD_DEPTH	?= 2
 BLD_TOP		= .
 FIRST		= first
 IMG_NAME	= $(BLD_PRODUCT)-$(BLD_VERSION)-$(BLD_NUMBER)
 SRC_NAME	= $(BLD_PRODUCT)-src-$(BLD_VERSION)-$(BLD_NUMBER)
-BASE_NAME	= $(BLD_PRODUCT)-$(BLD_VERSION)-$(BLD_NUMBER)-$(BLD_HOST_DIST)-$(BLD_HOST_OS)-$(BLD_HOST_CPU)
-PACKS		= binary dev source
-PKG_DIR		= $(BLD_TOP)/out/staging
+PACKS		= binary source
+STAGE_DIR	= $(BLD_TOP)/out/staging
+COMBO_DIR	= $(BLD_TOP)/out/combo
+FLAT_DIR	= $(BLD_TOP)/out/flat
+PKG_DIR		= $(BLD_TOP)/out/pkg
 INS_WITH	= --with-conf="$(CONF)" --with-testweb 
-SHELL		= bash
 
 #
 #	Conditionally read in the Make rules and templates. The buildConfig.h
@@ -65,27 +63,76 @@ all clean clobber compile depend package test projects: always
 .PHONY: always
 endif
 
+diff import:
+	for dep in $(DEPS) ; do \
+		$(BLD_TOOLS_DIR)/syncup --$@ ../$$dep/out/releases/$$dep-combo.tgz ; \
+	done
+	echo
+
+sync:
+	for dep in $(DEPS) ; do \
+		$(BLD_TOOLS_DIR)/syncup --$@ ../$$dep/out/releases/$$dep-combo.tgz ; \
+	done
+	for f in $(BLD_IMPORTS) ; do \
+		eval f="$${f}" ; \
+		ext=".$${f##*.}" ; \
+		base="$${f##*/}" ; \
+		if [ ! -f "$${f}" ] ; then \
+			echo "Can't find $${f} to import" ; \
+			exit 255 ; \
+		elif [ "$${ext}" = ".h" ] ; then \
+			rm -f "$(BLD_INC_DIR)/$${base}" ; \
+			cp "$${f}" "$(BLD_INC_DIR)"; \
+		elif [ "$${ext}" = "$(BLD_SHOBJ)" ] ; then \
+			QUIET=1 $(BLD_TOOLS_DIR)/getlib $${f} ; \
+		elif [ "$${ext}" = ".mod" -o "$${ext}" = ".a" ] ; then \
+			if [ "$(BLD_OS)" = WIN ] ; then \
+				cp "$${f}" "$(BLD_BIN_DIR)"; \
+			else \
+				cp "$${f}" "$(BLD_LIB_DIR)"; \
+			fi ; \
+		else \
+			cp "$${f}" "$(BLD_BIN_DIR)"; \
+		fi ; \
+	done
+	echo
+
 #
 #	Check for the existing of the dynamic dependancy files (.makedep)
 #
 .PRECIOUS	: $(BLD_TOP)/build/src/.makedep
 
-$(BLD_TOP)/build/src/.makedep: $(BLD_OUT_DIR)/include/buildConfig.h
+$(BLD_TOP)/build/src/.makedep: $(BLD_OUT_DIR)/inc/buildConfig.h
 	echo -e "\n  # Making dynamic makefile dependancies\n"
+	find . -name '*.h' | xargs cp "{}" $(BLD_INC_DIR)
 	$(MAKE) TRACE=$(TRACE) --no-print-directory depend clean
 
 #
-#	Build the build tools
+#	Ensure the build tools are built first
 #
 $(BLD_TOOLS_DIR)/edep$(BLD_EXE): 
 	T=$(BLD_TOOLS_DIR)/src; $(DO_RECURSE)
 
+#
+#	If publisher build, always do a combo build as part of the final compile 
+#
+compileFinal: 
+	[ -f .publisher ] && $(MAKE) TRACE=$(TRACE) --no-print-directory packageCombo ; true
+
 dependExtra:
 	[ ! -L extensions ] && ln -s ../packages extensions ; true
 
+cleanExtra:
+	[ "$(_RECURSIVE_)" = "" ] && \
+		$(MAKE) -S --no-print-directory BUILDING_NATIVE=1 TRACE=$(TRACE) _RECURSIVE_=1 -C . clean ; true
+	rm -f $(BLD_OUT_DIR)/releases/*
+
+clobberExtra:
+	rm -fr $(BLD_OUT_DIR)
+
 deploy: deploy-binary
 
- deploy-%:
+deploy-%:
 	packs=$* ; [ "$$packs" = "" ] && packs="binary dev"; \
 	if [ "$$ROOT_DIR" = "" ] ; then echo -n "Enter deployment directory : " ; read ROOT_DIR ; fi ; \
 	priv OPTIONS=$(OPTIONS) QUIET=$(QUIET) TRACE=$(TRACE) $(BLD_TOP)/build/bin/makeInstall \
@@ -93,7 +140,7 @@ deploy: deploy-binary
 
 install: install-binary
 
- install-%:
+install-%:
 	packs=$* ; [ "$$packs" = "" ] && packs="binary dev"; \
 	[ "$$packs" = "binary dev" ] && BROWSER=--browser ; \
 	priv OPTIONS=$(OPTIONS) QUIET=$(QUIET) TRACE=$(TRACE) $(BLD_TOP)/build/bin/makeInstall \
@@ -101,50 +148,45 @@ install: install-binary
 
 uninstall: uninstall-binary
 
- uninstall-%:
+uninstall-%:
 	packs=$* ; [ "$$packs" = "" ] && packs="binary dev" ; \
 	priv OPTIONS=$(OPTIONS) QUIET=$(QUIET) TRACE=$(TRACE) $(BLD_TOP)/build/bin/makeInstall \
 		--root=$(ROOT_DIR) --remove $(INS_WITH) pre $$packs post
 	
-compileFinal: dist
+combo packageCombo:
+	$(BLD_TOP)/build/bin/makeInstall --root=$(COMBO_DIR) --package combo && \
+			$(BLD_TOOLS_DIR)/makePackage --combo $(KEEP) --root=$(COMBO_DIR) combo
 
-dist:
-	if [ ! -f .embedthis ] ; then \
-		true ; \
-	elif [ -d package/dist ] ; then \
-		make -C package/dist dist ; \
-	elif [ -f package/Makefile ] ; then \
-		make -C package dist ; \
-	elif [ -d dist ] ; then \
-		make -C dist dist ; \
+flat packageFlat:
+	$(BLD_TOP)/build/bin/makeInstall --root=$(FLAT_DIR) --package flat && \
+	$(BLD_TOOLS_DIR)/makePackage --combo $(KEEP) --root=$(FLAT_DIR) flat
+
+#
+#	Use makePackage --keep to preserve the out/pkg
+#
+packageRelease:
+	if [ "$(BUILD_DEPTH)" -ge 2 -a -f package/binary.es ] ; then \
+		export OPTIONS=$(OPTIONS) TRACE=$(TRACE) ; \
+		fakePriv "$(BLD_TOP)/build/bin/makeInstall --root=$(PKG_DIR) $(INS_WITH) --package $(PACKS) && \
+			$(BLD_TOOLS_DIR)/makePackage $(KEEP) --root=$(PKG_DIR) $(PACKS)" ; \
+	else \
+		$(call log) "[INFO]" "Packaging skipped at build depth $(BUILD_DEPTH)" ; \
 	fi
 
 package-only:
-	fakePriv $(BLD_TOOLS_DIR)/makePackage --root=$(PKG_DIR) $(PACKS)
-
-packageExtra:
-	if [ -d package -a -f package/binary.files -a -d package/$(BLD_HOST_OS) ] ; then \
-		if [ "$(BUILD_DEPTH)" -ge 2 ] ; then \
-			export OPTIONS=$(OPTIONS) TRACE=$(TRACE) ; \
-			fakePriv "$(BLD_TOP)/build/bin/makeInstall --root=$(PKG_DIR) $(INS_WITH) --package $(PACKS) && \
-				$(BLD_TOOLS_DIR)/makePackage --root=$(PKG_DIR) $(PACKS)" ; \
-		else \
-			$(call log) "[INFO]" "Packaging skipped at build depth $(BUILD_DEPTH)" ; \
-		fi ; \
-	fi
+	fakePriv "$(BLD_TOOLS_DIR)/makePackage --root=$(PKG_DIR) $(PACKS)"
 
 upload:
 	if [ "$(BUILD_DEPTH)" -lt 2 ] ; then \
 		$(call log) "[INFO]" "Skip upload for BUILD_DEPTH $(BUILD_DEPTH)"; \
 	else \
 		if [ "$(BUILD_UPLOAD)" = "" ] ; then \
-			echo "Can't upload: BUILD_UPLOAD is not defined" >&2; \
+			echo "Can't upload: missing a BUILD_UPLOAD authorization key" >&2; \
 			exit 2 ; \
 		fi ; \
 		cd $(BLD_OUT_DIR)/releases >/dev/null 2>&1 ; \
 		if ls $(IMG_NAME)* >/dev/null 2>&1 ; then \
-			for name in $(IMG_NAME)* md5-$(IMG_NAME)* ; \
-			do \
+			for name in $(IMG_NAME)* md5-$(IMG_NAME)* ; do \
 				chmod 664 $$name ; \
 				echo http --upload --form "server=`hostname`&key=$(BUILD_KEY)" $$name $(BUILD_UPLOAD); \
 				http -q --upload --form "server=`hostname`&key=$(BUILD_KEY)" $$name $(BUILD_UPLOAD); \
@@ -153,8 +195,7 @@ upload:
 		if [ "$(BUILD_UPLOAD_SOURCE)" = "true" ] ; then \
 			cd $(BLD_OUT_DIR)/releases >/dev/null 2>&1 ; \
 			if ls $(IMG_NAME)* >/dev/null 2>&1 ; then \
-				for name in $(SRC_NAME)* md5-$(SRC_NAME)* ; \
-				do \
+				for name in $(SRC_NAME)* md5-$(SRC_NAME)* ; do \
 					chmod 664 $$name ; \
 					echo http --upload --form "server=`hostname`&key=$(BUILD_KEY)" $$name $(BUILD_UPLOAD); \
 					http -q --upload --form "server=`hostname`&key=$(BUILD_KEY)" $$name $(BUILD_UPLOAD); \
@@ -163,156 +204,5 @@ upload:
 		fi ; \
 	fi
 
-testExtraExtra:
-
-disabled:
-	if [ "$(BUILD_DEPTH)" -ge 5 -a "$(BLD_PRODUCT)" != ejs ] ; then \
-		$(MAKE) test-installed ; \
-		$(MAKE) uninstall ; \
-		$(MAKE) test-removed ; \
-		$(MAKE) test-install-package ; \
-		$(MAKE) test-installed ; \
-		$(MAKE) test-uninstall-package ; \
-		$(MAKE) test-removed ; \
-		$(MAKE) test-install-native-package ; \
-		$(MAKE) test-installed ; \
-		$(MAKE) test-uninstall-native-package ; \
-		$(MAKE) test-removed ; \
-	fi
-	if [ "$(BUILD_DEPTH)" -ge 4 ] ; then \
-	   	$(MAKE) leakTest ; \
-	fi
-	if [ "$(BUILD_DEPTH)" -ge 5 ] ; then \
-	   	$(MAKE) benchTest ; \
-	fi
-	if [ "$(BUILD_DEPTH)" -ge 6 ] ; then \
-	   	$(MAKE) loadTest ; \
-	fi
-
-test-install-package:
-	name="$(BASE_NAME).tar.tar.gz" ; \
-	cd /tmp ; tar xvfz $(BLD_ABS_OUT_DIR)/releases/$$name ; \
-	priv "$(BLD_PRODUCT)_HEADLESS=1 ./install" ; \
-
-test-uninstall-package:
-	name="$(BASE_NAME).tar.tar.gz" ; \
-	cd /tmp ; tar xvfz $(BLD_ABS_OUT_DIR)/releases/$$name ; \
-	priv "$(BLD_PRODUCT)_HEADLESS=1 ./uninstall" ; \
-
-test-install-native-package:
-	if [ $(BLD_HOST_OS) = WIN ] ; then \
-		rm -fr "$(PKG_DIR)/*" ; \
-		name="$(BASE_NAME).exe.zip" ; \
-		cp WIN/unattended.ans $(BLD_OUT_DIR)/releases/$$name "$(PKG_DIR)" ; cd "$(PKG_DIR)" ; \
-		unzip -q -o $$name ; \
-		echo "Dir=$(PKG_DIR)" >>unattended.ans ; \
-		./$(BASE_NAME).exe /loadinf=/tmp/unattended.ans /silent ; \
-	elif [ $(BLD_HOST_OS) = MACOSX ] ; then \
-		hdiutil eject /Volumes/$(BLD_PRODUCT)-$(BLD_VERSION) >/dev/null 2>&1 ; \
-		hdid $(BLD_OUT_DIR)/releases/$(BASE_NAME).dmg >/dev/null ; \
-		priv installer -package /Volumes/$(BLD_PRODUCT)-$(BLD_VERSION)/$(BLD_PRODUCT).mpkg -target /; \
-		hdiutil eject /Volumes/$(BLD_PRODUCT)-$(BLD_VERSION) >/dev/null 2>&1 ; \
-	else \
-		name="$(BASE_NAME).tar.tar.gz" ; \
-		cd /tmp ; tar xvfz $(BLD_ABS_OUT_DIR)/releases/$$name ; \
-		priv $(BLD_PRODUCT)_HEADLESS=1 ./install ; \
-	fi
-
-test-uninstall-native-package:
-	if [ $(BLD_HOST_OS) = WIN ] ; then \
-		if [ ! -x "$(PKG_DIR)/unins000.exe" ] ; then \
-			echo "Can't find $(PKG_DIR)/unins000.exe to uninstall" ; \
-			exit 255 ; \
-		fi ; \
-		"$(PKG_DIR)/unins000.exe" /silent ; \
-		rm -fr "$(PKG_DIR)/*" ; \
-	else \
-		name="$(BASE_NAME).tar.tar.gz" ; \
-		cd /tmp ; tar xvfz $(BLD_ABS_OUT_DIR)/releases/$$name ; \
-		priv "$(BLD_PRODUCT)_HEADLESS=1 ./uninstall" ; \
-	fi
-
-# SAM SRC
-test-installed:
-	complete=1 ; \
-	for dir in $(BLD_CFG_PREFIX) $(BLD_BIN_PREFIX) $(BLD_DOC_PREFIX) $(BLD_INC_PREFIX) $(BLD_JEM_PREFIX) \
-		$(BLD_LIB_PREFIX) $(BLD_LOG_PREFIX) $(BLD_MAN_PREFIX) $(BLD_MOD_PREFIX) $(BLD_PRD_PREFIX) \
-		$(BLD_VER_PREFIX) $(BLD_WEB_PREFIX) ; \
-	do \
-		if [ ! -x $$dir ] ; then \
-			echo Missing directory: $$dir ; \
-			complete=0 ; \
-		fi ; \
-	done ; \
-	[ $$complete = 0 ] && exit 255 ; \
-	port=$(BLD_HTTP_PORT) ; \
-	http -q $$port/index.html ; \
-	http -q $$port/test/test.php ; \
-	http -q $$port/test/test.cgi ; \
-	http -q $$port/test/test.pl ; \
-	http -q $$port/test/test.py ; \
-	echo Installed
-	# http -q $$port/test/test.ejs
-
-test-removed:
-	partial=0 ; \
-	for dir in $(BLD_CFG_PREFIX) $(BLD_BIN_PREFIX) $(BLD_DOC_PREFIX) $(BLD_INC_PREFIX) $(BLD_JEM_PREFIX) \
-		$(BLD_LIB_PREFIX) $(BLD_LOG_PREFIX) $(BLD_MAN_PREFIX) $(BLD_MOD_PREFIX) $(BLD_PRD_PREFIX) \
-		$(BLD_VER_PREFIX) $(BLD_WEB_PREFIX) ; \
-	do \
-		if [ -x $$dir ] ; then \
-			partial=1 ; \
-			echo Directory present: $$dir ; \
-		fi ; \
-	done ; \
-	[ $$partial = 1 ] && exit 255 ; \
-	echo Removed
-
-checkInstalled: installed-files
-
-installed-files:
-	( \
-	for d in $(BLD_CFG_PREFIX) $(BLD_BIN_PREFIX) $(BLD_DOC_PREFIX) $(BLD_INC_PREFIX) $(BLD_JEM_PREFIX) \
-		$(BLD_LIB_PREFIX) $(BLD_LOG_PREFIX) $(BLD_MAN_PREFIX) $(BLD_MOD_PREFIX) $(BLD_PRD_PREFIX) \
-		$(BLD_VER_PREFIX) $(BLD_WEB_PREFIX) /var/log /var/www /usr/share /usr/share/doc /usr/include /var/lib /var/spool ; \
-		do \
-			if [ "`echo $$d/$(BLD_PRODUCT)*`" != $$d/$(BLD_PRODUCT)'*' ] ; then \
-				eval echo "$$d/$(BLD_PRODUCT)*" ; \
-				continue ; \
-			fi ; \
-			if [ -x "$$d/$(BLD_PRODUCT)" ] ; then \
-				echo "$$d/$(BLD_PRODUCT)" ; \
-				continue ; \
-			fi ; \
-		done ; \
-		for d in "$(BLD_CFG_PREFIX)" "$(BLD_DOC_PREFIX)" "$(BLD_INC_PREFIX)" "$(BLD_LIB_PREFIX)" "$(BLD_LOG_PREFIX)" \
-			"$(BLD_SAM_PREFIX)" "$(BLD_SRC_PREFIX)" ; \
-		do \
-			[ -x "$$d" ] && echo "$$d" || true; \
-		done ; \
-	) | sort | uniq
-
-cleanExtra:
-	find $(BLD_BIN_DIR) $(BLD_OBJ_DIR) $(BLD_MOD_DIR) $(BLD_LIB_DIR) -type f -print | egrep -v 'buildConfig' | xargs rm -f
-	[ "$(_RECURSIVE_)" = "" ] && \
-		$(MAKE) -S --no-print-directory BUILDING_NATIVE=1 TRACE=$(TRACE) _RECURSIVE_=1 -C . clean ; true
-
-clobberExtra:
-	rm -fr $(BLD_OUT_DIR)
-
-buildConfig.sh buildConfig.h $(BLD_OUT_DIR)/buildConfig.h:
-
-#
-#	Do a new top level build after incrementing the build number
-#
-newbuild: incVersion clean compile
-
 version:
 	echo $(BLD_VERSION)-$(BLD_NUMBER)
-
-incVersion:
-	@num=`expr $(BLD_NUMBER) + 1` ; \
-	cp build/product.config /tmp/build$$$$.tmp ; \
-	sed s/BLD_NUMBER=\"$(BLD_NUMBER)\"/BLD_NUMBER=\"$${num}\"/ </tmp/build$$$$.tmp >build/product.config
-	./configure
-

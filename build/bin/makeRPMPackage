@@ -14,11 +14,10 @@ BLD_DATE=`date '+%c'`
 ################################################################################
 
 setupRPM() {
-    echo -e "\n#\n# Create the RPM package ...\n#"
-
     #
     #   Setup the RPM directory and create the spec file
     #
+    log Generate "RPM package ..."
     mkdir -p $RPM_DIR $RPM_DIR/SOURCES $RPM_DIR/SPECS $RPM_DIR/BUILD
     mkdir -p $RPM_DIR/RPMS $RPM_DIR/RPMS/${BLD_HOST_CPU} $RPM_DIR/SRPMS
 }
@@ -45,32 +44,6 @@ createSpecFile() {
     find . -type d -print | sed -e 's!\.!!' | grep ${BLD_PRODUCT} | sed -e "s!^!%dir !" >>$RPM_DIR/BUILD/binFiles.txt
     find . -type f -print | sed -e "s/.//" | sed 's/.*/"&"/' >>$RPM_DIR/BUILD/binFiles.txt
     find . -type l -print | sed -e "s/.//" | sed 's/.*/"&"/' >>$RPM_DIR/BUILD/binFiles.txt
-    cd ${HOME}
-
-    #
-    #   Development files: headers and samples
-    #
-    if [ -d "${BLD_INC_PREFIX}" ] ; then
-        cd ${BLD_INC_PREFIX}
-        echo '%defattr(-,root,root)' >$RPM_DIR/BUILD/devFiles.txt
-        find . -type d -print | sed -e "s!.!%dir \"${ORIG_BLD_INC_PREFIX}!" | sed 's/.*/&\"/' >>$RPM_DIR/BUILD/devFiles.txt
-        find . -type f -print | sed -e "s!.!${ORIG_BLD_INC_PREFIX}!" | sed 's/.*/"&"/' >>$RPM_DIR/BUILD/devFiles.txt
-    fi
-    if [ -d "${BLD_SAM_PREFIX}" ] ; then
-        cd ${BLD_SAM_PREFIX}
-        find . -type d -print | sed -e "s!.!%dir \"${ORIG_BLD_SAM_PREFIX}!" | sed 's/.*/&\"/' >>$RPM_DIR/BUILD/devFiles.txt
-        find . -type f -print | sed -e "s!.!${ORIG_BLD_SAM_PREFIX}!" | sed 's/.*/"&"/' >>$RPM_DIR/BUILD/devFiles.txt
-    fi
-    if [ -d "${BLD_DOC_PREFIX}" ] ; then
-        cd ${BLD_DOC_PREFIX}
-        find . -type d -print | sed -e "s!.!%dir \"${ORIG_BLD_DOC_PREFIX}!" | sed 's/.*/&\"/' >>$RPM_DIR/BUILD/devFiles.txt
-        find . -type f -print | sed -e "s!.!${ORIG_BLD_DOC_PREFIX}!" | sed 's/.*/"&"/' >>$RPM_DIR/BUILD/devFiles.txt
-    fi
-    if [ -d "${BLD_MAN_PREFIX}" ] ; then
-        cd ${BLD_MAN_PREFIX}
-        find . -type d -print | sed -e "s!.!%dir \"${ORIG_BLD_MAN_PREFIX}!" | sed 's/.*/&\"/' >>$RPM_DIR/BUILD/devFiles.txt
-        find . -type f -print | sed -e "s!.!${ORIG_BLD_MAN_PREFIX}!" | sed 's/.*/"&"/' >>$RPM_DIR/BUILD/devFiles.txt
-    fi
     cd ${HOME}
 
     #
@@ -113,7 +86,7 @@ makeRPMPackage() {
     cd ${HOME}
 
     echo
-    for suffix in bin dev src ; do
+    for suffix in bin src ; do
         if [ "$suffix" = "src" ] ; then
             name=`echo ${BLD_PRODUCT}-$suffix-${BLD_VERSION}-${BLD_NUMBER}.rpm`
         else
@@ -124,7 +97,7 @@ makeRPMPackage() {
         else
             rpm="$RPM_DIR/RPMS/$BLD_HOST_CPU/${BLD_PRODUCT}-$suffix-${BLD_VERSION}-${BLD_NUMBER_ONLY}.${BLD_HOST_CPU}.rpm"
         fi
-        echo "# Creating `basename $name`"
+        # echo "# Creating `basename $name`"
         mv $rpm $ROOT_DIR/$name
     done
 }

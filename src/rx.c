@@ -7,14 +7,9 @@
 
 #include    "http.h"
 
-/********************************** Locals ************************************/
-
-static char *authTypes[] = { "none", "basic", "digest" };
-
 /***************************** Forward Declarations ***************************/
 
 static void addMatchEtag(HttpConn *conn, char *etag);
-static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf);
 static char *getToken(HttpConn *conn, cchar *delim);
 static void manageRange(HttpRange *range, int flags);
 static void manageRx(HttpRx *rx, int flags);
@@ -26,8 +21,10 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet);
 static void parseResponseLine(HttpConn *conn, HttpPacket *packet);
 static bool processCompletion(HttpConn *conn);
 static bool processContent(HttpConn *conn, HttpPacket *packet);
+static void parseMethod(HttpConn *conn);
 static bool processParsed(HttpConn *conn);
 static bool processRunning(HttpConn *conn);
+static void routeRequest(HttpConn *conn);
 
 /*********************************** Code *************************************/
 
@@ -44,9 +41,10 @@ HttpRx *httpCreateRx(HttpConn *conn)
     rx->ifModified = 1;
     rx->pathInfo = sclone("/");
     rx->scriptName = mprEmptyString();
-    rx->needInputPipeline = !conn->server;
+    rx->needInputPipeline = !conn->endpoint;
     rx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
-    rx->chunkState = HTTP_CHUNK_START;
+    rx->chunkState = HTTP_CHUNK_UNCHUNKED;
+    rx->traceLevel = -1;
     return rx;
 }
 
@@ -55,43 +53,47 @@ static void manageRx(HttpRx *rx, int flags)
 {
     if (flags & MPR_MANAGE_MARK) {
         mprMark(rx->method);
-        mprMark(rx->originalUri);
         mprMark(rx->uri);
-        mprMark(rx->scriptName);
         mprMark(rx->pathInfo);
+        mprMark(rx->scriptName);
         mprMark(rx->extraPath);
         mprMark(rx->conn);
+        mprMark(rx->route);
         mprMark(rx->etags);
         mprMark(rx->headerPacket);
         mprMark(rx->headers);
         mprMark(rx->inputPipeline);
-        mprMark(rx->loc);
         mprMark(rx->parsedUri);
         mprMark(rx->requestData);
         mprMark(rx->statusMessage);
         mprMark(rx->accept);
         mprMark(rx->acceptCharset);
         mprMark(rx->acceptEncoding);
+        mprMark(rx->acceptLanguage);
         mprMark(rx->cookie);
         mprMark(rx->connection);
         mprMark(rx->contentLength);
         mprMark(rx->hostHeader);
         mprMark(rx->pragma);
         mprMark(rx->mimeType);
+        mprMark(rx->originalMethod);
+        mprMark(rx->originalUri);
         mprMark(rx->redirect);
         mprMark(rx->referrer);
+        mprMark(rx->securityToken);
         mprMark(rx->userAgent);
-        mprMark(rx->formVars);
+        mprMark(rx->params);
+        mprMark(rx->svars);
         mprMark(rx->inputRange);
-        mprMark(rx->auth);
         mprMark(rx->authAlgorithm);
         mprMark(rx->authDetails);
         mprMark(rx->authStale);
         mprMark(rx->authType);
         mprMark(rx->files);
         mprMark(rx->uploadDir);
-        mprMark(rx->alias);
-        mprMark(rx->dir);
+        mprMark(rx->paramString);
+        mprMark(rx->lang);
+        mprMark(rx->target);
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (rx->conn) {
@@ -159,12 +161,14 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
 static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
-    HttpTx      *tx;
-    HttpLoc     *loc;
     ssize       len;
     char        *start, *end;
 
     if (packet == NULL) {
+        return 0;
+    }
+    if (mprShouldDenyNewRequests()) {
+        httpError(conn, HTTP_ABORT | HTTP_CODE_NOT_ACCEPTABLE, "Server terminating");
         return 0;
     }
     if (conn->rx == NULL) {
@@ -172,8 +176,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         conn->tx = httpCreateTx(conn, NULL);
     }
     rx = conn->rx;
-    tx = conn->tx;
-    
     if ((len = httpGetPacketLength(packet)) == 0) {
         return 0;
     }
@@ -191,45 +193,66 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
         return 0;
     }
-    if (conn->server) {
-        if (!httpValidateLimits(conn->server, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
-            return 0;
-        }
+    if (conn->endpoint) {
         parseRequestLine(conn, packet);
     } else {
         parseResponseLine(conn, packet);
     }
-    parseHeaders(conn, packet);
-    if (conn->server) {
+    if (!conn->error) {
+        parseHeaders(conn, packet);
+    }
+    if (conn->endpoint) {
         httpMatchHost(conn);
         if (httpSetUri(conn, rx->uri, "") < 0) {
-            httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad URL format");
-            return 0;
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad URL format");
         }
         if (conn->secure) {
             rx->parsedUri->scheme = sclone("https");
         }
         rx->parsedUri->port = conn->sock->listenSock->port;
         rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
-        if (!tx->handler) {
-            httpMatchHandler(conn);  
-        }
-        loc = rx->loc;
-        mprAssert(loc);
 
-        mprLog(4, "Select handler: \"%s\" for \"%s\"", tx->handler->name, rx->uri);
-        httpSetState(conn, HTTP_STATE_PARSED);        
-        /* Clients have already created their Tx pipeline */
-        httpCreateRxPipeline(conn, loc);
-        httpCreateTxPipeline(conn, loc);
-        rx->startAfterContent = (loc->flags & HTTP_LOC_AFTER || ((rx->form || rx->upload) && loc->flags & HTTP_LOC_SMART));
-
-    //  MOB - what happens if server responds to client with other status
     } else if (!(100 <= rx->status && rx->status < 200)) {
-        httpSetState(conn, HTTP_STATE_PARSED);        
-        httpCreateRxPipeline(conn, conn->http->clientLocation);
+        /* Clients have already created their Tx pipeline */
+        httpCreateRxPipeline(conn, conn->http->clientRoute);
+    }
+    httpSetState(conn, HTTP_STATE_PARSED);
+    if (conn->endpoint && !httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
+        return 0;
     }
     return 1;
+}
+
+
+static void mapMethod(HttpConn *conn)
+{
+    HttpRx      *rx;
+    cchar       *method;
+
+    rx = conn->rx;
+    if (rx->flags & HTTP_POST) {
+        if ((method = httpGetParam(conn, "-http-method-", 0)) != 0) {
+            if (!scasematch(method, rx->method)) {
+                mprLog(3, "Change method from %s to %s for %s", rx->method, method, rx->uri);
+                httpSetMethod(conn, method);
+            }
+        }
+    }
+}
+
+
+static void routeRequest(HttpConn *conn)
+{
+    HttpRx  *rx;
+
+    mprAssert(conn->endpoint);
+
+    rx = conn->rx;
+    httpAddParams(conn);
+    mapMethod(conn);
+    httpRouteRequest(conn);  
+    httpCreateRxPipeline(conn, rx->route);
+    httpCreateTxPipeline(conn, rx->route);
 }
 
 
@@ -252,16 +275,15 @@ static void traceRequest(HttpConn *conn, HttpPacket *packet)
         if ((cp = schr(++cp, ' ')) != 0) {
             for (ext = --cp; ext > content->start && *ext != '.'; ext--) ;
             ext = (*ext == '.') ? snclone(&ext[1], cp - ext) : 0;
-            conn->tx->extension = ext;
+            conn->tx->ext = ext;
         }
     }
-
-    mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->acceptIp, conn->sock->acceptPort);
 
     /*
         If tracing header, do entire header including first line
      */
-    if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, ext) >= 0) {
+    if ((conn->rx->traceLevel = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, ext)) >= 0) {
+        mprLog(4, "New request from %s:%d to %s:%d", conn->ip, conn->port, conn->sock->acceptIp, conn->sock->acceptPort);
         endp = strstr((char*) content->start, "\r\n\r\n");
         len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
         httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
@@ -278,28 +300,17 @@ static void traceRequest(HttpConn *conn, HttpPacket *packet)
 }
 
 
-/*  
-    Parse the first line of a http request. Return true if the first line parsed. This is only called once all the headers
-    have been read and buffered. Requests look like: METHOD URL HTTP/1.X.
- */
-static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
+static void parseMethod(HttpConn *conn)
 {
     HttpRx      *rx;
-    char        *method, *uri, *protocol;
+    cchar       *method;
     int         methodFlags;
 
     rx = conn->rx;
-    uri = 0;
+    method = rx->method;
     methodFlags = 0;
 
-#if BLD_DEBUG
-    conn->startTime = conn->http->now;
-    conn->startTicks = mprGetTicks();
-#endif
-    traceRequest(conn, packet);
-
-    method = getToken(conn, " ");
-    rx->method = method = supper(method);
+    rx->flags &= (HTTP_DELETE | HTTP_GET | HTTP_HEAD | HTTP_POST | HTTP_PUT | HTTP_TRACE | HTTP_UNKNOWN);
 
     switch (method[0]) {
     case 'D':
@@ -311,17 +322,6 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     case 'G':
         if (strcmp(method, "GET") == 0) {
             methodFlags = HTTP_GET;
-        }
-        break;
-
-    case 'P':
-        if (strcmp(method, "POST") == 0) {
-            methodFlags = HTTP_POST;
-            rx->needInputPipeline = 1;
-
-        } else if (strcmp(method, "PUT") == 0) {
-            methodFlags = HTTP_PUT;
-            rx->needInputPipeline = 1;
         }
         break;
 
@@ -338,6 +338,17 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         }
         break;
 
+    case 'P':
+        if (strcmp(method, "POST") == 0) {
+            methodFlags = HTTP_POST;
+            rx->needInputPipeline = 1;
+
+        } else if (strcmp(method, "PUT") == 0) {
+            methodFlags = HTTP_PUT;
+            rx->needInputPipeline = 1;
+        }
+        break;
+
     case 'T':
         if (strcmp(method, "TRACE") == 0) {
             methodFlags = HTTP_TRACE;
@@ -347,15 +358,39 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     if (methodFlags == 0) {
         methodFlags = HTTP_UNKNOWN;
     }
+    rx->flags |= methodFlags;
+}
+
+
+/*  
+    Parse the first line of a http request. Return true if the first line parsed. This is only called once all the headers
+    have been read and buffered. Requests look like: METHOD URL HTTP/1.X.
+ */
+static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
+{
+    HttpRx      *rx;
+    char        *method, *uri, *protocol;
+
+    rx = conn->rx;
+#if BLD_DEBUG
+    conn->startTime = conn->http->now;
+    conn->startTicks = mprGetTicks();
+#endif
+    traceRequest(conn, packet);
+
+    method = getToken(conn, " ");
+    rx->originalMethod = rx->method = method = supper(method);
+    parseMethod(conn);
+
     uri = getToken(conn, " ");
     if (*uri == '\0') {
-        httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Empty URI");
+        httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Empty URI");
     } else if ((int) strlen(uri) >= conn->limits->uriSize) {
-        httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad request. URI too long");
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad request. URI too long");
     }
     protocol = conn->protocol = supper(getToken(conn, "\r\n"));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
-        if (methodFlags & (HTTP_POST|HTTP_PUT)) {
+        if (rx->flags & (HTTP_POST|HTTP_PUT)) {
             rx->remainingContent = MAXINT;
             rx->needInputPipeline = 1;
         }
@@ -367,7 +402,6 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
         conn->protocol = sclone("HTTP/1.1");
         httpError(conn, HTTP_CLOSE | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
     }
-    rx->flags |= methodFlags;
     rx->originalUri = rx->uri = sclone(uri);
     httpSetState(conn, HTTP_STATE_FIRST);
 }
@@ -390,7 +424,7 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     tx = conn->tx;
     traced = 0;
 
-    if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, tx->extension) >= 0) {
+    if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, tx->ext) >= 0) {
         content = packet->content;
         endp = strstr((char*) content->start, "\r\n\r\n");
         len = (endp) ? (int) (endp - mprGetBufStart(content) + 4) : 0;
@@ -411,9 +445,9 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     rx->statusMessage = sclone(getToken(conn, "\r\n"));
 
     if (slen(rx->statusMessage) >= conn->limits->uriSize) {
-        httpError(conn, HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
     }
-    if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, tx->extension)) >= 0) {
+    if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, tx->ext)) >= 0) {
         mprLog(level, "%s %d %s", protocol, rx->status, rx->statusMessage);
     }
 }
@@ -428,7 +462,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpLimits  *limits;
     MprBuf      *content;
-    char        *key, *value, *tok;
+    char        *key, *value, *tok, *hvalue;
     cchar       *oldValue;
     int         count, keepAlive;
 
@@ -445,66 +479,79 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
         }
         if ((key = getToken(conn, ":")) == 0 || *key == '\0') {
-            httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad header format");
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad header format");
             break;
         }
         value = getToken(conn, "\r\n");
         while (isspace((int) *value)) {
             value++;
         }
-        key = slower(key);
-
         LOG(8, "Key %s, value %s", key, value);
         if (strspn(key, "%<>/\\") > 0) {
-            httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad header key value");
+            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad header key value");
         }
         if ((oldValue = mprLookupKey(rx->headers, key)) != 0) {
-            mprAddKey(rx->headers, key, mprAsprintf("%s, %s", oldValue, value));
+            hvalue = sfmt("%s, %s", oldValue, value);
         } else {
-            mprAddKey(rx->headers, key, sclone(value));
+            hvalue = sclone(value);
         }
-        switch (key[0]) {
+        mprAddKey(rx->headers, key, hvalue);
+
+        switch (tolower((int) key[0])) {
         case 'a':
-            if (strcmp(key, "authorization") == 0) {
+            if (strcasecmp(key, "authorization") == 0) {
                 value = sclone(value);
                 rx->authType = stok(value, " \t", &tok);
                 rx->authDetails = sclone(tok);
 
-            } else if (strcmp(key, "accept-charset") == 0) {
+            } else if (strcasecmp(key, "accept-charset") == 0) {
                 rx->acceptCharset = sclone(value);
 
-            } else if (strcmp(key, "accept") == 0) {
+            } else if (strcasecmp(key, "accept") == 0) {
                 rx->accept = sclone(value);
 
-            } else if (strcmp(key, "accept-encoding") == 0) {
+            } else if (strcasecmp(key, "accept-encoding") == 0) {
                 rx->acceptEncoding = sclone(value);
+
+            } else if (strcasecmp(key, "accept-language") == 0) {
+                rx->acceptLanguage = sclone(value);
             }
             break;
 
         case 'c':
-            if (strcmp(key, "content-length") == 0) {
+            if (strcasecmp(key, "connection") == 0) {
+                rx->connection = sclone(value);
+                if (scasecmp(value, "KEEP-ALIVE") == 0) {
+                    keepAlive = 1;
+                } else if (scasecmp(value, "CLOSE") == 0) {
+                    /*  Not really required, but set to 0 to be sure */
+                    conn->keepAliveCount = 0;
+                }
+
+            } else if (strcasecmp(key, "content-length") == 0) {
                 if (rx->length >= 0) {
                     httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Mulitple content length headers");
                     break;
                 }
-                rx->length = stoi(value, 10, 0);
+                rx->length = stoi(value);
                 if (rx->length < 0) {
-                    httpError(conn, HTTP_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad content length");
+                    httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad content length");
                     break;
                 }
                 if (rx->length >= conn->limits->receiveBodySize) {
                     httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE,
-                        "Request content length %Ld bytes is too big. Limit %Ld", rx->length, conn->limits->receiveBodySize);
+                        "Request content length %,Ld bytes is too big. Limit %,Ld", 
+                        rx->length, conn->limits->receiveBodySize);
                     break;
                 }
                 rx->contentLength = sclone(value);
                 mprAssert(rx->length >= 0);
-                if (conn->server || strcmp(tx->method, "HEAD") != 0) {
+                if (conn->endpoint || strcasecmp(tx->method, "HEAD") != 0) {
                     rx->remainingContent = rx->length;
                     rx->needInputPipeline = 1;
                 }
 
-            } else if (strcmp(key, "content-range") == 0) {
+            } else if (strcasecmp(key, "content-range") == 0) {
                 /*
                     This headers specifies the range of any posted body data
                     Format is:  Content-Range: bytes n1-n2/length
@@ -519,54 +566,46 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     sp++;
                 }
                 if (*sp) {
-                    start = stoi(sp, 10, NULL);
+                    start = stoi(sp);
                     if ((sp = strchr(sp, '-')) != 0) {
-                        end = stoi(++sp, 10, NULL);
+                        end = stoi(++sp);
                     }
                     if ((sp = strchr(sp, '/')) != 0) {
                         /*
                             Note this is not the content length transmitted, but the original size of the input of which
                             the client is transmitting only a portion.
                          */
-                        size = stoi(++sp, 10, NULL);
+                        size = stoi(++sp);
                     }
                 }
                 if (start < 0 || end < 0 || size < 0 || end <= start) {
-                    httpError(conn, HTTP_CODE_RANGE_NOT_SATISFIABLE, "Bad content range");
+                    httpError(conn, HTTP_CLOSE | HTTP_CODE_RANGE_NOT_SATISFIABLE, "Bad content range");
                     break;
                 }
                 rx->inputRange = httpCreateRange(conn, start, end);
 
-            } else if (strcmp(key, "content-type") == 0) {
+            } else if (strcasecmp(key, "content-type") == 0) {
                 rx->mimeType = sclone(value);
                 rx->form = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "application/x-www-form-urlencoded", -1);
+                rx->upload = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "multipart/form-data", -1);
 
-            } else if (strcmp(key, "cookie") == 0) {
+            } else if (strcasecmp(key, "cookie") == 0) {
                 if (rx->cookie && *rx->cookie) {
                     rx->cookie = sjoin(rx->cookie, "; ", value, NULL);
                 } else {
                     rx->cookie = sclone(value);
                 }
-
-            } else if (strcmp(key, "connection") == 0) {
-                rx->connection = sclone(value);
-                if (scasecmp(value, "KEEP-ALIVE") == 0) {
-                    keepAlive = 1;
-                } else if (scasecmp(value, "CLOSE") == 0) {
-                    /*  Not really required, but set to 0 to be sure */
-                    conn->keepAliveCount = 0;
-                }
             }
             break;
 
         case 'h':
-            if (strcmp(key, "host") == 0) {
+            if (strcasecmp(key, "host") == 0) {
                 rx->hostHeader = sclone(value);
             }
             break;
 
         case 'i':
-            if ((strcmp(key, "if-modified-since") == 0) || (strcmp(key, "if-unmodified-since") == 0)) {
+            if ((strcasecmp(key, "if-modified-since") == 0) || (strcasecmp(key, "if-unmodified-since") == 0)) {
                 MprTime     newDate = 0;
                 char        *cp;
                 bool        ifModified = (key[3] == 'm');
@@ -584,7 +623,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     rx->flags |= HTTP_IF_MODIFIED;
                 }
 
-            } else if ((strcmp(key, "if-match") == 0) || (strcmp(key, "if-none-match") == 0)) {
+            } else if ((strcasecmp(key, "if-match") == 0) || (strcasecmp(key, "if-none-match") == 0)) {
                 char    *word, *tok;
                 bool    ifMatch = key[3] == 'm';
 
@@ -600,7 +639,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                     word = stok(0, " ,", &tok);
                 }
 
-            } else if (strcmp(key, "if-range") == 0) {
+            } else if (strcasecmp(key, "if-range") == 0) {
                 char    *word, *tok;
 
                 if ((tok = strchr(value, ';')) != 0) {
@@ -619,7 +658,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'k':
             /* Keep-Alive: timeout=N, max=1 */
-            if (strcmp(key, "keep-alive") == 0) {
+            if (strcasecmp(key, "keep-alive") == 0) {
                 keepAlive = 1;
                 if ((tok = scontains(value, "max=", -1)) != 0) {
                     conn->keepAliveCount = atoi(&tok[4]);
@@ -635,69 +674,73 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;                
                 
         case 'l':
-            if (strcmp(key, "location") == 0) {
+            if (strcasecmp(key, "location") == 0) {
                 rx->redirect = sclone(value);
             }
             break;
 
         case 'p':
-            if (strcmp(key, "pragma") == 0) {
+            if (strcasecmp(key, "pragma") == 0) {
                 rx->pragma = sclone(value);
             }
             break;
 
         case 'r':
-            if (strcmp(key, "range") == 0) {
+            if (strcasecmp(key, "range") == 0) {
                 if (!parseRange(conn, value)) {
-                    httpError(conn, HTTP_CODE_RANGE_NOT_SATISFIABLE, "Bad range");
+                    httpError(conn, HTTP_CLOSE | HTTP_CODE_RANGE_NOT_SATISFIABLE, "Bad range");
                 }
-            } else if (strcmp(key, "referer") == 0) {
+            } else if (strcasecmp(key, "referer") == 0) {
                 /* NOTE: yes the header is misspelt in the spec */
                 rx->referrer = sclone(value);
             }
             break;
 
         case 't':
-            if (strcmp(key, "transfer-encoding") == 0) {
+            if (strcasecmp(key, "transfer-encoding") == 0) {
                 if (scasecmp(value, "chunked") == 0) {
-                    rx->flags |= HTTP_CHUNKED;
                     /*  
-                        This will be revised by the chunk filter as chunks are processed and will be set to zero when the
-                        last chunk has been received.
+                        remainingContent will be revised by the chunk filter as chunks are processed and will 
+                        be set to zero when the last chunk has been received.
                      */
+                    rx->flags |= HTTP_CHUNKED;
+                    rx->chunkState = HTTP_CHUNK_START;
                     rx->remainingContent = MAXINT;
                     rx->needInputPipeline = 1;
                 }
             }
             break;
 
-#if BLD_DEBUG
         case 'x':
-            if (strcmp(key, "x-chunk-size") == 0) {
+            if (strcasecmp(key, "x-http-method-override") == 0) {
+                httpSetMethod(conn, value);
+#if BLD_DEBUG
+            } else if (strcasecmp(key, "x-chunk-size") == 0) {
                 tx->chunkSize = atoi(value);
                 if (tx->chunkSize <= 0) {
                     tx->chunkSize = 0;
                 } else if (tx->chunkSize > conn->limits->chunkSize) {
                     tx->chunkSize = conn->limits->chunkSize;
                 }
+#endif
             }
             break;
-#endif
 
         case 'u':
-            if (strcmp(key, "user-agent") == 0) {
+            if (strcasecmp(key, "user-agent") == 0) {
                 rx->userAgent = sclone(value);
             }
             break;
 
         case 'w':
-            if (strcmp(key, "www-authenticate") == 0) {
+            if (strcasecmp(key, "www-authenticate") == 0) {
                 conn->authType = value;
                 while (*value && !isspace((int) *value)) {
                     value++;
                 }
                 *value++ = '\0';
                 conn->authType = slower(conn->authType);
+                // MOB - move this into the auth filter
                 if (!parseAuthenticate(conn, value)) {
                     httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad Authentication header");
                     break;
@@ -706,26 +749,28 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
         }
     }
+    /*
+        Don't stream input if a form or upload. NOTE: Upload needs the Files[] collection.
+     */
+    rx->streamInput = !(rx->form || rx->upload);
     if (!keepAlive) {
         conn->keepAliveCount = 0;
     }
     if (!(rx->flags & HTTP_CHUNKED)) {
         /*  
-            Step over "\r\n" after headers. As an optimization, don't do this if chunked so chunking can parse a single
-            chunk delimiter of "\r\nSIZE ...\r\n"
+            Step over "\r\n" after headers. 
+            Don't do this if chunked so chunking can parse a single chunk delimiter of "\r\nSIZE ...\r\n"
          */
         if (httpGetPacketLength(packet) >= 2) {
             mprAdjustBufStart(content, 2);
         }
-    }
-    if (rx->remainingContent == 0) {
-        rx->eof = 1;
     }
 }
 
 
 /*  
     Parse an authentication response (client side only)
+    MOB - move this into the auth filter
  */
 static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 {
@@ -865,14 +910,21 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
  */
 static bool processParsed(HttpConn *conn)
 {
-    if (!conn->rx->startAfterContent) {
+    HttpRx      *rx;
+
+    rx = conn->rx;
+    if (!rx->form && conn->endpoint) {
+        /*
+            Routes need to be able to access form data, so forms route later after all input is received.
+         */
+        routeRequest(conn);
+    }
+    if (rx->streamInput) {
         httpStartPipeline(conn);
     }
     httpSetState(conn, HTTP_STATE_CONTENT);
-    if (conn->workerEvent && !conn->rx->startAfterContent) {
-        if (conn->connError || conn->rx->remainingContent <= 0) {
-            httpSetState(conn, HTTP_STATE_RUNNING);
-        }
+    if (conn->workerEvent && conn->tx->started && rx->eof) {
+        httpSetState(conn, HTTP_STATE_RUNNING);
         return 0;
     }
     return 1;
@@ -885,62 +937,61 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpQueue   *q;
     MprBuf      *content;
-    MprOff      remaining;
     ssize       nbytes;
 
     rx = conn->rx;
     tx = conn->tx;
-    q = tx->queue[HTTP_QUEUE_RX];
-
     content = packet->content;
-    if (rx->flags & HTTP_CHUNKED) {
-        if ((remaining = getChunkPacketSize(conn, content)) == 0) {
-            /* Need more data or bad chunk specification */
-            if (mprGetBufLength(content) > 0) {
-                conn->input = packet;
-            }
-            return 0;
-        }
-    } else {
-        remaining = rx->remainingContent;
+    q = tx->queue[HTTP_QUEUE_RX];
+    mprAssert(httpVerifyQueue(q));
+
+    LOG(7, "processContent: packet of %d bytes, remaining %d", mprGetBufLength(content), rx->remainingContent);
+    if ((nbytes = httpFilterChunkData(q, packet)) < 0) {
+        return 0;
     }
-    nbytes = (ssize) min(remaining, mprGetBufLength(content));
     mprAssert(nbytes >= 0);
 
     if (nbytes > 0) {
-        if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, tx->extension) >= 0) {
-            httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, packet, nbytes, 0);
-        }
-    }
-    LOG(7, "processContent: packet of %d bytes, remaining %d", mprGetBufLength(content), remaining);
-
-    if (nbytes > 0) {
-        mprAssert(httpGetPacketLength(packet) > 0);
-        remaining -= nbytes;
         rx->remainingContent -= nbytes;
         rx->bytesRead += nbytes;
-
+        if (httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, tx->ext) >= 0) {
+            httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_BODY, packet, nbytes, rx->bytesRead);
+        }
         if (rx->bytesRead >= conn->limits->receiveBodySize) {
             httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, 
-                "Request body of %Ld bytes is too big. Limit %Ld", rx->bytesRead, conn->limits->receiveBodySize);
+                "Request body of %,Ld bytes is too big. Limit %,Ld", rx->bytesRead, conn->limits->receiveBodySize);
             return 1;
         }
-        if (packet == rx->headerPacket) {
-            /* Preserve headers if more data to come. Otherwise handlers may free the packet and destory the headers */
+        if (rx->form && rx->length >= conn->limits->receiveFormSize) {
+            httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, 
+                "Request form of %,Ld bytes is too big. Limit %,Ld", rx->bytesRead, conn->limits->receiveFormSize);
+            return 1;
+        }
+        if (packet == rx->headerPacket && nbytes > 0) {
             packet = httpSplitPacket(packet, 0);
         }
-        conn->input = 0;
-        if (remaining == 0 && httpGetPacketLength(packet) > nbytes) {
-            /*  Split excess data belonging to the next pipelined request.  */
+        if (httpGetPacketLength(packet) > nbytes) {
+            /*  Split excess data belonging to the next chunk or pipelined request */
             LOG(7, "processContent: Split packet of %d at %d", httpGetPacketLength(packet), nbytes);
             conn->input = httpSplitPacket(packet, nbytes);
+        } else {
+            conn->input = 0;
         }
-        httpSendPacketToNext(q, packet);
-    } else {
-        conn->input = 0;
+        if (!(conn->finalized && conn->endpoint)) {
+            if (rx->form) {
+                httpPutForService(q, packet, HTTP_DELAY_SERVICE);
+            } else {
+                httpPutPacketToNext(q, packet);
+            }
+            mprAssert(httpVerifyQueue(q));
+        }
+    }
+    if (rx->remainingContent == 0 && !(rx->flags & HTTP_CHUNKED)) {
+        rx->eof = 1;
     }
     return 1;
 }
+
 
 /*  
     Process request body data (typically post or put content)
@@ -951,32 +1002,29 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
     HttpQueue   *q;
 
     rx = conn->rx;
-    q = conn->tx->queue[HTTP_QUEUE_RX];
 
-    if (conn->connError || rx->remainingContent <= 0) {
-        httpSetState(conn, HTTP_STATE_RUNNING);
-        return 1;
-    }
-    if (packet == NULL) {
+    if (packet == 0 || !analyseContent(conn, packet)) {
         return 0;
     }
-    //  TODO - is this the best place? - move
-    mprYield(0);
-
-    if (!analyseContent(conn, packet)) {
-        return 0;
-    }
-    if (conn->connError || 
-            (rx->remainingContent == 0 && (!(rx->flags & HTTP_CHUNKED) || (rx->chunkState == HTTP_CHUNK_EOF)))) {
-        rx->eof = 1;
-        httpSendPacketToNext(q, httpCreateEndPacket());
-        if (rx->startAfterContent) {
+    if (rx->eof) {
+        q = conn->tx->queue[HTTP_QUEUE_RX];
+        if (rx->form && conn->endpoint) {
+            routeRequest(conn);
+            while ((packet = httpGetPacket(q)) != 0) {
+                httpPutPacketToNext(q, packet);
+            }
+        }
+        httpPutPacketToNext(q, httpCreateEndPacket());
+        if (!rx->streamInput) {
             httpStartPipeline(conn);
         }
         httpSetState(conn, HTTP_STATE_RUNNING);
         return conn->workerEvent ? 0 : 1;
     }
     httpServiceQueues(conn);
+    if (conn->connError) {
+        httpSetState(conn, HTTP_STATE_RUNNING);
+    }
     return conn->error || (conn->input ? httpGetPacketLength(conn->input) : 0);
 }
 
@@ -989,13 +1037,14 @@ static bool processRunning(HttpConn *conn)
 {
     int     canProceed;
 
+    //  MOB - refactor
     canProceed = 1;
     if (conn->connError) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
     } else {
-        if (conn->server) {
+        if (conn->endpoint) {
             httpProcessPipeline(conn);
-            if (conn->connError || conn->writeComplete) {
+            if (conn->connError || conn->connectorComplete) {
                 httpSetState(conn, HTTP_STATE_COMPLETE);
             } else {
                 httpWritable(conn);
@@ -1017,21 +1066,22 @@ static void measure(HttpConn *conn)
     MprTime     elapsed;
     HttpTx      *tx;
     cchar       *uri;
+    int         level;
 
     tx = conn->tx;
     if (conn->rx == 0 || tx == 0) {
         return;
     }
-    uri = (conn->server) ? conn->rx->uri : tx->parsedUri->path;
+    uri = (conn->endpoint) ? conn->rx->uri : tx->parsedUri->path;
    
-    if (httpShouldTrace(conn, 0, HTTP_TRACE_TIME, tx->extension) >= 0) {
+    if ((level = httpShouldTrace(conn, HTTP_TRACE_TX, HTTP_TRACE_TIME, tx->ext)) >= 0) {
         elapsed = mprGetTime() - conn->startTime;
 #if MPR_HIGH_RES_TIMER
         if (elapsed < 1000) {
-            mprLog(6, "TIME: Request %s took %,d msec %,d ticks", uri, elapsed, mprGetTicks() - conn->startTicks);
+            mprLog(level, "TIME: Request %s took %,d msec %,d ticks", uri, elapsed, mprGetTicks() - conn->startTicks);
         } else
 #endif
-            mprLog(6, "TIME: Request %s took %,d msec", uri, elapsed);
+            mprLog(level, "TIME: Request %s took %,d msec", uri, elapsed);
     }
 }
 #else
@@ -1042,20 +1092,25 @@ static void measure(HttpConn *conn)
 static bool processCompletion(HttpConn *conn)
 {
     HttpPacket  *packet;
+    HttpRx      *rx;
     bool        more;
 
+    rx = conn->rx;
     mprAssert(conn->state == HTTP_STATE_COMPLETE);
 
     httpDestroyPipeline(conn);
     measure(conn);
-    if (conn->server && conn->rx) {
-        conn->rx->conn = 0;
+    if (conn->endpoint && rx) {
+        if (rx->route->log) {
+            httpLogRequest(conn);
+        }
+        rx->conn = 0;
         conn->tx->conn = 0;
         conn->rx = 0;
         conn->tx = 0;
         packet = conn->input;
         more = packet && !conn->connError && (httpGetPacketLength(packet) > 0);
-        httpValidateLimits(conn->server, HTTP_VALIDATE_CLOSE_REQUEST, conn);
+        httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
         httpPrepServerConn(conn);
         return more;
     }
@@ -1075,65 +1130,6 @@ void httpCloseRx(HttpConn *conn)
 }
 
 
-/*  
-    Optimization to correctly size the packets to the chunk filter.
- */
-static ssize getChunkPacketSize(HttpConn *conn, MprBuf *buf)
-{
-    HttpRx      *rx;
-    char        *start, *cp;
-    ssize       size, need;
-
-    rx = conn->rx;
-    need = 0;
-
-    switch (rx->chunkState) {
-    case HTTP_CHUNK_DATA:
-        need = (ssize) min(MAXSSIZE, rx->remainingContent);
-        if (need != 0) {
-            break;
-        }
-        /* Fall through */
-
-    case HTTP_CHUNK_START:
-        start = mprGetBufStart(buf);
-        if (mprGetBufLength(buf) < 3) {
-            return 0;
-        }
-        if (start[0] != '\r' || start[1] != '\n') {
-            httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
-            return 0;
-        }
-        for (cp = &start[2]; cp < (char*) buf->end && *cp != '\n'; cp++) {}
-        if ((cp - start) < 2 || (cp[-1] != '\r' || cp[0] != '\n')) {
-            /* Insufficient data */
-            if ((cp - start) > 80) {
-                httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
-                return 0;
-            }
-            return 0;
-        }
-        need = (cp - start + 1);
-        size = (ssize) stoi(&start[2], 16, NULL);
-        if (size == 0 && &cp[2] < buf->end && cp[1] == '\r' && cp[2] == '\n') {
-            /*
-                This is the last chunk (size == 0). Now need to consume the trailing "\r\n".
-                We are lenient if the request does not have the trailing "\r\n" as required by the spec.
-             */
-            need += 2;
-        }
-        break;
-
-    default:
-        mprAssert(0);
-    }
-#if UNUSED
-    rx->remainingContent = need;
-#endif
-    return need;
-}
-
-
 bool httpContentNotModified(HttpConn *conn)
 {
     HttpRx      *rx;
@@ -1149,6 +1145,7 @@ bool httpContentNotModified(HttpConn *conn)
             If both checks, the last modification time and etag, claim that the request doesn't need to be
             performed, skip the transfer.
          */
+        mprAssert(tx->fileInfo.valid);
         modified = (MprTime) tx->fileInfo.mtime * MPR_TICKS_PER_SEC;
         same = httpMatchModified(conn, modified) && httpMatchEtag(conn, tx->etag);
         if (tx->outputRanges && !same) {
@@ -1212,37 +1209,39 @@ cchar *httpGetHeader(HttpConn *conn, cchar *key)
 }
 
 
-char *httpGetHeaders(HttpConn *conn)
+char *httpGetHeadersFromHash(MprHash *hash)
 {
-    HttpRx      *rx;
-    MprHash     *hp;
-    char        *headers, *key, *cp;
+    MprKey      *kp;
+    char        *headers, *cp;
     ssize       len;
 
-    if (conn->rx == 0) {
-        mprAssert(conn->rx);
+    for (len = 0, kp = 0; (kp = mprGetNextKey(hash, kp)) != 0; ) {
+        len += strlen(kp->key) + 2 + strlen(kp->data) + 1;
+    }
+    if ((headers = mprAlloc(len + 1)) == 0) {
         return 0;
     }
-    rx = conn->rx;
-    headers = 0;
-    for (len = 0, hp = mprGetFirstKey(rx->headers); hp; ) {
-        headers = srejoin(headers, hp->key, NULL);
-        key = &headers[len];
-        for (cp = &key[1]; *cp; cp++) {
-            *cp = tolower((int) *cp);
-            if (*cp == '-') {
-                cp++;
-            }
-        }
-        headers = srejoin(headers, ": ", hp->data, "\n", NULL);
-        len = strlen(headers);
-        hp = mprGetNextKey(rx->headers, hp);
+    for (kp = 0, cp = headers; (kp = mprGetNextKey(hash, kp)) != 0; ) {
+        strcpy(cp, kp->key);
+        cp += strlen(cp);
+        *cp++ = ':';
+        *cp++ = ' ';
+        strcpy(cp, kp->data);
+        cp += strlen(cp);
+        *cp++ = '\n';
     }
+    *cp = '\0';
     return headers;
 }
 
 
-MprHashTable *httpGetHeaderHash(HttpConn *conn)
+char *httpGetHeaders(HttpConn *conn)
+{
+    return httpGetHeadersFromHash(conn->rx->headers);
+}
+
+
+MprHash *httpGetHeaderHash(HttpConn *conn)
 {
     if (conn->rx == 0) {
         mprAssert(conn->rx);
@@ -1270,63 +1269,21 @@ char *httpGetStatusMessage(HttpConn *conn)
 }
 
 
-int httpMapToStorage(HttpConn *conn)
+void httpSetMethod(HttpConn *conn, cchar *method)
 {
-    HttpRx      *rx;
-    HttpTx      *tx;
-    HttpHost    *host;
-    MprPath     *info, ginfo;
-    char        *gfile;
-
-    rx = conn->rx;
-    tx = conn->tx;
-    host = conn->host;
-    info = &tx->fileInfo;
-
-    rx->alias = httpGetAlias(host, rx->pathInfo);
-    tx->filename = httpMakeFilename(conn, rx->alias, rx->pathInfo, 1);
-    tx->extension = httpGetExtension(conn);
-
-    if ((rx->dir = httpLookupBestDir(host, tx->filename)) == 0) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing directory block for \"%s\"", tx->filename);
-        return MPR_ERR_CANT_ACCESS;
-    }
-    if (rx->dir->auth) {
-        rx->auth = rx->dir->auth;
-    }
-    if ((rx->loc = httpLookupBestLocation(host, rx->pathInfo)) == 0) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Missing location block for \"%s\"", rx->pathInfo);
-        return MPR_ERR_CANT_ACCESS;
-    }
-    if (rx->auth == 0) {
-        rx->auth = rx->loc->auth;
-    }
-    mprGetPathInfo(tx->filename, info);
-    if (!info->valid && rx->acceptEncoding && strstr(rx->acceptEncoding, "gzip") != 0) {
-        gfile = mprAsprintf("%s.gz", tx->filename);
-        if (mprGetPathInfo(gfile, &ginfo) == 0) {
-            tx->filename = gfile;
-            tx->fileInfo = ginfo;
-            httpSetHeader(conn, "Content-Encoding", "gzip");
-        }
-    }
-    if (info->valid) {
-        tx->etag = mprAsprintf("\"%x-%Lx-%Lx\"", info->inode, info->size, info->mtime);
-    }
-    mprLog(5, "Request Details: uri \"%s\"", rx->uri);
-    mprLog(5, "Filename: \"%s\", extension: \"%s\"", tx->filename, tx->extension);
-    mprLog(5, "Location: \"%s\", alias: \"%s\" => \"%s\"", rx->loc->prefix, rx->alias->prefix, rx->alias->filename);
-    mprLog(5, "Auth: \"%s\"", authTypes[rx->auth->type]);
-    return 0;
+    conn->rx->method = sclone(method);
+    parseMethod(conn);
 }
 
 
 int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
 {
     HttpRx      *rx;
+    HttpTx      *tx;
     HttpUri     *prior;
 
     rx = conn->rx;
+    tx = conn->tx;
     prior = rx->parsedUri;
 
     if ((rx->parsedUri = httpCreateUri(uri, 0)) == 0) {
@@ -1352,7 +1309,7 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
     rx->uri = rx->parsedUri->path;
     rx->pathInfo = httpNormalizeUriPath(mprUriDecode(rx->parsedUri->path));
     rx->scriptName = mprEmptyString();
-    httpMapToStorage(conn);
+    tx->ext = httpGetExt(conn);
     return 0;
 }
 
@@ -1365,17 +1322,17 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 
 
 /*
-    Wait for an Http event until the http reaches a specified state or a timeout expires
+    Wait for an I/O event. There are two modes:
+      - Wait for just one event (set state to zero)
+      - Wait until the given state is achieved
     If timeout is zero, then wait forever. If set to < 0, then use default inactivity and duration timeouts. 
-    If state is zero, it waits for just one event.
+    This routine will process buffered input.
  */
 int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
-    Http        *http;
     MprTime     mark, remaining, inactivityTimeout;
-    int         eventMask, addedHandler, saveAsync, justOne, workDone;
+    int         eventMask, saveAsync, justOne, workDone;
 
-    http = conn->http;
     if (state == 0) {
         state = HTTP_STATE_COMPLETE;
         justOne = 1;
@@ -1389,6 +1346,9 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     if (conn->input && httpGetPacketLength(conn->input) > 0) {
         httpProcess(conn, conn->input);
     }
+    if (conn->error) {
+        return MPR_ERR_BAD_STATE;
+    }
     mark = mprGetTime();
     if (mprGetDebugMode()) {
         inactivityTimeout = timeout = MPR_MAX_TIMEOUT;
@@ -1399,33 +1359,30 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         }
     }
     saveAsync = conn->async;
-    addedHandler = 0;
+    conn->async = 1;
 
+    eventMask = MPR_READABLE;
+    if (!conn->connectorComplete) {
+        eventMask |= MPR_WRITABLE;
+    }
+    if (conn->waitHandler == 0) {
+        conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, waitHandler, conn, 0);
+    } else {
+        mprWaitOn(conn->waitHandler, eventMask);
+    }
     remaining = timeout;
-    while (!conn->error && conn->state < state) {
-        if (conn->waitHandler == 0) {
-            conn->async = 1;
-            eventMask = MPR_READABLE;
-            if (!conn->writeComplete) {
-                eventMask |= MPR_WRITABLE;
-            }
-            conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, waitHandler, conn, 0);
-            addedHandler = 1;
-        }
+    do {
         workDone = httpServiceQueues(conn);
-        mprWaitForEvent(conn->dispatcher, min(inactivityTimeout, remaining));
-        if (justOne || (conn->sock && mprIsSocketEof(conn->sock) && !workDone)) {
+        if (conn->state < state) {
+            mprWaitForEvent(conn->dispatcher, min(inactivityTimeout, remaining));
+        }
+        if (conn->sock && mprIsSocketEof(conn->sock) && !workDone) {
             break;
         }
-        if ((remaining = mprGetRemainingTime(mark, timeout)) <= 0) {
-            break;
-        }
-    }
-    if (addedHandler && conn->waitHandler) {
-        mprRemoveWaitHandler(conn->waitHandler);
-        conn->waitHandler = 0;
-        conn->async = saveAsync;
-    }
+        remaining = mprGetRemainingTime(mark, timeout);
+    } while (!justOne && !conn->error && conn->state < state && remaining > 0);
+
+    conn->async = saveAsync;
     if (conn->sock == 0 || conn->error) {
         return MPR_ERR_CANT_CONNECT;
     }
@@ -1549,19 +1506,15 @@ bool httpMatchModified(HttpConn *conn, MprTime time)
  */
 static bool parseRange(HttpConn *conn, char *value)
 {
-    HttpRx      *rx;
     HttpTx      *tx;
     HttpRange   *range, *last, *next;
     char        *tok, *ep;
 
-    rx = conn->rx;
     tx = conn->tx;
-
     value = sclone(value);
     if (value == 0) {
         return 0;
     }
-
     /*  
         Step over the "bytes="
      */
@@ -1576,7 +1529,7 @@ static bool parseRange(HttpConn *conn, char *value)
          */
         tok = stok(value, ",", &value);
         if (*tok != '-') {
-            range->start = (ssize) stoi(tok, 10, NULL);
+            range->start = (ssize) stoi(tok);
         } else {
             range->start = -1;
         }
@@ -1587,7 +1540,7 @@ static bool parseRange(HttpConn *conn, char *value)
                 /*
                     End is one beyond the range. Makes the math easier.
                  */
-                range->end = (ssize) stoi(ep, 10, NULL) + 1;
+                range->end = (ssize) stoi(ep) + 1;
             }
         }
         if (range->start >= 0 && range->end >= 0) {
@@ -1654,32 +1607,115 @@ cvoid *httpGetStageData(HttpConn *conn, cchar *key)
 }
 
 
-char *httpMakeFilename(HttpConn *conn, HttpAlias *alias, cchar *url, bool skipAliasPrefix)
+char *httpGetPathExt(cchar *path)
 {
-    cchar   *seps;
-    char    *path;
-    int     len;
+    char    *ep, *ext;
 
-    mprAssert(alias);
-    mprAssert(url);
+    if ((ext = strrchr(path, '.')) != 0) {
+        ext = sclone(++ext);
+        for (ep = ext; *ep && isalnum((int)*ep); ep++) {
+            ;
+        }
+        *ep = '\0';
+    }
+    return ext;
+}
 
-    if (skipAliasPrefix) {
-        url += alias->prefixLen;
+
+/*
+    Get the request extension. Look first at the URI pathInfo. If no extension, look at the filename if defined.
+    Return NULL if no extension.
+ */
+char *httpGetExt(HttpConn *conn)
+{
+    HttpRx  *rx;
+    char    *ext;
+
+    rx = conn->rx;
+    if ((ext = httpGetPathExt(rx->pathInfo)) == 0) {
+        if (conn->tx->filename) {
+            ext = httpGetPathExt(conn->tx->filename);
+        }
     }
-    while (*url == '/') {
-        url++;
+    return ext;
+}
+
+
+static int compareLang(char **s1, char **s2)
+{
+    return scmp(*s1, *s2);
+}
+
+
+HttpLang *httpGetLanguage(HttpConn *conn, MprHash *spoken, cchar *defaultLang)
+{
+    HttpRx      *rx;
+    HttpLang    *lang;
+    MprList     *list;
+    cchar       *accept;
+    char        *nextTok, *tok, *quality, *language;
+    int         next;
+
+    rx = conn->rx;
+    if (rx->lang) {
+        return rx->lang;
     }
-    len = (int) strlen(alias->filename);
-    if ((path = mprAlloc(len + strlen(url) + 2)) == 0) {
+    if (spoken == 0) {
         return 0;
     }
-    strcpy(path, alias->filename);
-    if (*url) {
-        seps = mprGetPathSeparators(path);
-        path[len++] = seps[0];
-        strcpy(&path[len], url);
+    list = mprCreateList(-1, 0);
+    if ((accept = httpGetHeader(conn, "Accept-Language")) != 0) {
+        for (tok = stok(sclone(accept), ",", &nextTok); tok; tok = stok(nextTok, ",", &nextTok)) {
+            language = stok(tok, ";", &quality);
+            if (quality == 0) {
+                quality = "1";
+            }
+            mprAddItem(list, sfmt("%03d %s", (int) (atof(quality) * 100), language));
+        }
+        mprSortList(list, compareLang);
+        for (next = 0; (language = mprGetNextItem(list, &next)) != 0; ) {
+            if ((lang = mprLookupKey(rx->route->languages, &language[4])) != 0) {
+                rx->lang = lang;
+                return lang;
+            }
+        }
     }
-    return mprGetNativePath(path);
+    if (defaultLang && (lang = mprLookupKey(rx->route->languages, defaultLang)) != 0) {
+        rx->lang = lang;
+        return lang;
+    }
+    return 0;
+}
+
+
+/*
+    Trim extra path information after the uri extension. This is used by CGI and PHP only. The strategy is to 
+    heuristically find the script name in the uri. This is assumed to be the original uri up to and including 
+    first path component containing a "." Any path information after that is regarded as extra path.
+    WARNING: Extra path is an old, unreliable, CGI specific technique. Do not use directories with embedded periods.
+ */
+void httpTrimExtraPath(HttpConn *conn)
+{
+    HttpRx      *rx;
+    char        *cp, *extra;
+    ssize       len;
+
+    rx = conn->rx;
+    if (!(rx->flags & (HTTP_OPTIONS | HTTP_TRACE))) { 
+        if ((cp = strchr(rx->pathInfo, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
+            len = extra - rx->pathInfo;
+            if (0 < len && len < slen(rx->pathInfo)) {
+                rx->extraPath = sclone(&rx->pathInfo[len]);
+                rx->pathInfo[len] = '\0';
+            }
+        }
+        if ((cp = strchr(rx->target, '.')) != 0 && (extra = strchr(cp, '/')) != 0) {
+            len = extra - rx->target;
+            if (0 < len && len < slen(rx->target)) {
+                rx->target[len] = '\0';
+            }
+        }
+    }
 }
 
 
@@ -1699,7 +1735,7 @@ char *httpMakeFilename(HttpConn *conn, HttpAlias *alias, cchar *url, bool skipAl
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -1708,7 +1744,7 @@ char *httpMakeFilename(HttpConn *conn, HttpAlias *alias, cchar *url, bool skipAl
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
+    Software at http://embedthis.com
 
     Local variables:
     tab-width: 4

@@ -46,7 +46,7 @@ endif
 
 include		$(BLD_TOP)/build/make.config
 
-COMPILE     ?= *.c
+COMPILE     ?= *.c *.h
 .PHONY:		test always
 .NOTPARALLEL:
 
@@ -64,7 +64,7 @@ BUILDING_NATIVE := 0
 MAKE			:= $(BLD_MAKE)
 MAKE			?= make
 TEMP			?= /tmp
-ifeq ($(TRACE),)
+ifneq ($(TRACE),1)
     MAKEFLAGS   += -s TRACE=0
 endif
 ifeq ($(findstring TRACE=0,$(MAKEFLAGS)),)
@@ -89,7 +89,9 @@ do [ -d "$$i" ] || continue ;\
             $(MAKE) -S --no-print-directory "DIR=$$dir" PRE=$(PRE) TRACE=$(TRACE) depend ; \
             cd - >/dev/null 2>&1 ; \
         fi ; \
-        [ "$(TRACE)" = 1 ] && echo "cd $$i" ; \
+		if [ "$(TRACE)" = 1 ] ; then \
+            echo $(MAKE) -S -C "$$i" --no-print-directory "DIR=$$dir" PRE=$(PRE) TRACE=$(TRACE) $$T ; \
+        fi ; \
 		$(MAKE) -S -C "$$i" --no-print-directory "DIR=$$dir" PRE=$(PRE) TRACE=$(TRACE) $$T ; \
 		if [ $$? != 0 ] ; then \
 			echo "\# WARNING: Makefile error in `pwd`" ; \
@@ -107,18 +109,20 @@ DO_RECURSE=$(RECURSE)
 #
 ifneq ($(BLD_OS),WIN)
     ifeq ($(BLD_OS),MACOSX)
-        setlibpath = export DYLD_LIBRARY_PATH="$(BLD_BIN_DIR):$(BLD_BUILD_LIB_DIR):$(BLD_BUILD_MOD_DIR)"
+        setlibpath = export DYLD_LIBRARY_PATH="$(BLD_BIN_DIR):$(BLD_BUILD_LIB_DIR)"
     else
-        setlibpath = export LD_LIBRARY_PATH="$(BLD_BIN_DIR):$(BLD_BUILD_LIB_DIR):$(BLD_BUILD_MOD_DIR)"
-    endif
-    ifeq ($(BLD_OS),CYGWIN)
-        export PATH:="$(BLD_TOP)/modules:$(PATH)"
+        setlibpath = export LD_LIBRARY_PATH="$(BLD_BIN_DIR):$(BLD_BUILD_LIB_DIR)"
     endif
 else
 	setlibpath  = true
     CYGWIN      += nodosfilewarning
     export      CYGWIN
 endif
+
+#
+#   Not needed as buildConfig.h supplies this
+#
+#   export PATH:="$(BLD_BUILD_BIN_DIR):$(BLD_BIN_DIR):$(BLD_LIB_DIR):$(PATH)"
 
 ifeq ($(findstring s,$(MAKEFLAGS)),)
     log = true
@@ -127,28 +131,38 @@ else
 endif
 
 lib  = $(patsubst %, $(BLD_LIB_DIR)/lib%$(BLD_LIB),$(1))
-mod  = $(patsubst %, $(BLD_MOD_DIR)/%.mod,$(1))
 vlib = $(patsubst %, $(BLD_LIB_DIR)/lib%$(BLD_LIB),$(1))
-
-#vlib = $(patsubst %, $(BLD_LIB_DIR)/lib%-$(BLD_VERSION)$(BLD_LIB),$(1))
-#mod  = $(patsubst %, $(BLD_MOD_DIR)/%-$(BLD_VERSION).mod,$(1))
+mod  = $(patsubst %, $(BLD_LIB_DIR)/%.mod,$(1))
 
 #
 #	Default target
 #
-all: compile
+all: headers compile
+
+$(BUILD_CHECK):
+
+#
+#   Export headers to out/include
+# 
+headers: check $(BUILD_CHECK) headersDirs $(HEADERS) headersExtra
+
+headersDirs:
+	@T=headers ; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
+
+headersAdirs:
+	@T=headers ; D="$(POST_DIRS)" ; $(DO_RECURSE) 
+
+headersExtra:
+
+depend: check $(BUILD_CHECK) dependExtra dependDirs dependCwd dependAfter
+
+check:
+	@mkdir -p $(BLD_OUT_DIR) $(BLD_BIN_DIR) $(BLD_OBJ_DIR) $(BLD_LIB_DIR) $(BLD_INC_DIR)
 
 #
 #	Compile target phases
 #
-compile: check $(BUILD_CHECK) compileFirst compileDirs files compileTargets compileExtra compileAdirs compileFinal
-
-check:
-	@mkdir -p $(BLD_OUT_DIR) $(BLD_BIN_DIR) $(BLD_OBJ_DIR) $(BLD_MOD_DIR) $(BLD_LIB_DIR) $(BLD_INC_DIR)
-
-$(BUILD_CHECK):
-
-files: $(OBJECTS)
+compile: check $(BUILD_CHECK) compileFirst compileDirs $(HEADERS) $(OBJECTS) compileTargets compileExtra compileAdirs compileFinal
 
 compileFirst:
 
@@ -168,17 +182,17 @@ compileAdirs:
 depend: check $(BUILD_CHECK) dependExtra dependDirs dependCwd dependAfter
 
 dependCwd:
-	if [ ! -x $(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) ] ; then \
+	@if [ ! -x $(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) ] ; then \
 		$(MAKE) -S --no-print-directory TRACE=$(TRACE) -C $(BLD_TOP)/build/src tools ; \
 	fi
-	[ "$(TRACE)" = 1 ] && \
+	@[ "$(TRACE)" = 1 ] && \
 	    echo $(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) --out $(BLD_OUT_DIR) $(MAKE_IFLAGS) $(BLD_IFLAGS) \
             $(_IFLAGS) $(DEPEND_FLAGS) $(COMPILE) ; true
-	$(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) --out "$(BLD_OUT_DIR)" \
+	@$(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) --out "$(BLD_OUT_DIR)" \
         $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $(DEPEND_FLAGS) $(COMPILE)
 
 dependDirs:
-	if [ ! -f .makedep ] ; then \
+	@if [ ! -f .makedep ] ; then \
 		echo "  makedep" ; \
 	    cd $(BLD_TOP) >/dev/null 2>&1 ; makedep ; make depend ; cd - >/dev/null 2>&1 ; \
 	fi
@@ -191,71 +205,39 @@ dependAfter:
 #
 #	Run unit tests
 #
-test: $(BUILD_CHECK) testDirs testExtra testExtraExtra testFinal testCleanup
+test: $(BUILD_CHECK) testDirs testPrep testExtra testFinal testCleanup
 
 testDirs:
 	@T=test ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
 
-testExtra testExtraExtra testFinal testCleanup:
-
-
-#
-#	Run load tests
-#
-loadTest: $(BUILD_CHECK) loadTestDirs loadTestExtra
-
-loadTestDirs:
-	@T=loadTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-loadTestExtra:
-
+testPrep testFinal testCleanup:
 
 #
-#	Run memory leak tests
+#   TestExtra is overridable
+#   This rule handles "make test" in the top directory and avoids stepping into extensions.
 #
-leakTest: $(BUILD_CHECK) leakTestDirs leakTestExtra
+testExtra::
+	if [ -x "$(BLD_EJS)" -a "$(DIR)" = "." -a "$(BLD_CROSS)" != 1 ] ; then \
+        if [ -f configure -a -d src ] ; then \
+            $(MAKE) -C src -S --no-print-directory "DIR=." PRE=$(PRE) TRACE=$(TRACE) test-utest ; \
+        else \
+            $(MAKE) -S --no-print-directory "DIR=." PRE=$(PRE) TRACE=$(TRACE) test-utest ; \
+        fi ; \
+    fi
 
-leakTestDirs:
-	@T=leakTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-leakTestExtra:
-
-
-#
-#	Run memory longevity tests
-#
-longevityTest: $(BUILD_CHECK) longevityTestDirs longevityTestExtra
-
-longevityTestDirs:
-	@T=longevityTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-longevityTestExtra:
-
-
-#
-#	Run benchmarks
-#
-bench: $(BUILD_CHECK) benchDirs benchExtra
-
-benchDirs:
-	@T=bench ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-benchExtra:
-
-
-buildFarmTest: $(BUILD_CHECK) buildFarmTestDirs buildFarmTestExtra
-
-buildFarmTestDirs:
-	@T=buildFarmTest ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-buildFarmTestExtra:
-
+test-utest:
+	ulimit -c unlimited ; \
+	$(BLD_EJS) $(BLD_TOOLS_DIR)/utest -v -d $(BUILD_DEPTH) ; \
 
 #
 #	Clean the source tree
 #
 clean: $(BUILD_CHECK) cleanDirs cleanExtra 
 	rm -f $(CLEANIT) $(TARGETS) $(OBJECTS)
+ifeq ($(BLD_OS),WIN)
+	t="$(TARGETS)" ; rm -f $${t//.exe/.pdb} ; rm -f $${t//.dll/.pdb} ; rm -f $${t//.dll/.exp} ; \
+        rm -f $${t//.dll/.lib} ; rm -f $${t//.dll/.lib} ; rm -f $${t//.dll/.def}
+endif
 
 cleanDirs:
 	@T=clean ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
@@ -285,23 +267,31 @@ projectsDirs:
 projectsExtra:
 
 #
-#	Create a redistributable package
+#	Create a redistributable package. Do make package in the top dir to actually make a package.
+#   Other package targets are used to prepare the system for packaging
 #
-package: $(BUILD_CHECK) packagePrepFirst packagePriv packageDirs packageExtra
+package: $(BUILD_CHECK) packageFirst packageDirs packageExtra packageFinal
 
-packagePrepFirst:
-	@T=packagePrep ; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
+packageDirs:
+	@T=package; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
 
-packagePrep:
-
-packagePriv:
+packageFirst:
 
 packageDirs:
 
 packageExtra:
+
+packageFinal:
 
 #
 #	Used to suppress make warning that there is "Nothing to be done for target"
 #
 dummy:
 	true
+
+$(BLD_INC_DIR)/%.h: %.h
+	@if [ "$(TRACE)" = 1 ] ; then echo cp $< $@  ; \
+	else d=$(DIR)/$< ; d=$${d#./} ; $(call log) "[Export]" $$d ; fi
+	@[ -f "$@" ] && chmod +w $@; true
+	@cp $< $@ 
+

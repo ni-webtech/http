@@ -3,76 +3,89 @@ EXPORTS
   HttpStatusCodes
   __pamAuth
   httpAcceptConn
-  httpAddAlias
+  httpAddCache
   httpAddConn
-  httpAddDir
-  httpAddErrorDocument
-  httpAddFilter
+  httpAddEndpoint
   httpAddGroup
-  httpAddHandler
   httpAddHeader
   httpAddHeaderString
+  httpAddHomeRoute
   httpAddHost
-  httpAddHostToServer
-  httpAddLocation
-  httpAddLocationExpiry
-  httpAddLocationExpiryByType
-  httpAddServer
+  httpAddHostToEndpoint
+  httpAddOption
+  httpAddParams
+  httpAddResource
+  httpAddResourceGroup
+  httpAddRoute
+  httpAddRouteCondition
+  httpAddRouteErrorDocument
+  httpAddRouteFilter
+  httpAddRouteHandler
+  httpAddRouteHeader
+  httpAddRouteIndex
+  httpAddRouteLanguageDir
+  httpAddRouteLanguageSuffix
+  httpAddRouteParam
+  httpAddRouteSet
+  httpAddRouteUpdate
   httpAddStage
+  httpAddStaticRoute
   httpAddUploadFile
   httpAddUser
   httpAddUserToGroup
   httpAddUsersToGroup
-  httpAddVars
-  httpAddVarsFromQueue
   httpAdjustPacketEnd
   httpAdjustPacketStart
   httpAppendHeader
   httpAppendHeaderString
   httpAppendQueue
+  httpAssignQueue
+  httpBackupRouteLog
   httpCallEvent
-  httpClearStages
+  httpCheckAuth
+  httpClearRouteStages
   httpCloneHost
   httpClonePacket
   httpCloneStage
   httpCloneUri
   httpCloseConn
   httpCloseRx
-  httpCompareFormVar
   httpCompleteUri
-  httpCompleteWriting
+  httpConfigureNamedVirtualEndpoints
   httpConnTimeout
   httpConnect
+  httpConnectorComplete
   httpConsumeLastRequest
   httpContentNotModified
   httpCreate
-  httpCreateAlias
+  httpCreateAliasRoute
   httpCreateAuth
-  httpCreateBareDir
-  httpCreateCGIVars
-  httpCreateConfiguredServer
+  httpCreateCGIParams
+  httpCreateConfiguredEndpoint
+  httpCreateConfiguredRoute
   httpCreateConn
   httpCreateConnector
   httpCreateDataPacket
-  httpCreateDir
+  httpCreateDefaultRoute
   httpCreateEndPacket
+  httpCreateEndpoint
   httpCreateEntityPacket
   httpCreateFilter
   httpCreateGroup
   httpCreateHandler
   httpCreateHeaderPacket
   httpCreateHost
-  httpCreateInheritedLocation
+  httpCreateInheritedAuth
+  httpCreateInheritedRoute
   httpCreateLimits
-  httpCreateLocation
   httpCreatePacket
   httpCreateQueue
   httpCreateQueueHead
   httpCreateRange
+  httpCreateRoute
   httpCreateRx
   httpCreateRxPipeline
   httpCreateSecret
-  httpCreateServer
   httpCreateStage
   httpCreateTx
   httpCreateTxPipeline
@@ -80,11 +93,16 @@ EXPORTS
   httpCreateUriFromParts
   httpCreateUser
   httpDefaultOutgoingServiceStage
+  httpDefineRoute
+  httpDefineRouteBuiltins
+  httpDefineRouteCondition
+  httpDefineRouteTarget
+  httpDefineRouteUpdate
   httpDestroy
   httpDestroyConn
+  httpDestroyEndpoint
   httpDestroyPipeline
   httpDestroyRx
-  httpDestroyServer
   httpDestroyTx
   httpDisableGroup
   httpDisableQueue
@@ -92,7 +110,6 @@ EXPORTS
   httpDiscardData
   httpDiscardTransmitData
   httpDisconnect
-  httpDontCache
   httpEaseLimits
   httpEnableConnEvents
   httpEnableGroup
@@ -102,17 +119,20 @@ EXPORTS
   httpEnableUser
   httpError
   httpEvent
+  httpFileExists
+  httpFilterChunkData
   httpFinalize
-  httpFinalizeLocation
+  httpFinalizeRoute
   httpFindPreviousQueue
   httpFlush
   httpFlushQueue
   httpFollowRedirects
-  httpFormatBody
   httpFormatError
-  httpFormatErrorV
+  httpFormatResponse
+  httpFormatResponseBody
+  httpFormatResponseError
+  httpFormatResponsev
   httpFormatUri
-  httpGetAlias
   httpGetAsync
   httpGetChunkSize
   httpGetConnContext
@@ -123,40 +143,51 @@ EXPORTS
   httpGetDateString
   httpGetDefaultClientHost
   httpGetDefaultClientPort
+  httpGetEndpointContext
   httpGetError
-  httpGetExtension
-  httpGetFirstServer
-  httpGetFormVar
+  httpGetExt
+  httpGetFilePassword
+  httpGetFirstEndpoint
   httpGetGroupAcl
-  httpGetHandlerByExtension
   httpGetHeader
   httpGetHeaderHash
   httpGetHeaders
-  httpGetIntFormVar
-  httpGetNativePassword
+  httpGetHeadersFromHash
+  httpGetHostDefaultRoute
+  httpGetIntParam
+  httpGetLanguage
   httpGetNextQueueForService
+  httpGetOption
+  httpGetOptionHash
+  httpGetOptions
   httpGetPacket
+  httpGetParam
+  httpGetParams
+  httpGetParamsString
+  httpGetPathExt
   httpGetQueryString
   httpGetQueueData
   httpGetQueueRoom
   httpGetRelativeUri
-  httpGetServerAsync
-  httpGetServerContext
+  httpGetRouteData
+  httpGetRouteDir
+  httpGetRouteMethods
   httpGetStageData
   httpGetStatus
   httpGetStatusMessage
+  httpGraduateLimits
   httpHandleOptionsTrace
+  httpHasNamedVirtualHosts
   httpInitAuth
   httpInitLimits
-  httpInitLocation
   httpInitQueue
   httpInitSchedulerQueue
   httpInitTrace
   httpInsertQueue
+  httpIsEndpointAsync
   httpIsEof
   httpIsFinalized
   httpIsGroupEnabled
-  httpIsNamedVirtualServer
   httpIsPacketTooBig
   httpIsQueueEmpty
   httpIsUserEnabled
@@ -165,36 +196,39 @@ EXPORTS
   httpJoinPackets
   httpJoinUri
   httpJoinUriPath
+  httpLink
   httpLoadSsl
-  httpLookupAlias
-  httpLookupBestDir
-  httpLookupBestLocation
-  httpLookupDir
-  httpLookupErrorDocument
+  httpLogRequest
+  httpLogRoutes
+  httpLookupEndpoint
   httpLookupHost
-  httpLookupLocation
-  httpLookupServer
+  httpLookupHostOnEndpoint
+  httpLookupRoute
+  httpLookupRouteErrorDocument
   httpLookupStage
+  httpLookupStageData
   httpLookupStatus
-  httpMakeFilename
   httpMakePath
   httpMakeUriLocal
   httpManageTrace
-  httpMapToStorage
+  httpMapFile
   httpMatchEtag
-  httpMatchHandler
   httpMatchHost
   httpMatchModified
+  httpMatchParam
+  httpMatchRoute
+  httpMemoryError
   httpNeedRetry
   httpNormalizeUri
   httpNormalizeUriPath
   httpOmitBody
-  httpOpenAuthFilter
+  httpOpenCacheHandler
   httpOpenChunkFilter
   httpOpenNetConnector
   httpOpenPassHandler
   httpOpenQueue
   httpOpenRangeFilter
+  httpOpenRouteLog
   httpOpenSendConnector
   httpOpenUploadFilter
   httpParseAcl
@@ -204,6 +238,9 @@ EXPORTS
   httpProcessPipeline
   httpPutBackPacket
   httpPutForService
+  httpPutPacket
+  httpPutPacketToNext
+  httpPutPackets
   httpRead
   httpReadGroupFile
   httpReadString
@@ -211,36 +248,35 @@ EXPORTS
   httpRedirect
   httpRemoveAllUploadedFiles
   httpRemoveConn
+  httpRemoveEndpoint
   httpRemoveGroup
   httpRemoveHeader
   httpRemoveHost
+  httpRemoveOption
   httpRemoveQueue
-  httpRemoveServer
   httpRemoveUploadFile
   httpRemoveUser
   httpRemoveUserFromGroup
   httpRemoveUsersFromGroup
-  httpReplaceReferences
   httpResetCredentials
   httpResetHandlers
-  httpResetPipeline
+  httpResetRoutePipeline
+  httpResetRoutes
   httpResizePacket
   httpResolveUri
+  httpRouteRequest
   httpScheduleQueue
-  httpSecureServer
-  httpSecureServerByName
+  httpSecureEndpoint
+  httpSecureEndpointByName
+  httpSendClose
   httpSendOpen
   httpSendOutgoingService
-  httpSendPacket
-  httpSendPacketToNext
-  httpSendPackets
   httpServiceQueue
   httpServiceQueues
   httpSetAsync
   httpSetAuthAllow
   httpSetAuthAnyValidUser
   httpSetAuthDeny
-  httpSetAuthGroup
   httpSetAuthOrder
   httpSetAuthQop
   httpSetAuthRealm
@@ -251,57 +287,65 @@ EXPORTS
   httpSetConnContext
   httpSetConnHost
   httpSetConnNotifier
-  httpSetConnector
   httpSetContentLength
+  httpSetContentType
   httpSetContext
   httpSetCookie
   httpSetCredentials
   httpSetDefaultClientHost
   httpSetDefaultClientPort
-  httpSetDirIndex
-  httpSetDirPath
+  httpSetEndpointAddress
+  httpSetEndpointAsync
+  httpSetEndpointContext
+  httpSetEndpointNotifier
   httpSetEntityLength
   httpSetForkCallback
-  httpSetFormVar
   httpSetGroupAcl
-  httpSetHandler
+  httpSetHasNamedVirtualHosts
   httpSetHeader
   httpSetHeaderString
   httpSetHeadersCallback
-  httpSetHostDocumentRoot
-  httpSetHostLogRotation
+  httpSetHostDefaultRoute
+  httpSetHostHome
+  httpSetHostIpAddr
   httpSetHostName
   httpSetHostProtocol
-  httpSetHostServerRoot
-  httpSetHostTrace
-  httpSetHostTraceFilter
   httpSetIOCallback
-  httpSetIntFormVar
+  httpSetIntParam
   httpSetKeepAliveCount
   httpSetListenCallback
-  httpSetLocationAlias
-  httpSetLocationAuth
-  httpSetLocationAutoDelete
-  httpSetLocationFlags
-  httpSetLocationPrefix
-  httpSetLocationScript
-  httpSetLocationWorkers
-  httpSetMatchCallback
-  httpSetMimeType
-  httpSetNamedVirtualServer
-  httpSetNamedVirtualServers
+  httpSetMethod
+  httpSetOption
+  httpSetParam
   httpSetPipelineHandler
   httpSetProtocol
   httpSetProxy
   httpSetRequiredAcl
-  httpSetResponseBody
+  httpSetResponded
   httpSetRetries
+  httpSetRouteAuth
+  httpSetRouteAutoDelete
+  httpSetRouteCompression
+  httpSetRouteConnector
+  httpSetRouteData
+  httpSetRouteDefaultLanguage
+  httpSetRouteDir
+  httpSetRouteFlags
+  httpSetRouteHandler
+  httpSetRouteHost
+  httpSetRouteLogFormat
+  httpSetRouteMethods
+  httpSetRouteName
+  httpSetRoutePathVar
+  httpSetRoutePattern
+  httpSetRoutePrefix
+  httpSetRouteScript
+  httpSetRouteSource
+  httpSetRouteTarget
+  httpSetRouteTemplate
+  httpSetRouteTraceFilter
+  httpSetRouteWorkers
   httpSetSendConnector
-  httpSetServerAddress
-  httpSetServerAsync
-  httpSetServerContext
-  httpSetServerLocation
-  httpSetServerNotifier
   httpSetSoftware
   httpSetStageData
   httpSetState
@@ -310,28 +354,40 @@ EXPORTS
   httpSetUniqueConnLimits
   httpSetUri
   httpSetWriteBlocked
-  httpSetupTrace
   httpShouldTrace
   httpSplitPacket
+  httpStartEndpoint
+  httpStartHost
   httpStartPipeline
-  httpStartServer
-  httpStopServer
-  httpTestFormVar
+  httpStartRoute
+  httpStopEndpoint
+  httpStopHost
+  httpStopRoute
+  httpTemplate
+  httpTestParam
+  httpTokenize
+  httpTokenizev
   httpTraceContent
+  httpTrimExtraPath
+  httpUpdateCache
   httpUpdateUserAcls
   httpUriToString
   httpUsePrimary
   httpUseWorker
+  httpValidateFileCredentials
   httpValidateLimits
-  httpValidateNativeCredentials
+  httpVerifyQueue
   httpWait
   httpWillNextQueueAcceptPacket
   httpWillNextQueueAcceptSize
   httpWritable
   httpWrite
   httpWriteBlock
+  httpWriteCached
   httpWriteGroupFile
   httpWriteHeaders
+  httpWriteRouteLog
+  httpWriteSafeString
   httpWriteString
   httpWriteUploadData
   httpWriteUserFile

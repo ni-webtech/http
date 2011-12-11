@@ -1,9 +1,8 @@
 /*
- *  upload.tst - Test http upload
+    upload.tst - Test http upload
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Upload files
 data = run("--upload http/*.tst /upload.ejs")

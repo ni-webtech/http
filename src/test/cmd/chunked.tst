@@ -1,9 +1,8 @@
 /*
- *  chunked.tst - Test chunked transfers
+    chunked.tst - Test chunked transfers
  */
 
-require ejs.test
-load("http/support.es")
+load("support.es")
 
 //  Chunked get
 data = run("--chunk 256 /big.txt")

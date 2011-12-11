@@ -17,6 +17,7 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet);
 static void adjustNetVec(HttpQueue *q, ssize written);
 static MprOff buildNetVec(HttpQueue *q);
 static void freeNetPackets(HttpQueue *q, ssize written);
+static void netClose(HttpQueue *q);
 static void netOutgoingService(HttpQueue *q);
 
 /*********************************** Code *************************************/
@@ -31,9 +32,22 @@ int httpOpenNetConnector(Http *http)
     if ((stage = httpCreateConnector(http, "netConnector", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
+    stage->close = netClose;
     stage->outgoingService = netOutgoingService;
     http->netConnector = stage;
     return 0;
+}
+
+
+static void netClose(HttpQueue *q)
+{
+    HttpTx      *tx;
+
+    tx = q->conn->tx;
+    if (tx->file) {
+        mprCloseFile(tx->file);
+        tx->file = 0;
+    }
 }
 
 
@@ -47,10 +61,10 @@ static void netOutgoingService(HttpQueue *q)
     conn = q->conn;
     tx = conn->tx;
     conn->lastActivity = conn->http->now;
+    mprAssert(conn->sock);
+    mprAssert(!conn->connectorComplete);
     
-    if (conn->sock == 0 || conn->writeComplete) {
-        /* TODO - Should never happen */
-        mprAssert(conn->sock && !conn->writeComplete);
+    if (!conn->sock || conn->connectorComplete) {
         return;
     }
     if (tx->flags & HTTP_TX_NO_BODY) {
@@ -58,9 +72,9 @@ static void netOutgoingService(HttpQueue *q)
     }
     if ((tx->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
         httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE | ((tx->bytesWritten) ? HTTP_ABORT : 0),
-            "Http transmission aborted. Exceeded transmission max body of %d bytes", conn->limits->transmissionBodySize);
+            "Http transmission aborted. Exceeded transmission max body of %,Ld bytes", conn->limits->transmissionBodySize);
         if (tx->bytesWritten) {
-            httpCompleteWriting(conn);
+            httpConnectorComplete(conn);
             return;
         }
     }
@@ -70,6 +84,7 @@ static void netOutgoingService(HttpQueue *q)
             if (tx->flags & HTTP_TX_HEADERS_CREATED) {
                 tx->flags &= ~HTTP_TX_SENDFILE;
             } else {
+                tx->connector = conn->http->sendConnector;
                 httpSendOpen(q);
             }
         }
@@ -99,7 +114,7 @@ static void netOutgoingService(HttpQueue *q)
                 LOG(5, "netOutgoingService write failed, error %d", errCode);
             }
             httpError(conn, HTTP_ABORT | HTTP_CODE_COMMS_ERROR, "Write error %d", errCode);
-            httpCompleteWriting(conn);
+            httpConnectorComplete(conn);
             break;
 
         } else if (written == 0) {
@@ -115,7 +130,7 @@ static void netOutgoingService(HttpQueue *q)
     }
     if (q->ioCount == 0) {
         if ((q->flags & HTTP_QUEUE_EOF)) {
-            httpCompleteWriting(conn);
+            httpConnectorComplete(conn);
         } else {
             httpWritable(conn);
         }
@@ -199,7 +214,7 @@ static void addPacketForNet(HttpQueue *q, HttpPacket *packet)
         addToNetVector(q, mprGetBufStart(packet->content), mprGetBufLength(packet->content));
     }
     item = (packet->flags & HTTP_PACKET_HEADER) ? HTTP_TRACE_HEADER : HTTP_TRACE_BODY;
-    if (httpShouldTrace(conn, HTTP_TRACE_TX, item, tx->extension) >= 0) {
+    if (httpShouldTrace(conn, HTTP_TRACE_TX, item, tx->ext) >= 0) {
         httpTraceContent(conn, HTTP_TRACE_TX, item, packet, 0, (ssize) tx->bytesWritten);
     }
 }
@@ -213,7 +228,7 @@ static void freeNetPackets(HttpQueue *q, ssize bytes)
     mprAssert(q->count >= 0);
     mprAssert(bytes >= 0);
 
-    while ((packet = q->first) != 0) {
+    while (bytes > 0 && (packet = q->first) != 0) {
         if (packet->prefix) {
             len = mprGetBufLength(packet->prefix);
             len = min(len, bytes);
@@ -238,10 +253,12 @@ static void freeNetPackets(HttpQueue *q, ssize bytes)
              */
             httpGetPacket(q);
         }
+#if UNUSED
         mprAssert(bytes >= 0);
         if (bytes == 0 && (q->first == NULL || !(q->first->flags & HTTP_PACKET_END))) {
             break;
         }
+#endif
     }
 }
 
@@ -309,7 +326,7 @@ static void adjustNetVec(HttpQueue *q, ssize written)
     under the terms of the GNU General Public License as published by the
     Free Software Foundation; either version 2 of the License, or (at your
     option) any later version. See the GNU General Public License for more
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
 
     This program is distributed WITHOUT ANY WARRANTY; without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -318,7 +335,7 @@ static void adjustNetVec(HttpQueue *q, ssize written)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses
     for this software and support services are available from Embedthis
-    Software at http://www.embedthis.com
+    Software at http://embedthis.com
 
     Local variables:
     tab-width: 4

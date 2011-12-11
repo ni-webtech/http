@@ -33,24 +33,10 @@ HttpQueue *httpCreateQueue(HttpConn *conn, HttpStage *stage, int dir, HttpQueue 
     if ((q = mprAllocObj(HttpQueue, manageQueue)) == 0) {
         return 0;
     }
+    q->conn = conn;
     httpInitQueue(conn, q, stage->name);
     httpInitSchedulerQueue(q);
-
-    q->conn = conn;
-    q->stage = stage;
-    q->close = stage->close;
-    q->open = stage->open;
-    q->start = stage->start;
-    q->direction = dir;
-
-    if (dir == HTTP_QUEUE_TX) {
-        q->put = stage->outgoingData;
-        q->service = stage->outgoingService;
-        
-    } else {
-        q->put = stage->incomingData;
-        q->service = stage->incomingService;
-    }
+    httpAssignQueue(q, stage, dir);
     if (prev) {
         httpInsertQueue(prev, q);
     }
@@ -64,24 +50,41 @@ static void manageQueue(HttpQueue *q, int flags)
 
     if (flags & MPR_MANAGE_MARK) {
         mprMark(q->owner);
-        mprMark(q->stage);
-        mprMark(q->conn);
-        mprMark(q->nextQ);
-        mprMark(q->prevQ);
-        mprMark(q->scheduleNext);
-        mprMark(q->schedulePrev);
-        mprMark(q->pair);
-        mprMark(q->last);
-        mprMark(q->queueData);
         for (packet = q->first; packet; packet = packet->next) {
             mprMark(packet);
         }
+        mprMark(q->last);
+        mprMark(q->nextQ);
+        mprMark(q->prevQ);
+        mprMark(q->stage);
+        mprMark(q->conn);
+        mprMark(q->scheduleNext);
+        mprMark(q->schedulePrev);
+        mprMark(q->pair);
+        mprMark(q->queueData);
         mprMark(q->queueData);
         if (q->nextQ && q->nextQ->stage) {
             /* Not a queue head */
             mprMark(q->nextQ);
         }
     }
+}
+
+
+void httpAssignQueue(HttpQueue *q, HttpStage *stage, int dir)
+{
+    q->stage = stage;
+    q->close = stage->close;
+    q->open = stage->open;
+    q->start = stage->start;
+    if (dir == HTTP_QUEUE_TX) {
+        q->put = stage->outgoingData;
+        q->service = stage->outgoingService;
+    } else {
+        q->put = stage->incomingData;
+        q->service = stage->incomingService;
+    }
+    q->owner = stage->name;
 }
 
 
@@ -117,13 +120,17 @@ void httpDisableQueue(HttpQueue *q)
 
 
 /*  
-    Remove all data from non-header, non-eof packets in the queue. If removePackets is true, actually remove the packet too.
+    Remove all data in the queue. If removePackets is true, actually remove the packet too.
+    This preserves the header and EOT packets.
  */
 void httpDiscardData(HttpQueue *q, bool removePackets)
 {
     HttpPacket  *packet, *prev, *next;
     ssize       len;
 
+    if (q == 0) {
+        return;
+    }
     for (prev = 0, packet = q->first; packet; packet = next) {
         next = packet->next;
         if (packet->flags & (HTTP_PACKET_RANGE | HTTP_PACKET_DATA)) {
@@ -141,6 +148,7 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
                 continue;
             } else {
                 len = httpGetPacketLength(packet);
+                //  MOB - should this be done? Why not in the removePackets case?
                 q->conn->tx->length -= len;
                 q->count -= len;
                 mprAssert(q->count >= 0);
@@ -165,9 +173,7 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
     HttpQueue   *next;
 
     conn = q->conn;
-    LOG(6, "httpFlushQueue blocking %d", blocking);
     mprAssert(conn->sock);
-
     do {
         httpScheduleQueue(q);
         next = q->nextQ;
@@ -275,7 +281,6 @@ int httpOpenQueue(HttpQueue *q, ssize chunkSize)
     }
     if (stage->flags & HTTP_STAGE_UNLOADED && stage->module) {
         module = stage->module;
-        mprLog(2, "Loading module for %s", stage->name);
         module = mprCreateModule(module->name, module->path, module->entry, http);
         if (mprLoadModule(module) < 0) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, "Can't load module %s", module->name);
@@ -288,7 +293,7 @@ int httpOpenQueue(HttpQueue *q, ssize chunkSize)
     }
     q->flags |= HTTP_QUEUE_OPEN;
     if (q->open) {
-        HTTP_TIME(q->conn, q->stage->name, "open", q->stage->open(q));
+        q->stage->open(q);
     }
     return 0;
 }
@@ -306,8 +311,11 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
     ssize       nbytes, len;
 
     q = conn->readq;
-    
-    while (q->count == 0 && !conn->async && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
+    mprAssert(q->count >= 0);
+    mprAssert(size >= 0);
+    mprAssert(httpVerifyQueue(q));
+
+    while (q->count <= 0 && !conn->async && !conn->error && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
         if (conn->sock) {
             httpWait(conn, 0, MPR_TIMEOUT_SOCKETS);
@@ -315,6 +323,7 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
     }
     //  TODO - better place for this?
     conn->lastActivity = conn->http->now;
+    mprAssert(httpVerifyQueue(q));
 
     for (nbytes = 0; size > 0 && q->count > 0; ) {
         if ((packet = q->first) == 0) {
@@ -323,22 +332,27 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
         content = packet->content;
         len = mprGetBufLength(content);
         len = min(len, size);
+        mprAssert(len <= q->count);
         if (len > 0) {
             len = mprGetBlockFromBuf(content, buf, len);
+            mprAssert(len <= q->count);
         }
         buf += len;
         size -= len;
         q->count -= len;
+        mprAssert(q->count >= 0);
         nbytes += len;
         if (mprGetBufLength(content) == 0) {
             httpGetPacket(q);
         }
     }
+    mprAssert(q->count >= 0);
+    mprAssert(httpVerifyQueue(q));
     return nbytes;
 }
 
 
-int httpIsEof(HttpConn *conn) 
+bool httpIsEof(HttpConn *conn) 
 {
     return conn->rx == 0 || conn->rx->eof;
 }
@@ -493,7 +507,7 @@ bool httpWillNextQueueAcceptSize(HttpQueue *q, ssize size)
 
 /*  
     Write a block of data. This is the lowest level write routine for data. This will buffer the data and flush if
-    the queue buffer is full. This will always accept the data but may return with a "short" write.
+    the queue buffer is full. This will always accept the data.
  */
 ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
 {
@@ -506,11 +520,13 @@ ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
                
     conn = q->conn;
     tx = conn->tx;
-    if (tx->finalized) {
+    if (conn->finalized || tx == 0) {
         return MPR_ERR_CANT_WRITE;
     }
+    conn->responded = 1;
+
     for (written = 0; size > 0; ) {
-        LOG(6, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);
+        LOG(7, "httpWriteBlock q_count %d, q_max %d", q->count, q->max);
         if (conn->state >= HTTP_STATE_COMPLETE) {
             return MPR_ERR_CANT_WRITE;
         }
@@ -525,7 +541,7 @@ ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
             if ((packet = httpCreateDataPacket(packetSize)) == 0) {
                 return MPR_ERR_MEMORY;
             }
-            httpPutForService(q, packet, 0);
+            httpPutForService(q, packet, HTTP_DELAY_SERVICE);
         }
         if ((bytes = mprPutBlockToBuf(packet->content, buf, size)) == 0) {
             return MPR_ERR_MEMORY;
@@ -551,17 +567,37 @@ ssize httpWriteString(HttpQueue *q, cchar *s)
 }
 
 
+ssize httpWriteSafeString(HttpQueue *q, cchar *s)
+{
+    s = mprEscapeHtml(s);
+    return httpWriteString(q, s);
+}
+
+
 ssize httpWrite(HttpQueue *q, cchar *fmt, ...)
 {
     va_list     vargs;
     char        *buf;
     
     va_start(vargs, fmt);
-    buf = mprAsprintfv(fmt, vargs);
+    buf = sfmtv(fmt, vargs);
     va_end(vargs);
     return httpWriteString(q, buf);
 }
 
+
+bool httpVerifyQueue(HttpQueue *q)
+{
+    HttpPacket  *packet;
+    ssize       count;
+
+    count = 0;
+    for (packet = q->first; packet; packet = packet->next) {
+        count += httpGetPacketLength(packet);
+    }
+    mprAssert(count <= q->count);
+    return count <= q->count;
+}
 
 /*
     @copy   default
@@ -579,7 +615,7 @@ ssize httpWrite(HttpQueue *q, cchar *fmt, ...)
     under the terms of the GNU General Public License as published by the 
     Free Software Foundation; either version 2 of the License, or (at your 
     option) any later version. See the GNU General Public License for more 
-    details at: http://www.embedthis.com/downloads/gplLicense.html
+    details at: http://embedthis.com/downloads/gplLicense.html
     
     This program is distributed WITHOUT ANY WARRANTY; without even the 
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -588,7 +624,7 @@ ssize httpWrite(HttpQueue *q, cchar *fmt, ...)
     proprietary programs. If you are unable to comply with the GPL, you must
     acquire a commercial license to use this software. Commercial licenses 
     for this software and support services are available from Embedthis 
-    Software at http://www.embedthis.com 
+    Software at http://embedthis.com 
     
     Local variables:
     tab-width: 4

@@ -54,7 +54,21 @@ BLD_HTTP_PRODUCT=1
 BLD_FEATURE_AUTH_FILE=$BLD_FEATURE_AUTH_FILE
 BLD_FEATURE_AUTH_PAM=$BLD_FEATURE_AUTH_PAM
 
+#
+#   Test port configuration
+#
+BLD_HTTP_PORT=$BLD_HTTP_PORT
+BLD_SSL_PORT=$BLD_SSL_PORT
+
 !EOF_FEATURE_CONFIG1
+}
+
+
+emitExtraComponents()
+{
+    local kind
+
+    kind=$1
 }
 
 
@@ -114,6 +128,12 @@ parseArg()
         BLD_FEATURE_MATRIXSSL=0
         BLD_FEATURE_OPENSSL=1
         BLD_FEATURE_SSL=1
+        ;;
+    port=*)
+        BLD_HTTP_PORT=${ARG}
+        ;;
+    sslport=*)
+        BLD_SSL_PORT=${ARG}
         ;;
     *)  
         return 1
