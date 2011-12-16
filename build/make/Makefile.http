@@ -25,11 +25,11 @@ config32:
 wince:
 	./configure --host=arm-ms-wince --shared --without-ssl
 
-vx vx5:
+vx5:
 	unset WIND_HOME WIND_BASE ; \
 	SEARCH_PATH=/tornado ./configure --host=i386-wrs-vxworks --enable-all --without-ssl
 
-vx6:
+vx vx6:
 	unset WIND_HOME WIND_BASE ; \
 	./configure --host=pentium-wrs-vxworks --enable-all --without-ssl
 
