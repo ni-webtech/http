@@ -515,10 +515,8 @@ int httpReadGroupFile(HttpAuth *auth, char *path)
     }
     while ((buf = mprReadLine(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
-        for (cp = enabled; isspace((int) *cp); cp++) {
-            ;
-        }
-        if (*cp == '\0' || *cp == '#') {
+        for (cp = enabled; cp && isspace((int) *cp); cp++) { }
+        if (cp == 0 || *cp == '\0' || *cp == '#') {
             continue;
         }
         aclSpec = stok(NULL, " :\t", &tok);
@@ -548,10 +546,8 @@ int httpReadUserFile(HttpAuth *auth, char *path)
     }
     while ((buf = mprReadLine(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
-        for (cp = enabled; isspace((int) *cp); cp++) {
-            ;
-        }
-        if (*cp == '\0' || *cp == '#') {
+        for (cp = enabled; cp && isspace((int) *cp); cp++) { }
+        if (cp == 0 || *cp == '\0' || *cp == '#') {
             continue;
         }
         user = stok(NULL, ":", &tok);
