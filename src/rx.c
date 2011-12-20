@@ -218,6 +218,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     }
     httpSetState(conn, HTTP_STATE_PARSED);
     if (conn->endpoint && !httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
+        rx->flags |= HTTP_LIMIT_DENIED;
         return 0;
     }
     return 1;

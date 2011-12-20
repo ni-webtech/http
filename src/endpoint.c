@@ -271,10 +271,14 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         break;
 
     case HTTP_VALIDATE_CLOSE_REQUEST:
-        endpoint->requestCount--;
-        mprAssert(endpoint->requestCount >= 0);
-        action = "close request";
-        dir = HTTP_TRACE_TX;
+        if (conn->rx && conn->rx->flags & HTTP_LIMIT_DENIED) {
+            event = 0;
+        } else {
+            endpoint->requestCount--;
+            mprAssert(endpoint->requestCount >= 0);
+            action = "close request";
+            dir = HTTP_TRACE_TX;
+        }
         break;
     }
     if (event == HTTP_VALIDATE_CLOSE_CONN || event == HTTP_VALIDATE_CLOSE_REQUEST) {
@@ -336,7 +340,6 @@ HttpConn *httpAcceptConn(HttpEndpoint *endpoint, MprEvent *event)
     conn->secure = mprIsSocketSecure(sock);
 
     if (!httpValidateLimits(endpoint, HTTP_VALIDATE_OPEN_CONN, conn)) {
-        /* Prevent validate limits from */
         conn->endpoint = 0;
         httpDestroyConn(conn);
         return 0;
