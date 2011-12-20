@@ -422,7 +422,8 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
                 /*
                     Absolute URL. If hostName has a port specifier, it overrides prev->port.
                  */
-                uri = httpFormatUri(prev->scheme, rx->hostHeader, port, target->path, target->reference, target->query, 1);
+                uri = httpFormatUri(prev->scheme, rx->hostHeader, port, target->path, target->reference, target->query, 
+                    HTTP_COMPLETE_URI);
             } else {
                 /*
                     Relative file redirection to a file in the same directory as the previous request.
@@ -433,7 +434,8 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
                     *cp = '\0';
                 }
                 path = sjoin(dir, "/", target->path, NULL);
-                uri = httpFormatUri(prev->scheme, rx->hostHeader, port, path, target->reference, target->query, 1);
+                uri = httpFormatUri(prev->scheme, rx->hostHeader, port, path, target->reference, target->query, 
+                    HTTP_COMPLETE_URI);
             }
             targetUri = uri;
         }

@@ -21,7 +21,8 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
     mprAssert(conn);
 
     http = conn->http;
-    uri = httpCreateUri(url, 0);
+    uri = httpCreateUri(url, HTTP_COMPLETE_URI);
+    conn->tx->parsedUri = uri;
 
     if (uri->secure) {
 #if BLD_FEATURE_SSL
@@ -191,7 +192,6 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     conn->sentCredentials = 0;
 
     conn->tx->method = supper(method);
-    conn->tx->parsedUri = httpCreateUri(url, 0);
 
 #if BLD_DEBUG
     conn->startTime = conn->http->now;
