@@ -2389,7 +2389,7 @@ static void definePathVars(HttpRoute *route)
     mprAddKey(route->pathTokens, "PRODUCT", sclone(BLD_PRODUCT));
     mprAddKey(route->pathTokens, "OS", sclone(BLD_OS));
     mprAddKey(route->pathTokens, "VERSION", sclone(BLD_VERSION));
-    mprAddKey(route->pathTokens, "LIBDIR", mprNormalizePath(sfmt("%s/../%s", mprGetAppDir(), BLD_LIB_NAME))); 
+    mprAddKey(route->pathTokens, "LIBDIR", mprJoinPath(mprGetAppDir(), "../lib"));
     if (route->host) {
         defineHostVars(route);
     }
