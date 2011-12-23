@@ -333,7 +333,7 @@ EXPORTS
   httpSetRouteFlags
   httpSetRouteHandler
   httpSetRouteHost
-  httpSetRouteLogFormat
+  httpSetRouteLog
   httpSetRouteMethods
   httpSetRouteName
   httpSetRoutePathVar
