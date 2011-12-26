@@ -314,7 +314,7 @@ static bool fetchCachedResponse(HttpConn *conn)
             See if a NotModified response can be served. This is much faster than sending the response.
             Observe headers:
                 If-None-Match: "ec18d-54-4d706a63"
-                If-Modified-Since: Fri, 04 Mar 2011 04:28:19 GMT
+                If-Modified-Since: Fri, 04 Mar 2012 04:28:19 GMT
             Set status to OK when content must be transmitted.
          */
         cacheOk = 1;
@@ -561,8 +561,8 @@ static cchar *setHeadersFromCache(HttpConn *conn, cchar *content)
 /*
     @copy   default
     
-    Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2011. All Rights Reserved.
+    Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
+    Copyright (c) Michael O'Brien, 1993-2012. All Rights Reserved.
     
     This software is distributed under commercial and open source licenses.
     You may use the GPL open source license described below or you may acquire 
