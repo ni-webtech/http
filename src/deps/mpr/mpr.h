@@ -274,11 +274,7 @@
     #include    <ioLib.h>
     #include    <pipeDrv.h>
     #include    <hostLib.h>
-#if UNUSED
-    #include    <symSyncLib.h>
-#else
     #include    <symSync.h>
-#endif
     #include    <sysSymTbl.h>
     #include    <sys/fcntlcom.h>
     #include    <tickLib.h>
@@ -1401,7 +1397,9 @@ typedef struct MprArgs {
             int largc = 0; \
             va_start(args, arg0); \
             largv[largc++] = #name; \
-            largv[largc++] = arg0; \
+            if (arg0) { \
+                largv[largc++] = arg0; \
+            } \
             for (argp = va_arg(args, char*); argp && largc < MPR_MAX_ARGC; argp = va_arg(args, char*)) { \
                 largv[largc++] = argp; \
             } \
