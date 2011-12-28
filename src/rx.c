@@ -1318,6 +1318,7 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
 static void waitHandler(HttpConn *conn, struct MprEvent *event)
 {
     httpCallEvent(conn, event->mask);
+    //  MOB -- should not need this signal
     mprSignalDispatcher(conn->dispatcher);
 }
 
