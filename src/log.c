@@ -43,6 +43,7 @@ void httpBackupRouteLog(HttpRoute *route)
 
     mprAssert(route->logBackup);
     mprAssert(route->logSize > 100);
+    lock(route);
     mprGetPathInfo(route->logPath, &info);
     if (info.valid && ((route->logFlags & MPR_LOG_ANEW) || info.size > route->logSize || route->logSize <= 0)) {
         if (route->log) {
@@ -50,7 +51,9 @@ void httpBackupRouteLog(HttpRoute *route)
             route->log = 0;
         }
         mprBackupLog(route->logPath, route->logBackup);
+        route->logFlags &= ~MPR_LOG_ANEW;
     }
+    unlock(route);
 }
 
 
