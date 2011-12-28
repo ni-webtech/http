@@ -45,6 +45,12 @@ void httpBackupRouteLog(HttpRoute *route)
     mprAssert(route->logSize > 100);
 
     lock(route);
+    if (route->parent && route->parent->log == route->log) {
+        httpBackupRouteLog(route->parent);
+        route->log = route->parent->log;
+        unlock(route);
+        return;
+    }
     mprGetPathInfo(route->logPath, &info);
     if (info.valid && ((route->logFlags & MPR_LOG_ANEW) || info.size > route->logSize || route->logSize <= 0)) {
         if (route->log) {
@@ -79,6 +85,7 @@ void httpWriteRouteLog(HttpRoute *route, cchar *buf, ssize len)
 {
     lock(MPR);
     if (route->logBackup > 0) {
+        //  TODO OPT - don't check this on every write
         httpBackupRouteLog(route);
         if (!route->log && !httpOpenRouteLog(route)) {
             unlock(MPR);
