@@ -226,40 +226,26 @@ HttpUri *httpCloneUri(HttpUri *base, int flags)
 {
     HttpUri     *up;
     char        *path, *cp, *tok;
-    int         port;
 
     if ((up = mprAllocObj(HttpUri, manageUri)) == 0) {
         return 0;
     }
-    port = base->port;
     path = base->path;
 
-    if (base->scheme) {
+    if (base->scheme && *base->scheme) {
         up->scheme = sclone(base->scheme);
     } else if (flags & HTTP_COMPLETE_URI) {
         up->scheme = sclone("http");
     }
-    if (base->host) {
-#if UNUSED
-        if (*base->host == '[' && ((cp = strchr(base->host, ']')) != 0)) {
-            up->host = snclone(&base->host[1], (cp - base->host) - 2);
-            if ((cp = schr(++cp, ':')) && port == 0) {
-                port = (int) stoi(++cp);
-            }
-        } else {
-            up->host = sclone(base->host);
-            if ((cp = schr(up->host, ':')) && port == 0) {
-                port = (int) stoi(++cp);
-            }
-        }
-#else
+    if (base->host && *base->host) {
         up->host = sclone(base->host);
-#endif
     } else if (flags & HTTP_COMPLETE_URI) {
-        base->host = sclone("localhost");
+        up->host = sclone("localhost");
     }
-    if (port) {
-        up->port = port;
+    if (base->port) {
+        up->port = base->port;
+    } else if (flags & HTTP_COMPLETE_URI) {
+        up->port = smatch(up->scheme, "https") ? 443 : 80;
     }
     if (path) {
         while (path[0] == '/' && path[1] == '/') {
@@ -340,14 +326,6 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
         if (mprIsIPv6(host) && *host != '[') {
             host = sfmt("[%s]", host);
         }
-#if UNUSED
-        cp = (*host == '[') ? strchr(host, ']') : host;
-        } else {
-            if (strchr(cp, ':')) {
-                port = 0;
-            }
-        }
-#endif
     }
     if (port != 0 && port != getDefaultPort(scheme)) {
         portStr = itos(port);
