@@ -288,15 +288,18 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *pattern, cchar *path, 
 int httpStartRoute(HttpRoute *route)
 {
 #if !BLD_FEATURE_ROMFS
-    if (route->logPath && (!route->parent || route->logPath != route->parent->logPath)) {
-        if (route->logBackup > 0) {
-            httpBackupRouteLog(route);
-        }
-        mprAssert(!route->log);
-        route->log = mprOpenFile(route->logPath, O_CREAT | O_APPEND | O_WRONLY | O_TEXT, 0664);
-        if (route->log == 0) {
-            mprError("Can't open log file %s", route->logPath);
-            return MPR_ERR_CANT_OPEN;
+    if (!(route->flags & HTTP_ROUTE_STARTED)) {
+        route->flags |= HTTP_ROUTE_STARTED;
+        if (route->logPath && (!route->parent || route->logPath != route->parent->logPath)) {
+            if (route->logBackup > 0) {
+                httpBackupRouteLog(route);
+            }
+            mprAssert(!route->log);
+            route->log = mprOpenFile(route->logPath, O_CREAT | O_APPEND | O_WRONLY | O_TEXT, 0664);
+            if (route->log == 0) {
+                mprError("Can't open log file %s", route->logPath);
+                return MPR_ERR_CANT_OPEN;
+            }
         }
     }
 #endif
