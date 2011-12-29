@@ -99,7 +99,8 @@ public function stopService(options = {}) {
 public function startService(cmdline: String, options): Void {
     stopService()
     let pidfile = options.pidfile || PIDFILE
-    let address = Uri(options.address).complete()
+    let address = options.address || App.config.uris.http
+    address = Uri(address).complete()
     if (!App.getenv("NOSERVER")) {
         let cmd = new Cmd
         blend(options, {detach: true})
