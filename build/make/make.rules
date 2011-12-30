@@ -1,13 +1,65 @@
 #
-#	make.rules -- Embedthis Build System rules
+#	make.rules -- Makefile rules. Handles cross compilation
 #
-#	This file expects that the per-directory Makefiles will have included
-#	their .makedep files which will in-turn include buildConfig.h and 
-#	this file.
+#   Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
 #
 ################################################################################
+
+ifneq (,)
+Error. This Makefile requires GNU make.
+endif
+
+log = printf "%12s %s\n"
+
+ifneq ($(TRACE),1)
+    MAKEFLAGS   += -s TRACE=0
+endif
+ifeq ($(findstring TRACE=0,$(MAKEFLAGS)),)
+    TRACE       = 1
+endif
+CROSS := 0
+ifeq ($(BLD_CROSS),1)
+    ifeq ($(BUILDING_CROSS),)
+        CROSS := 1
+    endif
+endif
+
 #
-#	Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
+#	If doing cross-compilation recurse.
+#
+ifeq ($(CROSS),1)
+
+all:
+%::
+	set -e ; \
+    $(call log) "[Notice]" "Building $(BLD_NAME) $(BLD_VERSION). For command details, use \"make TRACE=1\"."; \
+    if [ "$(SKIP_DEV)" = "" ] ; then \
+        $(call log) [Notice] "Building Required Dev Tools for ($(BLD_BUILD_SYSTEM))" ; \
+        $(MAKE) -S --no-print-directory BUILDING_DEV=1 BUILDING_TARGET=0 BUILDING_CROSS=1 $@ ; \
+        [ $$? -ne 0 ] && exit 255 ; echo ; \
+    fi ; \
+    if [ "$(SKIP_TARGET)" = "" ] ; then \
+        $(call log) [Notice] "Building $(BLD_NAME) for ($(BLD_HOST_SYSTEM))" ; \
+        $(MAKE) -S --no-print-directory BUILDING_DEV=0 BUILDING_TARGET=1 BUILDING_CROSS=1 $@ ;\
+        [ $$? -ne 0 ] && exit 255 ; true ; \
+    fi ; \
+    $(call log) "[Notice]" "Operation complete." 
+
+else
+    BUILDING_TARGET ?= 1
+    BUILDING_DEV    ?= 1
+    include $(BLD_TOP)/build/make/make.targets
+    ifeq ($(BUILDING_DEV),1)
+       include $(BLD_TOP)/build/make/make.$(BLD_BUILD_OS)
+    else
+       include $(BLD_TOP)/build/make/make.$(BLD_HOST_OS)
+    endif
+endif
+
+
+################################################################################
+#
+#	Copyright (c) Embedthis Software LLC, 2003-2011. All Rights Reserved.
 #	The latest version of this code is available at http://www.embedthis.com
 #
 #	This software is open source; you can redistribute it and/or modify it 
@@ -25,274 +77,3 @@
 #	commercial license for this software and support services are available
 #	from Embedthis Software at http://www.embedthis.com
 #
-################################################################################
-#
-#	The following Make variables used (among others):
-#
-#		BLD_TOP			Relative path to the top of the source tree
-#		EXPORT_OBJECTS	Create objects in top level object directories. Used 
-#						in buildConfig.h and buildConfig.sh
-#		PRE_DIRS		Directories to recurse before the current directory
-#		POST_DIRS		Directories to recurse after the current directory
-#		MAKE_XXFLAGS    These are specified in user makefiles. Valid for IFLAGS,
-#                       CFLAGS and LDFLAGS
-#       _XXFLAGS        Flags from the make.* per O/S configuration files.
-#
-################################################################################
-
-ifneq (,)
-Error. This Makefile requires GNU make.
-endif
-
-include		$(BLD_TOP)/build/make.config
-
-COMPILE     ?= *.c *.h
-.PHONY:		test always
-.NOTPARALLEL:
-
-#
-#	These exports may be defined by users make files and are passed to bld
-#
-export 	MAKE_CFLAGS MAKE_DFLAGS MAKE_IFLAGS MAKE_LDFLAGS EXPORT_OBJECTS BUILDING_DEV BUILDING_TARGET TRACE TEMP
-
-#
-#	Compute the directory path for display purposes
-#
-DIR             ?= .
-BUILD_DEPTH     ?= 2
-BUILDING_DEV    := 0
-BUILDING_TARGET := $(shell expr 1 - $(BUILDING_DEV))
-MAKE			:= $(BLD_MAKE)
-MAKE			?= make
-TEMP			?= /tmp
-ifneq ($(TRACE),1)
-    MAKEFLAGS   += -s TRACE=0
-endif
-ifeq ($(findstring TRACE=0,$(MAKEFLAGS)),)
-    TRACE       = 1
-endif
-
-#
-#	Auto subdirectory recursion
-#
-RECURSE=\
-for i in $$D "" ; \
-do [ -d "$$i" ] || continue ;\
-	set -e ; \
-    dir=$${DIR}/$$i ; dir=$${dir\#/} ;\
-	if [ -f "$$i/Makefile" ] ; then \
-		unset CDPATH EXPORT_OBJECTS BUILDING_DEV BUILDING_TARGET BLD_TOP ; \
-        if [ -f "$(BLD_OUT_DIR)/.needDepend" -o ! -f "$$i/.makedep" -o \
-                "$(BLD_OUT_DIR)/buildConfig.h" -nt "$$i/.makedep" ] ; then \
-            rm -f $(BLD_OUT_DIR)/.needDepend ; \
-            $(call log) [Generate] "Makefile dependencies" ; \
-            cd $(BLD_TOP) >/dev/null 2>&1 ; makedep ; \
-            $(MAKE) -S --no-print-directory "DIR=$$dir" PRE=$(PRE) TRACE=$(TRACE) depend ; \
-            cd - >/dev/null 2>&1 ; \
-        fi ; \
-		if [ "$(TRACE)" = 1 ] ; then \
-            echo $(MAKE) -S -C "$$i" --no-print-directory "DIR=$$dir" PRE=$(PRE) TRACE=$(TRACE) $$T ; \
-        fi ; \
-		$(MAKE) -S -C "$$i" --no-print-directory "DIR=$$dir" PRE=$(PRE) TRACE=$(TRACE) $$T ; \
-		if [ $$? != 0 ] ; then \
-			echo "\# WARNING: Makefile error in `pwd`" ; \
-			exit 255 ; \
-		fi ; \
-		[ "$(findstring s,$(MAKEFLAGS))" = "" ] && echo -e "cd $$PWD" ; \
-	fi ; \
-done
-
-DO_RECURSE=$(RECURSE)
-
-#
-#   This is used to run release executables on Linux before they are installed (typically unit testing)
-#   This is needed because the rpath is set to the installed location.
-#
-ifneq ($(BLD_OS),WIN)
-    ifeq ($(BLD_OS),MACOSX)
-        setlibpath = export DYLD_LIBRARY_PATH="$(BLD_BIN_DIR):$(BLD_BUILD_LIB_DIR)"
-    else
-        setlibpath = export LD_LIBRARY_PATH="$(BLD_BIN_DIR):$(BLD_BUILD_LIB_DIR)"
-    endif
-else
-	setlibpath  = true
-    CYGWIN      += nodosfilewarning
-    export      CYGWIN
-endif
-
-#
-#   Not needed as buildConfig.h supplies this
-#
-#   export PATH:="$(BLD_BUILD_BIN_DIR):$(BLD_BIN_DIR):$(BLD_LIB_DIR):$(PATH)"
-
-ifeq ($(findstring s,$(MAKEFLAGS)),)
-    log = true
-else
-    log = printf "%12s %s\n"
-endif
-
-lib  = $(patsubst %, $(BLD_LIB_DIR)/lib%$(BLD_LIB),$(1))
-vlib = $(patsubst %, $(BLD_LIB_DIR)/lib%$(BLD_LIB),$(1))
-mod  = $(patsubst %, $(BLD_LIB_DIR)/%.mod,$(1))
-
-#
-#	Default target
-#
-all: headers compile
-
-$(BUILD_CHECK):
-
-#
-#   Export headers to out/include
-# 
-headers: check $(BUILD_CHECK) headersDirs $(HEADERS) headersExtra
-
-headersDirs:
-	@T=headers ; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
-
-headersAdirs:
-	@T=headers ; D="$(POST_DIRS)" ; $(DO_RECURSE) 
-
-headersExtra:
-
-depend: check $(BUILD_CHECK) dependExtra dependDirs dependCwd dependAfter
-
-check:
-	@mkdir -p $(BLD_OUT_DIR) $(BLD_BIN_DIR) $(BLD_OBJ_DIR) $(BLD_LIB_DIR) $(BLD_INC_DIR)
-
-#
-#	Compile target phases
-#
-compile: check $(BUILD_CHECK) compileFirst compileDirs $(HEADERS) $(OBJECTS) compileTargets compileExtra compileAdirs compileFinal
-
-compileFirst:
-
-compileExtra:
-
-compileTargets: 
-
-# MOB - should be compileLast
-compileFinal:
-
-compileDirs:
-	@T=compile ; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
-
-compileAdirs:
-	@T=compile ; D="$(POST_DIRS)" ; $(DO_RECURSE) 
-
-depend: check $(BUILD_CHECK) dependExtra dependDirs dependCwd dependAfter
-
-dependCwd:
-	@if [ ! -x $(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) ] ; then \
-		$(MAKE) -S --no-print-directory TRACE=$(TRACE) -C $(BLD_TOP)/build/src tools ; \
-	fi
-	@[ "$(TRACE)" = 1 ] && \
-	    echo $(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) --out $(BLD_OUT_DIR) $(MAKE_IFLAGS) $(BLD_IFLAGS) \
-            $(_IFLAGS) $(DEPEND_FLAGS) $(COMPILE) ; true
-	@$(BLD_BUILD_BIN_DIR)/edep$(BLD_BUILD_EXE) --out "$(BLD_OUT_DIR)" \
-        $(MAKE_IFLAGS) $(BLD_IFLAGS) $(_IFLAGS) $(DEPEND_FLAGS) $(COMPILE)
-
-dependDirs:
-	@if [ ! -f .makedep ] ; then \
-		echo "  makedep" ; \
-	    cd $(BLD_TOP) >/dev/null 2>&1 ; makedep ; make depend ; cd - >/dev/null 2>&1 ; \
-	fi
-	@T=depend ; D="$(PRE_DIRS) $(MID_DIRS) $(POST_DIRS)" ; $(DO_RECURSE)
-
-dependExtra:
-
-dependAfter:
-
-#
-#	Run unit tests
-#
-test: $(BUILD_CHECK) testDirs testPrep testExtra testFinal testCleanup
-
-testDirs:
-	@T=test ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-testPrep testFinal testCleanup:
-
-#
-#   TestExtra is overridable
-#   This rule handles "make test" in the top directory and avoids stepping into extensions.
-#
-testExtra::
-	if [ -x "$(BLD_EJS)" -a "$(DIR)" = "." -a "$(BLD_CROSS)" != 1 ] ; then \
-        if [ -f configure -a -d src ] ; then \
-            $(MAKE) -C src -S --no-print-directory "DIR=." PRE=$(PRE) TRACE=$(TRACE) test-utest ; \
-        else \
-            $(MAKE) -S --no-print-directory "DIR=." PRE=$(PRE) TRACE=$(TRACE) test-utest ; \
-        fi ; \
-    fi
-
-test-utest:
-	ulimit -c unlimited ; \
-	$(BLD_EJS) $(BLD_TOOLS_DIR)/utest -v -d $(BUILD_DEPTH) ; \
-
-#
-#	Clean the source tree
-#
-clean: $(BUILD_CHECK) cleanDirs cleanExtra 
-	rm -f $(CLEANIT) $(TARGETS) $(OBJECTS)
-ifeq ($(BLD_OS),WIN)
-	t="$(TARGETS)" ; rm -f $${t//.exe/.pdb} ; rm -f $${t//.dll/.pdb} ; rm -f $${t//.dll/.exp} ; \
-        rm -f $${t//.dll/.lib} ; rm -f $${t//.dll/.lib} ; rm -f $${t//.dll/.def}
-endif
-
-cleanDirs:
-	@T=clean ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-cleanExtra:
-
-
-#
-#	Do an extra thorough clean and remove all generated files
-#
-clobber: $(BUILD_CHECK) clobberDirs cleanExtra clobberExtra
-	rm -f $(CLEANIT) $(CLOBBERIT) 
-
-clobberExtra:
-
-clobberDirs:
-	@T=clobber ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-#
-#	Generate project files
-#
-projects: $(BUILD_CHECK) projectsDirs projectsExtra
-
-projectsDirs:
-	@T=projects ; D="$(PRE_DIRS)" ; $(DO_RECURSE) ; D="$(POST_DIRS)" ; $(DO_RECURSE)
-
-projectsExtra:
-
-#
-#	Create a redistributable package. Do make package in the top dir to actually make a package.
-#   Other package targets are used to prepare the system for packaging
-#
-package: $(BUILD_CHECK) packageFirst packageDirs packageExtra packageFinal
-
-packageDirs:
-	@T=package; D="$(PRE_DIRS)" ; $(DO_RECURSE) 
-
-packageFirst:
-
-packageDirs:
-
-packageExtra:
-
-packageFinal:
-
-#
-#	Used to suppress make warning that there is "Nothing to be done for target"
-#
-dummy:
-	true
-
-$(BLD_INC_DIR)/%.h: %.h
-	@if [ "$(TRACE)" = 1 ] ; then echo cp $< $@  ; \
-	else d=$(DIR)/$< ; d=$${d#./} ; $(call log) "[Export]" $$d ; fi
-	@[ -f "$@" ] && chmod +w $@; true
-	@cp $< $@ 
-

@@ -39,28 +39,33 @@ FLAT_DIR	= $(BLD_TOP)/out/flat
 PKG_DIR		= $(BLD_TOP)/out/pkg
 INS_WITH	= --with-conf="$(CONF)" --with-testweb 
 
+.PHONY: always version diff import deploy upload
+
 #
 #	Conditionally read in the Make rules and templates. The buildConfig.h
 #	file will not exist if configure has not been run. In that case, we must
 #	warn the user to run configure first. 
 #
-ifeq ($(shell [ -f .makedep ] && echo found),found)
-	include		.makedep
-	MAKE		:= $(BLD_MAKE)
-	PRE_DIRS	= $(BLD_DIRS)
-else
-	#
-	#	Configure has not yet been run
-	#
-all clean clobber compile depend package test projects: always
-	@if [ "$(UCLINUX_BUILD_USER)" = 1 ] ; then \
-		echo ; \
-	else \
-		echo -e "\nMust run configure first\n" >&2 ; \
-		exit 2 ; \
-	fi
+ifeq ($(shell [ ! -f .makedep ] && echo missing),missing)
+all compile depend clean clobber test package:
+%::
+	echo -e "\nMust run configure first\n" >&2 ; exit 2
+else 
 
-.PHONY: always
+include out/inc/buildConfig.h
+MAKE    := $(BLD_MAKE)
+
+ifeq ($(shell [ -f out/.needDepend ] && echo found),found)
+all compile depend clean clobber test package:
+%::
+	@rm -f out/.needDepend ; \
+	makedep ; \
+    printf "%12s %s\n" [Generate] Dependencies ; \
+	$(MAKE) -S --no-print-directory BUILDING_CROSS=1 BUILDING_DEV=1 BUILDING_TARGET=1 depend ; echo ; \
+	$(MAKE) -S --no-print-directory
+else
+    include .makedep
+endif
 endif
 
 diff import:
@@ -97,27 +102,28 @@ sync:
 	done
 	echo
 
-#
-#	Check for the existing of the dynamic dependancy files (.makedep)
-#
-.PRECIOUS	: $(BLD_TOP)/build/src/.makedep
-
-$(BLD_TOP)/build/src/.makedep: $(BLD_OUT_DIR)/inc/buildConfig.h
-	echo -e "\n  # Making dynamic makefile dependancies\n"
-	find . -name '*.h' | xargs cp "{}" $(BLD_INC_DIR)
-	$(MAKE) TRACE=$(TRACE) --no-print-directory depend clean
-
-#
-#	Ensure the build tools are built first
-#
-$(BLD_TOOLS_DIR)/edep$(BLD_EXE): 
-	T=$(BLD_TOOLS_DIR)/src; $(DO_RECURSE)
+##	#
+##	#	Check for the existing of the dynamic dependancy files (.makedep)
+##	#
+##	.PRECIOUS	: $(BLD_TOP)/build/src/.makedep
+##	
+##	$(BLD_TOP)/build/src/.makedep: $(BLD_OUT_DIR)/inc/buildConfig.h
+##		echo -e "\n  # Making dynamic makefile dependancies\n"
+##		find . -name '*.h' | xargs cp "{}" $(BLD_INC_DIR)
+##		$(MAKE) TRACE=$(TRACE) --no-print-directory depend clean
+##	
+##	#
+##	#	Ensure the build tools are built first
+##	#
+##	$(BLD_TOOLS_DIR)/edep$(BLD_EXE): 
+##		T=$(BLD_TOOLS_DIR)/src; $(DO_RECURSE)
+##	
 
 #
 #	If publisher build, always do a combo build as part of the final compile 
 #
 compileFinal: 
-	[ -f .publisher ] && $(MAKE) TRACE=$(TRACE) --no-print-directory packageCombo ; true
+	[ -f .publisher -a "$(BUILDING_TARGET)" = 1 ] && $(MAKE) TRACE=$(TRACE) --no-print-directory packageCombo ; true
 
 dependExtra:
 	[ ! -L extensions ] && ln -s ../packages extensions ; true
