@@ -81,7 +81,11 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->targetRule = sclone("run");
     route->autoDelete = 1;
     route->workers = -1;
-    route->limits = mprMemdup(((Http*) MPR->httpService)->serverLimits, sizeof(HttpLimits));
+
+    //  MOB
+    if (MPR->httpService) {
+        route->limits = mprMemdup(((Http*) MPR->httpService)->serverLimits, sizeof(HttpLimits));
+    }
     route->mimeTypes = MPR->mimeTypes;
     route->mutex = mprCreateLock();
     httpInitTrace(route->trace);
