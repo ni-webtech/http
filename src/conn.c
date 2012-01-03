@@ -316,7 +316,7 @@ void httpCallEvent(HttpConn *conn, int mask)
  */
 void httpEvent(HttpConn *conn, MprEvent *event)
 {
-    LOG(7, "httpEvent for fd %d, mask %d\n", conn->sock->fd, event->mask);
+    LOG(5, "httpEvent for fd %d, mask %d\n", conn->sock->fd, event->mask);
     conn->lastActivity = conn->http->now;
 
     if (event->mask & MPR_WRITABLE) {
