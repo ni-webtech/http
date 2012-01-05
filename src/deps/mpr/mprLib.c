@@ -9201,7 +9201,7 @@ static int growEvents(MprWaitService *ws)
 int mprNotifyOn(MprWaitService *ws, MprWaitHandler *wp, int mask)
 {
     struct epoll_event  ev;
-    int                 fd;
+    int                 fd, rc;
 
     mprAssert(wp);
     fd = wp->fd;
@@ -9210,14 +9210,17 @@ int mprNotifyOn(MprWaitService *ws, MprWaitHandler *wp, int mask)
     if (wp->desiredMask != mask) {
         memset(&ev, 0, sizeof(ev));
         ev.data.fd = fd;
-        if (wp->desiredMask & MPR_READABLE && !(mask & MPR_READABLE)) {
+        if (wp->desiredMask & MPR_READABLE) {
             ev.events |= (EPOLLIN | EPOLLHUP);
         }
-        if (wp->desiredMask & MPR_WRITABLE && !(mask & MPR_WRITABLE)) {
+        if (wp->desiredMask & MPR_WRITABLE) {
             ev.events |= EPOLLOUT;
         }
         if (ev.events) {
-            epoll_ctl(ws->epoll, EPOLL_CTL_DEL, fd, &ev);
+            rc = epoll_ctl(ws->epoll, EPOLL_CTL_DEL, fd, &ev);
+            if (rc != 0) {
+                mprError("Epoll del error %d on fd %d\n", errno, fd);
+            }
         }
         ev.events = 0;
         if (mask & MPR_READABLE) {
@@ -9227,7 +9230,10 @@ int mprNotifyOn(MprWaitService *ws, MprWaitHandler *wp, int mask)
             ev.events |= EPOLLOUT;
         }
         if (ev.events) {
-            epoll_ctl(ws->epoll, EPOLL_CTL_ADD, fd, &ev);
+            rc = epoll_ctl(ws->epoll, EPOLL_CTL_ADD, fd, &ev);
+            if (rc != 0) {
+                mprError("Epoll add error %d on fd %d\n", errno, fd);
+            }
         }
         if (mask && fd >= ws->handlerMax) {
             ws->handlerMax = fd + 32;
@@ -14307,16 +14313,14 @@ static void manageModuleService(MprModuleService *ms, int flags);
 MprModuleService *mprCreateModuleService()
 {
     MprModuleService    *ms;
-    cchar               *libdir;
 
     if ((ms = mprAllocObj(MprModuleService, manageModuleService)) == 0) {
         return 0;
     }
     ms->modules = mprCreateList(-1, 0);
-    libdir = mprJoinPath(mprGetPathParent(mprGetAppDir()), mprGetPathBase(BLD_LIB_NAME));
-    ms->searchPath = sjoin(mprGetAppDir(), MPR_SEARCH_SEP, libdir, MPR_SEARCH_SEP, 
-        BLD_LIB_PREFIX, NULL);
     ms->mutex = mprCreateLock();
+    MPR->moduleService = ms;
+    mprSetModuleSearchPath(NULL);
     return ms;
 }
 
@@ -14498,21 +14502,30 @@ void mprSetModuleFinalizer(MprModule *module, MprModuleProc stop)
 void mprSetModuleSearchPath(char *searchPath)
 {
     MprModuleService    *ms;
-
-    mprAssert(searchPath && *searchPath);
+    cchar               *libdir;
 
     ms = MPR->moduleService;
-    ms->searchPath = sclone(searchPath);
 
+    if (searchPath == 0) {
+        libdir = mprJoinPath(mprGetPathParent(mprGetAppDir()), mprGetPathBase(BLD_LIB_NAME));
+        ms->searchPath = sjoin(mprGetAppDir(), MPR_SEARCH_SEP, libdir, MPR_SEARCH_SEP, BLD_LIB_PREFIX, NULL);
+    } else {
+        ms->searchPath = sclone(searchPath);
+    }
+
+#if UNUSED && KEEP
 #if BLD_WIN_LIKE && !WINCE
     {
         /*
             Set PATH so dependent DLLs can be loaded by LoadLibrary
+            WARNING: this will leak if called too much.
          */
         char *path = sjoin("PATH=", searchPath, ";", getenv("PATH"), NULL);
         mprMapSeparators(path, '\\');
+        mprHold(path);
         putenv(path);
     }
+#endif
 #endif
 }
 
@@ -16152,6 +16165,13 @@ int mprSamePathCount(cchar *path1, cchar *path2, ssize len)
         }
     }
     return len == 0;
+}
+
+
+void mprSetAppPath(cchar *path)
+{ 
+    MPR->appPath = sclone(path);
+    MPR->appDir = mprGetPathDir(MPR->appPath);
 }
 
 
