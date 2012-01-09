@@ -1818,9 +1818,11 @@ extern void *mprAtomicExchange(void * volatile *target, cvoid *value);
 #if BLD_DEBUG
     #define BLD_MEMORY_DEBUG        1                   /**< Fill blocks, verifies block integrity. */
     #define BLD_MEMORY_STATS        1                   /**< Include memory stats routines */
+    #define BLD_MEMORY_STACK        1                   /**< Monitor stack usage */
 #else
     #define BLD_MEMORY_DEBUG        0
     #define BLD_MEMORY_STATS        0
+    #define BLD_MEMORY_STACK        0
 #endif
 
 /*
@@ -1915,10 +1917,6 @@ typedef struct MprMem {
     uint            seqno;          /* Allocation sequence number */
     cchar           *name;          /* Debug name */
 #endif
-#if !BLD_FEATURE_VALLOC
-    struct MprMem   *next;          /* Pointer to next logical block */
-    struct MprMem   *prev;          /* Pointer to prev logical block */
-#endif
 } MprMem;
 
 
@@ -1930,11 +1928,11 @@ typedef struct MprMem {
 
 /*
     The allocator free map is a two dimensional array of free queues. The first dimension is indexed by
-    the most significant bit (MSB) set in the requested block size. The second dimension is the next 
+    the most significant bits (group) set in the requested block size. The second dimension is the next 
     MPR_ALLOC_BUCKET_SHIFT (4) bits below the MSB.
 
     +-------------------------------+
-    |       |MSB|  Bucket   | rest  |
+    |   Group   |  Bucket   | rest  |
     +-------------------------------+
     | 0 | 0 | 1 | 1 | 1 | 1 | X | X |
     +-------------------------------+
@@ -2027,6 +2025,7 @@ typedef void (*MprManager)(void *ptr, int flags);
  */
 typedef struct MprFreeMem {
     union {
+        //  8
         MprMem          blk;
         struct {
             int         minSize;            /**< Min size of block in queue */
@@ -2106,13 +2105,12 @@ typedef struct MprRegion {
  */
 typedef struct MprHeap {
     MprFreeMem       freeq[MPR_ALLOC_NUM_GROUPS * MPR_ALLOC_NUM_BUCKETS];
+    ulong            bucketMap[MPR_ALLOC_NUM_GROUPS];
     MprFreeMem       *freeEnd;
     ssize            groupMap;
-    ulong            bucketMap[MPR_ALLOC_NUM_GROUPS];
     struct MprList   *roots;                 /**< List of GC root objects */
     MprMemStats      stats;
     MprMemNotifier   notifier;               /**< Memory allocation failure callback */
-    MprCond          *markerCond;            /**< Marker sleep cond var */
     MprSpin          heapLock;               /**< Heap allocation lock */
     MprSpin          rootLock;               /**< Root locking */
     MprRegion        *regions;               /**< List of memory regions */
@@ -6342,6 +6340,10 @@ typedef struct MprThread {
     int             isMain;             /**< Is the main thread */
     int             priority;           /**< Current priority */
     ssize           stackSize;          /**< Only VxWorks implements */
+#if BLD_MEMORY_STACK
+    void            *stackBase;         /**< Base of stack (approx) */
+    int             peakStack;          /**< Peak stack usage */
+#endif
     int             stickyYield;        /**< Yielded does not auto-clear after GC */
     int             yielded;            /**< Thread has yielded to GC */
 } MprThread;
@@ -8224,7 +8226,7 @@ typedef void (*MprTerminator)(int how, int status);
     @defgroup Mpr Mpr
  */
 typedef struct Mpr {
-    MprHeap         heap;                   /**< Memory heap control */
+    MprHeap         *heap;                  /**< Memory heap control */
     bool            debugMode;              /**< Run in debug mode (no timers) */
     int             logLevel;               /**< Log trace level */
     int             logBackup;              /**< Number of log files preserved when backing up */
@@ -8295,6 +8297,7 @@ typedef struct Mpr {
     MprSpin         *spin;                  /**< Quick thread synchronization */
     MprSpin         *dtoaSpin[2];           /**< Dtoa thread synchronization */
     MprCond         *cond;                  /**< Sync after starting events thread */
+    MprCond         *markerCond;            /**< Marker sleep cond var */
 
     char            *emptyString;           /**< Empty string */
 #if BLD_WIN_LIKE
