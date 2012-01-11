@@ -107,7 +107,7 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
             return 0;
         }
     }
-    if ((host = httpCreateHost()) == 0) {
+    if ((host = httpCreateHost(home)) == 0) {
         return 0;
     }
     if ((route = httpCreateRoute(host)) == 0) {
@@ -116,7 +116,6 @@ HttpEndpoint *httpCreateConfiguredEndpoint(cchar *home, cchar *documents, cchar 
     httpSetHostDefaultRoute(host, route);
     httpSetHostIpAddr(host, ip, port);
     httpAddHostToEndpoint(endpoint, host);
-    httpSetHostHome(host, home);
     httpSetRouteDir(route, documents);
     httpFinalizeRoute(route);
     return endpoint;
