@@ -253,12 +253,6 @@ static void freeNetPackets(HttpQueue *q, ssize bytes)
              */
             httpGetPacket(q);
         }
-#if UNUSED
-        mprAssert(bytes >= 0);
-        if (bytes == 0 && (q->first == NULL || !(q->first->flags & HTTP_PACKET_END))) {
-            break;
-        }
-#endif
     }
 }
 

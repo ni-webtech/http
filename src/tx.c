@@ -219,8 +219,6 @@ void httpSetHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
 }
 
 
-//  MOB - sort file
-
 void httpSetHeaderString(HttpConn *conn, cchar *key, cchar *value)
 {
     mprAssert(key && *key);

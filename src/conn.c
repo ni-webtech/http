@@ -415,12 +415,10 @@ static void writeEvent(HttpConn *conn)
 
 void httpUseWorker(HttpConn *conn, MprDispatcher *dispatcher, MprEvent *event)
 {
-    //  MOB -- locking should not be needed
     lock(conn->http);
     conn->oldDispatcher = conn->dispatcher;
     conn->dispatcher = dispatcher;
     conn->worker = 1;
-
     mprAssert(!conn->workerEvent);
     conn->workerEvent = event;
     unlock(conn->http);
@@ -429,12 +427,10 @@ void httpUseWorker(HttpConn *conn, MprDispatcher *dispatcher, MprEvent *event)
 
 void httpUsePrimary(HttpConn *conn)
 {
-    //  MOB -- locking should not be needed
     lock(conn->http);
     mprAssert(conn->worker);
     mprAssert(conn->state == HTTP_STATE_BEGIN);
     mprAssert(conn->oldDispatcher && conn->dispatcher != conn->oldDispatcher);
-
     conn->dispatcher = conn->oldDispatcher;
     conn->oldDispatcher = 0;
     conn->worker = 0;
@@ -466,7 +462,6 @@ void httpEnableConnEvents(HttpConn *conn)
         mprQueueEvent(conn->dispatcher, event);
 
     } else {
-        //  MOB - why locking here?
         lock(conn->http);
         if (tx) {
             /*
@@ -490,7 +485,6 @@ void httpEnableConnEvents(HttpConn *conn)
                 conn->waitHandler = mprCreateWaitHandler(conn->sock->fd, eventMask, conn->dispatcher, conn->ioCallback, 
                     conn, 0);
             } else {
-                //  MOB API for this
                 conn->waitHandler->dispatcher = conn->dispatcher;
                 mprWaitOn(conn->waitHandler, eventMask);
             }
@@ -619,7 +613,6 @@ void httpSetChunkSize(HttpConn *conn, ssize size)
 }
 
 
-//  MOB - why not define this on the host or endpoint?
 void httpSetHeadersCallback(HttpConn *conn, HttpHeadersCallback fn, void *arg)
 {
     conn->headersCallback = fn;

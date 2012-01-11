@@ -148,7 +148,6 @@ void httpDiscardData(HttpQueue *q, bool removePackets)
                 continue;
             } else {
                 len = httpGetPacketLength(packet);
-                //  MOB - should this be done? Why not in the removePackets case?
                 q->conn->tx->length -= len;
                 q->count -= len;
                 mprAssert(q->count >= 0);

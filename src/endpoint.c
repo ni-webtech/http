@@ -402,7 +402,6 @@ int httpIsEndpointAsync(HttpEndpoint *endpoint)
 }
 
 
-//  MOB - rename. This could be a "restart"
 void httpSetEndpointAddress(HttpEndpoint *endpoint, cchar *ip, int port)
 {
     if (ip) {

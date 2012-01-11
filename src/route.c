@@ -82,7 +82,6 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->autoDelete = 1;
     route->workers = -1;
 
-    //  MOB
     if (MPR->httpService) {
         route->limits = mprMemdup(((Http*) MPR->httpService)->serverLimits, sizeof(HttpLimits));
     }
@@ -1570,8 +1569,7 @@ void httpFinalizeRoute(HttpRoute *route)
 
 /********************************* Path and URI Expansion *****************************/
 /*
-    MOB - some description here
-    what does this return. Does it return an absolute URI?
+    What does this return. Does it return an absolute URI?
     MOB - rename httpUri() and move to uri.c
  */
 char *httpLink(HttpConn *conn, cchar *target, MprHash *options)
@@ -1664,7 +1662,7 @@ char *httpLink(HttpConn *conn, cchar *target, MprHash *options)
             target = "/";
         }
     }
-    //  MOB OPT
+    //  OPT
     uri = httpCreateUri(target, 0);
     uri = httpResolveUri(httpCreateUri(rx->uri, 0), 1, &uri, 0);
     httpNormalizeUri(uri);
@@ -2474,8 +2472,7 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
 
         } else if (smatch(key, "request")) {
             value = stok(value, "=", &defaultValue);
-            //  MOB - implement default value below for those that can be null
-            //  MOB - OPT with switch on first char
+            //  OPT with switch on first char
             if (smatch(value, "clientAddress")) {
                 mprPutStringToBuf(buf, conn->ip);
 

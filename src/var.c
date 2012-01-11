@@ -199,7 +199,6 @@ MprHash *httpGetParams(HttpConn *conn)
 }
 
 
-//  MOB - sort file
 int httpTestParam(HttpConn *conn, cchar *var)
 {
     MprHash    *vars;

@@ -103,7 +103,7 @@ int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext)
 }
 
 
-//  MOB OPT
+//  OPT
 static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf, ssize len)
 {
     cchar       *start, *cp, *tag, *digits;

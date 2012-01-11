@@ -741,7 +741,6 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 *value++ = '\0';
                 conn->authType = slower(conn->authType);
-                // MOB - move this into the auth filter
                 if (!parseAuthenticate(conn, value)) {
                     httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad Authentication header");
                     break;
@@ -771,7 +770,6 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
 /*  
     Parse an authentication response (client side only)
-    MOB - move this into the auth filter
  */
 static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 {
@@ -1038,7 +1036,6 @@ static bool processRunning(HttpConn *conn)
 {
     int     canProceed;
 
-    //  MOB - refactor
     canProceed = 1;
     if (conn->connError) {
         httpSetState(conn, HTTP_STATE_COMPLETE);
@@ -1318,10 +1315,6 @@ int httpSetUri(HttpConn *conn, cchar *uri, cchar *query)
 static void waitHandler(HttpConn *conn, struct MprEvent *event)
 {
     httpCallEvent(conn, event->mask);
-#if UNUSED
-    //  MOB -- should not need this signal
-    mprSignalDispatcher(conn->dispatcher);
-#endif
 }
 
 
