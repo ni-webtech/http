@@ -9329,9 +9329,11 @@ int mprNotifyOn(MprWaitService *ws, MprWaitHandler *wp, int mask)
         }
         if (ev.events) {
             rc = epoll_ctl(ws->epoll, EPOLL_CTL_DEL, fd, &ev);
+#if UNUSED && KEEP
             if (rc != 0) {
                 mprError("Epoll del error %d on fd %d\n", errno, fd);
             }
+#endif
         }
         ev.events = 0;
         if (mask & MPR_READABLE) {
