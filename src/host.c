@@ -17,7 +17,7 @@ static void manageHost(HttpHost *host, int flags);
 
 /*********************************** Code *************************************/
 
-HttpHost *httpCreateHost()
+HttpHost *httpCreateHost(cchar *home)
 {
     HttpHost    *host;
     Http        *http;
@@ -35,7 +35,7 @@ HttpHost *httpCreateHost()
     host->routes = mprCreateList(-1, 0);
     host->flags = HTTP_HOST_NO_TRACE;
     host->protocol = sclone("HTTP/1.1");
-    host->home = sclone(".");
+    host->home = sclone(home ? home : ".");
     httpAddHost(http, host);
     return host;
 }
