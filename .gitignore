@@ -48,3 +48,4 @@ mob.*
 src/test/appweb/trace.txt
 .DS_Store
 *.guid
+local.bit

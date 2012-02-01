@@ -147,7 +147,7 @@ int stopSeqno = -1;
  */
 #if LINUX
     #define NEED_FLSL 1
-    #if BLD_HOST_CPU_ARCH == MPR_CPU_IX86 || BLD_HOST_CPU_ARCH == MPR_CPU_IX64
+    #if BLD_CPU_ARCH == MPR_CPU_IX86 || BLD_CPU_ARCH == MPR_CPU_IX64
         #define USE_FLSL_ASM_X86 1
     #endif
     static MPR_INLINE int flsl(ulong word);
@@ -3225,6 +3225,22 @@ void mprLockDtoa(int n)
 void mprUnlockDtoa(int n)
 {
     mprSpinUnlock(MPR->dtoaSpin[n]);
+}
+
+
+void mprSetEnv(cchar *key, cchar *value)
+{
+#if !WINCE
+#if BLD_UNIX_LIKE
+    setenv(key, value, 1);
+#else
+    char *cmd = sjoin(key, "=", value, NULL);
+    putenv(cmd);
+#endif
+#endif
+    if (scasematch(key, "PATH")) {
+        MPR->pathEnv = sclone(value);
+    }
 }
 
 
@@ -7708,6 +7724,8 @@ static int getPathInfo(MprDiskFileSystem *fs, cchar *path, MprPath *info)
 
     info->checked = 1;
     info->valid = 0;
+    info->isReg = 0;
+    info->isDir = 0;
 
     if (_stat64(path, &s) < 0) {
         return -1;
@@ -7734,6 +7752,8 @@ static int getPathInfo(MprDiskFileSystem *fs, cchar *path, MprPath *info)
     mprAssert(info);
     info->checked = 1;
     info->valid = 0;
+    info->isReg = 0;
+    info->isDir = 0;
     if (_stat64(path, &s) < 0) {
 #if BLD_WIN && FUTURE
         /*
@@ -7800,6 +7820,8 @@ static int getPathInfo(MprDiskFileSystem *fs, cchar *path, MprPath *info)
 #elif VXWORKS
     struct stat s;
     info->valid = 0;
+    info->isReg = 0;
+    info->isDir = 0;
     info->checked = 1;
     if (stat((char*) path, &s) < 0) {
         return MPR_ERR_CANT_ACCESS;
@@ -7818,6 +7840,8 @@ static int getPathInfo(MprDiskFileSystem *fs, cchar *path, MprPath *info)
 #else
     struct stat s;
     info->valid = 0;
+    info->isReg = 0;
+    info->isDir = 0;
     info->checked = 1;
     if (lstat((char*) path, &s) < 0) {
         return MPR_ERR_CANT_ACCESS;
@@ -13187,9 +13211,6 @@ void mprLogHeader()
     mprLog(MPR_CONFIG, "BuildType:          %s", BLD_TYPE);
     mprLog(MPR_CONFIG, "CPU:                %s", BLD_CPU);
     mprLog(MPR_CONFIG, "OS:                 %s", BLD_OS);
-    if (strcmp(BLD_DIST, "Unknown") != 0) {
-        mprLog(MPR_CONFIG, "Distribution:       %s %s", BLD_DIST, BLD_DIST_VER);
-    }
     mprLog(MPR_CONFIG, "Host:               %s", mprGetHostName());
     mprLog(MPR_CONFIG, "Directory:          %s", mprGetCurrentPath());
     mprLog(MPR_CONFIG, "Configure:          %s", BLD_CONFIG_CMD);
@@ -15299,7 +15320,9 @@ static MprList *getDirFiles(cchar *dir, int flags)
         if (findData.cFileName[0] == '.' && (findData.cFileName[1] == '\0' || findData.cFileName[1] == '.')) {
             continue;
         }
+#if UNUSED
         if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || !(flags & MPR_PATH_NODIRS)) {
+#endif
             dp = mprAlloc(sizeof(MprDirEntry));
             if (dp == 0) {
                 return 0;
@@ -15331,7 +15354,9 @@ static MprList *getDirFiles(cchar *dir, int flags)
             dp->size = (uint) findData.nFileSizeLow;
 #endif
             mprAddItem(list, dp);
+#if UNUSED
         }
+#endif
     } while (FindNextFile(h, &findData) != 0);
 
     FindClose(h);
@@ -15373,7 +15398,9 @@ static MprList *getDirFiles(cchar *path, int flags)
         fileInfo.isLink = 0;
         fileInfo.isDir = 0;
         rc = mprGetPathInfo(fileName, &fileInfo);
-        if (!fileInfo.isDir || !(flags & MPR_PATH_NODIRS) || fileInfo.isLink) { 
+#if UNUSED
+        if (!fileInfo.isDir || /* UNUSED !(flags & MPR_PATH_NODIRS) || */ fileInfo.isLink) { 
+#endif
             if ((dp = mprAllocObj(MprDirEntry, manageDirEntry)) == 0) {
                 return 0;
             }
@@ -15393,7 +15420,9 @@ static MprList *getDirFiles(cchar *path, int flags)
                 dp->isLink = 0;
             }
             mprAddItem(list, dp);
+#if UNUSED
         }
+#endif
     }
     closedir(dir);
     return list;
@@ -29662,7 +29691,7 @@ int mprXmlGetLineNumber(MprXml *xp)
     #endif
     #define Long int32_t
     #define ULong uint32_t
-#if BLD_HOST_CPU_ARCH == MPR_CPU_PPC
+#if BLD_CPU_ARCH == MPR_CPU_PPC
     #define IEEE_MC68k 1
 #else
     #define IEEE_8087 1
