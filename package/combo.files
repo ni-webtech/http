@@ -25,6 +25,7 @@ HTTP_SOURCES=${S}/*.c
 #
 mkdir -p ${SRC} ${DOC}/man ${DOC}/api
 cp ${BLD_TOP}/package/Makefile.combo "${SRC}/Makefile"
+cp ${BLD_TOP}/package/http.bit "${SRC}/http.bit"
 # cp ${BLD_INC_DIR}/buildConfig.h "${DIR}/buildConfig.h"
 
 #
