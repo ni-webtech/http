@@ -1,0 +1,70 @@
+/*
+    product.bit -- Product Bit File for the Embedthis Http Library
+ */
+
+Bit.load({
+    blend: [
+        "src/deps/mpr/mpr.bit",
+        "src/deps/pcre/pcre.bit",
+//      "src/test/test.bit",
+        "bits/embedthis.bit",
+    ],
+    settings: {
+        /* Default settings overridden by build.bit */
+		product: 'mpr',
+		title: 'Http Library',
+        company: 'Embedthis',
+		version: '1.0.0',
+		buildNumber: 'B2',
+        profile: 'debug',
+        debug: true,
+        depth: 1,
+        charlen: 1,
+        tune: 'size',
+        assert: true,
+        float: true,
+        legacy: false,
+        rom: false,
+        sync: ['tools', 'mpr' ],
+    },
+
+    usage: {
+        debug: 'Enable a debug build',
+        tune: 'Optimize for size|speed|balanced',
+        assert: 'Enable program assertions',
+        float: 'Enable floating point',
+        rom: 'Enable ROM based file system',
+    },
+
+    profiles: {
+        debug: { settings: { 
+            debug: true, 
+            assert: true,
+        }, },
+        release: { settings: { 
+            debug: false, 
+            assert: false,
+        } },
+    },
+
+    '+required': [ 'pcre' ],
+    '+optional': [ 'doxygen', 'ejs', 'openssl', 'matrixssl' ],
+
+    defaults: {
+        '+includes': [ 'src' ]
+    },
+
+    targets: {
+        libhttp: {
+            type: 'lib',
+            sources: [ 'src/*.c' ],
+            depends: [ 'libmpr', 'libpcre' ],
+        },
+
+        http: {
+            type: 'exe',
+            depends: [ 'libhttp' ],
+            sources: [ 'src/utils/http.c' ],
+        },
+	},
+})

@@ -1,0 +1,6 @@
+/*
+    strip.bit - Strip component for Bit
+ */
+
+program('strip')
+

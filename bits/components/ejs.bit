@@ -1,0 +1,5 @@
+/*
+    ejs.bit - Ejs component for Bit
+ */
+
+program('ejs')

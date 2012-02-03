@@ -1,0 +1,5 @@
+/*
+    doxygen.bit - Doxygen component for Bit
+ */
+
+program('doxygen')
