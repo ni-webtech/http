@@ -7,33 +7,21 @@ Bit.load({
         "src/deps/mpr/mpr.bit",
         "src/deps/pcre/pcre.bit",
 //      "src/test/test.bit",
-        "bits/embedthis.bit",
+        ".bit/embedthis.bit",
     ],
     settings: {
         /* Default settings overridden by build.bit */
-		product: 'mpr',
+		product: 'http',
 		title: 'Http Library',
         company: 'Embedthis',
 		version: '1.0.0',
 		buildNumber: 'B2',
-        profile: 'debug',
-        debug: true,
-        depth: 1,
-        charlen: 1,
-        tune: 'size',
-        assert: true,
-        float: true,
-        legacy: false,
-        rom: false,
-        sync: ['tools', 'mpr' ],
+        sync: ['mpr'],
     },
 
     usage: {
         debug: 'Enable a debug build',
-        tune: 'Optimize for size|speed|balanced',
         assert: 'Enable program assertions',
-        float: 'Enable floating point',
-        rom: 'Enable ROM based file system',
     },
 
     profiles: {

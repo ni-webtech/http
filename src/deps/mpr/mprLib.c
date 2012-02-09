@@ -1,22 +1,15 @@
-#include "mpr.h"
+/*
+    mprLib.c -- Multithreaded Portable Runtime Library Source
 
-/******************************************************************************/
-/* 
-    This file is an amalgamation of all the individual source code files for the
-    Multithreaded Portable Runtime Library Source.
-  
-    Catenating all the source into a single file makes embedding simpler and
-    the resulting application faster, as many compilers can do whole file
-    optimization.
-  
-    If you want to modify the product, you can still get the whole source as 
-    individual files if you need.
+    This file is a catenation of all the source code. Amalgamating into a
+    single file makes embedding simpler and the resulting application faster.
  */
 
+#include "mpr.h"
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprMem.c"
+    Start of file "src/mprMem.c"
  */
 /************************************************************************/
 
@@ -26,8 +19,11 @@
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
 
 
+
+/******************************* Local Defines ********************************/
 
 #if BLD_CC_MMU 
     #define VALLOC 1                /* Use virtual memory allocations */
@@ -165,6 +161,7 @@ int stopSeqno = -1;
     static MPR_INLINE int flsl(ulong word);
 #endif
 
+/********************************** Data **************************************/
 
 #undef              MPR
 Mpr                 *MPR;
@@ -172,6 +169,7 @@ static MprHeap      *heap;
 static MprMemStats  memStats;
 static int          padding[] = { 0, MANAGER_SIZE };
 
+/***************************** Forward Declarations ***************************/
 
 static void allocException(int cause, ssize size);
 static void checkYielded();
@@ -223,6 +221,7 @@ static void vmfree(void *ptr, ssize size);
     static MprFreeMem *getQueue(ssize size);
 #endif
 
+/************************************* Code ***********************************/
 
 Mpr *mprCreateMemService(MprManager manager, int flags)
 {
@@ -459,6 +458,7 @@ ssize mprMemcpy(void *dest, ssize destMax, cvoid *src, ssize nbytes)
     }
 }
 
+/*************************** Virtual Heap Allocations *************************/
 /*
     Initialize the free space map and queues.
 
@@ -976,6 +976,7 @@ static void vmfree(void *ptr, ssize size)
 }
 
 
+/***************************************************** Garbage Colllector *************************************************/
 
 void mprStartGCService()
 {
@@ -1674,6 +1675,7 @@ static void *getNextRoot()
 }
 
 
+/****************************************************** Debug *************************************************************/
 
 #if BLD_MEMORY_STATS
 static void printQueueStats() 
@@ -1952,6 +1954,7 @@ void mprCheckBlock(MprMem *mp) {}
 void *mprSetName(void *ptr, cchar *name) { return 0;}
 #endif
 
+/********************************************* Misc ***************************************************/
 
 static void allocException(int cause, ssize size)
 {
@@ -2529,17 +2532,10 @@ static void monitorStack()
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprMem.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mpr.c"
+    Start of file "src/mpr.c"
  */
 /************************************************************************/
 
@@ -2549,12 +2545,16 @@ static void monitorStack()
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/**************************** Forward Declarations ****************************/
 
 static void manageMpr(Mpr *mpr, int flags);
 static void serviceEventsThread(void *data, MprThread *tp);
 
+/************************************* Code ***********************************/
 /*
     Create and initialize the MPR service.
  */
@@ -3300,17 +3300,10 @@ void mprNop(void *ptr) {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mpr.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprAsync.c"
+    Start of file "src/mprAsync.c"
  */
 /************************************************************************/
 
@@ -3322,12 +3315,16 @@ void mprNop(void *ptr) {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if MPR_EVENT_ASYNC
+/***************************** Forward Declarations ***************************/
 
 static LRESULT msgProc(HWND hwnd, uint msg, uint wp, long lp);
 
+/************************************ Code ************************************/
 
 int mprCreateNotifierService(MprWaitService *ws)
 {   
@@ -3595,17 +3592,10 @@ void stubMprAsync() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprAsync.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprAtomic.c"
+    Start of file "src/mprAtomic.c"
  */
 /************************************************************************/
 
@@ -3615,8 +3605,11 @@ void stubMprAsync() {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/*********************************** Includes *********************************/
 
 
+
+/************************************ Code ************************************/
 
 void mprAtomicBarrier()
 {
@@ -3805,17 +3798,10 @@ void mprAtomicListInsert(void * volatile *head, volatile void **link, void *item
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprAtomic.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprBuf.c"
+    Start of file "src/mprBuf.c"
  */
 /************************************************************************/
 
@@ -3827,11 +3813,15 @@ void mprAtomicListInsert(void * volatile *head, volatile void **link, void *item
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/********************************** Forwards **********************************/
 
 static void manageBuf(MprBuf *buf, int flags);
 
+/*********************************** Code *************************************/
 /*
     Create a new buffer. "maxsize" is the limit to which the buffer can ever grow. -1 means no limit. "initialSize" is 
     used to define the amount to increase the size of the buffer each time if it becomes full. (Note: mprGrowBuf() will 
@@ -4446,17 +4436,10 @@ int mprPutStringToWideBuf(MprBuf *bp, cchar *str)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprBuf.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprCache.c"
+    Start of file "src/mprCache.c"
  */
 /************************************************************************/
 
@@ -4466,8 +4449,11 @@ int mprPutStringToWideBuf(MprBuf *bp, cchar *str)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/************************************ Locals **********************************/
 
 static MprCache *shared;                /* Singleton shared cache */
 
@@ -4485,12 +4471,14 @@ typedef struct CacheItem
 #define CACHE_HASH_SIZE         257
 #define CACHE_LIFESPAN          (86400 * MPR_TICKS_PER_SEC)
 
+/*********************************** Forwards *********************************/
 
 static void manageCache(MprCache *cache, int flags);
 static void manageCacheItem(CacheItem *item, int flags);
 static void pruneCache(MprCache *cache, MprEvent *event);
 static void removeItem(MprCache *cache, CacheItem *item);
 
+/************************************* Code ***********************************/
 
 MprCache *mprCreateCache(int options)
 {
@@ -4916,17 +4904,10 @@ static void manageCacheItem(CacheItem *item, int flags)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprCache.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprCmd.c"
+    Start of file "src/mprCmd.c"
  */
 /************************************************************************/
 
@@ -4936,8 +4917,11 @@ static void manageCacheItem(CacheItem *item, int flags)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/******************************* Forward Declarations *************************/
 
 static void closeFiles(MprCmd *cmd);
 static ssize cmdCallback(MprCmd *cmd, int channel, void *data);
@@ -4974,6 +4958,7 @@ static void cmdTaskEntry(char *program, MprCmdTaskFn entry, int cmdArg);
 #define sunlock(cmd) 
 #endif
 
+/************************************* Code ***********************************/
 
 MprCmdService *mprCreateCmdService()
 {
@@ -6287,7 +6272,7 @@ static int makeChannel(MprCmd *cmd, int index)
         file->fd = fds[0];              /* read fd */
     }
     fcntl(file->fd, F_SETFL, fcntl(file->fd, F_GETFL) | O_NONBLOCK);
-    mprLog(7, "makeCmdIO: pipe handles[%d] read %d, write %d", index, fds[0], fds[1]);
+    mprLog(7, "makeChannel: pipe handles[%d] read %d, write %d", index, fds[0], fds[1]);
     return 0;
 }
 
@@ -6637,17 +6622,10 @@ static char **fixenv(MprCmd *cmd)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprCmd.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprCond.c"
+    Start of file "src/mprCond.c"
  */
 /************************************************************************/
 
@@ -6659,8 +6637,11 @@ static char **fixenv(MprCmd *cmd)
 
 
 
+/***************************** Forward Declarations ***************************/
+
 static void manageCond(MprCond *cp, int flags);
 
+/************************************ Code ************************************/
 /*
     Create a condition variable for use by single or multiple waiters
  */
@@ -6952,17 +6933,10 @@ void mprSignalMultiCond(MprCond *cp)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprCond.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprCrypt.c"
+    Start of file "src/mprCrypt.c"
  */
 /************************************************************************/
 
@@ -6975,8 +6949,11 @@ void mprSignalMultiCond(MprCond *cp)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
 
 
+
+/*********************************** Locals ***********************************/
 /*
     Constants for transform routine.
  */
@@ -7048,6 +7025,7 @@ typedef struct {
     uchar buffer[64];
 } MD5CONTEXT;
 
+/******************************* Base 64 Data *********************************/
 
 #define CRYPT_HASH_SIZE   16
 
@@ -7092,6 +7070,7 @@ static signed char decodeMap[] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 };
 
+/*************************** Forward Declarations *****************************/
 
 static void decode(uint *output, uchar *input, uint len);
 static void encode(uchar *output, uint *input, uint len);
@@ -7100,6 +7079,7 @@ static void initMD5(MD5CONTEXT *context);
 static void transform(uint state[4], uchar block[64]);
 static void update(MD5CONTEXT *context, uchar *input, uint inputLen);
 
+/*********************************** Code *************************************/
 
 int mprRandom()
 {
@@ -7416,6 +7396,7 @@ static void decode(uint *output, uchar *input, uint len)
 }
 
 
+/********************************** Copyright *********************************/
 
 /*
     @copy   custom
@@ -7477,17 +7458,10 @@ static void decode(uint *output, uchar *input, uint len)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprCrypt.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprDisk.c"
+    Start of file "src/mprDisk.c"
  */
 /************************************************************************/
 
@@ -7499,9 +7473,12 @@ static void decode(uint *output, uchar *input, uint len)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
+
 
 
 #if !BLD_FEATURE_ROMFS
+/*********************************** Defines **********************************/
 
 #if WIN
 /*
@@ -7510,11 +7487,13 @@ static void decode(uint *output, uchar *input, uint len)
 #define RETRIES 40
 #endif
 
+/********************************** Forwards **********************************/
 
 static int closeFile(MprFile *file);
 static void manageDiskFile(MprFile *file, int flags);
 static int getPathInfo(MprDiskFileSystem *fs, cchar *path, MprPath *info);
 
+/************************************ Code ************************************/
 #if FUTURE
 /*
     Open a file with support for cygwin paths. Tries windows path first then under /cygwin.
@@ -8064,17 +8043,10 @@ MprDiskFileSystem *mprCreateDiskFileSystem(cchar *path)
     @end
  */
 
-/************************************************************************/
-/*
- *  End of file "./src/mprDisk.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprDispatcher.c"
+    Start of file "src/mprDispatcher.c"
  */
 /************************************************************************/
 
@@ -8086,8 +8058,11 @@ MprDiskFileSystem *mprCreateDiskFileSystem(cchar *path)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/***************************** Forward Declarations ***************************/
 
 static void dequeueDispatcher(MprDispatcher *dispatcher);
 static int dispatchEvents(MprDispatcher *dispatcher);
@@ -8108,6 +8083,7 @@ static bool serviceDispatcher(MprDispatcher *dp);
 #define isWaiting(dispatcher) (dispatcher->parent == dispatcher->service->waitQ)
 #define isEmpty(dispatcher) (dispatcher->eventQ->next == dispatcher->eventQ)
 
+/************************************* Code ***********************************/
 /*
     Create the overall dispatch service. There may be many event dispatchers.
  */
@@ -8940,17 +8916,10 @@ bool mprDispatcherHasEvents(MprDispatcher *dispatcher)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprDispatcher.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprEncode.c"
+    Start of file "src/mprEncode.c"
  */
 /************************************************************************/
 
@@ -8959,8 +8928,11 @@ bool mprDispatcherHasEvents(MprDispatcher *dispatcher)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
 
 
+
+/************************************ Locals **********************************/
 /*
     Character escape/descape matching codes. Generated by charGen.
  */
@@ -8990,6 +8962,7 @@ static uchar charMatch[256] = {
 
 #define MIME_HASH_SIZE 67
 
+/************************************ Code ************************************/
 /*  
     Uri encode by encoding special characters with hex equivalents. Return an allocated string.
  */
@@ -9217,17 +9190,10 @@ char *mprEscapeHtml(cchar *html)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprEncode.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprEpoll.c"
+    Start of file "src/mprEpoll.c"
  */
 /************************************************************************/
 
@@ -9240,13 +9206,17 @@ char *mprEscapeHtml(cchar *html)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if MPR_EVENT_EPOLL
+/********************************** Forwards **********************************/
 
 static int growEvents(MprWaitService *ws);
 static void serviceIO(MprWaitService *ws, int count);
 
+/************************************ Code ************************************/
 
 int mprCreateNotifierService(MprWaitService *ws)
 {
@@ -9551,17 +9521,10 @@ void stubMmprEpoll() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprEpoll.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprEvent.c"
+    Start of file "src/mprEvent.c"
  */
 /************************************************************************/
 
@@ -9573,8 +9536,11 @@ void stubMmprEpoll() {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/***************************** Forward Declarations ***************************/
 
 static void dequeueEvent(MprEvent *event);
 static void initEvent(MprDispatcher *dispatcher, MprEvent *event, cchar *name, MprTime period, void *proc, 
@@ -9583,6 +9549,7 @@ static void initEventQ(MprEvent *q);
 static void manageEvent(MprEvent *event, int flags);
 static void queueEvent(MprEvent *prior, MprEvent *event);
 
+/************************************* Code ***********************************/
 /*
     Create and queue a new event for service. Period is used as the delay before running the event and as the period between 
     events for continuous events.
@@ -9912,17 +9879,10 @@ static void dequeueEvent(MprEvent *event)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprEvent.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprFile.c"
+    Start of file "src/mprFile.c"
  */
 /************************************************************************/
 
@@ -9935,12 +9895,16 @@ static void dequeueEvent(MprEvent *event)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/****************************** Forward Declarations **************************/
 
 static ssize fillBuf(MprFile *file);
 static void manageFile(MprFile *file, int flags);
 
+/************************************ Code ************************************/
 
 MprFile *mprAttachFileFd(int fd, cchar *name, int omode)
 {
@@ -10556,17 +10520,10 @@ int mprGetFileFd(MprFile *file)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprFile.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprFileSystem.c"
+    Start of file "src/mprFileSystem.c"
  */
 /************************************************************************/
 
@@ -10580,8 +10537,11 @@ int mprGetFileFd(MprFile *file)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/************************************ Code ************************************/
 
 MprFileSystem *mprCreateFileSystem(cchar *path)
 {
@@ -10732,17 +10692,10 @@ void mprSetPathNewline(cchar *path, cchar *newline)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprFileSystem.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprHash.c"
+    Start of file "src/mprHash.c"
  */
 /************************************************************************/
 
@@ -10759,13 +10712,17 @@ void mprSetPathNewline(cchar *path, cchar *newline)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/**************************** Forward Declarations ****************************/
 
 static void *dupKey(MprHash *hash, MprKey *sp, cvoid *key);
 static MprKey *lookupHash(int *index, MprKey **prevSp, MprHash *hash, cvoid *key);
 static void manageHashTable(MprHash *hash, int flags);
 
+/*********************************** Code *************************************/
 /*
     Create a new hash hash of a given size. Caller should provide a size that is a prime number for the greatest efficiency.
  */
@@ -11225,17 +11182,10 @@ MprHash *mprCreateHashFromWords(cchar *str)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprHash.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprJSON.c"
+    Start of file "src/mprJSON.c"
  */
 /************************************************************************/
 
@@ -11244,8 +11194,11 @@ MprHash *mprCreateHashFromWords(cchar *str)
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
+/********************************** Includes **********************************/
 
 
+
+/****************************** Forward Declarations **************************/
 
 static MprObj *deserialize(MprJson *jp);
 static char advanceToken(MprJson *jp);
@@ -11258,6 +11211,7 @@ static cchar *parseName(MprJson *jp);
 static cchar *parseValue(MprJson *jp);
 static int setValue(MprJson *jp, MprObj *obj, int index, cchar *name, cchar *value, int type);
 
+/************************************ Code ************************************/
 
 MprObj *mprDeserializeCustom(cchar *str, MprJsonCallback callback, void *data)
 {
@@ -11675,17 +11629,10 @@ void mprJsonParseError(MprJson *jp, cchar *fmt, ...)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprJSON.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprKqueue.c"
+    Start of file "src/mprKqueue.c"
  */
 /************************************************************************/
 
@@ -11698,13 +11645,17 @@ void mprJsonParseError(MprJson *jp, cchar *fmt, ...)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if MPR_EVENT_KQUEUE
+/********************************** Forwards **********************************/
 
 static int growEvents(MprWaitService *ws);
 static void serviceIO(MprWaitService *ws, int count);
 
+/************************************ Code ************************************/
 
 int mprCreateNotifierService(MprWaitService *ws)
 {
@@ -12024,17 +11975,10 @@ void stubMprKqueue() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprKqueue.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprList.c"
+    Start of file "src/mprList.c"
  */
 /************************************************************************/
 
@@ -12050,12 +11994,16 @@ void stubMprKqueue() {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/****************************** Forward Declarations **************************/
 
 static int growList(MprList *lp, int incr);
 static void manageList(MprList *lp, int flags);
 
+/************************************ Code ************************************/
 /*
     Create a general growable list structure
  */
@@ -12722,17 +12670,10 @@ MprKeyValue *mprCreateKeyPair(cchar *key, cchar *value)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprList.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprLock.c"
+    Start of file "src/mprLock.c"
  */
 /************************************************************************/
 
@@ -12742,12 +12683,16 @@ MprKeyValue *mprCreateKeyPair(cchar *key, cchar *value)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/*********************************** Includes *********************************/
 
 
+
+/***************************** Forward Declarations ***************************/
 
 static void manageLock(MprMutex *lock, int flags);
 static void manageSpinLock(MprSpin *lock, int flags);
 
+/************************************ Code ************************************/
 
 MprMutex *mprCreateLock()
 {
@@ -13124,17 +13069,10 @@ void mprSpinUnlock(MprSpin *lock)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprLock.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprLog.c"
+    Start of file "src/mprLog.c"
  */
 /************************************************************************/
 
@@ -13144,12 +13082,16 @@ void mprSpinUnlock(MprSpin *lock)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/****************************** Forward Declarations **************************/
 
 static void defaultLogHandler(int flags, int level, cchar *msg);
 static void logOutput(int flags, int level, cchar *msg);
 
+/************************************ Code ************************************/
 /*
     Put first in file so it is easy to locate in a debugger
  */
@@ -13688,17 +13630,10 @@ int _cmp(char *s1, char *s2)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprLog.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprMime.c"
+    Start of file "src/mprMime.c"
  */
 /************************************************************************/
 
@@ -13708,8 +13643,11 @@ int _cmp(char *s1, char *s2)
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
 
+/********************************* Includes ***********************************/
 
 
+
+/*********************************** Code *************************************/
 /*  
     Inbuilt mime type support
  */
@@ -13765,10 +13703,12 @@ static char *standardMimeTypes[] = {
     0,       0,
 };
 
+/********************************** Forward ***********************************/
 
 static void addStandardMimeTypes(MprHash *table);
 static void manageMimeType(MprMime *mt, int flags);
 
+/*********************************** Code *************************************/
 
 MprHash *mprCreateMimeTypes(cchar *path)
 {
@@ -13941,17 +13881,10 @@ cchar *mprLookupMime(MprHash *table, cchar *ext)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprMime.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprMixed.c"
+    Start of file "src/mprMixed.c"
  */
 /************************************************************************/
 
@@ -13961,9 +13894,12 @@ cchar *mprLookupMime(MprHash *table, cchar *ext)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if BLD_CHAR_LEN > 1
+/********************************** Forwards **********************************/
 
 int mcasecmp(MprChar *str1, cchar *str2)
 {
@@ -14400,17 +14336,10 @@ void dummyWide() {}
     @end
  */
 
-/************************************************************************/
-/*
- *  End of file "./src/mprMixed.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprModule.c"
+    Start of file "src/mprModule.c"
  */
 /************************************************************************/
 
@@ -14420,12 +14349,16 @@ void dummyWide() {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
 
 
+
+/********************************** Forwards **********************************/
 
 static void manageModule(MprModule *mp, int flags);
 static void manageModuleService(MprModuleService *ms, int flags);
 
+/************************************* Code ***********************************/
 /*
     Open the module service
  */
@@ -14767,17 +14700,10 @@ char *mprSearchForModule(cchar *filename)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprModule.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprPath.c"
+    Start of file "src/mprPath.c"
  */
 /************************************************************************/
 
@@ -14789,8 +14715,11 @@ char *mprSearchForModule(cchar *filename)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/********************************** Defines ***********************************/
 /*
     Find the first separator in the path
  */
@@ -14802,6 +14731,7 @@ char *mprSearchForModule(cchar *filename)
 
 #define defaultSep(fs)          (fs->separators[0])
 
+/************************************* Code ***********************************/
 
 static MPR_INLINE bool isSep(MprFileSystem *fs, int c) 
 {
@@ -14929,6 +14859,7 @@ static MPR_INLINE char *lastSep(MprFileSystem *fs, cchar *path)
     return 0;
 }
 
+/************************************ Code ************************************/
 /*
     This copies a file.
  */
@@ -16478,17 +16409,10 @@ ssize mprWritePathContents(cchar *path, cchar *buf, ssize len, int mode)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprPath.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprPoll.c"
+    Start of file "src/mprPoll.c"
  */
 /************************************************************************/
 
@@ -16501,12 +16425,16 @@ ssize mprWritePathContents(cchar *path, cchar *buf, ssize len, int mode)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if MPR_EVENT_POLL
+/********************************** Forwards **********************************/
 
 static void serviceIO(MprWaitService *ws, struct pollfd *fds, int count);
 
+/************************************ Code ************************************/
 
 int mprCreateNotifierService(MprWaitService *ws)
 {
@@ -16823,17 +16751,10 @@ void stubMprPollWait() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprPoll.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprPrintf.c"
+    Start of file "src/mprPrintf.c"
  */
 /************************************************************************/
 
@@ -16846,8 +16767,11 @@ void stubMprPollWait() {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/*********************************** Defines **********************************/
 /*
     Class definitions
  */
@@ -16989,6 +16913,7 @@ typedef struct MprEjsName {
     MprEjsString    *space;
 } MprEjsName;
 
+/***************************** Forward Declarations ***************************/
 
 static int  getState(char c, int state);
 static int  growBuf(Format *fmt);
@@ -17002,6 +16927,7 @@ static void outWideString(Format *fmt, MprChar *str, ssize len);
 static void outFloat(Format *fmt, char specChar, double value);
 #endif
 
+/************************************* Code ***********************************/
 
 ssize mprPrintf(cchar *fmt, ...)
 {
@@ -17956,17 +17882,10 @@ int print(cchar *fmt, ...)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprPrintf.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprRomFile.c"
+    Start of file "src/mprRomFile.c"
  */
 /************************************************************************/
 
@@ -17980,14 +17899,18 @@ int print(cchar *fmt, ...)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if BLD_FEATURE_ROMFS 
+/****************************** Forward Declarations **************************/
 
 static void manageRomFile(MprFile *file, int flags);
 static int getPathInfo(MprRomFileSystem *rfs, cchar *path, MprPath *info);
 static MprRomInode *lookup(MprRomFileSystem *rfs, cchar *path);
 
+/*********************************** Code *************************************/
 
 static MprFile *openFile(MprFileSystem *fileSystem, cchar *path, int flags, int omode)
 {
@@ -18304,17 +18227,10 @@ void stubRomfs() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprRomFile.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprSelect.c"
+    Start of file "src/mprSelect.c"
  */
 /************************************************************************/
 
@@ -18326,13 +18242,17 @@ void stubRomfs() {}
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
+/********************************* Includes ***********************************/
+
 
 
 #if MPR_EVENT_SELECT
+/********************************** Forwards **********************************/
 
 static void serviceIO(MprWaitService *ws, int maxfd);
 static void readPipe(MprWaitService *ws);
 
+/************************************ Code ************************************/
 
 int mprCreateNotifierService(MprWaitService *ws)
 {
@@ -18660,17 +18580,10 @@ void stubMprSelectWait() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprSelect.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprSignal.c"
+    Start of file "src/mprSignal.c"
  */
 /************************************************************************/
 
@@ -18680,8 +18593,11 @@ void stubMprSelectWait() {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/*********************************** Includes *********************************/
 
 
+
+/*********************************** Forwards *********************************/
 #if BLD_UNIX_LIKE
 
 static void manageSignal(MprSignal *sp, int flags);
@@ -18691,6 +18607,7 @@ static void signalHandler(int signo, siginfo_t *info, void *arg);
 static void standardSignalHandler(void *ignored, MprSignal *sp);
 static void unhookSignal(int signo);
 
+/************************************ Code ************************************/
 
 MprSignalService *mprCreateSignalService()
 {
@@ -19061,17 +18978,10 @@ static void standardSignalHandler(void *ignored, MprSignal *sp)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprSignal.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprSocket.c"
+    Start of file "src/mprSocket.c"
  */
 /************************************************************************/
 
@@ -19085,6 +18995,8 @@ static void standardSignalHandler(void *ignored, MprSignal *sp)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
+
 
 
 #if !VXWORKS && !WINCE
@@ -19094,6 +19006,7 @@ static void standardSignalHandler(void *ignored, MprSignal *sp)
 #define BLD_HAS_GETADDRINFO 1
 #endif
 
+/******************************* Forward Declarations *************************/
 
 static MprSocket *acceptSocket(MprSocket *listen);
 static void closeSocket(MprSocket *sp, bool gracefully);
@@ -19111,6 +19024,7 @@ static void manageSocketService(MprSocketService *ss, int flags);
 static ssize readSocket(MprSocket *sp, void *buf, ssize bufsize);
 static ssize writeSocket(MprSocket *sp, cvoid *buf, ssize bufsize);
 
+/************************************ Code ************************************/
 /*
     Open the socket service
  */
@@ -20665,17 +20579,10 @@ void mprSetSocketPrebindCallback(MprSocketPrebind callback)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprSocket.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprString.c"
+    Start of file "src/mprString.c"
  */
 /************************************************************************/
 
@@ -20688,8 +20595,11 @@ void mprSetSocketPrebindCallback(MprSocketPrebind callback)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/************************************ Code ************************************/
 
 char *itos(int64 value)
 {
@@ -21678,17 +21588,10 @@ char *stemplate(cchar *str, MprHash *keys)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprString.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprTest.c"
+    Start of file "src/mprTest.c"
  */
 /************************************************************************/
 
@@ -21698,8 +21601,11 @@ char *stemplate(cchar *str, MprHash *keys)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/***************************** Forward Declarations ***************************/
 
 static void     adjustFailedCount(int adj);
 static void     adjustThreadCount(int adj);
@@ -21721,6 +21627,7 @@ static void     runTestProc(MprTestGroup *gp, MprTestCase *test);
 static void     runTestThread(MprList *groups, MprThread *tp);
 static int      setLogging(char *logSpec);
 
+/******************************************************************************/
 
 MprTestService *mprCreateTestService()
 {
@@ -22726,17 +22633,10 @@ static int setLogging(char *logSpec)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprTest.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprThread.c"
+    Start of file "src/mprThread.c"
  */
 /************************************************************************/
 
@@ -22748,8 +22648,11 @@ static int setLogging(char *logSpec)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes **********************************/
 
 
+
+/*************************** Forward Declarations ****************************/
 
 static int changeState(MprWorker *worker, int state);
 static MprWorker *createWorker(MprWorkerService *ws, ssize stackSize);
@@ -22762,6 +22665,7 @@ static void pruneWorkers(MprWorkerService *ws, MprEvent *timer);
 static void threadProc(MprThread *tp);
 static void workerMain(MprWorker *worker, MprThread *tp);
 
+/************************************ Code ***********************************/
 
 MprThreadService *mprCreateThreadService()
 {
@@ -23810,17 +23714,10 @@ static int changeState(MprWorker *worker, int state)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprThread.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprTime.c"
+    Start of file "src/mprTime.c"
  */
 /************************************************************************/
 
@@ -23830,8 +23727,11 @@ static int changeState(MprWorker *worker, int state)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
 
 
+
+/********************************** Defines ***********************************/
 
 #define MS_PER_SEC  (MPR_TICKS_PER_SEC)
 #define MS_PER_HOUR (60 * 60 * MPR_TICKS_PER_SEC)
@@ -24014,6 +23914,7 @@ static int localTime(struct tm *timep, MprTime time);
 static MprTime makeTime(struct tm *tp);
 static void validateTime(struct tm *tm, struct tm *defaults);
 
+/************************************ Code ************************************/
 /*
     Initialize the time service
  */
@@ -24210,6 +24111,7 @@ MprTime mprMakeUniversalTime(struct tm *tp)
 }
 
 
+/*************************************** O/S Layer ***********************************/
 
 static int localTime(struct tm *timep, MprTime time)
 {
@@ -24294,6 +24196,7 @@ static int getTimeZoneOffsetFromTm(struct tm *tp)
 #endif
 }
 
+/********************************* Calculations *********************************/
 /*
     Convert "struct tm" to MprTime. This ignores GMT offset and DST.
  */
@@ -24462,6 +24365,7 @@ static void decodeTime(struct tm *tp, MprTime when, bool local)
 }
 
 
+/********************************* Formatting **********************************/
 /*
     Format a time string. This uses strftime if available and so the supported formats vary from platform to platform.
     Strftime should supports some of these these formats:
@@ -25064,6 +24968,7 @@ char *mprFormatTm(cchar *fmt, struct tm *tp)
 #endif /* HAS_STRFTIME */
 
 
+/*************************************** Parsing ************************************/
 
 static int lookupSym(cchar *token, int kind)
 {
@@ -25438,6 +25343,7 @@ static void validateTime(struct tm *tp, struct tm *defaults)
 }
 
 
+/********************************* Compatibility **********************************/
 /*
     Compatibility for windows and VxWorks
  */
@@ -25498,6 +25404,7 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
 }
 #endif /* BLD_WIN_LIKE || VXWORKS */
 
+/********************************* Measurement **********************************/
 /*
     High resolution timer
  */
@@ -25561,17 +25468,10 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprTime.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprUnix.c"
+    Start of file "src/mprUnix.c"
  */
 /************************************************************************/
 
@@ -25581,9 +25481,12 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if BLD_UNIX_LIKE
+/*********************************** Code *************************************/
 
 int mprCreateOsService()
 {
@@ -25621,8 +25524,7 @@ int mprGetRandomBytes(char *buf, ssize length, bool block)
     ssize   sofar, rc;
     int     fd;
 
-    fd = open((block) ? "/dev/random" : "/dev/urandom", O_RDONLY, 0666);
-    if (fd < 0) {
+    if ((fd = open((block) ? "/dev/random" : "/dev/urandom", O_RDONLY, 0666)) < 0) {
         return MPR_ERR_CANT_OPEN;
     }
     sofar = 0;
@@ -25804,17 +25706,10 @@ void stubMprUnix() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprUnix.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprVxworks.c"
+    Start of file "src/mprVxworks.c"
  */
 /************************************************************************/
 
@@ -25825,8 +25720,11 @@ void stubMprUnix() {}
  */
 
 #if VXWORKS
+/********************************* Includes ***********************************/
 
 
+
+/*********************************** Code *************************************/
 
 int mprCreateOsService()
 {
@@ -26042,17 +25940,10 @@ void stubMprVxWorks() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprVxworks.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprWait.c"
+    Start of file "src/mprWait.c"
  */
 /************************************************************************/
 
@@ -26067,13 +25958,17 @@ void stubMprVxWorks() {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
 
 
+
+/***************************** Forward Declarations ***************************/
 
 static void ioEvent(void *data, MprEvent *event);
 static void manageWaitService(MprWaitService *ws, int flags);
 static void manageWaitHandler(MprWaitHandler *wp, int flags);
 
+/************************************ Code ************************************/
 /*
     Initialize the service
  */
@@ -26352,17 +26247,10 @@ void mprDoWaitRecall(MprWaitService *ws)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprWait.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprWide.c"
+    Start of file "src/mprWide.c"
  */
 /************************************************************************/
 
@@ -26372,9 +26260,12 @@ void mprDoWaitRecall(MprWaitService *ws)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if BLD_CHAR_LEN > 1
+/************************************ Code ************************************/
 /*
     Format a number as a string. Support radix 10 and 16.
  */
@@ -27071,6 +26962,7 @@ char *wupper(MprChar *str)
     return str;
 }
 
+/*********************************** Conversions *******************************/
 /*
     Convert a wide unicode string into a multibyte string buffer. If len is supplied, it is used as the source length. 
     DestCount is the max size of the dest buffer. At most destCount - 1 characters will be stored. The dest buffer will
@@ -27474,17 +27366,10 @@ char *awtom(MprChar *src, ssize *len)
     @end
  */
 
-/************************************************************************/
-/*
- *  End of file "./src/mprWide.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprWin.c"
+    Start of file "src/mprWin.c"
  */
 /************************************************************************/
 
@@ -27494,6 +27379,8 @@ char *awtom(MprChar *src, ssize *len)
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************* Includes ***********************************/
+
 
 
 #if CYGWIN
@@ -27501,6 +27388,7 @@ char *awtom(MprChar *src, ssize *len)
 #endif
 
 #if BLD_WIN_LIKE && !WINCE
+/*********************************** Code *************************************/
 /*
     Initialize the O/S platform layer
  */ 
@@ -27870,17 +27758,10 @@ int mprWriteRegistry(cchar *key, cchar *name, cchar *value)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprWin.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprWince.c"
+    Start of file "src/mprWince.c"
  */
 /************************************************************************/
 
@@ -27890,9 +27771,12 @@ int mprWriteRegistry(cchar *key, cchar *name, cchar *value)
     Copyright (c) All Rights Reserved. See copyright notice at the bottom of the file.
  */
 
+/********************************************** Includes ********************************************/
+
 
 
 #if WINCE
+/******************************************** Locals and Defines ************************************/
 /*
     Windows file time is in 100 ns units starting 1601
     Unix (time_t) time is in sec units starting 1970
@@ -27912,11 +27796,13 @@ static char     timzeone[2][32];        /* Standard and daylight savings zones *
  */
 #define WIN_TICKS_TO_MPR  (WIN_TICKS / MPR_TICKS_PER_SEC)
 
+/********************************************** Forwards ********************************************/
 
 static HANDLE getHandle(int fd);
 static long getJulianDays(SYSTEMTIME *when);
 static void timeToFileTime(uint64 t, FILETIME *ft);
 
+/************************************************ Code **********************************************/
 
 int mprCreateOsService()
 {
@@ -28228,6 +28114,7 @@ int mprWriteRegistry(cchar *key, cchar *name, cchar *value)
 #endif
 
 
+/******************************************* Posix Layer ********************************/
 
 int access(cchar *path, int flags)
 {
@@ -28643,6 +28530,7 @@ int unlink(cchar *file)
 }
 
 
+/********************************************** Windows32 Extensions *********************************************/
 
 WINBASEAPI HANDLE WINAPI CreateFileA(LPCSTR path, DWORD access, DWORD sharing,
     LPSECURITY_ATTRIBUTES security, DWORD create, DWORD flags, HANDLE template)
@@ -28793,17 +28681,10 @@ void stubMprWince() {}
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprWince.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/mprXml.c"
+    Start of file "src/mprXml.c"
  */
 /************************************************************************/
 
@@ -28817,8 +28698,11 @@ void stubMprWince() {}
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
+/********************************** Includes **********************************/
 
 
+
+/****************************** Forward Declarations **************************/
 
 static MprXmlToken getXmlToken(MprXml *xp, int state);
 static int  getNextChar(MprXml *xp);
@@ -28829,6 +28713,7 @@ static int  putLastChar(MprXml *xp, int c);
 static void xmlError(MprXml *xp, char *fmt, ...);
 static void trimToken(MprXml *xp);
 
+/************************************ Code ************************************/
 
 MprXml *mprXmlOpen(ssize initialSize, ssize maxSize)
 {
@@ -29495,17 +29380,10 @@ int mprXmlGetLineNumber(MprXml *xp)
 
     @end
  */
-/************************************************************************/
-/*
- *  End of file "./src/mprXml.c"
- */
-/************************************************************************/
-
-
 
 /************************************************************************/
 /*
- *  Start of file "./src/deps/dtoa.c"
+    Start of file "src/deps/dtoa.c"
  */
 /************************************************************************/
 
@@ -29698,12 +29576,16 @@ int mprXmlGetLineNumber(MprXml *xp)
 #if EMBEDTHIS || 1
      #include    "buildConfig.h"
 #endif
+#ifndef BLD_FEATURE_FLOAT
+    #define BLD_FEATURE_FLOAT 1
+#endif
 #if BLD_FEATURE_FLOAT
 
 #if EMBEDTHIS || 1
     #define MULTIPLE_THREADS 1
     extern void mprLockDtoa(int n);
     extern void mprUnlockDtoa(int n);
+    #include    "mpr.h"
     #if WIN || WINCE
         typedef int int32_t;
         typedef unsigned int uint32_t;
@@ -33792,9 +33674,3 @@ dtoa
 #endif
 /* EMBEDTHIS */
 #endif /* BLD_FEATURE_FLOAT */
-/************************************************************************/
-/*
- *  End of file "./src/deps/dtoa.c"
- */
-/************************************************************************/
-

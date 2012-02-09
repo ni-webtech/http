@@ -1,8 +1,0 @@
-
-Copyright (c) 2003-2012 Embedthis Software, LLC. All Rights Reserved.
-Embedthis is a trademark of Embedthis Software, LLC. Other brands and 
-their products are trademarks of their respective holders.
-
-See LICENSE.TXT for software license details.
-
-Other copyrights appear in relevant source files.
