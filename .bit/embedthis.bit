@@ -79,7 +79,7 @@ Bit.load({
 
         _package2: {
             action: "
-                load(bit.dirs.src.join('bits/combo.es'))
+                load(bit.dirs.src.join('.bit/combo.es'))
             ",
         },
 

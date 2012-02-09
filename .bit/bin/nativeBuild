@@ -9,7 +9,7 @@
 if [ -f out/inc/buildConfig.h ] ; then
     . `cacheConfig out/inc/buildConfig.h`
 else
-    . bits/bin/buildConfig.sh
+    . build/bin/buildConfig.sh
 fi
 
 VS="/Program Files/Microsoft Visual Studio 10/Common7/IDE/devenv.exe"

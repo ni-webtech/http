@@ -16228,11 +16228,11 @@ static char* checkPath(cchar *path, int flags)
     if (mprPathExists(path, access)) {
         mprGetPathInfo(path, &info);
         if (flags & MPR_SEARCH_DIR && info.isDir) {
-            mprLog(5, "mprSearchForFile: found %s", path);
+            mprLog(4, "mprSearchForFile: found %s", path);
             return sclone(path);
         }
         if (info.isReg) {
-            mprLog(5, "mprSearchForFile: found %s", path);
+            mprLog(4, "mprSearchForFile: found %s", path);
             return sclone(path);
         }
     }
