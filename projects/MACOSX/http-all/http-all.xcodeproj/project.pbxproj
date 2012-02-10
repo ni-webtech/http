@@ -648,7 +648,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "#\n#   Prepare for build - This imports required libraries, headers and executables\n#\nmkdir -p $OUT/inc $OUT/bin\nif [ ! -f $OUT/inc/buildConfig.h -o buildConfig.master -nt $OUT/inc/buildConfig.h ] ; then\n[ -f $OUT/inc/buildConfig.h ] && chmod +w $OUT/inc/buildConfig.h\ncp buildConfig.master $OUT/inc/buildConfig.h\nexport BLD_TOP=$TOP\nexport BLD_OUT_DIR=$BLD_TOP/out\n. `${BLD_TOP}/build/bin/cacheConfig $OUT/inc/buildConfig.h`\nfi\ntouch $OUT/bin/.ideBuild\nexit 0";
+			shellScript = "#\n#   Prepare for build - This imports required libraries, headers and executables\n#\nmkdir -p $OUT/inc $OUT/bin\nif [ ! -f $OUT/inc/buildConfig.h -o buildConfig.master -nt $OUT/inc/buildConfig.h ] ; then\n[ -f $OUT/inc/buildConfig.h ] && chmod +w $OUT/inc/buildConfig.h\ncp buildConfig.default $OUT/inc/buildConfig.h\nexport BLD_TOP=$TOP\nexport BLD_OUT_DIR=$BLD_TOP/out\n. `${BLD_TOP}/.bit/bin/cacheConfig $OUT/inc/buildConfig.h`\nfi\ntouch $OUT/bin/.ideBuild\nexit 0";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -824,21 +824,30 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
-				BBIN = "$(TOP)/build/bin";
+				BBIN = "$(TOP)/.bit/bin";
+				CONFIGURATION_BUILD_DIR = "$(SYMROOT)/$(CONFIGURATION)";
+				CONFIGURATION_TEMP_DIR = "$(OUT)/tmp/$(CONFIGURATION)";
 				COPY_PHASE_STRIP = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG_IDE=1";
 				GCC_VERSION = "";
 				"GCC_VERSION[arch=*]" = "";
-				HEADER_SEARCH_PATHS = $OUT/inc;
-				LIBRARY_SEARCH_PATHS = "$(OUT)/bin";
+				HEADER_SEARCH_PATHS = (
+					$SRC/deps/pcre,
+					$SRC,
+					$SRC/deps/mpr,
+					$OUT/inc,
+				);
+				LIBRARY_SEARCH_PATHS = $OUT/inc;
+				OBJROOT = "$(OUT)";
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
 					"-lcrypto",
 					"-lssl",
 				);
-				OUT = "$(TOP)/out";
+				OUT = "$(TOP)/xcode";
 				SRC = "$(TOP)/src";
+				SYMROOT = "$(OUT)/bin";
 				TEST_AFTER_BUILD = YES;
 				TOP = "$(SRCROOT)/../../..";
 			};
@@ -848,20 +857,29 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
-				BBIN = "$(TOP)/build/bin";
+				BBIN = "$(TOP)/.bit/bin";
+				CONFIGURATION_BUILD_DIR = "$(SYMROOT)/$(CONFIGURATION)";
+				CONFIGURATION_TEMP_DIR = "$(OUT)/tmp/$(CONFIGURATION)";
 				COPY_PHASE_STRIP = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG_IDE=1";
 				GCC_VERSION = "";
-				HEADER_SEARCH_PATHS = $OUT/inc;
-				LIBRARY_SEARCH_PATHS = "$(OUT)/bin";
+				HEADER_SEARCH_PATHS = (
+					$SRC/deps/pcre,
+					$SRC,
+					$SRC/deps/mpr,
+					$OUT/inc,
+				);
+				LIBRARY_SEARCH_PATHS = $OUT/inc;
+				OBJROOT = "$(OUT)";
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
 					"-lcrypto",
 					"-lssl",
 				);
-				OUT = "$(TOP)/out";
+				OUT = "$(TOP)/xcode";
 				SRC = "$(TOP)/src";
+				SYMROOT = "$(OUT)/bin";
 				TEST_AFTER_BUILD = YES;
 				TOP = "$(SRCROOT)/../../..";
 			};
@@ -898,6 +916,7 @@
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
+				LIBRARY_SEARCH_PATHS = $OUT/inc;
 				PRODUCT_NAME = All;
 			};
 			name = Debug;
@@ -908,6 +927,7 @@
 				ARCHS = "";
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				LIBRARY_SEARCH_PATHS = $OUT/inc;
 				PRODUCT_NAME = All;
 				ZERO_LINK = NO;
 			};
@@ -972,18 +992,13 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
-				BBIN = "$(TOP)/build/bin";
-				BLD_PRODUCT_NAME = http;
 				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = "";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				HEADER_SEARCH_PATHS = $OUT/inc;
 				INSTALL_PATH = /usr/lib/http/lib;
-				OUT = "$(TOP)/out";
 				PRODUCT_NAME = libmpr;
-				SRC = "$(TOP)/src";
-				TOP = "$(SRCROOT)/../../..";
 			};
 			name = Debug;
 		};
@@ -992,17 +1007,12 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
-				BBIN = "$(TOP)/build/bin";
-				BLD_PRODUCT_NAME = http;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = "";
 				HEADER_SEARCH_PATHS = $OUT/inc;
 				INSTALL_PATH = /usr/lib/http/lib;
-				OUT = "$(TOP)/out";
 				PRODUCT_NAME = libmpr;
-				SRC = "$(TOP)/src";
-				TOP = "$(SRCROOT)/../../..";
 			};
 			name = Release;
 		};
@@ -1069,18 +1079,13 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
-				BBIN = "$(TOP)/build/bin";
-				BLD_PRODUCT_NAME = http;
 				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = "";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				HEADER_SEARCH_PATHS = $OUT/inc;
 				INSTALL_PATH = /usr/lib/http/lib;
-				OUT = "$(TOP)/out";
 				PRODUCT_NAME = libpcre;
-				SRC = "$(TOP)/src";
-				TOP = "$(SRCROOT)/../../..";
 			};
 			name = Debug;
 		};
@@ -1089,17 +1094,12 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
-				BBIN = "$(TOP)/build/bin";
-				BLD_PRODUCT_NAME = http;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = "";
 				HEADER_SEARCH_PATHS = $OUT/inc;
 				INSTALL_PATH = /usr/lib/http/lib;
-				OUT = "$(TOP)/out";
 				PRODUCT_NAME = libpcre;
-				SRC = "$(TOP)/src";
-				TOP = "$(SRCROOT)/../../..";
 			};
 			name = Release;
 		};

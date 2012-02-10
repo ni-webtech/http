@@ -529,6 +529,7 @@ else
     #define BLD_HTTP_IMPORTS "${BLD_TOP}/src/http.h "
     #define BLD_HTTP_LIBS "http pcre"
     #define BLD_HTTP_WITHLIBS "pcre"
+    #define BLD_CONFIG_CMD "/usr/local/bin/bit -config . -o"
 #endif /* IGNORE_IN_C_CODE */
 #if IGNORE_IN_C_CODE
 endif
