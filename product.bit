@@ -57,10 +57,6 @@ Bit.load({
             sources: [ 'src/utils/http.c' ],
         },
 
-        doc: {
-            build: "",
-        },
-
         package: {
             depends: ['build'],
             action: "
