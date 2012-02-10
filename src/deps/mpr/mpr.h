@@ -469,7 +469,9 @@ typedef int64 MprOff;
 /*
     Socklen_t
  */
-#if VXWORKS
+#if DOXYGEN
+    typedef int MprSocklen;
+#elif VXWORKS
     typedef int MprSocklen;
 #else
     typedef socklen_t MprSocklen;
@@ -7035,7 +7037,7 @@ extern int mprGetSocketFd(MprSocket *sp);
     @return Zero if the call is successful. Otherwise return a negative MPR error code.
     @ingroup MprSocket
   */
-extern int mprGetSocketInfo(cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, socklen_t *addrlen);
+extern int mprGetSocketInfo(cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, MprSocklen *addrlen);
 
 /**
     Get the port used by a socket

@@ -104,10 +104,15 @@ NO WARRANTY
 -- END OF TERMS AND CONDITIONS --
 
 
-Third Party Components
+Third Party Components and Contributions
 ---------------------------------------------------------------------------------------------
 
-1) Build Tools. Some of the tools used to build the Licensed Software are licensed under a GPL license. They are not part of the binary product nor are they normally deployed with the software after it is built into binary form.
-2) MatrixSSL. The MatrixSSL interface contains some licensed code from PeerSec. MatrixSSL is an optional component.
-
 Contributors have provided other portions of the software that are covered by the Embedthis Contributor license that grants Embedthis sufficient rights to execute this license Agreement.
+
+---------------------------------------------------------------------------------------------
+
+Copyright (c) 2003-2012 Embedthis Software, LLC. All Rights Reserved.
+Embedthis is a trademark of Embedthis Software, LLC. Other brands and
+their products are trademarks of their respective holders.
+
+Other copyrights appear in relevant source files.

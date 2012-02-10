@@ -9,6 +9,8 @@ Bit.load({
 //      "src/test/test.bit",
         ".bit/embedthis.bit",
     ],
+    '+modules': [ ],
+
     settings: {
         /* Default settings overridden by build.bit */
 		product: 'http',
@@ -36,7 +38,7 @@ Bit.load({
     },
 
     '+required': [ 'pcre' ],
-    '+optional': [ 'doxygen', 'ejs', 'openssl', 'matrixssl' ],
+    '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl' ],
 
     defaults: {
         '+includes': [ 'src' ]
@@ -60,6 +62,7 @@ Bit.load({
         },
 
         package: {
+            depends: ['build'],
             action: "
                 let d = bit.dir.pkg.join('${settings.product}-${settings.version}')
                 safeRemove(bit.dir.pkg)

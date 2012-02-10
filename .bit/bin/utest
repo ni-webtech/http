@@ -558,6 +558,7 @@ enumerable class Test {
         App.exit(1)
     }
 
+//  MOB - rename tor trace
     function activity(tag: String, ...args): Void {
         let msg = args.join(" ")
         let msg = "%12s %s" % (["[" + tag + "]"] + [msg]) + "\n"

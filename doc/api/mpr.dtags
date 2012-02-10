@@ -2,7 +2,7 @@
 <tagfile>
   <compound kind="file">
     <name>mpr.h</name>
-    <path>/Users/mob/git/mpr/doc/api/mpr/staging/src/deps/mpr/</path>
+    <path>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/deps/mpr/</path>
     <filename>mpr_8h</filename>
     <class kind="struct">MprCond</class>
     <class kind="struct">MprDirEntry</class>
@@ -2971,20 +2971,6 @@
       <arglist>()</arglist>
     </member>
     <member kind="function">
-      <type>HWND</type>
-      <name>mprGetHwnd</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>a15e11b4f737b75b60818250c14afa7de</anchor>
-      <arglist>()</arglist>
-    </member>
-    <member kind="function">
-      <type>long</type>
-      <name>mprGetInst</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>aa2dd4b3bdb79f817f5d8f2765a86a98f</anchor>
-      <arglist>()</arglist>
-    </member>
-    <member kind="function">
       <type>cchar *</type>
       <name>mprGetIpAddr</name>
       <anchorfile>group___mpr.html</anchorfile>
@@ -3268,8 +3254,8 @@
       <type>int</type>
       <name>mprGetSocketInfo</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
-      <anchor>ga4c232354b2bf127523dbdfb0749b183d</anchor>
-      <arglist>(cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, socklen_t *addrlen)</arglist>
+      <anchor>ga113028eebd23571c0b3a494b5ed9e89a</anchor>
+      <arglist>(cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, MprSocklen *addrlen)</arglist>
     </member>
     <member kind="function">
       <type>int</type>
@@ -4014,13 +4000,6 @@
       <arglist>(MprFile *file, ssize size, ssize *len)</arglist>
     </member>
     <member kind="function">
-      <type>char *</type>
-      <name>mprReadRegistry</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>a99c8add571bf47a8f23de28b59662a9f</anchor>
-      <arglist>(cchar *key, cchar *name)</arglist>
-    </member>
-    <member kind="function">
       <type>ssize</type>
       <name>mprReadSocket</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
@@ -4441,25 +4420,11 @@
       <arglist>(cchar *s)</arglist>
     </member>
     <member kind="function">
-      <type>void</type>
-      <name>mprSetHwnd</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>ac16c3c30d8dff5192e10e838819da8a2</anchor>
-      <arglist>(HWND handle)</arglist>
-    </member>
-    <member kind="function">
       <type>MprIdleCallback</type>
       <name>mprSetIdleCallback</name>
       <anchorfile>group___mpr.html</anchorfile>
       <anchor>ga829517ad9c44a5a377f3d70928c6d9c2</anchor>
       <arglist>(MprIdleCallback idleCallback)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>mprSetInst</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>ac6d2889eada81f6a32c6680f1aacc325</anchor>
-      <arglist>(HINSTANCE inst)</arglist>
     </member>
     <member kind="function">
       <type>void</type>
@@ -4642,13 +4607,6 @@
       <anchorfile>group___mpr_socket.html</anchorfile>
       <anchor>ga27866b4c10d6e45ffd96604b221cf314</anchor>
       <arglist>(MprSocket *sp, bool eof)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>mprSetSocketMessage</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>ae7906dd0ead75c98581cc56fb790f04d</anchor>
-      <arglist>(int message)</arglist>
     </member>
     <member kind="function">
       <type>int</type>
@@ -5174,13 +5132,6 @@
       <anchorfile>mpr_8h.html</anchorfile>
       <anchor>a493014d6c3a406207003a3f40eb06843</anchor>
       <arglist>(cchar *path, cchar *buf, ssize len, int mode)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>mprWriteRegistry</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>aee41958f649712e29e3a4b54b01198b8</anchor>
-      <arglist>(cchar *key, cchar *name, cchar *value)</arglist>
     </member>
     <member kind="function">
       <type>ssize</type>
@@ -7956,8 +7907,8 @@
       <type>int</type>
       <name>mprGetSocketInfo</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
-      <anchor>ga4c232354b2bf127523dbdfb0749b183d</anchor>
-      <arglist>(cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, socklen_t *addrlen)</arglist>
+      <anchor>ga113028eebd23571c0b3a494b5ed9e89a</anchor>
+      <arglist>(cchar *ip, int port, int *family, int *protocol, struct sockaddr **addr, MprSocklen *addrlen)</arglist>
     </member>
     <member kind="function">
       <type>int</type>
@@ -9511,13 +9462,6 @@
   <compound kind="struct">
     <name>MprMutex</name>
     <filename>struct_mpr_mutex.html</filename>
-    <member kind="variable">
-      <type>CRITICAL_SECTION</type>
-      <name>cs</name>
-      <anchorfile>struct_mpr_mutex.html</anchorfile>
-      <anchor>a35a083e861b4665838b97e896360d977</anchor>
-      <arglist></arglist>
-    </member>
   </compound>
   <compound kind="struct">
     <name>MprRegion</name>
@@ -9700,13 +9644,6 @@
   <compound kind="struct">
     <name>MprSpin</name>
     <filename>struct_mpr_spin.html</filename>
-    <member kind="variable">
-      <type>CRITICAL_SECTION</type>
-      <name>cs</name>
-      <anchorfile>struct_mpr_spin.html</anchorfile>
-      <anchor>a2c64ee0b71bc7bfdcd19d9c72e6cb7e3</anchor>
-      <arglist></arglist>
-    </member>
   </compound>
   <compound kind="struct">
     <name>MprTestCase</name>
@@ -10088,27 +10025,39 @@
     </member>
   </compound>
   <compound kind="dir">
-    <name>staging/src/deps/</name>
-    <path>/Users/mob/git/mpr/doc/api/mpr/staging/src/deps/</path>
-    <filename>dir_f3606b75a1140bd8a322263043b2f33b.html</filename>
-    <dir>staging/src/deps/mpr/</dir>
+    <name>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/deps/</name>
+    <path>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/deps/</path>
+    <filename>dir_c103b7b03d5bd8bece7048ef6291fb0e.html</filename>
+    <dir>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/deps/mpr/</dir>
   </compound>
   <compound kind="dir">
-    <name>staging/src/deps/mpr/</name>
-    <path>/Users/mob/git/mpr/doc/api/mpr/staging/src/deps/mpr/</path>
-    <filename>dir_0331357163923e4e54c7c816e9385c1a.html</filename>
+    <name>/Users/mob/git/mpr/macosx-x86_64-debug/</name>
+    <path>/Users/mob/git/mpr/macosx-x86_64-debug/</path>
+    <filename>dir_0d33234b46da3265417e3bcba0fcbd70.html</filename>
+    <dir>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/</dir>
+  </compound>
+  <compound kind="dir">
+    <name>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/deps/mpr/</name>
+    <path>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/deps/mpr/</path>
+    <filename>dir_e0a7b9e7c1c3555bc0880ea2c832c862.html</filename>
     <file>mpr.h</file>
   </compound>
   <compound kind="dir">
-    <name>staging/src/</name>
-    <path>/Users/mob/git/mpr/doc/api/mpr/staging/src/</path>
-    <filename>dir_e534a22612363ad6c92b9bcc62caac24.html</filename>
-    <dir>staging/src/deps/</dir>
+    <name>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/</name>
+    <path>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/</path>
+    <filename>dir_06a3f2df4695ed354d8f4c04164f2e08.html</filename>
+    <dir>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/</dir>
   </compound>
   <compound kind="dir">
-    <name>staging/</name>
-    <path>/Users/mob/git/mpr/doc/api/mpr/staging/</path>
-    <filename>dir_5571a2a4073dd3ba5a7649de7406ff9c.html</filename>
-    <dir>staging/src/</dir>
+    <name>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/</name>
+    <path>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/</path>
+    <filename>dir_ee75f5854f0100559d385141eded7f42.html</filename>
+    <dir>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/</dir>
+  </compound>
+  <compound kind="dir">
+    <name>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/</name>
+    <path>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/</path>
+    <filename>dir_f018fb8773bea1d766ec0a3be5a7b66b.html</filename>
+    <dir>/Users/mob/git/mpr/macosx-x86_64-debug/pkg/mpr-4.0.0/src/deps/</dir>
   </compound>
 </tagfile>
