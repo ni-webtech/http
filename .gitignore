@@ -52,3 +52,4 @@ local.bit
 *-debug
 *-release
 xcode
+macosx-x86_64.bit
