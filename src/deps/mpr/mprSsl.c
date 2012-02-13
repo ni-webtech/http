@@ -1380,8 +1380,7 @@ static int configureOss(MprSsl *ssl)
     SSL_CTX             *context;
     uchar               resume[16];
 
-    context = SSL_CTX_new(SSLv23_method());
-    if (context == 0) {
+    if ((context = SSL_CTX_new(SSLv23_method())) == 0) {
         mprError("OpenSSL: Unable to create SSL context"); 
         return MPR_ERR_CANT_CREATE;
     }
@@ -1509,7 +1508,10 @@ static int configureOss(MprSsl *ssl)
         ossl->rsaKey1024 = src->rsaKey1024;
         ossl->dhKey512 = src->dhKey512;
         ossl->dhKey1024 = src->dhKey1024;
+    } else {
+        ossl = ssl->extendedSsl;
     }
+    mprAssert(ossl);
     ossl->context = context;
     return 0;
 }
@@ -1875,6 +1877,7 @@ static ssize readOss(MprSocket *sp, void *buf, ssize len)
         } else if (error != SSL_ERROR_ZERO_RETURN) {
             /* SSL_ERROR_SSL */
             rc = -1;
+            sp->flags |= MPR_SOCKET_EOF;
         }
     } else if (SSL_pending(osp->handle) > 0) {
         sp->flags |= MPR_SOCKET_PENDING;
