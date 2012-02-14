@@ -25,9 +25,7 @@ Bit.load({
         scripts: {
             '+preblend': "
                 let defaults = bit.defaults
-                let tunesw = bit.settings.hasMtune ? 'mtune' : 'mcpu'
                 let arch = bit.platform.arch
-
                 if (bit.settings.preprocess) {
                     defaults.compiler.push('-E')
                 }
