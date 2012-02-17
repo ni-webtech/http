@@ -38,7 +38,6 @@ Bit.load({
         '+libraries':[ 'ws2_32.lib', 'advapi32.lib', 'user32.lib', 'kernel32.lib', 'oldnames.lib', 'msvcrt.lib' ],
         '+linker':   [
             '-nologo',
-            '-libpath:${dir.lib}',
             '-nodefaultlib',
             '-incremental:no',
         ],
@@ -48,6 +47,7 @@ Bit.load({
                 let defaults = bit.defaults
                 let settings = bit.settings
                 if (settings.preprocess) defaults.compiler += [ "-E" ]
+                defaults.linker.push('-libpath:' + bit.dir.lib)
                 if (settings.profile == "debug") {
                     defaults.compiler += [ "-Zi", "-Od", "-MDd" ]
                     defaults.linker += [ "-debug" ]
