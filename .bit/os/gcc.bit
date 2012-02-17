@@ -13,6 +13,7 @@ Bit.load({
                 let defaults = bit.defaults
                 let arch = bit.platform.arch
 
+                blend(defaults, {compiler: [], defines: [], libraries: [], linker: []})
                 if (bit.platform.os != 'vxworks') {
                     defaults.compiler.push('-fPIC')
                     defaults.defines.push('-DPIC')
