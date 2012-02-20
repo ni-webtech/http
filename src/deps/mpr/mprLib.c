@@ -19204,11 +19204,6 @@ int mprDeletePath(cchar *path)
         return MPR_ERR_CANT_ACCESS;
     }
     fs = mprLookupFileSystem(path);
-#if UNUSED
-    if (!mprPathExists(path, F_OK)) {
-        return 0;
-    }
-#endif
     return fs->deletePath(fs, path);
 }
 
@@ -19607,41 +19602,35 @@ static MprList *getDirFiles(cchar *dir, int flags)
         if (findData.cFileName[0] == '.' && (findData.cFileName[1] == '\0' || findData.cFileName[1] == '.')) {
             continue;
         }
-#if UNUSED
-        if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || !(flags & MPR_PATH_NODIRS)) {
-#endif
-            if ((dp = mprAlloc(sizeof(MprDirEntry))) == 0) {
-                return 0;
-            }
-            dp->name = sclone(findData.cFileName);
-            if (dp->name == 0) {
-                return 0;
-            }
-            /* dp->lastModified = (uint) findData.ftLastWriteTime.dwLowDateTime; */
+        if ((dp = mprAlloc(sizeof(MprDirEntry))) == 0) {
+            return 0;
+        }
+        dp->name = sclone(findData.cFileName);
+        if (dp->name == 0) {
+            return 0;
+        }
+        /* dp->lastModified = (uint) findData.ftLastWriteTime.dwLowDateTime; */
 
-            if (mprSprintf(pbuf, sizeof(pbuf), "%s%c%s", dir, seps[0], dp->name) < 0) {
-                dp->lastModified = 0;
-            } else {
-                mprGetPathInfo(pbuf, &fileInfo);
-                dp->lastModified = fileInfo.mtime;
-            }
-            dp->isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
-            dp->isLink = 0;
+        if (mprSprintf(pbuf, sizeof(pbuf), "%s%c%s", dir, seps[0], dp->name) < 0) {
+            dp->lastModified = 0;
+        } else {
+            mprGetPathInfo(pbuf, &fileInfo);
+            dp->lastModified = fileInfo.mtime;
+        }
+        dp->isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
+        dp->isLink = 0;
 
 #if FUTURE_64_BIT
-            if (findData.nFileSizeLow < 0) {
-                dp->size = (((uint64) findData.nFileSizeHigh) * INT64(4294967296)) + (4294967296L - 
-                    (uint64) findData.nFileSizeLow);
-            } else {
-                dp->size = (((uint64) findData.nFileSizeHigh * INT64(4294967296))) + (uint64) findData.nFileSizeLow;
-            }
-#else
-            dp->size = (uint) findData.nFileSizeLow;
-#endif
-            mprAddItem(list, dp);
-#if UNUSED
+        if (findData.nFileSizeLow < 0) {
+            dp->size = (((uint64) findData.nFileSizeHigh) * INT64(4294967296)) + (4294967296L - 
+                (uint64) findData.nFileSizeLow);
+        } else {
+            dp->size = (((uint64) findData.nFileSizeHigh * INT64(4294967296))) + (uint64) findData.nFileSizeLow;
         }
+#else
+        dp->size = (uint) findData.nFileSizeLow;
 #endif
+        mprAddItem(list, dp);
     } while (FindNextFile(h, &findData) != 0);
 
     FindClose(h);
@@ -19683,31 +19672,25 @@ static MprList *getDirFiles(cchar *path, int flags)
         fileInfo.isLink = 0;
         fileInfo.isDir = 0;
         rc = mprGetPathInfo(fileName, &fileInfo);
-#if UNUSED
-        if (!fileInfo.isDir || /* UNUSED !(flags & MPR_PATH_NODIRS) || */ fileInfo.isLink) { 
-#endif
-            if ((dp = mprAllocObj(MprDirEntry, manageDirEntry)) == 0) {
-                return 0;
-            }
-            dp->name = sclone(dirent->d_name);
-            if (dp->name == 0) {
-                return 0;
-            }
-            if (rc == 0 || fileInfo.isLink) {
-                dp->lastModified = fileInfo.mtime;
-                dp->size = fileInfo.size;
-                dp->isDir = fileInfo.isDir;
-                dp->isLink = fileInfo.isLink;
-            } else {
-                dp->lastModified = 0;
-                dp->size = 0;
-                dp->isDir = 0;
-                dp->isLink = 0;
-            }
-            mprAddItem(list, dp);
-#if UNUSED
+        if ((dp = mprAllocObj(MprDirEntry, manageDirEntry)) == 0) {
+            return 0;
         }
-#endif
+        dp->name = sclone(dirent->d_name);
+        if (dp->name == 0) {
+            return 0;
+        }
+        if (rc == 0 || fileInfo.isLink) {
+            dp->lastModified = fileInfo.mtime;
+            dp->size = fileInfo.size;
+            dp->isDir = fileInfo.isDir;
+            dp->isLink = fileInfo.isLink;
+        } else {
+            dp->lastModified = 0;
+            dp->size = 0;
+            dp->isDir = 0;
+            dp->isLink = 0;
+        }
+        mprAddItem(list, dp);
     }
     closedir(dir);
     return list;
@@ -19725,7 +19708,9 @@ static MprList *findFiles(MprList *list, cchar *dir, cchar *base, int flags)
     char            *name;
     int             next;
 
-    files = getDirFiles(dir, flags);
+    if ((files = getDirFiles(dir, flags)) == 0) {
+        return 0;
+    }
     for (next = 0; (dp = mprGetNextItem(files, &next)) != 0; ) {
         if (dp->name[0] == '.') {
             if (dp->name[1] == '\0' || (dp->name[1] == '.' && dp->name[2] == '\0')) {
