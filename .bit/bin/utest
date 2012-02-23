@@ -201,17 +201,20 @@ enumerable class Test {
             throw "Can't find configure"
         }
         _top = path.dirname.absolute
-        _bin = Path(Cmd.locate("edep")).dirname
-        _lib = App.exeDir.join("../lib")
+        let out: Path out = _top.join('out')
+        if (!out.join('inc/buildConfig.h').exists) {
+            out = Path(_top).glob(Config.OS.toLower() + '-' + Config.CPU + '-*').sort()[0]
+        }
+        if (!out) {
+            throw 'Can\'t locate configure files, run configure'
+        }
+        parseBuildConfig(out.join('inc/buildConfig.h'))
+
+        //  MOB - these are currently being set to the ejs bin and lib
+        _bin = App.exeDir
+        _lib = _bin.join("../lib")
         if (!_lib.exists) {
             _lib = _bin
-        }
-        let config = _top.join('out/inc/buildConfig.h')
-        if (config.exists) {
-            parseBuildConfig(config)
-        } else {
-            let local =  Config.OS.toLower() + '-' + Config.CPU
-            let config = _top.join(local + 'inc/buildConfig.h')
         }
     }
 

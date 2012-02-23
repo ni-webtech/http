@@ -6,8 +6,7 @@ Bit.load({
     blend: [
         "src/deps/mpr/mpr.bit",
         "src/deps/pcre/pcre.bit",
-//      "src/test/test.bit",
-        ".bit/embedthis.bit",
+        "${BITS}/embedthis.bit",
     ],
     '+modules': [ ],
 
@@ -62,8 +61,8 @@ Bit.load({
             action: "
                 let d = bit.dir.pkg.join('${settings.product}-${settings.version}')
                 safeRemove(bit.dir.pkg)
-                install('.bit/http.bit', d.join('src/deps/http/http.bit'), {hidden: true})
-                install('.bit/Makefile', d.join('src/deps/http/Makefile'), {hidden: true})
+                install('package/http.bit', d.join('src/deps/http/http.bit'), {hidden: true})
+                install('package/Makefile', d.join('src/deps/http/Makefile'), {hidden: true})
                 install(['doc/api/http.html', 'doc/api/httpBare.html', 'doc/api/http*.tags', 'doc/api/http.dtags'],
                     d.join('doc/api'))
                 install('doc/man/http.1', d.join('doc/man/http.1'))

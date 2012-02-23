@@ -825,20 +825,25 @@
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BBIN = "$(TOP)/.bit/bin";
-				CONFIGURATION_BUILD_DIR = "$(SYMROOT)/$(CONFIGURATION)";
-				CONFIGURATION_TEMP_DIR = "$(OUT)/tmp/$(CONFIGURATION)";
+				CONFIGURATION_BUILD_DIR = "$(SYMROOT)";
+				CONFIGURATION_TEMP_DIR = "$(OUT)/tmp";
 				COPY_PHASE_STRIP = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG_IDE=1";
 				GCC_VERSION = "";
 				"GCC_VERSION[arch=*]" = "";
 				HEADER_SEARCH_PATHS = (
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open/matrixssl",
 					$SRC/deps/pcre,
 					$SRC,
 					$SRC/deps/mpr,
 					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open/matrixssl/matrixssl",
 				);
-				LIBRARY_SEARCH_PATHS = $OUT/inc;
+				LIBRARY_SEARCH_PATHS = (
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open",
+					$OUT/lib,
+				);
 				OBJROOT = "$(OUT)";
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
@@ -858,19 +863,24 @@
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BBIN = "$(TOP)/.bit/bin";
-				CONFIGURATION_BUILD_DIR = "$(SYMROOT)/$(CONFIGURATION)";
-				CONFIGURATION_TEMP_DIR = "$(OUT)/tmp/$(CONFIGURATION)";
+				CONFIGURATION_BUILD_DIR = "$(SYMROOT)";
+				CONFIGURATION_TEMP_DIR = "$(OUT)/tmp";
 				COPY_PHASE_STRIP = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG_IDE=1";
 				GCC_VERSION = "";
 				HEADER_SEARCH_PATHS = (
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open/matrixssl",
 					$SRC/deps/pcre,
 					$SRC,
 					$SRC/deps/mpr,
 					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open/matrixssl/matrixssl",
 				);
-				LIBRARY_SEARCH_PATHS = $OUT/inc;
+				LIBRARY_SEARCH_PATHS = (
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open",
+					$OUT/lib,
+				);
 				OBJROOT = "$(OUT)";
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
@@ -1025,11 +1035,56 @@
 				EXECUTABLE_PREFIX = "";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"POSIX=1",
+					"DEBUG_IDE=1",
+				);
 				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					HEADER_SEARCH_PATHS,
+					"=",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					$SRC/deps/pcre,
+					$SRC,
+					$SRC/deps/mpr,
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					HEADER_SEARCH_PATHS,
+					"=",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					HEADER_SEARCH_PATHS,
+					"=",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest",
+				);
 				INSTALL_PATH = /usr/local/lib;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_2)",
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_LDFLAGS = (
+					"-lmatrixssl",
+					"-lcrypto",
+					"-lssl",
 				);
 				PRODUCT_NAME = libmprssl;
 			};
@@ -1043,11 +1098,56 @@
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = "";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"POSIX=1",
+					"DEBUG_IDE=1",
+				);
 				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					HEADER_SEARCH_PATHS,
+					"=",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					$SRC/deps/pcre,
+					$SRC,
+					$SRC/deps/mpr,
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					HEADER_SEARCH_PATHS,
+					"=",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					HEADER_SEARCH_PATHS,
+					"=",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest/include",
+					$OUT/inc,
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest",
+					"/Users/mob/git/packages-macosx-x86_64/matrixssl/latest/matrixssl",
+					"/Users/mob/git/packages-macosx-x86_64/openssl/latest",
+				);
 				INSTALL_PATH = /usr/local/lib;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_2)",
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_LDFLAGS = (
+					"-lmatrixssl",
+					"-lcrypto",
+					"-lssl",
 				);
 				PRODUCT_NAME = libmprssl;
 			};
