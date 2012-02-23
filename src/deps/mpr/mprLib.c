@@ -12777,11 +12777,12 @@ void mprRelayEvent(MprDispatcher *dispatcher, void *proc, void *data, MprEvent *
     MprThread   *tp = mprGetCurrentThread();
     mprNop(tp);
 #endif
-    mprAssert(!isRunning(dispatcher));
-    mprAssert(dispatcher->owner == 0);
     mprAssert(dispatcher->magic == MPR_DISPATCHER_MAGIC);
     mprAssert(!dispatcher->destroyed);
 
+    if (isRunning(dispatcher) && dispatcher->owner != mprGetCurrentOsThread()) {
+        mprError("Relay to a running dispatcher owned by another thread");
+    }
     if (event) {
         event->timestamp = dispatcher->service->now;
     }

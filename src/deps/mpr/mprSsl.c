@@ -411,7 +411,7 @@ static int connectMss(MprSocket *sp, cchar *host, int port, int flags)
     MprMatrixSocket     *msp;
     MprMatrixSsl        *mssl;
     MprSsl              *ssl;
-    int32               cipherSuite;
+    uint32              cipherSuite;
     
     lock(sp);
     ss = sp->service;
@@ -434,10 +434,7 @@ static int connectMss(MprSocket *sp, cchar *host, int port, int flags)
     mssl = ssl->extendedSsl;
 
     cipherSuite = 0;
-    int rc;
-    sslSessionId_t sid;
-        matrixSslInitSessionId(sid);
-    if ((rc = matrixSslNewClientSession(&msp->handle, mssl->keys, &sid, cipherSuite, certValidator, NULL, NULL)) < 0) {
+    if (matrixSslNewClientSession(&msp->handle, mssl->keys, NULL, cipherSuite, certValidator, NULL, NULL) < 0) {
         unlock(sp);
         return -1;
     }
