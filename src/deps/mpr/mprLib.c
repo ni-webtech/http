@@ -2772,6 +2772,16 @@ void mprTerminate(int how, int status)
     MprTerminator   terminator;
     int             next;
 
+    /*
+        Set the stopping flag. Services should stop accepting new requests. Current requests should be allowed to
+        complete if graceful exit strategy.
+     */
+    if (MPR->state >= MPR_STOPPING) {
+        /* Already stopping and done the code below */
+        return;
+    }
+    MPR->state = MPR_STOPPING;
+
     MPR->exitStatus = status;
     if (!(how & MPR_EXIT_DEFAULT)) {
         MPR->exitStrategy = how;
@@ -2790,16 +2800,6 @@ void mprTerminate(int how, int status)
     } else {
         mprLog(7, "mprTerminate: how %d", how);
     }
-
-    /*
-        Set the stopping flag. Services should stop accepting new requests. Current requests should be allowed to
-        complete if graceful exit strategy.
-     */
-    if (MPR->state >= MPR_STOPPING) {
-        /* Already stopping and done the code below */
-        return;
-    }
-    MPR->state = MPR_STOPPING;
 
     /*
         Invoke terminators, set stopping state and wake up everybody
