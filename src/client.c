@@ -10,7 +10,7 @@
 
 /*********************************** Code *************************************/
 
-static HttpConn *openConnection(HttpConn *conn, cchar *url)
+static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
 {
     Http        *http;
     HttpUri     *uri;
@@ -62,8 +62,10 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url)
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
         return 0;
     }
-    rc = mprConnectSocket(sp, ip, port, 0);
-    if (rc < 0) {
+    if (uri->secure && ssl) {
+        mprSetSocketSslConfig(sp, ssl);
+    }
+    if ((rc = mprConnectSocket(sp, ip, port, 0)) < 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't open socket on %s:%d", ip, port);
         return 0;
     }
@@ -170,7 +172,7 @@ static int setClientHeaders(HttpConn *conn)
 }
 
 
-int httpConnect(HttpConn *conn, cchar *method, cchar *url)
+int httpConnect(HttpConn *conn, cchar *method, cchar *url, struct MprSsl *ssl)
 {
     mprAssert(conn);
     mprAssert(method && *method);
@@ -189,18 +191,16 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url)
     mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_CONNECTED);
     conn->sentCredentials = 0;
-
     conn->tx->method = supper(method);
 
 #if BLD_DEBUG
     conn->startTime = conn->http->now;
     conn->startTicks = mprGetTicks();
 #endif
-    if (openConnection(conn, url) == 0) {
+    if (openConnection(conn, url, ssl) == 0) {
         return MPR_ERR_CANT_OPEN;
     }
     httpCreateTxPipeline(conn, conn->http->clientRoute);
-
     if (setClientHeaders(conn) < 0) {
         return MPR_ERR_CANT_INITIALIZE;
     }
