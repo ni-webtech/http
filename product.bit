@@ -37,7 +37,7 @@ Bit.load({
     },
 
     '+required': [ 'pcre' ],
-    '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl' ],
+    '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl', 'utest' ],
 
     defaults: {
         '+includes': [ 'src' ]
