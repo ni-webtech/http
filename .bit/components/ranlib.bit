@@ -1,6 +1,0 @@
-/*
-    ranlib.bit - Ranlib component for Bit
- */
-
-program('ranlib')
-

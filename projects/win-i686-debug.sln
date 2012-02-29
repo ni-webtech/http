@@ -1,0 +1,53 @@
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libmpr", "win-i686-debug\libmpr.vcxproj", "{5F67A224-9BDB-4603-B5D2-42002728F20D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "manager", "win-i686-debug\manager.vcxproj", "{132B04E4-6571-4782-B415-C3668BB61CB3}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5F67A224-9BDB-4603-B5D2-42002728F20D} = {5F67A224-9BDB-4603-B5D2-42002728F20D}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "makerom", "win-i686-debug\makerom.vcxproj", "{D77992B7-4FE8-4E68-8874-0C72DD7A5BE7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5F67A224-9BDB-4603-B5D2-42002728F20D} = {5F67A224-9BDB-4603-B5D2-42002728F20D}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libpcre", "win-i686-debug\libpcre.vcxproj", "{422648E1-87C2-4C3B-8673-48833C6AB509}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhttp", "win-i686-debug\libhttp.vcxproj", "{8513988C-FA57-4A66-94D1-11640B2B5D64}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5F67A224-9BDB-4603-B5D2-42002728F20D} = {5F67A224-9BDB-4603-B5D2-42002728F20D}
+	EndProjectSection
+	ProjectSection(ProjectDependencies) = postProject
+		{422648E1-87C2-4C3B-8673-48833C6AB509} = {422648E1-87C2-4C3B-8673-48833C6AB509}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "http", "win-i686-debug\http.vcxproj", "{AF4E9CB3-79E6-455E-B7FE-52683E781A10}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8513988C-FA57-4A66-94D1-11640B2B5D64} = {8513988C-FA57-4A66-94D1-11640B2B5D64}
+	EndProjectSection
+EndProject
+
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+{5F67A224-9BDB-4603-B5D2-42002728F20D}.Debug|Win32.ActiveCfg = Debug|Win32
+{5F67A224-9BDB-4603-B5D2-42002728F20D}.Debug|Win32.Build.0 = Debug|Win32
+{132B04E4-6571-4782-B415-C3668BB61CB3}.Debug|Win32.ActiveCfg = Debug|Win32
+{132B04E4-6571-4782-B415-C3668BB61CB3}.Debug|Win32.Build.0 = Debug|Win32
+{D77992B7-4FE8-4E68-8874-0C72DD7A5BE7}.Debug|Win32.ActiveCfg = Debug|Win32
+{D77992B7-4FE8-4E68-8874-0C72DD7A5BE7}.Debug|Win32.Build.0 = Debug|Win32
+{422648E1-87C2-4C3B-8673-48833C6AB509}.Debug|Win32.ActiveCfg = Debug|Win32
+{422648E1-87C2-4C3B-8673-48833C6AB509}.Debug|Win32.Build.0 = Debug|Win32
+{8513988C-FA57-4A66-94D1-11640B2B5D64}.Debug|Win32.ActiveCfg = Debug|Win32
+{8513988C-FA57-4A66-94D1-11640B2B5D64}.Debug|Win32.Build.0 = Debug|Win32
+{AF4E9CB3-79E6-455E-B7FE-52683E781A10}.Debug|Win32.ActiveCfg = Debug|Win32
+{AF4E9CB3-79E6-455E-B7FE-52683E781A10}.Debug|Win32.Build.0 = Debug|Win32
+EndGlobalSection
+
+  GlobalSection(SolutionProperties) = preSolution
+    HideSolutionNode = FALSE
+  EndGlobalSection
+EndGlobal

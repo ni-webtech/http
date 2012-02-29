@@ -1,5 +1,0 @@
-/*
-    http.bit - Http component for Bit
- */
-
-program('http')
