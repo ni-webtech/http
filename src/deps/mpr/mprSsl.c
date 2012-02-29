@@ -1264,8 +1264,6 @@ static int configureOss(MprSsl *ssl)
     if ((defaultSsl = getDefaultSslSettings()) == 0) {
         return MPR_ERR_MEMORY;
     }
-    //  MOB - always true
-    mprAssert(ssl != defaultSsl);
     if (ssl != defaultSsl) {
         if (!ssl->extendedSsl && (ssl->extendedSsl = mprAllocObj(MprOpenSsl, manageOpenSsl)) == 0) {
             return 0;
