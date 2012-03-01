@@ -389,6 +389,20 @@ HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
             mprAssert(offset < httpGetPacketLength(orig));
             return 0;
         }
+        /*
+            MOB OPT - this is not efficient. A large packet will often be resized by splitting into chunks that the
+            downstream queues will accept. This causes many allocations that are a small delta less than the large
+            packet 
+            Better:
+                - If offset is < size/2
+                    - Allocate packet size == offset
+                    - Set orig->content =   
+                    - packet->content = orig->content
+                        httpAdjustPacketStart(packet, offset) 
+                    - orig->content = Packet(size == offset)
+                        copy from packet
+                Adjust the content->start
+         */
         count = httpGetPacketLength(orig) - offset;
         size = max(count, HTTP_BUFSIZE);
         size = HTTP_PACKET_ALIGN(size);
