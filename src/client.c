@@ -62,9 +62,11 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
         return 0;
     }
+#if BLD_FEATURE_SSL
     if (uri->secure && ssl) {
         mprSetSocketSslConfig(sp, ssl);
     }
+#endif
     if ((rc = mprConnectSocket(sp, ip, port, 0)) < 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't open socket on %s:%d", ip, port);
         return 0;

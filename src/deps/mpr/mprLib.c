@@ -657,7 +657,7 @@ static MprMem *growHeap(ssize required, int flags)
     heap->regions = region;
 
     if (spareLen > 0) {
-        mprAssert(spareLen > sizeof(MprFreeMem));
+        mprAssert(spareLen >= sizeof(MprFreeMem));
         spare = (MprMem*) ((char*) mp + required);
         INIT_BLK(spare, spareLen, 0, 1, mp);
         CHECK(spare);
