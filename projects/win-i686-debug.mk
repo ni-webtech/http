@@ -2,320 +2,329 @@
 #   build.mk -- Build It Makefile to build Http Library for win on i686
 #
 
+PLATFORM  := win-i686-debug
 CC        := cl
 CFLAGS    := -nologo -GR- -W3 -Zi -Od -MDd
 DFLAGS    := -D_REENTRANT -D_MT
-IFLAGS    := -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc
-LDFLAGS   := -nologo -nodefaultlib -incremental:no -libpath:/Users/mob/git/http/win-i686-debug/bin -debug -machine:x86
+IFLAGS    := -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc
+LDFLAGS   := -nologo -nodefaultlib -incremental:no -libpath:/Users/mob/git/http/$(PLATFORM)/bin -debug -machine:x86
 LIBS      := ws2_32.lib advapi32.lib user32.lib kernel32.lib oldnames.lib msvcrt.lib
 
 export PATH := %VS%/Bin:%VS%/VC/Bin:%VS%/Common7/IDE:%VS%/Common7/Tools:%VS%/SDK/v3.5/bin:%VS%/VC/VCPackages
 export INCLUDE := %VS%/INCLUDE:%VS%/VC/INCLUDE
 export LIB := %VS%/lib:%VS%/VC/lib
 all: \
-        win-i686-debug/bin/libmpr.dll \
-        win-i686-debug/bin/manager.exe \
-        win-i686-debug/bin/makerom.exe \
-        win-i686-debug/bin/libpcre.dll \
-        win-i686-debug/bin/libhttp.dll \
-        win-i686-debug/bin/http.exe
+        $(PLATFORM)/bin/libmpr.dll \
+        $(PLATFORM)/bin/manager.exe \
+        $(PLATFORM)/bin/makerom.exe \
+        $(PLATFORM)/bin/libpcre.dll \
+        $(PLATFORM)/bin/libhttp.dll \
+        $(PLATFORM)/bin/http.exe
+
+.PHONY: prep
+
+prep:
+	@if [ ! -x $(PLATFORM)/inc ] ; then \
+		mkdir -p $(PLATFORM)/inc $(PLATFORM)/obj $(PLATFORM)/lib $(PLATFORM)/bin ; \
+		cp src/buildConfig.default $(PLATFORM)/inc\
+	fi
 
 clean:
-	rm -f win-i686-debug/bin/libmpr.dll
-	rm -f win-i686-debug/bin/libmprssl.dll
-	rm -f win-i686-debug/bin/manager.exe
-	rm -f win-i686-debug/bin/makerom.exe
-	rm -f win-i686-debug/bin/libpcre.dll
-	rm -f win-i686-debug/bin/libhttp.dll
-	rm -f win-i686-debug/bin/http.exe
-	rm -f win-i686-debug/obj/mprLib.obj
-	rm -f win-i686-debug/obj/mprSsl.obj
-	rm -f win-i686-debug/obj/manager.obj
-	rm -f win-i686-debug/obj/makerom.obj
-	rm -f win-i686-debug/obj/pcre.obj
-	rm -f win-i686-debug/obj/auth.obj
-	rm -f win-i686-debug/obj/authCheck.obj
-	rm -f win-i686-debug/obj/authFile.obj
-	rm -f win-i686-debug/obj/authPam.obj
-	rm -f win-i686-debug/obj/cache.obj
-	rm -f win-i686-debug/obj/chunkFilter.obj
-	rm -f win-i686-debug/obj/$(CC)ient.obj
-	rm -f win-i686-debug/obj/conn.obj
-	rm -f win-i686-debug/obj/endpoint.obj
-	rm -f win-i686-debug/obj/error.obj
-	rm -f win-i686-debug/obj/host.obj
-	rm -f win-i686-debug/obj/httpService.obj
-	rm -f win-i686-debug/obj/log.obj
-	rm -f win-i686-debug/obj/netConnector.obj
-	rm -f win-i686-debug/obj/packet.obj
-	rm -f win-i686-debug/obj/passHandler.obj
-	rm -f win-i686-debug/obj/pipeline.obj
-	rm -f win-i686-debug/obj/queue.obj
-	rm -f win-i686-debug/obj/rangeFilter.obj
-	rm -f win-i686-debug/obj/route.obj
-	rm -f win-i686-debug/obj/rx.obj
-	rm -f win-i686-debug/obj/sendConnector.obj
-	rm -f win-i686-debug/obj/stage.obj
-	rm -f win-i686-debug/obj/trace.obj
-	rm -f win-i686-debug/obj/tx.obj
-	rm -f win-i686-debug/obj/uploadFilter.obj
-	rm -f win-i686-debug/obj/uri.obj
-	rm -f win-i686-debug/obj/var.obj
-	rm -f win-i686-debug/obj/http.obj
+	rm -rf $(PLATFORM)/bin/libmpr.dll
+	rm -rf $(PLATFORM)/bin/libmprssl.dll
+	rm -rf $(PLATFORM)/bin/manager.exe
+	rm -rf $(PLATFORM)/bin/makerom.exe
+	rm -rf $(PLATFORM)/bin/libpcre.dll
+	rm -rf $(PLATFORM)/bin/libhttp.dll
+	rm -rf $(PLATFORM)/bin/http.exe
+	rm -rf $(PLATFORM)/obj/mprLib.obj
+	rm -rf $(PLATFORM)/obj/mprSsl.obj
+	rm -rf $(PLATFORM)/obj/manager.obj
+	rm -rf $(PLATFORM)/obj/makerom.obj
+	rm -rf $(PLATFORM)/obj/pcre.obj
+	rm -rf $(PLATFORM)/obj/auth.obj
+	rm -rf $(PLATFORM)/obj/authCheck.obj
+	rm -rf $(PLATFORM)/obj/authFile.obj
+	rm -rf $(PLATFORM)/obj/authPam.obj
+	rm -rf $(PLATFORM)/obj/cache.obj
+	rm -rf $(PLATFORM)/obj/chunkFilter.obj
+	rm -rf $(PLATFORM)/obj/client.obj
+	rm -rf $(PLATFORM)/obj/conn.obj
+	rm -rf $(PLATFORM)/obj/endpoint.obj
+	rm -rf $(PLATFORM)/obj/error.obj
+	rm -rf $(PLATFORM)/obj/host.obj
+	rm -rf $(PLATFORM)/obj/httpService.obj
+	rm -rf $(PLATFORM)/obj/log.obj
+	rm -rf $(PLATFORM)/obj/netConnector.obj
+	rm -rf $(PLATFORM)/obj/packet.obj
+	rm -rf $(PLATFORM)/obj/passHandler.obj
+	rm -rf $(PLATFORM)/obj/pipeline.obj
+	rm -rf $(PLATFORM)/obj/queue.obj
+	rm -rf $(PLATFORM)/obj/rangeFilter.obj
+	rm -rf $(PLATFORM)/obj/route.obj
+	rm -rf $(PLATFORM)/obj/rx.obj
+	rm -rf $(PLATFORM)/obj/sendConnector.obj
+	rm -rf $(PLATFORM)/obj/stage.obj
+	rm -rf $(PLATFORM)/obj/trace.obj
+	rm -rf $(PLATFORM)/obj/tx.obj
+	rm -rf $(PLATFORM)/obj/uploadFilter.obj
+	rm -rf $(PLATFORM)/obj/uri.obj
+	rm -rf $(PLATFORM)/obj/var.obj
+	rm -rf $(PLATFORM)/obj/http.obj
 
-win-i686-debug/obj/mprLib.obj: \
+$(PLATFORM)/obj/mprLib.obj: \
         src/deps/mpr/mprLib.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/deps/mpr/mpr.h
-	"$(CC)" -c -Fowin-i686-debug/obj/mprLib.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/deps/mpr/mprLib.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/mprLib.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/mprLib.c
 
-win-i686-debug/bin/libmpr.dll:  \
-        win-i686-debug/obj/mprLib.obj
-	"link" -dll -out:win-i686-debug/bin/libmpr.dll -entry:_DllMainCRTStartup@12 -def:win-i686-debug/bin/libmpr.def $(LDFLAGS) win-i686-debug/obj/mprLib.obj $(LIBS)
+$(PLATFORM)/bin/libmpr.dll:  \
+        $(PLATFORM)/obj/mprLib.obj
+	"link" -dll -out:$(PLATFORM)/bin/libmpr.dll -entry:_DllMainCRTStartup@12 -def:$(PLATFORM)/bin/libmpr.def -nologo -nodefaultlib -incremental:no -libpath:$(PLATFORM)/bin -debug -machine:x86 $(PLATFORM)/obj/mprLib.obj $(LIBS)
 
-win-i686-debug/obj/manager.obj: \
+$(PLATFORM)/obj/manager.obj: \
         src/deps/mpr/manager.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/deps/mpr/mpr.h
-	"$(CC)" -c -Fowin-i686-debug/obj/manager.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/deps/mpr/manager.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/manager.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/manager.c
 
-win-i686-debug/bin/manager.exe:  \
-        win-i686-debug/bin/libmpr.dll \
-        win-i686-debug/obj/manager.obj
-	"link" -out:win-i686-debug/bin/manager.exe -entry:WinMainCRTStartup -subsystem:Windows $(LDFLAGS) win-i686-debug/obj/manager.obj $(LIBS) mpr.lib shell32.lib
+$(PLATFORM)/bin/manager.exe:  \
+        $(PLATFORM)/bin/libmpr.dll \
+        $(PLATFORM)/obj/manager.obj
+	"link" -out:$(PLATFORM)/bin/manager.exe -entry:WinMainCRTStartup -subsystem:Windows -nologo -nodefaultlib -incremental:no -libpath:$(PLATFORM)/bin -debug -machine:x86 $(PLATFORM)/obj/manager.obj $(LIBS) mpr.lib shell32.lib
 
-win-i686-debug/obj/makerom.obj: \
+$(PLATFORM)/obj/makerom.obj: \
         src/deps/mpr/makerom.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/deps/mpr/mpr.h
-	"$(CC)" -c -Fowin-i686-debug/obj/makerom.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/deps/mpr/makerom.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/makerom.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/makerom.c
 
-win-i686-debug/bin/makerom.exe:  \
-        win-i686-debug/bin/libmpr.dll \
-        win-i686-debug/obj/makerom.obj
-	"link" -out:win-i686-debug/bin/makerom.exe -entry:mainCRTStartup -subsystem:console $(LDFLAGS) win-i686-debug/obj/makerom.obj $(LIBS) mpr.lib
+$(PLATFORM)/bin/makerom.exe:  \
+        $(PLATFORM)/bin/libmpr.dll \
+        $(PLATFORM)/obj/makerom.obj
+	"link" -out:$(PLATFORM)/bin/makerom.exe -entry:mainCRTStartup -subsystem:console -nologo -nodefaultlib -incremental:no -libpath:$(PLATFORM)/bin -debug -machine:x86 $(PLATFORM)/obj/makerom.obj $(LIBS) mpr.lib
 
-win-i686-debug/obj/pcre.obj: \
+$(PLATFORM)/obj/pcre.obj: \
         src/deps/pcre/pcre.c \
-        win-i686-debug/inc/bit.h \
-        win-i686-debug/inc/buildConfig.h \
+        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/deps/pcre/pcre.h
-	"$(CC)" -c -Fowin-i686-debug/obj/pcre.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/deps/pcre/pcre.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/pcre.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/pcre/pcre.c
 
-win-i686-debug/bin/libpcre.dll:  \
-        win-i686-debug/obj/pcre.obj
-	"link" -dll -out:win-i686-debug/bin/libpcre.dll -entry:_DllMainCRTStartup@12 -def:win-i686-debug/bin/libpcre.def $(LDFLAGS) win-i686-debug/obj/pcre.obj $(LIBS)
+$(PLATFORM)/bin/libpcre.dll:  \
+        $(PLATFORM)/obj/pcre.obj
+	"link" -dll -out:$(PLATFORM)/bin/libpcre.dll -entry:_DllMainCRTStartup@12 -def:$(PLATFORM)/bin/libpcre.def -nologo -nodefaultlib -incremental:no -libpath:$(PLATFORM)/bin -debug -machine:x86 $(PLATFORM)/obj/pcre.obj $(LIBS)
 
-win-i686-debug/obj/auth.obj: \
+$(PLATFORM)/obj/auth.obj: \
         src/auth.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/auth.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/auth.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/auth.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/auth.c
 
-win-i686-debug/obj/authCheck.obj: \
+$(PLATFORM)/obj/authCheck.obj: \
         src/authCheck.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/authCheck.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/authCheck.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/authCheck.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authCheck.c
 
-win-i686-debug/obj/authFile.obj: \
+$(PLATFORM)/obj/authFile.obj: \
         src/authFile.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/authFile.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/authFile.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/authFile.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authFile.c
 
-win-i686-debug/obj/authPam.obj: \
+$(PLATFORM)/obj/authPam.obj: \
         src/authPam.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/authPam.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/authPam.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/authPam.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authPam.c
 
-win-i686-debug/obj/cache.obj: \
+$(PLATFORM)/obj/cache.obj: \
         src/cache.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/cache.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/cache.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/cache.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/cache.c
 
-win-i686-debug/obj/chunkFilter.obj: \
+$(PLATFORM)/obj/chunkFilter.obj: \
         src/chunkFilter.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/chunkFilter.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/chunkFilter.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/chunkFilter.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/chunkFilter.c
 
-win-i686-debug/obj/client.obj: \
+$(PLATFORM)/obj/client.obj: \
         src/client.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/client.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/client.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/client.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/client.c
 
-win-i686-debug/obj/conn.obj: \
+$(PLATFORM)/obj/conn.obj: \
         src/conn.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/conn.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/conn.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/conn.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/conn.c
 
-win-i686-debug/obj/endpoint.obj: \
+$(PLATFORM)/obj/endpoint.obj: \
         src/endpoint.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/endpoint.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/endpoint.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/endpoint.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/endpoint.c
 
-win-i686-debug/obj/error.obj: \
+$(PLATFORM)/obj/error.obj: \
         src/error.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/error.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/error.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/error.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/error.c
 
-win-i686-debug/obj/host.obj: \
+$(PLATFORM)/obj/host.obj: \
         src/host.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/host.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/host.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/host.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/host.c
 
-win-i686-debug/obj/httpService.obj: \
+$(PLATFORM)/obj/httpService.obj: \
         src/httpService.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/httpService.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/httpService.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/httpService.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/httpService.c
 
-win-i686-debug/obj/log.obj: \
+$(PLATFORM)/obj/log.obj: \
         src/log.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/log.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/log.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/log.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/log.c
 
-win-i686-debug/obj/netConnector.obj: \
+$(PLATFORM)/obj/netConnector.obj: \
         src/netConnector.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/netConnector.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/netConnector.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/netConnector.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/netConnector.c
 
-win-i686-debug/obj/packet.obj: \
+$(PLATFORM)/obj/packet.obj: \
         src/packet.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/packet.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/packet.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/packet.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/packet.c
 
-win-i686-debug/obj/passHandler.obj: \
+$(PLATFORM)/obj/passHandler.obj: \
         src/passHandler.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/passHandler.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/passHandler.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/passHandler.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/passHandler.c
 
-win-i686-debug/obj/pipeline.obj: \
+$(PLATFORM)/obj/pipeline.obj: \
         src/pipeline.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/pipeline.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/pipeline.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/pipeline.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/pipeline.c
 
-win-i686-debug/obj/queue.obj: \
+$(PLATFORM)/obj/queue.obj: \
         src/queue.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/queue.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/queue.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/queue.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/queue.c
 
-win-i686-debug/obj/rangeFilter.obj: \
+$(PLATFORM)/obj/rangeFilter.obj: \
         src/rangeFilter.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/rangeFilter.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/rangeFilter.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/rangeFilter.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/rangeFilter.c
 
-win-i686-debug/obj/route.obj: \
+$(PLATFORM)/obj/route.obj: \
         src/route.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h \
         src/deps/pcre/pcre.h
-	"$(CC)" -c -Fowin-i686-debug/obj/route.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/route.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/route.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/route.c
 
-win-i686-debug/obj/rx.obj: \
+$(PLATFORM)/obj/rx.obj: \
         src/rx.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/rx.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/rx.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/rx.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/rx.c
 
-win-i686-debug/obj/sendConnector.obj: \
+$(PLATFORM)/obj/sendConnector.obj: \
         src/sendConnector.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/sendConnector.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/sendConnector.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/sendConnector.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/sendConnector.c
 
-win-i686-debug/obj/stage.obj: \
+$(PLATFORM)/obj/stage.obj: \
         src/stage.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/stage.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/stage.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/stage.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/stage.c
 
-win-i686-debug/obj/trace.obj: \
+$(PLATFORM)/obj/trace.obj: \
         src/trace.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/trace.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/trace.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/trace.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/trace.c
 
-win-i686-debug/obj/tx.obj: \
+$(PLATFORM)/obj/tx.obj: \
         src/tx.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/tx.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/tx.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/tx.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/tx.c
 
-win-i686-debug/obj/uploadFilter.obj: \
+$(PLATFORM)/obj/uploadFilter.obj: \
         src/uploadFilter.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/uploadFilter.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/uploadFilter.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/uploadFilter.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/uploadFilter.c
 
-win-i686-debug/obj/uri.obj: \
+$(PLATFORM)/obj/uri.obj: \
         src/uri.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/uri.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/uri.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/uri.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/uri.c
 
-win-i686-debug/obj/var.obj: \
+$(PLATFORM)/obj/var.obj: \
         src/var.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/var.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/var.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/var.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/var.c
 
-win-i686-debug/bin/libhttp.dll:  \
-        win-i686-debug/bin/libmpr.dll \
-        win-i686-debug/bin/libpcre.dll \
-        win-i686-debug/obj/auth.obj \
-        win-i686-debug/obj/authCheck.obj \
-        win-i686-debug/obj/authFile.obj \
-        win-i686-debug/obj/authPam.obj \
-        win-i686-debug/obj/cache.obj \
-        win-i686-debug/obj/chunkFilter.obj \
-        win-i686-debug/obj/client.obj \
-        win-i686-debug/obj/conn.obj \
-        win-i686-debug/obj/endpoint.obj \
-        win-i686-debug/obj/error.obj \
-        win-i686-debug/obj/host.obj \
-        win-i686-debug/obj/httpService.obj \
-        win-i686-debug/obj/log.obj \
-        win-i686-debug/obj/netConnector.obj \
-        win-i686-debug/obj/packet.obj \
-        win-i686-debug/obj/passHandler.obj \
-        win-i686-debug/obj/pipeline.obj \
-        win-i686-debug/obj/queue.obj \
-        win-i686-debug/obj/rangeFilter.obj \
-        win-i686-debug/obj/route.obj \
-        win-i686-debug/obj/rx.obj \
-        win-i686-debug/obj/sendConnector.obj \
-        win-i686-debug/obj/stage.obj \
-        win-i686-debug/obj/trace.obj \
-        win-i686-debug/obj/tx.obj \
-        win-i686-debug/obj/uploadFilter.obj \
-        win-i686-debug/obj/uri.obj \
-        win-i686-debug/obj/var.obj
-	"link" -dll -out:win-i686-debug/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:win-i686-debug/bin/libhttp.def $(LDFLAGS) win-i686-debug/obj/auth.obj win-i686-debug/obj/authCheck.obj win-i686-debug/obj/authFile.obj win-i686-debug/obj/authPam.obj win-i686-debug/obj/cache.obj win-i686-debug/obj/chunkFilter.obj win-i686-debug/obj/$(CC)ient.obj win-i686-debug/obj/conn.obj win-i686-debug/obj/endpoint.obj win-i686-debug/obj/error.obj win-i686-debug/obj/host.obj win-i686-debug/obj/httpService.obj win-i686-debug/obj/log.obj win-i686-debug/obj/netConnector.obj win-i686-debug/obj/packet.obj win-i686-debug/obj/passHandler.obj win-i686-debug/obj/pipeline.obj win-i686-debug/obj/queue.obj win-i686-debug/obj/rangeFilter.obj win-i686-debug/obj/route.obj win-i686-debug/obj/rx.obj win-i686-debug/obj/sendConnector.obj win-i686-debug/obj/stage.obj win-i686-debug/obj/trace.obj win-i686-debug/obj/tx.obj win-i686-debug/obj/uploadFilter.obj win-i686-debug/obj/uri.obj win-i686-debug/obj/var.obj $(LIBS) mpr.lib pcre.lib
+$(PLATFORM)/bin/libhttp.dll:  \
+        $(PLATFORM)/bin/libmpr.dll \
+        $(PLATFORM)/bin/libpcre.dll \
+        $(PLATFORM)/obj/auth.obj \
+        $(PLATFORM)/obj/authCheck.obj \
+        $(PLATFORM)/obj/authFile.obj \
+        $(PLATFORM)/obj/authPam.obj \
+        $(PLATFORM)/obj/cache.obj \
+        $(PLATFORM)/obj/chunkFilter.obj \
+        $(PLATFORM)/obj/client.obj \
+        $(PLATFORM)/obj/conn.obj \
+        $(PLATFORM)/obj/endpoint.obj \
+        $(PLATFORM)/obj/error.obj \
+        $(PLATFORM)/obj/host.obj \
+        $(PLATFORM)/obj/httpService.obj \
+        $(PLATFORM)/obj/log.obj \
+        $(PLATFORM)/obj/netConnector.obj \
+        $(PLATFORM)/obj/packet.obj \
+        $(PLATFORM)/obj/passHandler.obj \
+        $(PLATFORM)/obj/pipeline.obj \
+        $(PLATFORM)/obj/queue.obj \
+        $(PLATFORM)/obj/rangeFilter.obj \
+        $(PLATFORM)/obj/route.obj \
+        $(PLATFORM)/obj/rx.obj \
+        $(PLATFORM)/obj/sendConnector.obj \
+        $(PLATFORM)/obj/stage.obj \
+        $(PLATFORM)/obj/trace.obj \
+        $(PLATFORM)/obj/tx.obj \
+        $(PLATFORM)/obj/uploadFilter.obj \
+        $(PLATFORM)/obj/uri.obj \
+        $(PLATFORM)/obj/var.obj
+	"link" -dll -out:$(PLATFORM)/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:$(PLATFORM)/bin/libhttp.def -nologo -nodefaultlib -incremental:no -libpath:$(PLATFORM)/bin -debug -machine:x86 $(PLATFORM)/obj/auth.obj $(PLATFORM)/obj/authCheck.obj $(PLATFORM)/obj/authFile.obj $(PLATFORM)/obj/authPam.obj $(PLATFORM)/obj/cache.obj $(PLATFORM)/obj/chunkFilter.obj $(PLATFORM)/obj/$(CC)ient.obj $(PLATFORM)/obj/conn.obj $(PLATFORM)/obj/endpoint.obj $(PLATFORM)/obj/error.obj $(PLATFORM)/obj/host.obj $(PLATFORM)/obj/httpService.obj $(PLATFORM)/obj/log.obj $(PLATFORM)/obj/netConnector.obj $(PLATFORM)/obj/packet.obj $(PLATFORM)/obj/passHandler.obj $(PLATFORM)/obj/pipeline.obj $(PLATFORM)/obj/queue.obj $(PLATFORM)/obj/rangeFilter.obj $(PLATFORM)/obj/route.obj $(PLATFORM)/obj/rx.obj $(PLATFORM)/obj/sendConnector.obj $(PLATFORM)/obj/stage.obj $(PLATFORM)/obj/trace.obj $(PLATFORM)/obj/tx.obj $(PLATFORM)/obj/uploadFilter.obj $(PLATFORM)/obj/uri.obj $(PLATFORM)/obj/var.obj $(LIBS) mpr.lib pcre.lib
 
-win-i686-debug/obj/http.obj: \
+$(PLATFORM)/obj/http.obj: \
         src/utils/http.c \
-        win-i686-debug/inc/bit.h \
+        $(PLATFORM)/inc/bit.h \
         src/http.h
-	"$(CC)" -c -Fowin-i686-debug/obj/http.obj -Fdwin-i686-debug/obj $(CFLAGS) $(DFLAGS) -Isrc/deps/mpr -Isrc/deps/pcre -Isrc -Iwin-i686-debug/inc src/utils/http.c
+	"$(CC)" -c -Fo$(PLATFORM)/obj/http.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/utils/http.c
 
-win-i686-debug/bin/http.exe:  \
-        win-i686-debug/bin/libhttp.dll \
-        win-i686-debug/obj/http.obj
-	"link" -out:win-i686-debug/bin/http.exe -entry:mainCRTStartup -subsystem:console $(LDFLAGS) win-i686-debug/obj/http.obj $(LIBS) http.lib mpr.lib pcre.lib
+$(PLATFORM)/bin/http.exe:  \
+        $(PLATFORM)/bin/libhttp.dll \
+        $(PLATFORM)/obj/http.obj
+	"link" -out:$(PLATFORM)/bin/http.exe -entry:mainCRTStartup -subsystem:console -nologo -nodefaultlib -incremental:no -libpath:$(PLATFORM)/bin -debug -machine:x86 $(PLATFORM)/obj/http.obj $(LIBS) http.lib mpr.lib pcre.lib
 
