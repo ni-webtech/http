@@ -1,0 +1,70 @@
+/*
+    buildConfig.h -- Build It Configuration Header for macosx-i686
+
+    This minimal build configuration is for building without Bit.
+ */
+
+#undef BLD_LIB_PREFIX
+#define BLD_PRODUCT "http"
+#define BLD_NAME "Http Library"
+#define BLD_COMPANY "Embedthis"
+#define BLD_HTTPPRODUCT 1
+#define BLD_VERSION "1.0.0"
+#define BLD_NUMBER "B2"
+#define BLD_DEBUG 1
+#define BLD_MAJOR_VERSION 1
+#define BLD_MINOR_VERSION 0
+#define BLD_PATCH_VERSION 0
+#define BLD_VNUM 100000000
+#define MACOSX 1
+#define BLD_UNIX_LIKE 1
+#define BLD_TYPE "debug"
+#define BLD_CPU "i686"
+#define BIT_CPU_ARCH MPR_CPU_IX86
+#define BLD_OS "MACOSX"
+#define BLD_CONFIG_CMD "/Users/mob/git/ejs/out/bin/bit.es -emulate macosx-i686 -without ssl configure -gen sh,make"
+#define BLD_LIB_NAME "lib"
+#define BLD_CFG_PREFIX "/etc/http"
+#define BLD_BIN_PREFIX "/usr/lib/http/1.0.0/bin"
+#define BLD_DOC_PREFIX "/usr/lib/http/doc"
+#define BLD_INC_PREFIX "/usr/include/http"
+#define BLD_JEM_PREFIX "/usr/lib/http/jems"
+#define BLD_LIB_PREFIX "/usr/lib/http/1.0.0/lib"
+#define BLD_LOG_PREFIX "/var/log/http"
+#define BLD_MAN_PREFIX "/usr/lib/http/man"
+#define BLD_PRD_PREFIX "/usr/lib/http"
+#define BLD_SAM_PREFIX "/usr/lib/http/samples"
+#define BLD_SPL_PREFIX "/var/spool/http"
+#define BLD_SRC_PREFIX "/usr/src/http-1.0.0"
+#define BLD_VER_PREFIX "/usr/lib/http/1.0.0"
+#define BLD_WEB_PREFIX "/var/www/http-default"
+#define BLD_EXE ""
+#define BLD_SHLIB ".dylib"
+#define BLD_SHOBJ ".dylib"
+#define BLD_LIB ".a"
+#define BLD_OBJ ".o"
+#define BLD_CC_DOUBLE_BRACES 0
+#define BLD_CC_DYN_LOAD 0
+#define BLD_CC_EDITLINE 0
+#define BLD_CC_MMU 0
+#define BLD_CC_MTUNE 0
+#define BLD_CC_PAM 0
+#define BLD_CC_STACK_PROTECTOR 0
+#define BLD_CC_SYNC 0
+#define BLD_CC_SYNC_CAS 0
+#define BLD_CC_UNNAMED_UNIONS 0
+#define BLD_CC_WARN_64TO32 0
+#define BLD_CC_WARN_UNUSED 0
+#define BLD_FEATURE_SSL 0
+#define BLD_FEATURE_CC 1
+#define BLD_CC "cc"
+#define BLD_FEATURE_PCRE 1
+#define BLD_PCRE "src/deps/pcre"
+#define BLD_FEATURE_DOXYGEN 0
+#define BLD_FEATURE_DSI 0
+#define BLD_FEATURE_EJS 0
+#define BLD_FEATURE_MAN 0
+#define BLD_FEATURE_MAN2HTML 0
+#define BLD_FEATURE_OPENSSL 0
+#define BLD_FEATURE_MATRIXSSL 0
+#define BLD_FEATURE_UTEST 0

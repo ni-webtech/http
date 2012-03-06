@@ -13,7 +13,7 @@ LIBS      := ws2_32.lib advapi32.lib user32.lib kernel32.lib oldnames.lib msvcrt
 export PATH := %VS%/Bin:%VS%/VC/Bin:%VS%/Common7/IDE:%VS%/Common7/Tools:%VS%/SDK/v3.5/bin:%VS%/VC/VCPackages
 export INCLUDE := %VS%/INCLUDE:%VS%/VC/INCLUDE
 export LIB := %VS%/lib:%VS%/VC/lib
-all: \
+all: prep \
         $(PLATFORM)/bin/libmpr.dll \
         $(PLATFORM)/bin/manager.exe \
         $(PLATFORM)/bin/makerom.exe \
@@ -26,7 +26,7 @@ all: \
 prep:
 	@if [ ! -x $(PLATFORM)/inc ] ; then \
 		mkdir -p $(PLATFORM)/inc $(PLATFORM)/obj $(PLATFORM)/lib $(PLATFORM)/bin ; \
-		cp src/buildConfig.default $(PLATFORM)/inc\
+		cp src/buildConfig.default $(PLATFORM)/inc/buildConfig.h ; \
 	fi
 
 clean:
@@ -74,7 +74,7 @@ clean:
 
 $(PLATFORM)/obj/mprLib.obj: \
         src/deps/mpr/mprLib.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/deps/mpr/mpr.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/mprLib.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/mprLib.c
 
@@ -84,7 +84,7 @@ $(PLATFORM)/bin/libmpr.dll:  \
 
 $(PLATFORM)/obj/manager.obj: \
         src/deps/mpr/manager.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/deps/mpr/mpr.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/manager.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/manager.c
 
@@ -95,7 +95,7 @@ $(PLATFORM)/bin/manager.exe:  \
 
 $(PLATFORM)/obj/makerom.obj: \
         src/deps/mpr/makerom.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/deps/mpr/mpr.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/makerom.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/makerom.c
 
@@ -106,7 +106,7 @@ $(PLATFORM)/bin/makerom.exe:  \
 
 $(PLATFORM)/obj/pcre.obj: \
         src/deps/pcre/pcre.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         $(PLATFORM)/inc/buildConfig.h \
         src/deps/pcre/pcre.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/pcre.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/pcre/pcre.c
@@ -117,170 +117,170 @@ $(PLATFORM)/bin/libpcre.dll:  \
 
 $(PLATFORM)/obj/auth.obj: \
         src/auth.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/auth.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/auth.c
 
 $(PLATFORM)/obj/authCheck.obj: \
         src/authCheck.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/authCheck.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authCheck.c
 
 $(PLATFORM)/obj/authFile.obj: \
         src/authFile.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/authFile.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authFile.c
 
 $(PLATFORM)/obj/authPam.obj: \
         src/authPam.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/authPam.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authPam.c
 
 $(PLATFORM)/obj/cache.obj: \
         src/cache.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/cache.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/cache.c
 
 $(PLATFORM)/obj/chunkFilter.obj: \
         src/chunkFilter.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/chunkFilter.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/chunkFilter.c
 
 $(PLATFORM)/obj/client.obj: \
         src/client.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/client.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/client.c
 
 $(PLATFORM)/obj/conn.obj: \
         src/conn.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/conn.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/conn.c
 
 $(PLATFORM)/obj/endpoint.obj: \
         src/endpoint.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/endpoint.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/endpoint.c
 
 $(PLATFORM)/obj/error.obj: \
         src/error.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/error.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/error.c
 
 $(PLATFORM)/obj/host.obj: \
         src/host.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/host.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/host.c
 
 $(PLATFORM)/obj/httpService.obj: \
         src/httpService.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/httpService.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/httpService.c
 
 $(PLATFORM)/obj/log.obj: \
         src/log.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/log.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/log.c
 
 $(PLATFORM)/obj/netConnector.obj: \
         src/netConnector.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/netConnector.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/netConnector.c
 
 $(PLATFORM)/obj/packet.obj: \
         src/packet.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/packet.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/packet.c
 
 $(PLATFORM)/obj/passHandler.obj: \
         src/passHandler.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/passHandler.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/passHandler.c
 
 $(PLATFORM)/obj/pipeline.obj: \
         src/pipeline.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/pipeline.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/pipeline.c
 
 $(PLATFORM)/obj/queue.obj: \
         src/queue.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/queue.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/queue.c
 
 $(PLATFORM)/obj/rangeFilter.obj: \
         src/rangeFilter.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/rangeFilter.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/rangeFilter.c
 
 $(PLATFORM)/obj/route.obj: \
         src/route.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h \
         src/deps/pcre/pcre.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/route.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/route.c
 
 $(PLATFORM)/obj/rx.obj: \
         src/rx.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/rx.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/rx.c
 
 $(PLATFORM)/obj/sendConnector.obj: \
         src/sendConnector.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/sendConnector.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/sendConnector.c
 
 $(PLATFORM)/obj/stage.obj: \
         src/stage.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/stage.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/stage.c
 
 $(PLATFORM)/obj/trace.obj: \
         src/trace.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/trace.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/trace.c
 
 $(PLATFORM)/obj/tx.obj: \
         src/tx.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/tx.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/tx.c
 
 $(PLATFORM)/obj/uploadFilter.obj: \
         src/uploadFilter.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/uploadFilter.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/uploadFilter.c
 
 $(PLATFORM)/obj/uri.obj: \
         src/uri.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/uri.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/uri.c
 
 $(PLATFORM)/obj/var.obj: \
         src/var.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/var.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/var.c
 
@@ -319,7 +319,7 @@ $(PLATFORM)/bin/libhttp.dll:  \
 
 $(PLATFORM)/obj/http.obj: \
         src/utils/http.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	"$(CC)" -c -Fo$(PLATFORM)/obj/http.obj -Fd$(PLATFORM)/obj $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/utils/http.c
 

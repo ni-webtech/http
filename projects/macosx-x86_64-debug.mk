@@ -10,7 +10,7 @@ IFLAGS    := -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc
 LDFLAGS   := -Wl,-rpath,@executable_path/../lib -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/ -L/Users/mob/git/http/$(PLATFORM)/lib -g -ldl
 LIBS      := -lpthread -lm
 
-all: \
+all: prep \
         $(PLATFORM)/lib/libmpr.dylib \
         $(PLATFORM)/bin/manager \
         $(PLATFORM)/bin/makerom \
@@ -23,7 +23,7 @@ all: \
 prep:
 	@if [ ! -x $(PLATFORM)/inc ] ; then \
 		mkdir -p $(PLATFORM)/inc $(PLATFORM)/obj $(PLATFORM)/lib $(PLATFORM)/bin ; \
-		cp src/buildConfig.default $(PLATFORM)/inc\
+		cp src/buildConfig.default $(PLATFORM)/inc/buildConfig.h ; \
 	fi
 
 clean:
@@ -71,7 +71,7 @@ clean:
 
 $(PLATFORM)/obj/mprLib.o: \
         src/deps/mpr/mprLib.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/deps/mpr/mpr.h
 	$(CC) -c -o $(PLATFORM)/obj/mprLib.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/mprLib.c
 
@@ -81,7 +81,7 @@ $(PLATFORM)/lib/libmpr.dylib:  \
 
 $(PLATFORM)/obj/manager.o: \
         src/deps/mpr/manager.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/deps/mpr/mpr.h
 	$(CC) -c -o $(PLATFORM)/obj/manager.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/manager.c
 
@@ -92,7 +92,7 @@ $(PLATFORM)/bin/manager:  \
 
 $(PLATFORM)/obj/makerom.o: \
         src/deps/mpr/makerom.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/deps/mpr/mpr.h
 	$(CC) -c -o $(PLATFORM)/obj/makerom.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/mpr/makerom.c
 
@@ -103,7 +103,7 @@ $(PLATFORM)/bin/makerom:  \
 
 $(PLATFORM)/obj/pcre.o: \
         src/deps/pcre/pcre.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         $(PLATFORM)/inc/buildConfig.h \
         src/deps/pcre/pcre.h
 	$(CC) -c -o $(PLATFORM)/obj/pcre.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/deps/pcre/pcre.c
@@ -114,170 +114,170 @@ $(PLATFORM)/lib/libpcre.dylib:  \
 
 $(PLATFORM)/obj/auth.o: \
         src/auth.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/auth.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/auth.c
 
 $(PLATFORM)/obj/authCheck.o: \
         src/authCheck.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/authCheck.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authCheck.c
 
 $(PLATFORM)/obj/authFile.o: \
         src/authFile.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/authFile.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authFile.c
 
 $(PLATFORM)/obj/authPam.o: \
         src/authPam.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/authPam.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/authPam.c
 
 $(PLATFORM)/obj/cache.o: \
         src/cache.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/cache.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/cache.c
 
 $(PLATFORM)/obj/chunkFilter.o: \
         src/chunkFilter.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/chunkFilter.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/chunkFilter.c
 
 $(PLATFORM)/obj/client.o: \
         src/client.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/client.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/client.c
 
 $(PLATFORM)/obj/conn.o: \
         src/conn.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/conn.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/conn.c
 
 $(PLATFORM)/obj/endpoint.o: \
         src/endpoint.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/endpoint.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/endpoint.c
 
 $(PLATFORM)/obj/error.o: \
         src/error.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/error.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/error.c
 
 $(PLATFORM)/obj/host.o: \
         src/host.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/host.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/host.c
 
 $(PLATFORM)/obj/httpService.o: \
         src/httpService.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/httpService.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/httpService.c
 
 $(PLATFORM)/obj/log.o: \
         src/log.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/log.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/log.c
 
 $(PLATFORM)/obj/netConnector.o: \
         src/netConnector.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/netConnector.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/netConnector.c
 
 $(PLATFORM)/obj/packet.o: \
         src/packet.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/packet.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/packet.c
 
 $(PLATFORM)/obj/passHandler.o: \
         src/passHandler.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/passHandler.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/passHandler.c
 
 $(PLATFORM)/obj/pipeline.o: \
         src/pipeline.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/pipeline.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/pipeline.c
 
 $(PLATFORM)/obj/queue.o: \
         src/queue.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/queue.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/queue.c
 
 $(PLATFORM)/obj/rangeFilter.o: \
         src/rangeFilter.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/rangeFilter.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/rangeFilter.c
 
 $(PLATFORM)/obj/route.o: \
         src/route.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h \
         src/deps/pcre/pcre.h
 	$(CC) -c -o $(PLATFORM)/obj/route.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/route.c
 
 $(PLATFORM)/obj/rx.o: \
         src/rx.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/rx.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/rx.c
 
 $(PLATFORM)/obj/sendConnector.o: \
         src/sendConnector.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/sendConnector.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/sendConnector.c
 
 $(PLATFORM)/obj/stage.o: \
         src/stage.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/stage.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/stage.c
 
 $(PLATFORM)/obj/trace.o: \
         src/trace.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/trace.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/trace.c
 
 $(PLATFORM)/obj/tx.o: \
         src/tx.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/tx.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/tx.c
 
 $(PLATFORM)/obj/uploadFilter.o: \
         src/uploadFilter.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/uploadFilter.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/uploadFilter.c
 
 $(PLATFORM)/obj/uri.o: \
         src/uri.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/uri.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/uri.c
 
 $(PLATFORM)/obj/var.o: \
         src/var.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/var.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/var.c
 
@@ -316,7 +316,7 @@ $(PLATFORM)/lib/libhttp.dylib:  \
 
 $(PLATFORM)/obj/http.o: \
         src/utils/http.c \
-        $(PLATFORM)/inc/bit.h \
+        $(PLATFORM)/inc/buildConfig.h \
         src/http.h
 	$(CC) -c -o $(PLATFORM)/obj/http.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(PLATFORM)/inc -Isrc/deps/mpr -Isrc/deps/pcre -Isrc src/utils/http.c
 
