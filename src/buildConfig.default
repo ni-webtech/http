@@ -1,7 +1,5 @@
 /*
-    buildConfig.h -- Build It Configuration Header for macosx-i686
-
-    This minimal build configuration is for building without Bit.
+    buildConfig.h -- Default Configuration Header when building without Bit.
  */
 
 #undef BLD_LIB_PREFIX
