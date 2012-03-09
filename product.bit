@@ -46,6 +46,7 @@ Bit.load({
     targets: {
         libhttp: {
             type: 'lib',
+            headers: [ 'src/*.h' ],
             sources: [ 'src/*.c' ],
             depends: [ 'libmpr', 'libpcre', 'libmprssl' ],
         },
