@@ -62,6 +62,7 @@ Bit.load({
             action: "
                 let d = bit.dir.pkg.join('${settings.product}-${settings.version}')
                 safeRemove(bit.dir.pkg)
+                //  MOB - why hidden?
                 install('package/http.bit', d.join('src/deps/http/http.bit'), {hidden: true})
                 install('package/Makefile', d.join('src/deps/http/Makefile'), {hidden: true})
                 install(['doc/api/http.html', 'doc/api/httpBare.html', 'doc/api/http*.tags', 'doc/api/http.dtags'],
@@ -74,7 +75,7 @@ Bit.load({
                     header: '#include \"http.h\"',
                     title: bit.settings.title + ' Library Source',
                 })
-                package(['combo', 'flat'])
+                package(bit.dir.pkg, ['combo', 'flat'])
             ",
         },
 	},
