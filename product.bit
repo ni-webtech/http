@@ -64,7 +64,6 @@ Bit.load({
                 safeRemove(bit.dir.pkg)
                 //  MOB - why hidden?
                 install('package/http.bit', d.join('src/deps/http/http.bit'), {hidden: true})
-                install('package/Makefile', d.join('src/deps/http/Makefile'), {hidden: true})
                 install(['doc/api/http.html', 'doc/api/httpBare.html', 'doc/api/http*.tags', 'doc/api/http.dtags'],
                     d.join('doc/api'))
                 install('doc/man/http.1', d.join('doc/man/http.1'))
