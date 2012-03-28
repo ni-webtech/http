@@ -45,7 +45,7 @@
 #define BLD_SHOBJ ".so"
 #define BLD_LIB ".a"
 #define BLD_OBJ ".o"
-#define BLD_CC_DOUBLE_BRACES 1
+#define BLD_CC_DOUBLE_BRACES 0
 #define BLD_CC_DYN_LOAD 1
 #define BLD_CC_EDITLINE 0
 #define BLD_CC_MMU 1
@@ -60,6 +60,8 @@
 #define BLD_FEATURE_ALL 0
 #define BLD_FEATURE_CC 1
 #define BLD_CC "cc"
+#define BLD_FEATURE_LINK 1
+#define BLD_LINK "../../../../usr/bin/ld"
 #define BLD_FEATURE_PCRE 1
 #define BLD_PCRE "src/deps/pcre"
 #define BLD_FEATURE_DOXYGEN 1

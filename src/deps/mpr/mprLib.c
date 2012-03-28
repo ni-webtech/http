@@ -20028,7 +20028,8 @@ char *mprGetWinPath(cchar *path)
     }
 }
 #else
-    result = mprGetAbsPath(path);
+    result = mprNormalizePath(path);
+    mprMapSeparators(result, '\\');
 #endif
     return result;
 }

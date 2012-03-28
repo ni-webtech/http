@@ -59,9 +59,9 @@
 #define BLD_CC_WARN_UNUSED 0
 #define BLD_FEATURE_ALL 0
 #define BLD_FEATURE_WINSDK 1
-#define BLD_WINSDK "%WINSDK%"
+#define BLD_WINSDK "$(SDK)"
 #define BLD_FEATURE_CC 1
-#define BLD_CC "cl"
+#define BLD_CC "cl.exe"
 #define BLD_FEATURE_LINK 1
 #define BLD_LINK "undefined"
 #define BLD_FEATURE_DUMPBIN 1

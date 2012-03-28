@@ -1,9 +1,10 @@
 #
-#   build.sh -- Build It Shell Script to build Http Library
+#   macosx-i686-debug.sh -- Build It Shell Script to build Http Library
 #
 
 PLATFORM="macosx-i686-debug"
 CC="cc"
+LD="/usr/bin/ld"
 CFLAGS="-fPIC -Wall -g"
 DFLAGS="-DPIC -DCPU=I686"
 IFLAGS="-Imacosx-i686-debug/inc -Isrc/deps/pcre -Isrc"
