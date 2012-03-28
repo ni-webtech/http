@@ -4,7 +4,7 @@
 
 PLATFORM       := macosx-x86_64-debug
 CC             := cc
-LD             := /usr/bin/ld
+LD             := ld
 CFLAGS         := -fPIC -Wall -g
 DFLAGS         := -DPIC -DCPU=X86_64
 IFLAGS         := -I$(PLATFORM)/inc -Isrc/deps/pcre -Isrc

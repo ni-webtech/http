@@ -4,7 +4,7 @@
 
 PLATFORM       := linux-i686-debug
 CC             := cc
-LD             := /usr/bin/ld
+LD             := ld
 CFLAGS         := -Wall -fPIC -g -Wno-unused-result -mtune=i686
 DFLAGS         := -D_REENTRANT -DCPU=i686 -DPIC
 IFLAGS         := -I$(PLATFORM)/inc -Isrc/deps/pcre -Isrc

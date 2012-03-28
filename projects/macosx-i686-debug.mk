@@ -4,7 +4,7 @@
 
 PLATFORM       := macosx-i686-debug
 CC             := cc
-LD             := /usr/bin/ld
+LD             := ld
 CFLAGS         := -fPIC -Wall -g
 DFLAGS         := -DPIC -DCPU=I686
 IFLAGS         := -I$(PLATFORM)/inc -Isrc/deps/pcre -Isrc

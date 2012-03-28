@@ -61,7 +61,7 @@
 #define BLD_FEATURE_CC 1
 #define BLD_CC "cc"
 #define BLD_FEATURE_LINK 1
-#define BLD_LINK "../../../../usr/bin/ld"
+#define BLD_LINK "undefined"
 #define BLD_FEATURE_PCRE 1
 #define BLD_PCRE "src/deps/pcre"
 #define BLD_FEATURE_DOXYGEN 1
