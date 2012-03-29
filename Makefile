@@ -20,7 +20,7 @@ ifeq ($(UNAME),Cygwin)
 	OS	:=	win
 endif
 
-all clean compile:
+all clean clobber compile:
 	make -f projects/$(OS)-$(ARCH)-$(PROFILE).mk $@
 
 build configure generate test package:
