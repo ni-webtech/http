@@ -4,9 +4,9 @@
 
 export VS="$(PROGRAMFILES)\Microsoft Visual Studio 10.0"
 export SDK="$(PROGRAMFILES)\Microsoft SDKs\Windows\v7.0A"
-export PATH="$(SDK)\Bin:$(VS)\VC\Bin:$(VS)\Common7\IDE:$(VS)\Common7\Tools:$(VS)\SDK\v3.5\bin:$(VS)\VC\VCPackages"
-export INCLUDE="$(SDK)\INCLUDE:$(VS)\VC\INCLUDE"
-export LIB="$(SDK)\lib:$(VS)\VC\lib"
+export PATH="$(SDK)/Bin:$(VS)/VC/Bin:$(VS)/Common7/IDE:$(VS)/Common7/Tools:$(VS)/SDK/v3.5/bin:$(VS)/VC/VCPackages;$(PATH)"
+export INCLUDE="$(INCLUDE);$(SDK)/INCLUDE:$(VS)/VC/INCLUDE"
+export LIB="$(LIB);$(SDK)/lib:$(VS)/VC/lib"
 
 PLATFORM="win-i686-debug"
 CC="cl.exe"
@@ -14,8 +14,9 @@ LD="link.exe"
 CFLAGS="-nologo -GR- -W3 -Zi -Od -MDd"
 DFLAGS="-D_REENTRANT -D_MT"
 IFLAGS="-Iwin-i686-debug/inc -Isrc/deps/pcre -Isrc"
-LDFLAGS="-nologo -nodefaultlib -incremental:no -libpath:${PLATFORM}/bin -debug -machine:x86"
-LIBS="ws2_32.lib advapi32.lib user32.lib kernel32.lib oldnames.lib msvcrt.lib"
+LDFLAGS="-nologo -nodefaultlib -incremental:no -debug -machine:x86"
+LIBPATHS="-libpath:${PLATFORM}/bin"
+LIBS="ws2_32.lib advapi32.lib user32.lib kernel32.lib oldnames.lib msvcrt.lib shell32.lib"
 
 [ ! -x ${PLATFORM}/inc ] && mkdir -p ${PLATFORM}/inc ${PLATFORM}/obj ${PLATFORM}/lib ${PLATFORM}/bin
 [ ! -f ${PLATFORM}/inc/buildConfig.h ] && cp projects/buildConfig.${PLATFORM} ${PLATFORM}/inc/buildConfig.h
@@ -28,15 +29,15 @@ cp -r src/deps/mpr/mprSsl.h win-i686-debug/inc/mprSsl.h
 
 "${CC}" -c -Fo${PLATFORM}/obj/mprLib.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/mprLib.c
 
-"${LD}" -dll -out:${PLATFORM}/bin/libmpr.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libmpr.def ${LDFLAGS} ${PLATFORM}/obj/mprLib.obj ${LIBS}
+"${LD}" -dll -out:${PLATFORM}/bin/libmpr.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libmpr.def ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/mprLib.obj ${LIBS}
 
 "${CC}" -c -Fo${PLATFORM}/obj/makerom.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/makerom.c
 
-"${LD}" -out:${PLATFORM}/bin/makerom.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${PLATFORM}/obj/makerom.obj ${LIBS} mpr.lib
+"${LD}" -out:${PLATFORM}/bin/makerom.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/makerom.obj ${LIBS} libmpr.lib
 
 "${CC}" -c -Fo${PLATFORM}/obj/pcre.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/deps/pcre/pcre.c
 
-"${LD}" -dll -out:${PLATFORM}/bin/libpcre.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libpcre.def ${LDFLAGS} ${PLATFORM}/obj/pcre.obj ${LIBS}
+"${LD}" -dll -out:${PLATFORM}/bin/libpcre.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libpcre.def ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/pcre.obj ${LIBS}
 
 rm -rf win-i686-debug/inc/http.h
 cp -r src/http.h win-i686-debug/inc/http.h
@@ -97,9 +98,9 @@ cp -r src/http.h win-i686-debug/inc/http.h
 
 "${CC}" -c -Fo${PLATFORM}/obj/var.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/var.c
 
-"${LD}" -dll -out:${PLATFORM}/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libhttp.def ${LDFLAGS} ${PLATFORM}/obj/auth.obj ${PLATFORM}/obj/authCheck.obj ${PLATFORM}/obj/authFile.obj ${PLATFORM}/obj/authPam.obj ${PLATFORM}/obj/cache.obj ${PLATFORM}/obj/chunkFilter.obj ${PLATFORM}/obj/client.obj ${PLATFORM}/obj/conn.obj ${PLATFORM}/obj/endpoint.obj ${PLATFORM}/obj/error.obj ${PLATFORM}/obj/host.obj ${PLATFORM}/obj/httpService.obj ${PLATFORM}/obj/log.obj ${PLATFORM}/obj/netConnector.obj ${PLATFORM}/obj/packet.obj ${PLATFORM}/obj/passHandler.obj ${PLATFORM}/obj/pipeline.obj ${PLATFORM}/obj/queue.obj ${PLATFORM}/obj/rangeFilter.obj ${PLATFORM}/obj/route.obj ${PLATFORM}/obj/rx.obj ${PLATFORM}/obj/sendConnector.obj ${PLATFORM}/obj/stage.obj ${PLATFORM}/obj/trace.obj ${PLATFORM}/obj/tx.obj ${PLATFORM}/obj/uploadFilter.obj ${PLATFORM}/obj/uri.obj ${PLATFORM}/obj/var.obj ${LIBS} mpr.lib pcre.lib
+"${LD}" -dll -out:${PLATFORM}/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libhttp.def ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/auth.obj ${PLATFORM}/obj/authCheck.obj ${PLATFORM}/obj/authFile.obj ${PLATFORM}/obj/authPam.obj ${PLATFORM}/obj/cache.obj ${PLATFORM}/obj/chunkFilter.obj ${PLATFORM}/obj/client.obj ${PLATFORM}/obj/conn.obj ${PLATFORM}/obj/endpoint.obj ${PLATFORM}/obj/error.obj ${PLATFORM}/obj/host.obj ${PLATFORM}/obj/httpService.obj ${PLATFORM}/obj/log.obj ${PLATFORM}/obj/netConnector.obj ${PLATFORM}/obj/packet.obj ${PLATFORM}/obj/passHandler.obj ${PLATFORM}/obj/pipeline.obj ${PLATFORM}/obj/queue.obj ${PLATFORM}/obj/rangeFilter.obj ${PLATFORM}/obj/route.obj ${PLATFORM}/obj/rx.obj ${PLATFORM}/obj/sendConnector.obj ${PLATFORM}/obj/stage.obj ${PLATFORM}/obj/trace.obj ${PLATFORM}/obj/tx.obj ${PLATFORM}/obj/uploadFilter.obj ${PLATFORM}/obj/uri.obj ${PLATFORM}/obj/var.obj ${LIBS} libmpr.lib libpcre.lib
 
 "${CC}" -c -Fo${PLATFORM}/obj/http.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/utils/http.c
 
-"${LD}" -out:${PLATFORM}/bin/http.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${PLATFORM}/obj/http.obj ${LIBS} http.lib mpr.lib pcre.lib
+"${LD}" -out:${PLATFORM}/bin/http.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/http.obj ${LIBS} libhttp.lib libmpr.lib libpcre.lib
 

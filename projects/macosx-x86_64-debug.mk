@@ -8,7 +8,8 @@ LD             := ld
 CFLAGS         := -fPIC -Wall -g
 DFLAGS         := -DPIC -DCPU=X86_64
 IFLAGS         := -I$(PLATFORM)/inc -Isrc/deps/pcre -Isrc
-LDFLAGS        := -Wl,-rpath,@executable_path/../lib -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/ -L$(PLATFORM)/lib -g -ldl
+LDFLAGS        := '-Wl,-rpath,@executable_path/../lib' '-Wl,-rpath,@executable_path/' '-Wl,-rpath,@loader_path/' '-g' '-ldl'
+LIBPATHS       := -L$(PLATFORM)/lib
 LIBS           := -lpthread -lm
 
 all: prep \
@@ -89,7 +90,7 @@ $(PLATFORM)/lib/libmpr.dylib:  \
         $(PLATFORM)/inc/mpr.h \
         $(PLATFORM)/inc/mprSsl.h \
         $(PLATFORM)/obj/mprLib.o
-	$(CC) -dynamiclib -o $(PLATFORM)/lib/libmpr.dylib -arch x86_64 $(LDFLAGS) -install_name @rpath/libmpr.dylib $(PLATFORM)/obj/mprLib.o $(LIBS)
+	$(CC) -dynamiclib -o $(PLATFORM)/lib/libmpr.dylib -arch x86_64 $(LDFLAGS) $(LIBPATHS) -install_name @rpath/libmpr.dylib $(PLATFORM)/obj/mprLib.o $(LIBS)
 
 $(PLATFORM)/obj/mprSsl.o: \
         src/deps/mpr/mprSsl.c \
@@ -100,7 +101,7 @@ $(PLATFORM)/obj/mprSsl.o: \
 $(PLATFORM)/lib/libmprssl.dylib:  \
         $(PLATFORM)/lib/libmpr.dylib \
         $(PLATFORM)/obj/mprSsl.o
-	$(CC) -dynamiclib -o $(PLATFORM)/lib/libmprssl.dylib -arch x86_64 $(LDFLAGS) -L/Users/mob/git/packages-macosx-x86_64/openssl/openssl-1.0.0d -L/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open -install_name @rpath/libmprssl.dylib $(PLATFORM)/obj/mprSsl.o $(LIBS) -lmpr -lssl -lcrypto -lmatrixssl
+	$(CC) -dynamiclib -o $(PLATFORM)/lib/libmprssl.dylib -arch x86_64 $(LDFLAGS) -L/Users/mob/git/packages-macosx-x86_64/openssl/openssl-1.0.0d -L/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open $(LIBPATHS) -install_name @rpath/libmprssl.dylib $(PLATFORM)/obj/mprSsl.o $(LIBS) -lmpr -lssl -lcrypto -lmatrixssl
 
 $(PLATFORM)/obj/makerom.o: \
         src/deps/mpr/makerom.c \
@@ -111,7 +112,7 @@ $(PLATFORM)/obj/makerom.o: \
 $(PLATFORM)/bin/makerom:  \
         $(PLATFORM)/lib/libmpr.dylib \
         $(PLATFORM)/obj/makerom.o
-	$(CC) -o $(PLATFORM)/bin/makerom -arch x86_64 $(LDFLAGS) -L$(PLATFORM)/lib $(PLATFORM)/obj/makerom.o $(LIBS) -lmpr
+	$(CC) -o $(PLATFORM)/bin/makerom -arch x86_64 $(LDFLAGS) $(LIBPATHS) $(PLATFORM)/obj/makerom.o $(LIBS) -lmpr
 
 $(PLATFORM)/obj/pcre.o: \
         src/deps/pcre/pcre.c \
@@ -121,7 +122,7 @@ $(PLATFORM)/obj/pcre.o: \
 
 $(PLATFORM)/lib/libpcre.dylib:  \
         $(PLATFORM)/obj/pcre.o
-	$(CC) -dynamiclib -o $(PLATFORM)/lib/libpcre.dylib -arch x86_64 $(LDFLAGS) -install_name @rpath/libpcre.dylib $(PLATFORM)/obj/pcre.o $(LIBS)
+	$(CC) -dynamiclib -o $(PLATFORM)/lib/libpcre.dylib -arch x86_64 $(LDFLAGS) $(LIBPATHS) -install_name @rpath/libpcre.dylib $(PLATFORM)/obj/pcre.o $(LIBS)
 
 $(PLATFORM)/inc/http.h: 
 	rm -fr macosx-x86_64-debug/inc/http.h
@@ -329,7 +330,7 @@ $(PLATFORM)/lib/libhttp.dylib:  \
         $(PLATFORM)/obj/uploadFilter.o \
         $(PLATFORM)/obj/uri.o \
         $(PLATFORM)/obj/var.o
-	$(CC) -dynamiclib -o $(PLATFORM)/lib/libhttp.dylib -arch x86_64 $(LDFLAGS) -L/Users/mob/git/packages-macosx-x86_64/openssl/openssl-1.0.0d -L/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open -install_name @rpath/libhttp.dylib $(PLATFORM)/obj/auth.o $(PLATFORM)/obj/authCheck.o $(PLATFORM)/obj/authFile.o $(PLATFORM)/obj/authPam.o $(PLATFORM)/obj/cache.o $(PLATFORM)/obj/chunkFilter.o $(PLATFORM)/obj/client.o $(PLATFORM)/obj/conn.o $(PLATFORM)/obj/endpoint.o $(PLATFORM)/obj/error.o $(PLATFORM)/obj/host.o $(PLATFORM)/obj/httpService.o $(PLATFORM)/obj/log.o $(PLATFORM)/obj/netConnector.o $(PLATFORM)/obj/packet.o $(PLATFORM)/obj/passHandler.o $(PLATFORM)/obj/pipeline.o $(PLATFORM)/obj/queue.o $(PLATFORM)/obj/rangeFilter.o $(PLATFORM)/obj/route.o $(PLATFORM)/obj/rx.o $(PLATFORM)/obj/sendConnector.o $(PLATFORM)/obj/stage.o $(PLATFORM)/obj/trace.o $(PLATFORM)/obj/tx.o $(PLATFORM)/obj/uploadFilter.o $(PLATFORM)/obj/uri.o $(PLATFORM)/obj/var.o $(LIBS) -lmpr -lpcre -lmprssl -lssl -lcrypto -lmatrixssl
+	$(CC) -dynamiclib -o $(PLATFORM)/lib/libhttp.dylib -arch x86_64 $(LDFLAGS) -L/Users/mob/git/packages-macosx-x86_64/openssl/openssl-1.0.0d -L/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open $(LIBPATHS) -install_name @rpath/libhttp.dylib $(PLATFORM)/obj/auth.o $(PLATFORM)/obj/authCheck.o $(PLATFORM)/obj/authFile.o $(PLATFORM)/obj/authPam.o $(PLATFORM)/obj/cache.o $(PLATFORM)/obj/chunkFilter.o $(PLATFORM)/obj/client.o $(PLATFORM)/obj/conn.o $(PLATFORM)/obj/endpoint.o $(PLATFORM)/obj/error.o $(PLATFORM)/obj/host.o $(PLATFORM)/obj/httpService.o $(PLATFORM)/obj/log.o $(PLATFORM)/obj/netConnector.o $(PLATFORM)/obj/packet.o $(PLATFORM)/obj/passHandler.o $(PLATFORM)/obj/pipeline.o $(PLATFORM)/obj/queue.o $(PLATFORM)/obj/rangeFilter.o $(PLATFORM)/obj/route.o $(PLATFORM)/obj/rx.o $(PLATFORM)/obj/sendConnector.o $(PLATFORM)/obj/stage.o $(PLATFORM)/obj/trace.o $(PLATFORM)/obj/tx.o $(PLATFORM)/obj/uploadFilter.o $(PLATFORM)/obj/uri.o $(PLATFORM)/obj/var.o $(LIBS) -lmpr -lpcre -lmprssl -lssl -lcrypto -lmatrixssl
 
 $(PLATFORM)/obj/http.o: \
         src/utils/http.c \
@@ -340,5 +341,5 @@ $(PLATFORM)/obj/http.o: \
 $(PLATFORM)/bin/http:  \
         $(PLATFORM)/lib/libhttp.dylib \
         $(PLATFORM)/obj/http.o
-	$(CC) -o $(PLATFORM)/bin/http -arch x86_64 $(LDFLAGS) -L/Users/mob/git/packages-macosx-x86_64/openssl/openssl-1.0.0d -L/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open -L$(PLATFORM)/lib $(PLATFORM)/obj/http.o $(LIBS) -lhttp -lmpr -lpcre -lmprssl -lssl -lcrypto -lmatrixssl
+	$(CC) -o $(PLATFORM)/bin/http -arch x86_64 $(LDFLAGS) -L/Users/mob/git/packages-macosx-x86_64/openssl/openssl-1.0.0d -L/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open $(LIBPATHS) $(PLATFORM)/obj/http.o $(LIBS) -lhttp -lmpr -lpcre -lmprssl -lssl -lcrypto -lmatrixssl
 

@@ -8,8 +8,9 @@ LD             := ld
 CFLAGS         := -Wall -fPIC -g -Wno-unused-result -mtune=i686
 DFLAGS         := -D_REENTRANT -DCPU=i686 -DPIC
 IFLAGS         := -I$(PLATFORM)/inc -Isrc/deps/pcre -Isrc
-LDFLAGS        := -Wl,--enable-new-dtags '-Wl,-rpath,$$ORIGIN/' '-Wl,-rpath,$$ORIGIN/../lib' -L$(PLATFORM)/lib -g -ldl
-LIBS           := -lpthread -lm
+LDFLAGS        := '-Wl,--enable-new-dtags' '-Wl,-rpath,$$ORIGIN/' '-Wl,-rpath,$$ORIGIN/../lib' '-g'
+LIBPATHS       := -L$(PLATFORM)/lib
+LIBS           := -lpthread -lm -ldl
 
 all: prep \
         $(PLATFORM)/lib/libmpr.so \
@@ -87,7 +88,7 @@ $(PLATFORM)/lib/libmpr.so:  \
         $(PLATFORM)/inc/mpr.h \
         $(PLATFORM)/inc/mprSsl.h \
         $(PLATFORM)/obj/mprLib.o
-	$(CC) -shared -o $(PLATFORM)/lib/libmpr.so $(LDFLAGS) $(PLATFORM)/obj/mprLib.o $(LIBS)
+	$(CC) -shared -o $(PLATFORM)/lib/libmpr.so $(LDFLAGS) $(LIBPATHS) $(PLATFORM)/obj/mprLib.o $(LIBS)
 
 $(PLATFORM)/obj/makerom.o: \
         src/deps/mpr/makerom.c \
@@ -97,7 +98,7 @@ $(PLATFORM)/obj/makerom.o: \
 $(PLATFORM)/bin/makerom:  \
         $(PLATFORM)/lib/libmpr.so \
         $(PLATFORM)/obj/makerom.o
-	$(CC) -o $(PLATFORM)/bin/makerom $(LDFLAGS) -L$(PLATFORM)/lib $(PLATFORM)/obj/makerom.o $(LIBS) -lmpr $(LDFLAGS)
+	$(CC) -o $(PLATFORM)/bin/makerom $(LDFLAGS) $(LIBPATHS) $(PLATFORM)/obj/makerom.o $(LIBS) -lmpr $(LDFLAGS)
 
 $(PLATFORM)/obj/pcre.o: \
         src/deps/pcre/pcre.c \
@@ -107,7 +108,7 @@ $(PLATFORM)/obj/pcre.o: \
 
 $(PLATFORM)/lib/libpcre.so:  \
         $(PLATFORM)/obj/pcre.o
-	$(CC) -shared -o $(PLATFORM)/lib/libpcre.so $(LDFLAGS) $(PLATFORM)/obj/pcre.o $(LIBS)
+	$(CC) -shared -o $(PLATFORM)/lib/libpcre.so $(LDFLAGS) $(LIBPATHS) $(PLATFORM)/obj/pcre.o $(LIBS)
 
 $(PLATFORM)/inc/http.h: 
 	rm -fr linux-i686-debug/inc/http.h
@@ -314,7 +315,7 @@ $(PLATFORM)/lib/libhttp.so:  \
         $(PLATFORM)/obj/uploadFilter.o \
         $(PLATFORM)/obj/uri.o \
         $(PLATFORM)/obj/var.o
-	$(CC) -shared -o $(PLATFORM)/lib/libhttp.so $(LDFLAGS) $(PLATFORM)/obj/auth.o $(PLATFORM)/obj/authCheck.o $(PLATFORM)/obj/authFile.o $(PLATFORM)/obj/authPam.o $(PLATFORM)/obj/cache.o $(PLATFORM)/obj/chunkFilter.o $(PLATFORM)/obj/client.o $(PLATFORM)/obj/conn.o $(PLATFORM)/obj/endpoint.o $(PLATFORM)/obj/error.o $(PLATFORM)/obj/host.o $(PLATFORM)/obj/httpService.o $(PLATFORM)/obj/log.o $(PLATFORM)/obj/netConnector.o $(PLATFORM)/obj/packet.o $(PLATFORM)/obj/passHandler.o $(PLATFORM)/obj/pipeline.o $(PLATFORM)/obj/queue.o $(PLATFORM)/obj/rangeFilter.o $(PLATFORM)/obj/route.o $(PLATFORM)/obj/rx.o $(PLATFORM)/obj/sendConnector.o $(PLATFORM)/obj/stage.o $(PLATFORM)/obj/trace.o $(PLATFORM)/obj/tx.o $(PLATFORM)/obj/uploadFilter.o $(PLATFORM)/obj/uri.o $(PLATFORM)/obj/var.o $(LIBS) -lmpr -lpcre
+	$(CC) -shared -o $(PLATFORM)/lib/libhttp.so $(LDFLAGS) $(LIBPATHS) $(PLATFORM)/obj/auth.o $(PLATFORM)/obj/authCheck.o $(PLATFORM)/obj/authFile.o $(PLATFORM)/obj/authPam.o $(PLATFORM)/obj/cache.o $(PLATFORM)/obj/chunkFilter.o $(PLATFORM)/obj/client.o $(PLATFORM)/obj/conn.o $(PLATFORM)/obj/endpoint.o $(PLATFORM)/obj/error.o $(PLATFORM)/obj/host.o $(PLATFORM)/obj/httpService.o $(PLATFORM)/obj/log.o $(PLATFORM)/obj/netConnector.o $(PLATFORM)/obj/packet.o $(PLATFORM)/obj/passHandler.o $(PLATFORM)/obj/pipeline.o $(PLATFORM)/obj/queue.o $(PLATFORM)/obj/rangeFilter.o $(PLATFORM)/obj/route.o $(PLATFORM)/obj/rx.o $(PLATFORM)/obj/sendConnector.o $(PLATFORM)/obj/stage.o $(PLATFORM)/obj/trace.o $(PLATFORM)/obj/tx.o $(PLATFORM)/obj/uploadFilter.o $(PLATFORM)/obj/uri.o $(PLATFORM)/obj/var.o $(LIBS) -lmpr -lpcre
 
 $(PLATFORM)/obj/http.o: \
         src/utils/http.c \
@@ -325,5 +326,5 @@ $(PLATFORM)/obj/http.o: \
 $(PLATFORM)/bin/http:  \
         $(PLATFORM)/lib/libhttp.so \
         $(PLATFORM)/obj/http.o
-	$(CC) -o $(PLATFORM)/bin/http $(LDFLAGS) -L$(PLATFORM)/lib $(PLATFORM)/obj/http.o $(LIBS) -lhttp -lmpr -lpcre $(LDFLAGS)
+	$(CC) -o $(PLATFORM)/bin/http $(LDFLAGS) $(LIBPATHS) $(PLATFORM)/obj/http.o $(LIBS) -lhttp -lmpr -lpcre $(LDFLAGS)
 
