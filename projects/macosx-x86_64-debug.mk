@@ -3,9 +3,9 @@
 #
 
 PLATFORM       := macosx-x86_64-debug
-CC             := cc
-LD             := ld
-CFLAGS         := -fPIC -Wall -g
+CC             := /usr/bin/cc
+LD             := /usr/bin/ld
+CFLAGS         := -fPIC -Wall -g -Wshorten-64-to-32
 DFLAGS         := -DPIC -DCPU=X86_64
 IFLAGS         := -I$(PLATFORM)/inc -Isrc/deps/pcre -Isrc
 LDFLAGS        := '-Wl,-rpath,@executable_path/../lib' '-Wl,-rpath,@executable_path/' '-Wl,-rpath,@loader_path/' '-g' '-ldl'
@@ -25,6 +25,10 @@ all: prep \
 prep:
 	@[ ! -x $(PLATFORM)/inc ] && mkdir -p $(PLATFORM)/inc $(PLATFORM)/obj $(PLATFORM)/lib $(PLATFORM)/bin ; true
 	@[ ! -f $(PLATFORM)/inc/buildConfig.h ] && cp projects/buildConfig.$(PLATFORM) $(PLATFORM)/inc/buildConfig.h ; true
+	@if ! diff $(PLATFORM)/inc/buildConfig.h projects/buildConfig.$(PLATFORM) >/dev/null ; then\
+		echo cp projects/buildConfig.$(PLATFORM) $(PLATFORM)/inc/buildConfig.h  ; \
+		cp projects/buildConfig.$(PLATFORM) $(PLATFORM)/inc/buildConfig.h  ; \
+	fi; true
 
 clean:
 	rm -rf $(PLATFORM)/lib/libmpr.dylib

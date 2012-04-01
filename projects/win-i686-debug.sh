@@ -2,8 +2,12 @@
 #   win-i686-debug.sh -- Build It Shell Script to build Http Library
 #
 
-export VS="$(PROGRAMFILES)\Microsoft Visual Studio 10.0"
-export SDK="$(PROGRAMFILES)\Microsoft SDKs\Windows\v7.0A"
+VS="${VSINSTALLDIR}"
+: ${VS:="$(VS)"}
+SDK="${WindowsSDKDir}"
+: ${SDK:="$(SDK)"}
+
+export SDK VS
 export PATH="$(SDK)/Bin:$(VS)/VC/Bin:$(VS)/Common7/IDE:$(VS)/Common7/Tools:$(VS)/SDK/v3.5/bin:$(VS)/VC/VCPackages;$(PATH)"
 export INCLUDE="$(INCLUDE);$(SDK)/INCLUDE:$(VS)/VC/INCLUDE"
 export LIB="$(LIB);$(SDK)/lib:$(VS)/VC/lib"
@@ -19,7 +23,7 @@ LIBPATHS="-libpath:${PLATFORM}/bin"
 LIBS="ws2_32.lib advapi32.lib user32.lib kernel32.lib oldnames.lib msvcrt.lib shell32.lib"
 
 [ ! -x ${PLATFORM}/inc ] && mkdir -p ${PLATFORM}/inc ${PLATFORM}/obj ${PLATFORM}/lib ${PLATFORM}/bin
-[ ! -f ${PLATFORM}/inc/buildConfig.h ] && cp projects/buildConfig.${PLATFORM} ${PLATFORM}/inc/buildConfig.h
+cp projects/buildConfig.${PLATFORM} ${PLATFORM}/inc/buildConfig.h
 
 rm -rf win-i686-debug/inc/mpr.h
 cp -r src/deps/mpr/mpr.h win-i686-debug/inc/mpr.h

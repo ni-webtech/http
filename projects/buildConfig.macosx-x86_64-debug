@@ -24,7 +24,7 @@
 #define BLD_CPU "x86_64"
 #define BIT_CPU_ARCH MPR_CPU_IX64
 #define BLD_OS "MACOSX"
-#define BLD_CONFIG_CMD "bit -emulate macosx-x86_64 -without all configure -gen sh,make"
+#define BLD_CONFIG_CMD "bit -without all configure -gen sh,make"
 #define BLD_LIB_NAME "lib"
 #define BLD_CFG_PREFIX "/etc/http"
 #define BLD_BIN_PREFIX "/usr/lib/http/1.0.0/bin"
@@ -47,7 +47,7 @@
 #define BLD_OBJ ".o"
 #define BLD_CC_DOUBLE_BRACES 1
 #define BLD_CC_DYN_LOAD 1
-#define BLD_CC_EDITLINE 0
+#define BLD_CC_EDITLINE 1
 #define BLD_CC_MMU 1
 #define BLD_CC_MTUNE 1
 #define BLD_CC_PAM 0
@@ -55,19 +55,19 @@
 #define BLD_CC_SYNC 1
 #define BLD_CC_SYNC_CAS 1
 #define BLD_CC_UNNAMED_UNIONS 1
-#define BLD_CC_WARN_64TO32 0
+#define BLD_CC_WARN_64TO32 1
 #define BLD_CC_WARN_UNUSED 0
 #define BLD_FEATURE_ALL 0
 #define BLD_FEATURE_CC 1
-#define BLD_CC "cc"
+#define BLD_CC "../../../../usr/bin/cc"
 #define BLD_FEATURE_LINK 1
-#define BLD_LINK "undefined"
+#define BLD_LINK "../../../../usr/bin/ld"
 #define BLD_FEATURE_PCRE 1
 #define BLD_PCRE "src/deps/pcre"
 #define BLD_FEATURE_DOXYGEN 1
 #define BLD_DOXYGEN "../../../../usr/local/bin/doxygen"
 #define BLD_FEATURE_DSI 1
-#define BLD_DSI "../ejs/out/bin/dsi"
+#define BLD_DSI "../../../../usr/local/bin/dsi"
 #define BLD_FEATURE_EJS 1
 #define BLD_EJS "../ejs/macosx-x86_64-debug/bin/ejs"
 #define BLD_FEATURE_MAN 1
