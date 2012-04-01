@@ -10,7 +10,7 @@
 #define BLD_PRODUCT "http"
 #define BLD_NAME "Http Library"
 #define BLD_COMPANY "Embedthis"
-#define BLD_HTTPPRODUCT 1
+#define BLD_HTTP_PRODUCT 1
 #define BLD_VERSION "1.0.0"
 #define BLD_NUMBER "B2"
 #define BLD_DEBUG 1
