@@ -58,6 +58,10 @@ Bit.load({
         },
 
         package: {
+            depends: ['packageCombo'],
+        },
+
+        packageCombo: {
             depends: ['build'],
             action: "
                 let d = bit.dir.pkg.join('${settings.product}-${settings.version}')

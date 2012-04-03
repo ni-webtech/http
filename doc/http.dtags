@@ -2078,8 +2078,8 @@
       <type>int</type>
       <name>httpConnect</name>
       <anchorfile>group___http_tx.html</anchorfile>
-      <anchor>gaf520605b399089bbe6ff768c3ed0d14f</anchor>
-      <arglist>(HttpConn *conn, cchar *method, cchar *uri)</arglist>
+      <anchor>gadba30be09e4243956f33008bac4ec148</anchor>
+      <arglist>(HttpConn *conn, cchar *method, cchar *uri, struct MprSsl *ssl)</arglist>
     </member>
     <member kind="function">
       <type>HttpTx *</type>
@@ -2522,39 +2522,21 @@
     </member>
   </compound>
   <compound kind="dir">
-    <name>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/deps/</name>
-    <path>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/deps/</path>
-    <filename>dir_c08b101f348497f672dd6a06b79555ff.html</filename>
-    <dir>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/deps/http/</dir>
+    <name>/Users/mob/git/http/macosx-x86_64-debug/flat/</name>
+    <path>/Users/mob/git/http/macosx-x86_64-debug/flat/</path>
+    <filename>dir_348f8678d98e6f8402c7d2efc9d8809a.html</filename>
+    <dir>/Users/mob/git/http/macosx-x86_64-debug/flat/http-1.0.0-B2/</dir>
   </compound>
   <compound kind="dir">
-    <name>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/deps/http/</name>
-    <path>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/deps/http/</path>
-    <filename>dir_f6ff7475f9fc94e52c3c9934d0e05703.html</filename>
+    <name>/Users/mob/git/http/macosx-x86_64-debug/flat/http-1.0.0-B2/</name>
+    <path>/Users/mob/git/http/macosx-x86_64-debug/flat/http-1.0.0-B2/</path>
+    <filename>dir_5a4ac0ad7089c89745e7871a9753ec82.html</filename>
     <file>http.h</file>
-  </compound>
-  <compound kind="dir">
-    <name>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/</name>
-    <path>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/</path>
-    <filename>dir_6746dee23691a627abb5f6719a6bb2d0.html</filename>
-    <dir>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/</dir>
   </compound>
   <compound kind="dir">
     <name>/Users/mob/git/http/macosx-x86_64-debug/</name>
     <path>/Users/mob/git/http/macosx-x86_64-debug/</path>
     <filename>dir_f7a717375b70edac6c2b3e1c745e06a3.html</filename>
-    <dir>/Users/mob/git/http/macosx-x86_64-debug/pkg/</dir>
-  </compound>
-  <compound kind="dir">
-    <name>/Users/mob/git/http/macosx-x86_64-debug/pkg/</name>
-    <path>/Users/mob/git/http/macosx-x86_64-debug/pkg/</path>
-    <filename>dir_a6100beb8063037799f0caa929cbb7d9.html</filename>
-    <dir>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/</dir>
-  </compound>
-  <compound kind="dir">
-    <name>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/</name>
-    <path>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/</path>
-    <filename>dir_61767e6a609b349d7f054b9cc67b42d9.html</filename>
-    <dir>/Users/mob/git/http/macosx-x86_64-debug/pkg/http-1.0.0/src/deps/</dir>
+    <dir>/Users/mob/git/http/macosx-x86_64-debug/flat/</dir>
   </compound>
 </tagfile>
