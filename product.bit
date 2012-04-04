@@ -81,5 +81,12 @@ Bit.load({
                 package(bit.dir.pkg, ['combo', 'flat'])
             ",
         },
+
+        api: {
+            action: "
+                apidoc('${SRC}/doc/api/http.dox', '${SRC}/src/http.h', 'Http API')
+                apiwrap('${SRC}/doc/api/http.html')
+            ",
+        },
 	},
 })

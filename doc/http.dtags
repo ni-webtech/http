@@ -2522,21 +2522,9 @@
     </member>
   </compound>
   <compound kind="dir">
-    <name>/Users/mob/git/http/macosx-x86_64-debug/flat/</name>
-    <path>/Users/mob/git/http/macosx-x86_64-debug/flat/</path>
-    <filename>dir_348f8678d98e6f8402c7d2efc9d8809a.html</filename>
-    <dir>/Users/mob/git/http/macosx-x86_64-debug/flat/http-1.0.0-B2/</dir>
-  </compound>
-  <compound kind="dir">
-    <name>/Users/mob/git/http/macosx-x86_64-debug/flat/http-1.0.0-B2/</name>
-    <path>/Users/mob/git/http/macosx-x86_64-debug/flat/http-1.0.0-B2/</path>
-    <filename>dir_5a4ac0ad7089c89745e7871a9753ec82.html</filename>
+    <name>/Users/mob/git/http/src/</name>
+    <path>/Users/mob/git/http/src/</path>
+    <filename>dir_70295d4c3ce2bd5524090c949f8ed5c7.html</filename>
     <file>http.h</file>
-  </compound>
-  <compound kind="dir">
-    <name>/Users/mob/git/http/macosx-x86_64-debug/</name>
-    <path>/Users/mob/git/http/macosx-x86_64-debug/</path>
-    <filename>dir_f7a717375b70edac6c2b3e1c745e06a3.html</filename>
-    <dir>/Users/mob/git/http/macosx-x86_64-debug/flat/</dir>
   </compound>
 </tagfile>
