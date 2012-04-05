@@ -4,9 +4,10 @@
 
 Bit.load({
     blend: [
+        '${PLATFORM}.bit',
+        "${BITS}/embedthis.bit",
         "src/deps/mpr/mpr.bit",
         "src/deps/pcre/pcre.bit",
-        "${BITS}/embedthis.bit",
     ],
     '+modules': [ ],
 
@@ -18,6 +19,8 @@ Bit.load({
 		version: '1.0.0',
 		buildNumber: 'B2',
         sync: ['mpr'],
+        '+required': [ 'pcre' ],
+        '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl', 'utest' ],
     },
 
     usage: {
@@ -35,9 +38,6 @@ Bit.load({
             assert: false,
         } },
     },
-
-    '+required': [ 'pcre' ],
-    '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl', 'utest' ],
 
     defaults: {
         '+includes': [ 'src' ]
