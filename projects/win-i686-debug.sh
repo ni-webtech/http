@@ -12,18 +12,18 @@ export PATH="$(SDK)/Bin:$(VS)/VC/Bin:$(VS)/Common7/IDE:$(VS)/Common7/Tools:$(VS)
 export INCLUDE="$(INCLUDE);$(SDK)/INCLUDE:$(VS)/VC/INCLUDE"
 export LIB="$(LIB);$(SDK)/lib:$(VS)/VC/lib"
 
-PLATFORM="win-i686-debug"
+CONFIG="win-i686-debug"
 CC="cl.exe"
 LD="link.exe"
-CFLAGS="-nologo -GR- -W3 -Zi -Od -MDd"
+CFLAGS="-nologo -GR- -W3 -Zi -Od -MDd -Zi -Od -MDd"
 DFLAGS="-D_REENTRANT -D_MT"
-IFLAGS="-Iwin-i686-debug/inc -Isrc/deps/pcre -Isrc"
-LDFLAGS="-nologo -nodefaultlib -incremental:no -debug -machine:x86"
-LIBPATHS="-libpath:${PLATFORM}/bin"
+IFLAGS="-Iwin-i686-debug/inc -Iwin-i686-debug/inc -Isrc/deps/pcre -Isrc"
+LDFLAGS="-nologo -nodefaultlib -incremental:no -machine:x86 -machine:x86"
+LIBPATHS="-libpath:${CONFIG}/bin -libpath:${CONFIG}/bin"
 LIBS="ws2_32.lib advapi32.lib user32.lib kernel32.lib oldnames.lib msvcrt.lib shell32.lib"
 
-[ ! -x ${PLATFORM}/inc ] && mkdir -p ${PLATFORM}/inc ${PLATFORM}/obj ${PLATFORM}/lib ${PLATFORM}/bin
-cp projects/buildConfig.${PLATFORM} ${PLATFORM}/inc/buildConfig.h
+[ ! -x ${CONFIG}/inc ] && mkdir -p ${CONFIG}/inc ${CONFIG}/obj ${CONFIG}/lib ${CONFIG}/bin
+cp projects/buildConfig.${CONFIG} ${CONFIG}/inc/buildConfig.h
 
 rm -rf win-i686-debug/inc/mpr.h
 cp -r src/deps/mpr/mpr.h win-i686-debug/inc/mpr.h
@@ -31,80 +31,80 @@ cp -r src/deps/mpr/mpr.h win-i686-debug/inc/mpr.h
 rm -rf win-i686-debug/inc/mprSsl.h
 cp -r src/deps/mpr/mprSsl.h win-i686-debug/inc/mprSsl.h
 
-"${CC}" -c -Fo${PLATFORM}/obj/mprLib.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/mprLib.c
+"${CC}" -c -Fo${CONFIG}/obj/mprLib.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/mprLib.c
 
-"${LD}" -dll -out:${PLATFORM}/bin/libmpr.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libmpr.def ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/mprLib.obj ${LIBS}
+"${LD}" -dll -out:${CONFIG}/bin/libmpr.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libmpr.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/mprLib.obj ${LIBS}
 
-"${CC}" -c -Fo${PLATFORM}/obj/makerom.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/makerom.c
+"${CC}" -c -Fo${CONFIG}/obj/makerom.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/makerom.c
 
-"${LD}" -out:${PLATFORM}/bin/makerom.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/makerom.obj ${LIBS} libmpr.lib
+"${LD}" -out:${CONFIG}/bin/makerom.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/makerom.obj ${LIBS} libmpr.lib
 
-"${CC}" -c -Fo${PLATFORM}/obj/pcre.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/deps/pcre/pcre.c
+"${CC}" -c -Fo${CONFIG}/obj/pcre.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/pcre/pcre.c
 
-"${LD}" -dll -out:${PLATFORM}/bin/libpcre.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libpcre.def ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/pcre.obj ${LIBS}
+"${LD}" -dll -out:${CONFIG}/bin/libpcre.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libpcre.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/pcre.obj ${LIBS}
 
 rm -rf win-i686-debug/inc/http.h
 cp -r src/http.h win-i686-debug/inc/http.h
 
-"${CC}" -c -Fo${PLATFORM}/obj/auth.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/auth.c
+"${CC}" -c -Fo${CONFIG}/obj/auth.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/auth.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/authCheck.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/authCheck.c
+"${CC}" -c -Fo${CONFIG}/obj/authCheck.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authCheck.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/authFile.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/authFile.c
+"${CC}" -c -Fo${CONFIG}/obj/authFile.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authFile.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/authPam.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/authPam.c
+"${CC}" -c -Fo${CONFIG}/obj/authPam.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authPam.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/cache.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/cache.c
+"${CC}" -c -Fo${CONFIG}/obj/cache.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/cache.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/chunkFilter.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/chunkFilter.c
+"${CC}" -c -Fo${CONFIG}/obj/chunkFilter.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/chunkFilter.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/client.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/client.c
+"${CC}" -c -Fo${CONFIG}/obj/client.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/client.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/conn.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/conn.c
+"${CC}" -c -Fo${CONFIG}/obj/conn.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/conn.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/endpoint.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/endpoint.c
+"${CC}" -c -Fo${CONFIG}/obj/endpoint.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/endpoint.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/error.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/error.c
+"${CC}" -c -Fo${CONFIG}/obj/error.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/error.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/host.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/host.c
+"${CC}" -c -Fo${CONFIG}/obj/host.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/host.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/httpService.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/httpService.c
+"${CC}" -c -Fo${CONFIG}/obj/httpService.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/httpService.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/log.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/log.c
+"${CC}" -c -Fo${CONFIG}/obj/log.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/log.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/netConnector.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/netConnector.c
+"${CC}" -c -Fo${CONFIG}/obj/netConnector.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/netConnector.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/packet.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/packet.c
+"${CC}" -c -Fo${CONFIG}/obj/packet.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/packet.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/passHandler.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/passHandler.c
+"${CC}" -c -Fo${CONFIG}/obj/passHandler.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/passHandler.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/pipeline.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/pipeline.c
+"${CC}" -c -Fo${CONFIG}/obj/pipeline.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/pipeline.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/queue.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/queue.c
+"${CC}" -c -Fo${CONFIG}/obj/queue.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/queue.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/rangeFilter.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/rangeFilter.c
+"${CC}" -c -Fo${CONFIG}/obj/rangeFilter.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/rangeFilter.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/route.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/route.c
+"${CC}" -c -Fo${CONFIG}/obj/route.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/route.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/rx.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/rx.c
+"${CC}" -c -Fo${CONFIG}/obj/rx.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/rx.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/sendConnector.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/sendConnector.c
+"${CC}" -c -Fo${CONFIG}/obj/sendConnector.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/sendConnector.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/stage.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/stage.c
+"${CC}" -c -Fo${CONFIG}/obj/stage.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/stage.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/trace.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/trace.c
+"${CC}" -c -Fo${CONFIG}/obj/trace.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/trace.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/tx.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/tx.c
+"${CC}" -c -Fo${CONFIG}/obj/tx.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/tx.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/uploadFilter.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/uploadFilter.c
+"${CC}" -c -Fo${CONFIG}/obj/uploadFilter.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/uploadFilter.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/uri.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/uri.c
+"${CC}" -c -Fo${CONFIG}/obj/uri.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/uri.c
 
-"${CC}" -c -Fo${PLATFORM}/obj/var.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/var.c
+"${CC}" -c -Fo${CONFIG}/obj/var.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/var.c
 
-"${LD}" -dll -out:${PLATFORM}/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:${PLATFORM}/bin/libhttp.def ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/auth.obj ${PLATFORM}/obj/authCheck.obj ${PLATFORM}/obj/authFile.obj ${PLATFORM}/obj/authPam.obj ${PLATFORM}/obj/cache.obj ${PLATFORM}/obj/chunkFilter.obj ${PLATFORM}/obj/client.obj ${PLATFORM}/obj/conn.obj ${PLATFORM}/obj/endpoint.obj ${PLATFORM}/obj/error.obj ${PLATFORM}/obj/host.obj ${PLATFORM}/obj/httpService.obj ${PLATFORM}/obj/log.obj ${PLATFORM}/obj/netConnector.obj ${PLATFORM}/obj/packet.obj ${PLATFORM}/obj/passHandler.obj ${PLATFORM}/obj/pipeline.obj ${PLATFORM}/obj/queue.obj ${PLATFORM}/obj/rangeFilter.obj ${PLATFORM}/obj/route.obj ${PLATFORM}/obj/rx.obj ${PLATFORM}/obj/sendConnector.obj ${PLATFORM}/obj/stage.obj ${PLATFORM}/obj/trace.obj ${PLATFORM}/obj/tx.obj ${PLATFORM}/obj/uploadFilter.obj ${PLATFORM}/obj/uri.obj ${PLATFORM}/obj/var.obj ${LIBS} libmpr.lib libpcre.lib
+"${LD}" -dll -out:${CONFIG}/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libhttp.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/auth.obj ${CONFIG}/obj/authCheck.obj ${CONFIG}/obj/authFile.obj ${CONFIG}/obj/authPam.obj ${CONFIG}/obj/cache.obj ${CONFIG}/obj/chunkFilter.obj ${CONFIG}/obj/client.obj ${CONFIG}/obj/conn.obj ${CONFIG}/obj/endpoint.obj ${CONFIG}/obj/error.obj ${CONFIG}/obj/host.obj ${CONFIG}/obj/httpService.obj ${CONFIG}/obj/log.obj ${CONFIG}/obj/netConnector.obj ${CONFIG}/obj/packet.obj ${CONFIG}/obj/passHandler.obj ${CONFIG}/obj/pipeline.obj ${CONFIG}/obj/queue.obj ${CONFIG}/obj/rangeFilter.obj ${CONFIG}/obj/route.obj ${CONFIG}/obj/rx.obj ${CONFIG}/obj/sendConnector.obj ${CONFIG}/obj/stage.obj ${CONFIG}/obj/trace.obj ${CONFIG}/obj/tx.obj ${CONFIG}/obj/uploadFilter.obj ${CONFIG}/obj/uri.obj ${CONFIG}/obj/var.obj ${LIBS} libmpr.lib libpcre.lib
 
-"${CC}" -c -Fo${PLATFORM}/obj/http.obj -Fd${PLATFORM}/obj ${CFLAGS} ${DFLAGS} -I${PLATFORM}/inc -Isrc/deps/pcre -Isrc src/utils/http.c
+"${CC}" -c -Fo${CONFIG}/obj/http.obj -Fd${CONFIG}/obj ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/utils/http.c
 
-"${LD}" -out:${PLATFORM}/bin/http.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${LIBPATHS} ${PLATFORM}/obj/http.obj ${LIBS} libhttp.lib libmpr.lib libpcre.lib
+"${LD}" -out:${CONFIG}/bin/http.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/http.obj ${LIBS} libhttp.lib libmpr.lib libpcre.lib
 

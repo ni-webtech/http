@@ -20,7 +20,7 @@ Bit.load({
 		buildNumber: 'B2',
         sync: ['mpr'],
         '+required': [ 'pcre' ],
-        '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl', 'utest' ],
+        '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl', 'ssl', 'utest' ],
     },
 
     usage: {

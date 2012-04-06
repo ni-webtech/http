@@ -83,5 +83,6 @@
 #define BLD_MAN2HTML "../../../../usr/local/bin/man2html"
 #define BLD_FEATURE_OPENSSL 0
 #define BLD_FEATURE_MATRIXSSL 0
+#define BLD_FEATURE_SSL 0
 #define BLD_FEATURE_UTEST 1
 #define BLD_UTEST "../ejs/macosx-x86_64-debug/bin/utest"
