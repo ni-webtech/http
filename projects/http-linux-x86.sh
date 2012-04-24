@@ -1,12 +1,12 @@
 #
-#   linux-i686-debug.sh -- Build It Shell Script to build Http Library
+#   linux-x86-debug.sh -- Build It Shell Script to build Http Library
 #
 
 OS="linux"
-CONFIG="${OS}-i686-debug"
+CONFIG="${OS}-x86-debug"
 CC="gcc"
 LD="ld"
-CFLAGS="-Wall -fPIC -g -Wno-unused-result -mtune=i686"
+CFLAGS="-Wall -fPIC -g -Wno-unused-result -mtune=generic"
 DFLAGS="-D_REENTRANT -DPIC -DBLD_DEBUG"
 IFLAGS="-I${CONFIG}/inc -Isrc/deps/pcre -Isrc"
 LDFLAGS="-Wl,--enable-new-dtags -Wl,-rpath,\$ORIGIN/ -Wl,-rpath,\$ORIGIN/../bin -rdynamic -g"

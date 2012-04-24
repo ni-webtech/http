@@ -1,5 +1,5 @@
 #
-#   win-i686-debug.nmake -- Build It Makefile to build Http Library for win on i686
+#   win-x86-debug.nmake -- Build It Makefile to build Http Library for win on x86
 #
 
 !IFDEF VSINSTALLDIR
@@ -18,7 +18,7 @@ PATH      = $(SDK)\Bin:$(VS)\VC\Bin:$(VS)\Common7\IDE:$(VS)\Common7\Tools:$(VS)\
 INCLUDE   = $(INCLUDE);$(SDK)\INCLUDE:$(VS)\VC\INCLUDE
 LIB       = $(LIB);$(SDK)\lib:$(VS)\VC\lib
 
-ARCH     = i686
+ARCH     = x86
 OS       = win
 CONFIG   = $(OS)-$(ARCH)-debug
 CC       = cl
@@ -91,12 +91,12 @@ clean:
 	-if exist $(CONFIG)\obj\http.obj del /Q $(CONFIG)\obj\http.obj
 
 $(CONFIG)\inc\mpr.h: 
-	-if exist win-i686-debug\inc\mpr.h del /Q win-i686-debug\inc\mpr.h
-	copy /Y src\deps\mpr\mpr.h win-i686-debug\inc\mpr.h
+	-if exist win-x86-debug\inc\mpr.h del /Q win-x86-debug\inc\mpr.h
+	copy /Y src\deps\mpr\mpr.h win-x86-debug\inc\mpr.h
 
 $(CONFIG)\inc\mprSsl.h: 
-	-if exist win-i686-debug\inc\mprSsl.h del /Q win-i686-debug\inc\mprSsl.h
-	copy /Y src\deps\mpr\mprSsl.h win-i686-debug\inc\mprSsl.h
+	-if exist win-x86-debug\inc\mprSsl.h del /Q win-x86-debug\inc\mprSsl.h
+	copy /Y src\deps\mpr\mprSsl.h win-x86-debug\inc\mprSsl.h
 
 $(CONFIG)\obj\mprLib.obj: \
         src\deps\mpr\mprLib.c \
@@ -140,8 +140,8 @@ $(CONFIG)\bin\libpcre.dll:  \
 	"$(LD)" -dll -out:$(CONFIG)\bin\libpcre.dll -entry:_DllMainCRTStartup@12 -def:$(CONFIG)\bin\libpcre.def $(LDFLAGS) $(LIBPATHS) $(CONFIG)\obj\pcre.obj $(LIBS)
 
 $(CONFIG)\inc\http.h: 
-	-if exist win-i686-debug\inc\http.h del /Q win-i686-debug\inc\http.h
-	copy /Y src\http.h win-i686-debug\inc\http.h
+	-if exist win-x86-debug\inc\http.h del /Q win-x86-debug\inc\http.h
+	copy /Y src\http.h win-x86-debug\inc\http.h
 
 $(CONFIG)\obj\auth.obj: \
         src\auth.c \

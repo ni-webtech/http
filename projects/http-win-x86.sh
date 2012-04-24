@@ -1,5 +1,5 @@
 #
-#   win-i686-debug.sh -- Build It Shell Script to build Http Library
+#   win-x86-debug.sh -- Build It Shell Script to build Http Library
 #
 
 VS="${VSINSTALLDIR}"
@@ -13,7 +13,7 @@ export INCLUDE="$(INCLUDE);$(SDK)/INCLUDE:$(VS)/VC/INCLUDE"
 export LIB="$(LIB);$(SDK)/lib:$(VS)/VC/lib"
 
 OS="win"
-CONFIG="${OS}-i686-debug"
+CONFIG="${OS}-x86-debug"
 CC="cl.exe"
 LD="link.exe"
 CFLAGS="-nologo -GR- -W3 -Zi -Od -MDd"

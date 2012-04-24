@@ -1,12 +1,12 @@
 LIBRARY libhttp.dll
 EXPORTS
   HttpStatusCodes
+  __nativeAuthFile
   __pamAuth
   httpAcceptConn
   httpAddCache
   httpAddConn
   httpAddEndpoint
-  httpAddGroup
   httpAddHeader
   httpAddHeaderString
   httpAddHomeRoute
@@ -31,9 +31,6 @@ EXPORTS
   httpAddStage
   httpAddStaticRoute
   httpAddUploadFile
-  httpAddUser
-  httpAddUserToGroup
-  httpAddUsersToGroup
   httpAdjustPacketEnd
   httpAdjustPacketStart
   httpAppendHeader
@@ -71,7 +68,6 @@ EXPORTS
   httpCreateEndpoint
   httpCreateEntityPacket
   httpCreateFilter
-  httpCreateGroup
   httpCreateHandler
   httpCreateHeaderPacket
   httpCreateHost
@@ -91,7 +87,6 @@ EXPORTS
   httpCreateTxPipeline
   httpCreateUri
   httpCreateUriFromParts
-  httpCreateUser
   httpDefaultOutgoingServiceStage
   httpDefineRoute
   httpDefineRouteBuiltins
@@ -104,19 +99,15 @@ EXPORTS
   httpDestroyPipeline
   httpDestroyRx
   httpDestroyTx
-  httpDisableGroup
   httpDisableQueue
-  httpDisableUser
   httpDiscardData
   httpDiscardTransmitData
   httpDisconnect
   httpEaseLimits
   httpEnableConnEvents
-  httpEnableGroup
   httpEnableQueue
   httpEnableTraceMethod
   httpEnableUpload
-  httpEnableUser
   httpError
   httpEvent
   httpFileExists
@@ -146,9 +137,7 @@ EXPORTS
   httpGetEndpointContext
   httpGetError
   httpGetExt
-  httpGetFilePassword
   httpGetFirstEndpoint
-  httpGetGroupAcl
   httpGetHeader
   httpGetHeaderHash
   httpGetHeaders
@@ -187,10 +176,8 @@ EXPORTS
   httpIsEndpointAsync
   httpIsEof
   httpIsFinalized
-  httpIsGroupEnabled
   httpIsPacketTooBig
   httpIsQueueEmpty
-  httpIsUserEnabled
   httpJoinPacket
   httpJoinPacketForService
   httpJoinPackets
@@ -231,7 +218,6 @@ EXPORTS
   httpOpenRouteLog
   httpOpenSendConnector
   httpOpenUploadFilter
-  httpParseAcl
   httpPrepClientConn
   httpPrepServerConn
   httpProcess
@@ -242,22 +228,16 @@ EXPORTS
   httpPutPacketToNext
   httpPutPackets
   httpRead
-  httpReadGroupFile
   httpReadString
-  httpReadUserFile
   httpRedirect
   httpRemoveAllUploadedFiles
   httpRemoveConn
   httpRemoveEndpoint
-  httpRemoveGroup
   httpRemoveHeader
   httpRemoveHost
   httpRemoveOption
   httpRemoveQueue
   httpRemoveUploadFile
-  httpRemoveUser
-  httpRemoveUserFromGroup
-  httpRemoveUsersFromGroup
   httpResetCredentials
   httpResetHandlers
   httpResetRoutePipeline
@@ -300,7 +280,6 @@ EXPORTS
   httpSetEndpointNotifier
   httpSetEntityLength
   httpSetForkCallback
-  httpSetGroupAcl
   httpSetHasNamedVirtualHosts
   httpSetHeader
   httpSetHeaderString
@@ -320,7 +299,6 @@ EXPORTS
   httpSetPipelineHandler
   httpSetProtocol
   httpSetProxy
-  httpSetRequiredAcl
   httpSetResponded
   httpSetRetries
   httpSetRouteAuth
@@ -370,11 +348,9 @@ EXPORTS
   httpTraceContent
   httpTrimExtraPath
   httpUpdateCache
-  httpUpdateUserAcls
   httpUriToString
   httpUsePrimary
   httpUseWorker
-  httpValidateFileCredentials
   httpValidateLimits
   httpVerifyQueue
   httpWait
@@ -384,10 +360,8 @@ EXPORTS
   httpWrite
   httpWriteBlock
   httpWriteCached
-  httpWriteGroupFile
   httpWriteHeaders
   httpWriteRouteLog
   httpWriteSafeString
   httpWriteString
   httpWriteUploadData
-  httpWriteUserFile
