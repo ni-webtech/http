@@ -2,8 +2,11 @@
 #   solaris-x86-debug.sh -- Build It Shell Script to build Http Library
 #
 
+ARCH="x86"
+ARCH="$(shell uname -m | sed 's/i.86/x86/')"
 OS="solaris"
-CONFIG="${OS}-x86-debug"
+PROFILE="debug"
+CONFIG="${OS}-${ARCH}-${PROFILE}"
 CC="gcc"
 LD="ld"
 CFLAGS="-Wall -fPIC -g -mcpu=generic"
