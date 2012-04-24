@@ -37,6 +37,7 @@
 #define BLD_SHOBJ ".dylib"
 #define BLD_LIB ".a"
 #define BLD_OBJ ".o"
+#define BLD_MANAGER ""
 #define BLD_CC_DOUBLE_BRACES 1
 #define BLD_CC_DYN_LOAD 1
 #define BLD_CC_EDITLINE 1
@@ -59,7 +60,7 @@
 #define BLD_FEATURE_DOXYGEN 1
 #define BLD_DOXYGEN "/usr/local/bin/doxygen"
 #define BLD_FEATURE_DSI 1
-#define BLD_DSI "/Users/mob/git/appweb.stable/build/bin/dsi"
+#define BLD_DSI "/usr/local/bin/dsi"
 #define BLD_FEATURE_EJS 1
 #define BLD_EJS "/Users/mob/git/ejs/macosx-x86_64-debug/bin/ejs"
 #define BLD_FEATURE_MAN 1
@@ -72,4 +73,4 @@
 #define BLD_MATRIXSSL "/Users/mob/git/packages-macosx-x86_64/matrixssl/matrixssl-3-3-open/libmatrixssl.dylib"
 #define BLD_FEATURE_SSL 1
 #define BLD_FEATURE_UTEST 1
-#define BLD_UTEST "/Users/mob/git/appweb.stable/build/bin/utest"
+#define BLD_UTEST "/Users/mob/git/ejs/macosx-x86_64-debug/bin/utest"

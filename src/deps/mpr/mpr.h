@@ -75,7 +75,7 @@
 #elif defined(__x86_64__) || defined(_M_AMD64)
     #define BLD_CPU "x86_64"
     #define BLD_CPU_ARCH MPR_CPU_IX64
-#elif defined(__i686__) 
+#elif defined(__i686__) || defined(_M_IX86)
     #define BLD_CPU "i686"
     #define BLD_CPU_ARCH MPR_CPU_IX86
 #elif defined(__i586__)
@@ -84,7 +84,7 @@
 #elif defined(__i486__)
     #define BLD_CPU "i486"
     #define BLD_CPU_ARCH MPR_CPU_IX86
-#elif defined(__i386__) || defined(_M_IX86)
+#elif defined(__i386__)
     #define BLD_CPU "i386"
     #define BLD_CPU_ARCH MPR_CPU_IX86
 #elif defined(_M_IA64)
@@ -365,7 +365,6 @@
     #include    <ioLib.h>
     #include    <pipeDrv.h>
     #include    <hostLib.h>
-    #include    <symSync.h>
     #include    <sysSymTbl.h>
     #include    <sys/fcntlcom.h>
     #include    <tickLib.h>

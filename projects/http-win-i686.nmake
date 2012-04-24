@@ -50,7 +50,7 @@ prep:
 clean:
 	-if exist $(CONFIG)\bin\libmpr.dll del /Q $(CONFIG)\bin\libmpr.dll
 	-if exist $(CONFIG)\bin\libmprssl.dll del /Q $(CONFIG)\bin\libmprssl.dll
-	-if exist $(CONFIG)\bin\${settings.manager}.exe del /Q $(CONFIG)\bin\${settings.manager}.exe
+	-if exist $(CONFIG)\bin\manager.exe del /Q $(CONFIG)\bin\manager.exe
 	-if exist $(CONFIG)\bin\makerom.exe del /Q $(CONFIG)\bin\makerom.exe
 	-if exist $(CONFIG)\bin\libpcre.dll del /Q $(CONFIG)\bin\libpcre.dll
 	-if exist $(CONFIG)\bin\libhttp.dll del /Q $(CONFIG)\bin\libhttp.dll

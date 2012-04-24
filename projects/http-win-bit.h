@@ -37,6 +37,7 @@
 #define BLD_SHOBJ ".dll"
 #define BLD_LIB ".a"
 #define BLD_OBJ ".obj"
+#define BLD_MANAGER ""
 #define BLD_CC_DOUBLE_BRACES 0
 #define BLD_CC_DYN_LOAD 1
 #define BLD_CC_EDITLINE 0
@@ -66,7 +67,7 @@
 #define BLD_FEATURE_DOXYGEN 1
 #define BLD_DOXYGEN "/usr/local/bin/doxygen"
 #define BLD_FEATURE_DSI 1
-#define BLD_DSI "/Users/mob/git/appweb.stable/build/bin/dsi"
+#define BLD_DSI "/usr/local/bin/dsi"
 #define BLD_FEATURE_EJS 1
 #define BLD_EJS "/Users/mob/git/ejs/macosx-x86_64-debug/bin/ejs"
 #define BLD_FEATURE_MAN 1
@@ -77,4 +78,4 @@
 #define BLD_FEATURE_MATRIXSSL 0
 #define BLD_FEATURE_SSL 0
 #define BLD_FEATURE_UTEST 1
-#define BLD_UTEST "/Users/mob/git/appweb.stable/build/bin/utest"
+#define BLD_UTEST "/Users/mob/git/ejs/macosx-x86_64-debug/bin/utest"

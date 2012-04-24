@@ -18,6 +18,7 @@ Bit.load({
         company: 'Embedthis',
 		version: '1.0.0',
 		buildNumber: 'B2',
+        manager: '',
         sync: ['mpr'],
         '+required': [ 'pcre' ],
         '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl', 'ssl', 'utest' ],
