@@ -33,6 +33,9 @@
 
 /******************************* Default Features *****************************/
 
+#ifndef BLD_DEBUG
+    #define BLD_DEBUG 0
+#endif
 #ifndef BLD_FEATURE_ASSERT
     #if BLD_DEBUG
         #define BLD_FEATURE_ASSERT 1
@@ -72,17 +75,17 @@
 #elif defined(__x86_64__) || defined(_M_AMD64)
     #define BLD_CPU "x86_64"
     #define BLD_CPU_ARCH MPR_CPU_IX64
-#elif defined(__i386__) || defined(_M_IX86)
-    #define BLD_CPU "i386"
-    #define BLD_CPU_ARCH MPR_CPU_IX86
-#elif defined(__i486__)
-    #define BLD_CPU "i486"
+#elif defined(__i686__) 
+    #define BLD_CPU "i686"
     #define BLD_CPU_ARCH MPR_CPU_IX86
 #elif defined(__i586__)
     #define BLD_CPU "i586"
     #define BLD_CPU_ARCH MPR_CPU_IX86
-#elif defined(__i686__) 
-    #define BLD_CPU "i686"
+#elif defined(__i486__)
+    #define BLD_CPU "i486"
+    #define BLD_CPU_ARCH MPR_CPU_IX86
+#elif defined(__i386__) || defined(_M_IX86)
+    #define BLD_CPU "i386"
     #define BLD_CPU_ARCH MPR_CPU_IX86
 #elif defined(_M_IA64)
     #define BLD_CPU "IA64"
@@ -1242,12 +1245,6 @@ struct  MprXml;
  */
 #define MPR_DEFAULT_BREAK_PORT  9473
 #define MPR_FD_MIN              32
-
-#if BLD_WIN_LIKE
-    #define BLD_LIB_NAME        "bin"
-#else
-    #define BLD_LIB_NAME        "lib"
-#endif
 
 /* 
     Longest IPv6 is XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX (40 bytes with null) 
