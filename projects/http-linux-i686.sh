@@ -9,7 +9,7 @@ LD="ld"
 CFLAGS="-Wall -fPIC -g -Wno-unused-result -mtune=i686"
 DFLAGS="-D_REENTRANT -DPIC -DBLD_DEBUG"
 IFLAGS="-I${CONFIG}/inc -Isrc/deps/pcre -Isrc"
-LDFLAGS="-Wl,--enable-new-dtags -Wl,-rpath,\$ORIGIN/ -Wl,-rpath,\$ORIGIN/../lib -rdynamic -g"
+LDFLAGS="-Wl,--enable-new-dtags -Wl,-rpath,\$ORIGIN/ -Wl,-rpath,\$ORIGIN/../bin -rdynamic -g"
 LIBPATHS="-L${CONFIG}/bin"
 LIBS="-lpthread -lm -ldl"
 
@@ -26,84 +26,84 @@ cp -r src/deps/mpr/mpr.h ${CONFIG}/inc/mpr.h
 rm -rf ${CONFIG}/inc/mprSsl.h
 cp -r src/deps/mpr/mprSsl.h ${CONFIG}/inc/mprSsl.h
 
-${CC} -c -o ${CONFIG}/obj/mprLib.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/mprLib.c
+${CC} -c -o ${CONFIG}/obj/mprLib.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/mprLib.c
 
-${CC} -shared -o ${CONFIG}/bin/libmpr.so ${LIBPATHS} ${CONFIG}/obj/mprLib.o ${LIBS}
+${CC} -shared -o ${CONFIG}/bin/libmpr.so ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/mprLib.o ${LIBS}
 
-${CC} -c -o ${CONFIG}/obj/mprSsl.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/mprSsl.c
+${CC} -c -o ${CONFIG}/obj/mprSsl.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/mprSsl.c
 
-${CC} -shared -o ${CONFIG}/bin/libmprssl.so ${LIBPATHS} ${CONFIG}/obj/mprSsl.o ${LIBS} -lmpr
+${CC} -shared -o ${CONFIG}/bin/libmprssl.so ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/mprSsl.o ${LIBS} -lmpr
 
-${CC} -c -o ${CONFIG}/obj/makerom.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/makerom.c
+${CC} -c -o ${CONFIG}/obj/makerom.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/mpr/makerom.c
 
-${CC} -o ${CONFIG}/bin/makerom ${LIBPATHS} ${CONFIG}/obj/makerom.o ${LIBS} -lmpr 
+${CC} -o ${CONFIG}/bin/makerom ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/makerom.o ${LIBS} -lmpr ${LDFLAGS}
 
-${CC} -c -o ${CONFIG}/obj/pcre.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/pcre/pcre.c
+${CC} -c -o ${CONFIG}/obj/pcre.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/deps/pcre/pcre.c
 
-${CC} -shared -o ${CONFIG}/bin/libpcre.so ${LIBPATHS} ${CONFIG}/obj/pcre.o ${LIBS}
+${CC} -shared -o ${CONFIG}/bin/libpcre.so ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/pcre.o ${LIBS}
 
 rm -rf ${CONFIG}/inc/http.h
 cp -r src/http.h ${CONFIG}/inc/http.h
 
-${CC} -c -o ${CONFIG}/obj/auth.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/auth.c
+${CC} -c -o ${CONFIG}/obj/auth.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/auth.c
 
-${CC} -c -o ${CONFIG}/obj/authCheck.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authCheck.c
+${CC} -c -o ${CONFIG}/obj/authCheck.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authCheck.c
 
-${CC} -c -o ${CONFIG}/obj/authFile.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authFile.c
+${CC} -c -o ${CONFIG}/obj/authFile.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authFile.c
 
-${CC} -c -o ${CONFIG}/obj/authPam.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authPam.c
+${CC} -c -o ${CONFIG}/obj/authPam.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/authPam.c
 
-${CC} -c -o ${CONFIG}/obj/cache.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/cache.c
+${CC} -c -o ${CONFIG}/obj/cache.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/cache.c
 
-${CC} -c -o ${CONFIG}/obj/chunkFilter.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/chunkFilter.c
+${CC} -c -o ${CONFIG}/obj/chunkFilter.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/chunkFilter.c
 
-${CC} -c -o ${CONFIG}/obj/client.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/client.c
+${CC} -c -o ${CONFIG}/obj/client.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/client.c
 
-${CC} -c -o ${CONFIG}/obj/conn.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/conn.c
+${CC} -c -o ${CONFIG}/obj/conn.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/conn.c
 
-${CC} -c -o ${CONFIG}/obj/endpoint.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/endpoint.c
+${CC} -c -o ${CONFIG}/obj/endpoint.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/endpoint.c
 
-${CC} -c -o ${CONFIG}/obj/error.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/error.c
+${CC} -c -o ${CONFIG}/obj/error.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/error.c
 
-${CC} -c -o ${CONFIG}/obj/host.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/host.c
+${CC} -c -o ${CONFIG}/obj/host.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/host.c
 
-${CC} -c -o ${CONFIG}/obj/httpService.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/httpService.c
+${CC} -c -o ${CONFIG}/obj/httpService.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/httpService.c
 
-${CC} -c -o ${CONFIG}/obj/log.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/log.c
+${CC} -c -o ${CONFIG}/obj/log.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/log.c
 
-${CC} -c -o ${CONFIG}/obj/netConnector.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/netConnector.c
+${CC} -c -o ${CONFIG}/obj/netConnector.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/netConnector.c
 
-${CC} -c -o ${CONFIG}/obj/packet.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/packet.c
+${CC} -c -o ${CONFIG}/obj/packet.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/packet.c
 
-${CC} -c -o ${CONFIG}/obj/passHandler.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/passHandler.c
+${CC} -c -o ${CONFIG}/obj/passHandler.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/passHandler.c
 
-${CC} -c -o ${CONFIG}/obj/pipeline.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/pipeline.c
+${CC} -c -o ${CONFIG}/obj/pipeline.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/pipeline.c
 
-${CC} -c -o ${CONFIG}/obj/queue.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/queue.c
+${CC} -c -o ${CONFIG}/obj/queue.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/queue.c
 
-${CC} -c -o ${CONFIG}/obj/rangeFilter.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/rangeFilter.c
+${CC} -c -o ${CONFIG}/obj/rangeFilter.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/rangeFilter.c
 
-${CC} -c -o ${CONFIG}/obj/route.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/route.c
+${CC} -c -o ${CONFIG}/obj/route.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/route.c
 
-${CC} -c -o ${CONFIG}/obj/rx.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/rx.c
+${CC} -c -o ${CONFIG}/obj/rx.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/rx.c
 
-${CC} -c -o ${CONFIG}/obj/sendConnector.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/sendConnector.c
+${CC} -c -o ${CONFIG}/obj/sendConnector.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/sendConnector.c
 
-${CC} -c -o ${CONFIG}/obj/stage.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/stage.c
+${CC} -c -o ${CONFIG}/obj/stage.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/stage.c
 
-${CC} -c -o ${CONFIG}/obj/trace.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/trace.c
+${CC} -c -o ${CONFIG}/obj/trace.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/trace.c
 
-${CC} -c -o ${CONFIG}/obj/tx.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/tx.c
+${CC} -c -o ${CONFIG}/obj/tx.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/tx.c
 
-${CC} -c -o ${CONFIG}/obj/uploadFilter.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/uploadFilter.c
+${CC} -c -o ${CONFIG}/obj/uploadFilter.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/uploadFilter.c
 
-${CC} -c -o ${CONFIG}/obj/uri.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/uri.c
+${CC} -c -o ${CONFIG}/obj/uri.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/uri.c
 
-${CC} -c -o ${CONFIG}/obj/var.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/var.c
+${CC} -c -o ${CONFIG}/obj/var.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/var.c
 
-${CC} -shared -o ${CONFIG}/bin/libhttp.so ${LIBPATHS} ${CONFIG}/obj/auth.o ${CONFIG}/obj/authCheck.o ${CONFIG}/obj/authFile.o ${CONFIG}/obj/authPam.o ${CONFIG}/obj/cache.o ${CONFIG}/obj/chunkFilter.o ${CONFIG}/obj/client.o ${CONFIG}/obj/conn.o ${CONFIG}/obj/endpoint.o ${CONFIG}/obj/error.o ${CONFIG}/obj/host.o ${CONFIG}/obj/httpService.o ${CONFIG}/obj/log.o ${CONFIG}/obj/netConnector.o ${CONFIG}/obj/packet.o ${CONFIG}/obj/passHandler.o ${CONFIG}/obj/pipeline.o ${CONFIG}/obj/queue.o ${CONFIG}/obj/rangeFilter.o ${CONFIG}/obj/route.o ${CONFIG}/obj/rx.o ${CONFIG}/obj/sendConnector.o ${CONFIG}/obj/stage.o ${CONFIG}/obj/trace.o ${CONFIG}/obj/tx.o ${CONFIG}/obj/uploadFilter.o ${CONFIG}/obj/uri.o ${CONFIG}/obj/var.o ${LIBS} -lmpr -lpcre -lmprssl
+${CC} -shared -o ${CONFIG}/bin/libhttp.so ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/auth.o ${CONFIG}/obj/authCheck.o ${CONFIG}/obj/authFile.o ${CONFIG}/obj/authPam.o ${CONFIG}/obj/cache.o ${CONFIG}/obj/chunkFilter.o ${CONFIG}/obj/client.o ${CONFIG}/obj/conn.o ${CONFIG}/obj/endpoint.o ${CONFIG}/obj/error.o ${CONFIG}/obj/host.o ${CONFIG}/obj/httpService.o ${CONFIG}/obj/log.o ${CONFIG}/obj/netConnector.o ${CONFIG}/obj/packet.o ${CONFIG}/obj/passHandler.o ${CONFIG}/obj/pipeline.o ${CONFIG}/obj/queue.o ${CONFIG}/obj/rangeFilter.o ${CONFIG}/obj/route.o ${CONFIG}/obj/rx.o ${CONFIG}/obj/sendConnector.o ${CONFIG}/obj/stage.o ${CONFIG}/obj/trace.o ${CONFIG}/obj/tx.o ${CONFIG}/obj/uploadFilter.o ${CONFIG}/obj/uri.o ${CONFIG}/obj/var.o ${LIBS} -lmpr -lpcre -lmprssl
 
-${CC} -c -o ${CONFIG}/obj/http.o ${CFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/utils/http.c
+${CC} -c -o ${CONFIG}/obj/http.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc/deps/pcre -Isrc src/utils/http.c
 
-${CC} -o ${CONFIG}/bin/http ${LIBPATHS} ${CONFIG}/obj/http.o ${LIBS} -lhttp -lmpr -lpcre -lmprssl 
+${CC} -o ${CONFIG}/bin/http ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/http.o ${LIBS} -lhttp -lmpr -lpcre -lmprssl ${LDFLAGS}
 
