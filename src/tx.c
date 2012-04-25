@@ -248,7 +248,7 @@ void httpFinalize(HttpConn *conn)
     if (conn->state >= HTTP_STATE_CONNECTED && conn->writeq && conn->sock) {
         httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SERVICE_NOW);
         httpServiceQueues(conn);
-        if (conn->state == HTTP_STATE_RUNNING && conn->connectorComplete && !conn->advancing) {
+        if (conn->state >= HTTP_STATE_READY && conn->connectorComplete && !conn->advancing) {
             httpProcess(conn, NULL);
         }
         conn->refinalize = 0;

@@ -250,6 +250,17 @@ void httpStartPipeline(HttpConn *conn)
 }
 
 
+void httpReadyPipeline(HttpConn *conn)
+{
+    HttpQueue   *q;
+    
+    q = conn->tx->queue[HTTP_QUEUE_TX]->nextQ;
+    if (q->stage->ready) {
+        q->stage->ready(q);
+    }
+}
+
+
 /*
     Note: this may be called multiple times
  */

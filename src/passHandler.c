@@ -55,7 +55,7 @@ static void openPass(HttpQueue *q)
 }
 
 
-static void processPass(HttpQueue *q)
+static void readyPass(HttpQueue *q)
 {
     HttpConn    *conn;
 
@@ -76,7 +76,7 @@ int httpOpenPassHandler(Http *http)
     }
     http->passHandler = stage;
     stage->open = openPass;
-    stage->process = processPass;
+    stage->ready = readyPass;
 
     /*
         PassHandler has an alias as the ErrorHandler too
@@ -85,7 +85,7 @@ int httpOpenPassHandler(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     stage->open = openPass;
-    stage->process = processPass;
+    stage->ready = readyPass;
     return 0;
 }
 

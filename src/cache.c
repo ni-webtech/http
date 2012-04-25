@@ -22,7 +22,7 @@ static void manageHttpCache(HttpCache *cache, int flags);
 static int matchCacheFilter(HttpConn *conn, HttpRoute *route, int dir);
 static int matchCacheHandler(HttpConn *conn, HttpRoute *route, int dir);
 static void outgoingCacheFilterService(HttpQueue *q);
-static void processCacheHandler(HttpQueue *q);
+static void readyCacheHandler(HttpQueue *q);
 static void saveCachedResponse(HttpConn *conn);
 static cchar *setHeadersFromCache(HttpConn *conn, cchar *content);
 
@@ -40,7 +40,7 @@ int httpOpenCacheHandler(Http *http)
     }
     http->cacheHandler = handler;
     handler->match = matchCacheHandler;
-    handler->process = processCacheHandler;
+    handler->ready = readyCacheHandler;
 
     /*
         Create the cache filter to capture and cache response content
@@ -85,7 +85,7 @@ static int matchCacheHandler(HttpConn *conn, HttpRoute *route, int dir)
 }
 
 
-static void processCacheHandler(HttpQueue *q) 
+static void readyCacheHandler(HttpQueue *q) 
 {
     HttpConn    *conn;
     HttpTx      *tx;

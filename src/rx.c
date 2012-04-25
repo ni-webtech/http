@@ -23,6 +23,7 @@ static bool processCompletion(HttpConn *conn);
 static bool processContent(HttpConn *conn, HttpPacket *packet);
 static void parseMethod(HttpConn *conn);
 static bool processParsed(HttpConn *conn);
+static bool processReady(HttpConn *conn);
 static bool processRunning(HttpConn *conn);
 static void routeRequest(HttpConn *conn);
 
@@ -138,6 +139,10 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
 
         case HTTP_STATE_CONTENT:
             conn->canProceed = processContent(conn, packet);
+            break;
+
+        case HTTP_STATE_READY:
+            conn->canProceed = processReady(conn);
             break;
 
         case HTTP_STATE_RUNNING:
@@ -923,7 +928,7 @@ static bool processParsed(HttpConn *conn)
     }
     httpSetState(conn, HTTP_STATE_CONTENT);
     if (conn->workerEvent && conn->tx->started && rx->eof) {
-        httpSetState(conn, HTTP_STATE_RUNNING);
+        httpSetState(conn, HTTP_STATE_READY);
         return 0;
     }
     return 1;
@@ -1017,20 +1022,36 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         if (!rx->streamInput) {
             httpStartPipeline(conn);
         }
-        httpSetState(conn, HTTP_STATE_RUNNING);
+        httpSetState(conn, HTTP_STATE_READY);
         return conn->workerEvent ? 0 : 1;
     }
     httpServiceQueues(conn);
     if (conn->connError) {
-        httpSetState(conn, HTTP_STATE_RUNNING);
+        httpSetState(conn, HTTP_STATE_READY);
     }
     return conn->error || (conn->input ? httpGetPacketLength(conn->input) : 0);
 }
 
 
 /*
-    In the running state after all content has been received
-    Note: may be called multiple times
+    In the ready state after all content has been received
+ */
+static bool processReady(HttpConn *conn)
+{
+    if (!conn->connError) {
+        httpReadyPipeline(conn);
+    }
+    if (conn->connError || conn->connectorComplete) {
+        httpSetState(conn, HTTP_STATE_COMPLETE);
+    } else {
+        httpSetState(conn, HTTP_STATE_RUNNING);
+    }
+    return 1;
+}
+
+
+/*
+    Note: may be called multiple times in response to output I/O events
  */
 static bool processRunning(HttpConn *conn)
 {

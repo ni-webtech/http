@@ -387,7 +387,7 @@ static void readEvent(HttpConn *conn)
             break;
         }
         //  MOB - refactor these tests
-        if (nbytes == 0 || conn->state >= HTTP_STATE_RUNNING || !conn->canProceed) {
+        if (nbytes == 0 || conn->state >= HTTP_STATE_READY || !conn->canProceed) {
             break;
         }
         if (conn->readq && conn->readq->count > conn->readq->max) {
@@ -659,7 +659,7 @@ void httpSetRetries(HttpConn *conn, int count)
 
 
 static char *notifyState[] = {
-    "IO_EVENT", "BEGIN", "STARTED", "FIRST", "PARSED", "CONTENT", "RUNNING", "COMPLETE",
+    "IO_EVENT", "BEGIN", "STARTED", "FIRST", "PARSED", "CONTENT", "READY", "RUNNING", "COMPLETE",
 };
 
 

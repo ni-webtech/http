@@ -42,7 +42,7 @@ static void outgoingData(HttpQueue *q, HttpPacket *packet)
         Handlers service routines must only be auto-enabled if in the running state.
      */
     mprAssert(httpVerifyQueue(q));
-    enableService = !(q->stage->flags & HTTP_STAGE_HANDLER) || (q->conn->state == HTTP_STATE_RUNNING) ? 1 : 0;
+    enableService = !(q->stage->flags & HTTP_STAGE_HANDLER) || (q->conn->state >= HTTP_STATE_READY) ? 1 : 0;
     httpPutForService(q, packet, enableService);
     mprAssert(httpVerifyQueue(q));
 }
