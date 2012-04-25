@@ -24,7 +24,6 @@ Bit.load({
     },
 
     usage: {
-        debug: 'Enable a debug build',
         assert: 'Enable program assertions',
     },
 
