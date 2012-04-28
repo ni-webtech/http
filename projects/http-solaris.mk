@@ -1,5 +1,5 @@
 #
-#   solaris-x86-debug.mk -- Build It Makefile to build Http Library for solaris
+#   http-solaris.mk -- Build It Makefile to build Http Library for solaris
 #
 
 ARCH     := $(shell uname -m | sed 's/i.86/x86/')
@@ -36,7 +36,7 @@ prep:
 clean:
 	rm -rf $(CONFIG)/bin/libmpr.so
 	rm -rf $(CONFIG)/bin/libmprssl.so
-	rm -rf $(CONFIG)/bin/manager
+	rm -rf $(CONFIG)/bin
 	rm -rf $(CONFIG)/bin/makerom
 	rm -rf $(CONFIG)/bin/libpcre.so
 	rm -rf $(CONFIG)/bin/libhttp.so

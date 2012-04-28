@@ -1,5 +1,5 @@
 #
-#   win-x86-debug.sh -- Build It Shell Script to build Http Library
+#   http-win.sh -- Build It Shell Script to build Http Library
 #
 
 VS="${VSINSTALLDIR}"

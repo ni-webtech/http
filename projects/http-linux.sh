@@ -1,5 +1,5 @@
 #
-#   linux-x86-debug.sh -- Build It Shell Script to build Http Library
+#   http-linux.sh -- Build It Shell Script to build Http Library
 #
 
 ARCH="x86"

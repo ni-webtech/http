@@ -16,7 +16,7 @@
 #define BLD_MINOR_VERSION 0
 #define BLD_PATCH_VERSION 0
 #define BLD_VNUM 100000000
-#define BLD_CONFIG_CMD "bit -emulate win-x86 -d -without all configure -gen sh,nmake,vs"
+#define BLD_CONFIG_CMD "bit -emulate win-x86 -q -d -without all configure -gen sh,nmake,vs"
 #define BLD_LIB_NAME "bin"
 #define BLD_CFG_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library"
 #define BLD_BIN_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/bin"
