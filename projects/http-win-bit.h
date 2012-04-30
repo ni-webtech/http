@@ -18,20 +18,20 @@
 #define BLD_VNUM 100000000
 #define BLD_CONFIG_CMD "bit -emulate win-x86 -q -d -without all configure -gen sh,nmake,vs"
 #define BLD_LIB_NAME "bin"
-#define BLD_CFG_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library"
-#define BLD_BIN_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/bin"
-#define BLD_DOC_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/doc"
-#define BLD_INC_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/inc"
-#define BLD_JEM_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/jems"
-#define BLD_LIB_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/bin"
-#define BLD_LOG_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/logs"
-#define BLD_MAN_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/man"
-#define BLD_PRD_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library"
-#define BLD_SAM_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/samples"
-#define BLD_SPL_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/tmp"
-#define BLD_SRC_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/src"
-#define BLD_VER_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library"
-#define BLD_WEB_PREFIX "/Users/mob/git/http/C:/Program Files/Http Library/web"
+#define BLD_CFG_PREFIX "C:/Program Files/Http Library"
+#define BLD_BIN_PREFIX "C:/Program Files/Http Library/bin"
+#define BLD_DOC_PREFIX "C:/Program Files/Http Library/doc"
+#define BLD_INC_PREFIX "C:/Program Files/Http Library/inc"
+#define BLD_JEM_PREFIX "C:/Program Files/Http Library/jems"
+#define BLD_LIB_PREFIX "C:/Program Files/Http Library/bin"
+#define BLD_LOG_PREFIX "C:/Program Files/Http Library/logs"
+#define BLD_MAN_PREFIX "C:/Program Files/Http Library/man"
+#define BLD_PRD_PREFIX "C:/Program Files/Http Library"
+#define BLD_SAM_PREFIX "C:/Program Files/Http Library/samples"
+#define BLD_SPL_PREFIX "C:/Program Files/Http Library/tmp"
+#define BLD_SRC_PREFIX "C:/Program Files/Http Library/src"
+#define BLD_VER_PREFIX "C:/Program Files/Http Library"
+#define BLD_WEB_PREFIX "C:/Program Files/Http Library/web"
 #define BLD_EXE ".exe"
 #define BLD_SHLIB ".lib"
 #define BLD_SHOBJ ".dll"
@@ -52,30 +52,17 @@
 #define BLD_CC_WARN_UNUSED 0
 #define BLD_FEATURE_ALL 0
 #define BLD_FEATURE_WINSDK 1
-#define BLD_WINSDK "$(SDK)"
 #define BLD_FEATURE_CC 1
-#define BLD_CC "cl.exe"
 #define BLD_FEATURE_LINK 1
-#define BLD_LINK "link.exe"
 #define BLD_FEATURE_DUMPBIN 1
-#define BLD_DUMPBIN "dumpbin"
 #define BLD_FEATURE_RC 1
-#define BLD_RC "rc"
 #define BLD_FEATURE_PCRE 1
-#define BLD_PCRE "/Users/mob/git/http/src/deps/pcre"
-#define BLD_FEATURE_INNO 0
 #define BLD_FEATURE_DOXYGEN 1
-#define BLD_DOXYGEN "/usr/local/bin/doxygen"
 #define BLD_FEATURE_DSI 1
-#define BLD_DSI "/usr/local/bin/dsi"
 #define BLD_FEATURE_EJS 1
-#define BLD_EJS "/Users/mob/git/ejs/macosx-x86_64-debug/bin/ejs"
 #define BLD_FEATURE_MAN 1
-#define BLD_MAN "/usr/bin/man"
 #define BLD_FEATURE_MAN2HTML 1
-#define BLD_MAN2HTML "/usr/local/bin/man2html"
 #define BLD_FEATURE_OPENSSL 0
 #define BLD_FEATURE_MATRIXSSL 0
 #define BLD_FEATURE_SSL 0
 #define BLD_FEATURE_UTEST 1
-#define BLD_UTEST "/Users/mob/git/ejs/macosx-x86_64-debug/bin/utest"
