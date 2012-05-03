@@ -471,7 +471,7 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         MprTime lifespan, int flags)
 {
     HttpRx      *rx;
-    char        *cp, *expiresAtt, *expires, *domainAtt, *domain, *extra;
+    char        *cp, *expiresAtt, *expires, *domainAtt, *domain, *secure, *httponly;
     int         webkitVersion;
 
     rx = conn->rx;
@@ -522,17 +522,20 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
         expires = expiresAtt = "";
     }
     if (flags & HTTP_COOKIE_SECURE) {
-        extra = "; secure";
-    } else if (flags & HTTP_COOKIE_HTTP) {
-        extra = "; httponly";
+        secure = "; secure";
     } else {
-        extra = ";";
+        secure = "";
+    }
+    if (flags & HTTP_COOKIE_HTTP) {
+        httponly = "; httponly";
+    } else {
+        httponly = "";
     }
     /* 
        Allow multiple cookie headers. Even if the same name. Later definitions take precedence
      */
     httpAppendHeader(conn, "Set-Cookie", 
-        sjoin(name, "=", value, "; path=", path, domainAtt, domain, expiresAtt, expires, extra, NULL));
+        sjoin(name, "=", value, "; path=", path, domainAtt, domain, expiresAtt, expires, secure, httponly, NULL));
     httpAppendHeader(conn, "Cache-control", "no-cache=\"set-cookie\"");
 }
 
