@@ -524,7 +524,7 @@ void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar
     if (flags & HTTP_COOKIE_SECURE) {
         extra = "; secure";
     } else if (flags & HTTP_COOKIE_HTTP) {
-        extra = "; secure";
+        extra = "; httponly";
     } else {
         extra = ";";
     }
