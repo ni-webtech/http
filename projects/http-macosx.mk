@@ -36,7 +36,6 @@ prep:
 clean:
 	rm -rf $(CONFIG)/bin/libmpr.dylib
 	rm -rf $(CONFIG)/bin/libmprssl.dylib
-	rm -rf $(CONFIG)/bin
 	rm -rf $(CONFIG)/bin/makerom
 	rm -rf $(CONFIG)/bin/libpcre.dylib
 	rm -rf $(CONFIG)/bin/libhttp.dylib

@@ -36,7 +36,6 @@ prep:
 clean:
 	rm -rf $(CONFIG)/bin/libmpr.so
 	rm -rf $(CONFIG)/bin/libmprssl.so
-	rm -rf $(CONFIG)/bin
 	rm -rf $(CONFIG)/bin/makerom
 	rm -rf $(CONFIG)/bin/libpcre.so
 	rm -rf $(CONFIG)/bin/libhttp.so
