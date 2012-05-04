@@ -245,10 +245,11 @@ void httpFinalize(HttpConn *conn)
     }
     conn->responded = 1;
     conn->finalized = 1;
+
     if (conn->state >= HTTP_STATE_CONNECTED && conn->writeq && conn->sock) {
-        httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SERVICE_NOW);
+        httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SCHEDULE_QUEUE);
         httpServiceQueues(conn);
-        if (conn->state >= HTTP_STATE_READY && conn->connectorComplete && !conn->advancing) {
+        if (conn->state >= HTTP_STATE_READY /* MOB && conn->connectorComplete */ && !conn->inHttpProcess) {
             httpProcess(conn, NULL);
         }
         conn->refinalize = 0;

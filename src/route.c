@@ -1408,7 +1408,7 @@ static char *finalizeReplacement(HttpRoute *route, cchar *str)
                     if (braced) {
                         for (ep = tok; *ep && *ep != '}'; ep++) ;
                     } else {
-                        for (ep = tok; *ep && isdigit((int) *ep); ep++) ;
+                        for (ep = tok; *ep && isdigit((uchar) *ep); ep++) ;
                     }
                     token = snclone(tok, ep - tok);
                     if (schr(token, ':')) {
@@ -2605,9 +2605,9 @@ static char *expandPatternTokens(cchar *str, cchar *replacement, int *matches, i
                 break;
             default:
                 /* Insert the nth submatch */
-                if (isdigit((int) *cp)) {
+                if (isdigit((uchar) *cp)) {
                     submatch = (int) wtoi(cp);
-                    while (isdigit((int) *++cp))
+                    while (isdigit((uchar) *++cp))
                         ;
                     cp--;
                     if (submatch < matchCount) {
@@ -2699,11 +2699,11 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
     end = &tok[slen(line)];
 
     for (f = fmt; *f && tok < end; f++) {
-        for (; isspace((int) *tok); tok++) ;
+        for (; isspace((uchar) *tok); tok++) ;
         if (*tok == '\0' || *tok == '#') {
             break;
         }
-        if (isspace((int) *f)) {
+        if (isspace((uchar) *f)) {
             continue;
         }
         if (*f == '%' || *f == '?') {
@@ -2725,7 +2725,7 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
                         }
                     }
                 } else {
-                    for (etok = tok; *etok && !isspace((int) *etok); etok++) ;
+                    for (etok = tok; *etok && !isspace((uchar) *etok); etok++) ;
                 }
                 *etok++ = '\0';
             }
@@ -2785,7 +2785,7 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
         /*
             Extra unparsed text
          */
-        for (; tok < end && isspace((int) *tok); tok++) ;
+        for (; tok < end && isspace((uchar) *tok); tok++) ;
         if (*tok) {
             mprError("Extra unparsed text: \"%s\"", tok);
             return 0;

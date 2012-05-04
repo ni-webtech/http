@@ -9,7 +9,7 @@
 
 /********************************** Forward ***********************************/
 
-static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir);
+static bool matchStage(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir);
 static void openQueues(HttpConn *conn);
 static void pairQueues(HttpConn *conn);
 
@@ -40,7 +40,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
     hasOutputFilters = 0;
     if (route->outputStages) {
         for (next = 0; (filter = mprGetNextItem(route->outputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter, route, HTTP_STAGE_TX) == HTTP_ROUTE_OK) {
+            if (matchStage(conn, filter, route, HTTP_STAGE_TX) == HTTP_ROUTE_OK) {
                 mprAddItem(tx->outputPipeline, filter);
                 hasOutputFilters = 1;
             }
@@ -100,7 +100,7 @@ void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
     rx->inputPipeline = mprCreateList(-1, 0);
     if (route) {
         for (next = 0; (filter = mprGetNextItem(route->inputStages, &next)) != 0; ) {
-            if (matchFilter(conn, filter, route, HTTP_STAGE_RX) == HTTP_ROUTE_OK) {
+            if (matchStage(conn, filter, route, HTTP_STAGE_RX) == HTTP_ROUTE_OK) {
                 mprAddItem(rx->inputPipeline, filter);
             }
         }
@@ -245,36 +245,38 @@ void httpStartPipeline(HttpConn *conn)
     }
     if (!conn->error && !conn->connectorComplete && rx->remainingContent > 0) {
         /* If no remaining content, wait till the processing stage to avoid duplicate writable events */
-        httpWritable(conn);
+        httpNotifyWritable(conn);
     }
 }
 
 
-void httpReadyPipeline(HttpConn *conn)
+void httpRunHandlerReady(HttpConn *conn)
 {
     HttpQueue   *q;
     
-    q = conn->tx->queue[HTTP_QUEUE_TX]->nextQ;
+    q = conn->writeq;
     if (q->stage->ready) {
         q->stage->ready(q);
     }
 }
 
 
-/*
-    Note: this may be called multiple times
- */
-void httpProcessPipeline(HttpConn *conn)
+int httpRunHandlerOutput(HttpConn *conn)
 {
     HttpQueue   *q;
     
-    if (conn->error) {
-        httpFinalize(conn);
+    q = conn->writeq;
+    if (!q->stage->output) {
+       return 0;
     }
-    q = conn->tx->queue[HTTP_QUEUE_TX]->nextQ;
-    if (q->stage->process) {
-        q->stage->process(q);
+    if (!conn->finalized) {
+        q->stage->output(q);
+        if (q->count > 0) {
+            httpScheduleQueue(q);
+            httpServiceQueues(conn);
+        }
     }
+    return 1;
 }
 
 
@@ -316,7 +318,7 @@ void httpDiscardTransmitData(HttpConn *conn)
 }
 
 
-static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir)
+static bool matchStage(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir)
 {
     HttpTx      *tx;
 

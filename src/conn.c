@@ -406,7 +406,7 @@ static void writeEvent(HttpConn *conn)
 
     conn->writeBlocked = 0;
     if (conn->tx) {
-        httpEnableQueue(conn->connectorq);
+        httpResumeQueue(conn->connectorq);
         httpServiceQueues(conn);
         httpProcess(conn, NULL);
     }
@@ -712,7 +712,7 @@ HttpLimits *httpSetUniqueConnLimits(HttpConn *conn)
 }
 
 
-void httpWritable(HttpConn *conn)
+void httpNotifyWritable(HttpConn *conn)
 {
     HTTP_NOTIFY(conn, HTTP_EVENT_IO, HTTP_NOTIFY_WRITABLE);
 }

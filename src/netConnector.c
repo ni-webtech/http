@@ -107,7 +107,7 @@ static void netOutgoingService(HttpQueue *q)
             errCode = mprGetError(q);
             if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
                 /*  Socket full, wait for an I/O event */
-                httpSetWriteBlocked(conn);
+                httpSocketBlocked(conn);
                 break;
             }
             if (errCode != EPIPE && errCode != ECONNRESET) {
@@ -119,7 +119,7 @@ static void netOutgoingService(HttpQueue *q)
 
         } else if (written == 0) {
             /*  Socket full, wait for an I/O event */
-            httpSetWriteBlocked(conn);
+            httpSocketBlocked(conn);
             break;
 
         } else if (written > 0) {
@@ -132,7 +132,7 @@ static void netOutgoingService(HttpQueue *q)
         if ((q->flags & HTTP_QUEUE_EOF)) {
             httpConnectorComplete(conn);
         } else {
-            httpWritable(conn);
+            httpNotifyWritable(conn);
         }
     }
 }

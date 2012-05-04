@@ -112,10 +112,19 @@ void httpAppendQueue(HttpQueue *head, HttpQueue *q)
 }
 
 
+#if UNUSED
 void httpDisableQueue(HttpQueue *q)
 {
     mprLog(7, "Disable q %s", q->owner);
-    q->flags |= HTTP_QUEUE_DISABLED;
+    q->flags |= HTTP_QUEUE_SUSPENDED | HTTP_QUEUE_DISABLED;
+}
+#endif
+
+
+void httpSuspendQueue(HttpQueue *q)
+{
+    mprLog(7, "Suspend q %s", q->owner);
+    q->flags |= HTTP_QUEUE_SUSPENDED;
 }
 
 
@@ -183,16 +192,50 @@ bool httpFlushQueue(HttpQueue *q, bool blocking)
         if (conn->sock == 0) {
             break;
         }
-    } while (blocking && q->count >= q->max);
+    } while (blocking && q->count > 0);
     return (q->count < q->max) ? 1 : 0;
 }
 
 
+#if UNUSED
+/*
+    May run on any thread. If the request has completed and the connection and queue have been released, then the
+    caller MUST arrange to preserve a GC reference to the queue. This preserves memory.
+    preserve
+ */
 void httpEnableQueue(HttpQueue *q)
 {
+    Http    *http;
     mprLog(7, "Enable q %s", q->owner);
-    q->flags &= ~HTTP_QUEUE_DISABLED;
-    httpScheduleQueue(q);
+
+    http = mprGetMpr()->httpService;
+    lock(http);
+    if (q->flags & HTTP_QUEUE_OPEN) {
+        mprAssert(q->conn && q->conn->http);
+        q->flags &= ~HTTP_QUEUE_DISABLED;
+        httpResumeQueue(q);
+        /* 
+            Enable write I/O events on the connection. This will cause httpProcess() to be invoked.
+         */
+        httpSocketBlocked(q->conn);
+        httpEnableConnEvents(q->conn);
+    }
+    unlock(http);
+}
+#endif
+
+
+void httpResumeQueue(HttpQueue *q)
+{
+    mprLog(7, "Enable q %s", q->owner);
+#if UNUSED
+    if (!(q->flags & HTTP_QUEUE_DISABLED)) {
+#endif
+        q->flags &= ~HTTP_QUEUE_SUSPENDED;
+        httpScheduleQueue(q);
+#if UNUSED
+    }
+#endif
 }
 
 
@@ -414,7 +457,7 @@ void httpScheduleQueue(HttpQueue *q)
     mprAssert(q->conn);
     head = q->conn->serviceq;
     
-    if (q->scheduleNext == q && !(q->flags & HTTP_QUEUE_DISABLED)) {
+    if (q->scheduleNext == q && !(q->flags & HTTP_QUEUE_SUSPENDED)) {
         q->scheduleNext = head;
         q->schedulePrev = head->schedulePrev;
         head->schedulePrev->scheduleNext = q;
@@ -436,7 +479,7 @@ void httpServiceQueue(HttpQueue *q)
         if (q->conn->serviceq->scheduleNext == q) {
             httpGetNextQueueForService(q->conn->serviceq);
         }
-        if (!(q->flags & HTTP_QUEUE_DISABLED)) {
+        if (!(q->flags & HTTP_QUEUE_SUSPENDED)) {
             q->servicing = 1;
             q->service(q);
             if (q->flags & HTTP_QUEUE_RESERVICE) {
@@ -475,9 +518,8 @@ bool httpWillNextQueueAcceptPacket(HttpQueue *q, HttpPacket *packet)
     /*  
         The downstream queue is full, so disable the queue and mark the downstream queue as full and service 
      */
-    httpDisableQueue(q);
-    nextQ->flags |= HTTP_QUEUE_FULL;
-    if (!(nextQ->flags & HTTP_QUEUE_DISABLED)) {
+    httpSuspendQueue(q);
+    if (!(nextQ->flags & HTTP_QUEUE_SUSPENDED)) {
         httpScheduleQueue(nextQ);
     }
     return 0;
@@ -495,9 +537,8 @@ bool httpWillNextQueueAcceptSize(HttpQueue *q, ssize size)
     if (size <= nextQ->packetSize && (size + nextQ->count) <= nextQ->max) {
         return 1;
     }
-    httpDisableQueue(q);
-    nextQ->flags |= HTTP_QUEUE_FULL;
-    if (!(nextQ->flags & HTTP_QUEUE_DISABLED)) {
+    httpSuspendQueue(q);
+    if (!(nextQ->flags & HTTP_QUEUE_SUSPENDED)) {
         httpScheduleQueue(nextQ);
     }
     return 0;
@@ -551,10 +592,9 @@ ssize httpWriteBlock(HttpQueue *q, cchar *buf, ssize size)
         size -= bytes;
         q->count += bytes;
         written += bytes;
-    }
-    if (q->count >= q->max) {
-        /* Non-blocking */
-        httpFlushQueue(q, 0);
+        if (q->count >= q->max) {
+            httpFlushQueue(q, 0);
+        }
     }
     if (conn->error) {
         return MPR_ERR_CANT_WRITE;

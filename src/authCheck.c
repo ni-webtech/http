@@ -163,16 +163,16 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
     key = sclone(rx->authDetails);
 
     while (*key) {
-        while (*key && isspace((int) *key)) {
+        while (*key && isspace((uchar) *key)) {
             key++;
         }
         tok = key;
-        while (*tok && !isspace((int) *tok) && *tok != ',' && *tok != '=') {
+        while (*tok && !isspace((uchar) *tok) && *tok != ',' && *tok != '=') {
             tok++;
         }
         *tok++ = '\0';
 
-        while (isspace((int) *tok)) {
+        while (isspace((uchar) *tok)) {
             tok++;
         }
         seenComma = 0;
@@ -206,7 +206,7 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
         /*
             user, response, oqaque, uri, realm, nonce, nc, cnonce, qop
          */
-        switch (tolower((int) *key)) {
+        switch (tolower((uchar) *key)) {
         case 'a':
             if (scasecmp(key, "algorithm") == 0) {
                 break;

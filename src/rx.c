@@ -122,11 +122,10 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
     mprAssert(conn);
 
     conn->canProceed = 1;
-    conn->advancing = 1;
+    conn->inHttpProcess = 1;
 
     while (conn->canProceed) {
         LOG(7, "httpProcess %s, state %d, error %d", conn->dispatcher->name, conn->state, conn->error);
-
         switch (conn->state) {
         case HTTP_STATE_BEGIN:
         case HTTP_STATE_CONNECTED:
@@ -153,9 +152,13 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
             conn->canProceed = processCompletion(conn);
             break;
         }
+        if (conn->connError || (conn->endpoint && conn->connectorComplete)) {
+            httpSetState(conn, HTTP_STATE_COMPLETE);
+            continue;
+        }
         packet = conn->input;
     }
-    conn->advancing = 0;
+    conn->inHttpProcess = 0;
 }
 
 
@@ -203,9 +206,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     } else {
         parseResponseLine(conn, packet);
     }
-    if (!conn->error) {
-        parseHeaders(conn, packet);
-    }
+    parseHeaders(conn, packet);
     if (conn->endpoint) {
         httpMatchHost(conn);
         if (httpSetUri(conn, rx->uri, "") < 0) {
@@ -479,7 +480,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     limits = conn->limits;
     keepAlive = (conn->http10) ? 0 : 1;
 
-    for (count = 0; content->start[0] != '\r' && !conn->connError; count++) {
+    for (count = 0; content->start[0] != '\r' && !conn->error; count++) {
         if (count >= limits->headerCount) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Too many headers");
             break;
@@ -489,7 +490,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
         }
         value = getToken(conn, "\r\n");
-        while (isspace((int) *value)) {
+        while (isspace((uchar) *value)) {
             value++;
         }
         LOG(8, "Key %s, value %s", key, value);
@@ -503,7 +504,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         }
         mprAddKey(rx->headers, key, hvalue);
 
-        switch (tolower((int) key[0])) {
+        switch (tolower((uchar) key[0])) {
         case 'a':
             if (strcasecmp(key, "authorization") == 0) {
                 value = sclone(value);
@@ -568,7 +569,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
                 start = end = size = -1;
                 sp = value;
-                while (*sp && !isdigit((int) *sp)) {
+                while (*sp && !isdigit((uchar) *sp)) {
                     sp++;
                 }
                 if (*sp) {
@@ -741,7 +742,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         case 'w':
             if (strcasecmp(key, "www-authenticate") == 0) {
                 conn->authType = value;
-                while (*value && !isspace((int) *value)) {
+                while (*value && !isspace((uchar) *value)) {
                     value++;
                 }
                 *value++ = '\0';
@@ -786,16 +787,16 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
     key = (char*) authDetails;
 
     while (*key) {
-        while (*key && isspace((int) *key)) {
+        while (*key && isspace((uchar) *key)) {
             key++;
         }
         tok = key;
-        while (*tok && !isspace((int) *tok) && *tok != ',' && *tok != '=') {
+        while (*tok && !isspace((uchar) *tok) && *tok != ',' && *tok != '=') {
             tok++;
         }
         *tok++ = '\0';
 
-        while (isspace((int) *tok)) {
+        while (isspace((uchar) *tok)) {
             tok++;
         }
         seenComma = 0;
@@ -830,7 +831,7 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
             algorithm, domain, nonce, oqaque, realm, qop, stale
             We don't strdup any of the values as the headers are persistently saved.
          */
-        switch (tolower((int) *key)) {
+        switch (tolower((uchar) *key)) {
         case 'a':
             if (scasecmp(key, "algorithm") == 0) {
                 rx->authAlgorithm = sclone(value);
@@ -1026,9 +1027,6 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
         return conn->workerEvent ? 0 : 1;
     }
     httpServiceQueues(conn);
-    if (conn->connError) {
-        httpSetState(conn, HTTP_STATE_READY);
-    }
     return conn->error || (conn->input ? httpGetPacketLength(conn->input) : 0);
 }
 
@@ -1038,14 +1036,8 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
  */
 static bool processReady(HttpConn *conn)
 {
-    if (!conn->connError) {
-        httpReadyPipeline(conn);
-    }
-    if (conn->connError || conn->connectorComplete) {
-        httpSetState(conn, HTTP_STATE_COMPLETE);
-    } else {
-        httpSetState(conn, HTTP_STATE_RUNNING);
-    }
+    httpRunHandlerReady(conn);
+    httpSetState(conn, HTTP_STATE_RUNNING);
     return 1;
 }
 
@@ -1055,25 +1047,41 @@ static bool processReady(HttpConn *conn)
  */
 static bool processRunning(HttpConn *conn)
 {
-    int     canProceed;
+    HttpQueue   *q;
+    int         canProceed;
 
+    q = conn->writeq;
     canProceed = 1;
-    if (conn->connError) {
-        httpSetState(conn, HTTP_STATE_COMPLETE);
-    } else {
-        if (conn->endpoint) {
-            httpProcessPipeline(conn);
-            if (conn->connError || conn->connectorComplete) {
-                httpSetState(conn, HTTP_STATE_COMPLETE);
-            } else {
-                httpWritable(conn);
-                canProceed = httpServiceQueues(conn);
+    httpServiceQueues(conn);
+
+    if (conn->endpoint) {
+        /* Server side */
+        if (conn->finalized) {
+            if (!conn->connectorComplete) {
+                /* Wait for Tx I/O event. Do suspend incase handler not using auto-flow routines */
+                httpSuspendQueue(q);
+                httpSocketBlocked(q->conn);
+                httpEnableConnEvents(q->conn);
+                canProceed = 0;
             }
+        } else if (!httpRunHandlerOutput(conn)) {
+            canProceed = 0;
+        } else if (q->count == 0) {
+            /* Queue is empty and data may have drained above in httpServiceQueues. Yield to reclaim memory. */
+            mprYield(0);
+        } else if (q->count < q->low) {
+            httpResumeQueue(q);
         } else {
-            httpServiceQueues(conn);
-            httpFinalize(conn);
-            httpSetState(conn, HTTP_STATE_COMPLETE);
+            httpSuspendQueue(q);
+            httpSocketBlocked(q->conn);
+            httpEnableConnEvents(q->conn);
+            canProceed = 0;
         }
+    } else {
+        /* Client side */
+        httpServiceQueues(conn);
+        httpFinalize(conn);
+        httpSetState(conn, HTTP_STATE_COMPLETE);
     }
     return canProceed;
 }
@@ -1143,7 +1151,7 @@ void httpCloseRx(HttpConn *conn)
         /* May not have consumed all read data, so can't be assured the next request will be okay */
         conn->keepAliveCount = -1;
     }
-    if (conn->state < HTTP_STATE_COMPLETE && !conn->advancing) {
+    if (conn->state < HTTP_STATE_COMPLETE && !conn->inHttpProcess) {
         httpProcess(conn, NULL);
     }
 }
@@ -1342,7 +1350,8 @@ static void waitHandler(HttpConn *conn, struct MprEvent *event)
 /*
     Wait for the connection to reach a given state.
     @param state Desired state. Set to zero if you want to wait for one I/O event.
-    @param timeout Timeout in msec. If timeout is zer, wait forever. If timeout is < 0, use default inactivity and duration timeouts.
+    @param timeout Timeout in msec. If timeout is zer, wait forever. If timeout is < 0, use default inactivity 
+        and duration timeouts.
  */
 int httpWait(HttpConn *conn, int state, MprTime timeout)
 {
@@ -1414,10 +1423,13 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
 /*  
     Set the connector as write blocked and can't proceed.
  */
-void httpSetWriteBlocked(HttpConn *conn)
+void httpSocketBlocked(HttpConn *conn)
 {
-    mprLog(6, "Write Blocked");
+    mprLog(6, "Socket Blocked");
+#if MOB
+    //  SHOULD REMOVE THIS - not required and process() does not listen to it
     conn->canProceed = 0;
+#endif 
     conn->writeBlocked = 1;
 }
 
@@ -1631,7 +1643,7 @@ char *httpGetPathExt(cchar *path)
 
     if ((ext = strrchr(path, '.')) != 0) {
         ext = sclone(++ext);
-        for (ep = ext; *ep && isalnum((int)*ep); ep++) {
+        for (ep = ext; *ep && isalnum((uchar) *ep); ep++) {
             ;
         }
         *ep = '\0';

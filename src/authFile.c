@@ -374,7 +374,7 @@ HttpAcl httpParseAcl(HttpAuth *auth, cchar *aclStr)
             aclStr += 2;
         }
         for (; isxdigit((int) *aclStr); aclStr++) {
-            c = (int) tolower((int) *aclStr);
+            c = tolower((uchar) *aclStr);
             if ('0' <= c && c <= '9') {
                 acl = (acl * 16) + c - '0';
             } else {
@@ -515,7 +515,7 @@ int httpReadGroupFile(HttpAuth *auth, char *path)
     }
     while ((buf = mprReadLine(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
-        for (cp = enabled; cp && isspace((int) *cp); cp++) { }
+        for (cp = enabled; cp && isspace((uchar) *cp); cp++) { }
         if (cp == 0 || *cp == '\0' || *cp == '#') {
             continue;
         }
@@ -546,7 +546,7 @@ int httpReadUserFile(HttpAuth *auth, char *path)
     }
     while ((buf = mprReadLine(file, MPR_BUFSIZE, NULL)) != NULL) {
         enabled = stok(buf, " :\t", &tok);
-        for (cp = enabled; cp && isspace((int) *cp); cp++) { }
+        for (cp = enabled; cp && isspace((uchar) *cp); cp++) { }
         if (cp == 0 || *cp == '\0' || *cp == '#') {
             continue;
         }

@@ -153,14 +153,17 @@ HttpPacket *httpGetPacket(HttpQueue *q)
                 mprAssert(q->first == 0);
             }
         }
-        if (q->flags & HTTP_QUEUE_FULL && q->count < q->low) {
+        if (/* MOB q->flags & HTTP_QUEUE_FULL && */ q->count < q->low) {
             /*
                 This queue was full and now is below the low water mark. Back-enable the previous queue.
              */
+#if MOB && UNUSED
             q->flags &= ~HTTP_QUEUE_FULL;
+#endif
+            //  MOB - would not need this if all queues always had a service routine?
             prev = httpFindPreviousQueue(q);
-            if (prev && prev->flags & HTTP_QUEUE_DISABLED) {
-                httpEnableQueue(prev);
+            if (prev && prev->flags & HTTP_QUEUE_SUSPENDED) {
+                httpResumeQueue(prev);
             }
         }
         return packet;
@@ -202,7 +205,7 @@ void httpJoinPacketForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
         q->count += httpGetPacketLength(packet);
     }
     mprAssert(httpVerifyQueue(q));
-    if (serviceQ && !(q->flags & HTTP_QUEUE_DISABLED))  {
+    if (serviceQ && !(q->flags & HTTP_QUEUE_SUSPENDED))  {
         httpScheduleQueue(q);
     }
 }
@@ -326,7 +329,7 @@ void httpPutForService(HttpQueue *q, HttpPacket *packet, bool serviceQ)
         q->first = packet;
         q->last = packet;
     }
-    if (serviceQ && !(q->flags & HTTP_QUEUE_DISABLED))  {
+    if (serviceQ && !(q->flags & HTTP_QUEUE_SUSPENDED))  {
         httpScheduleQueue(q);
     }
 }
