@@ -152,7 +152,7 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
             conn->canProceed = processCompletion(conn);
             break;
         }
-        if (conn->connError || (conn->endpoint && conn->connectorComplete)) {
+        if (conn->connError || (conn->endpoint && conn->connectorComplete && conn->state >= HTTP_STATE_RUNNING)) {
             httpSetState(conn, HTTP_STATE_COMPLETE);
             continue;
         }

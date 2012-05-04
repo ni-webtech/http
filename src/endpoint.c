@@ -270,7 +270,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         break;
 
     case HTTP_VALIDATE_CLOSE_REQUEST:
-        if (conn->rx && conn->rx->flags & HTTP_LIMIT_DENIED) {
+        if (conn->rx && conn->rx->flags & HTTP_LIMIT_DENIED && conn->state >= HTTP_STATE_PARSED) {
             event = 0;
         } else {
             endpoint->requestCount--;
