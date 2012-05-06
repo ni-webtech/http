@@ -36,7 +36,6 @@ x64
 *.filters
 *.suo
 *.sdf
-*.vcxproj
 *.xcworkspace
 xcuserdata
 mob.*
