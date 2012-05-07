@@ -1951,17 +1951,8 @@ void *mprCopyName(void *dest, void *src)
 {
     return mprSetName(dest, mprGetName(src));
 }
-
-
-#else
-#undef mprSetName
-#undef mprCopyName
-#undef mprSetAllocName
-void mprCheckBlock(MprMem *mp) {}
-void *mprSetName(void *ptr, cchar *name) { return 0; }
-void *mprCopyName(void *dest, void *src) { return 0; }
-void *mprSetAllocName(void *ptr, cchar *name) { return 0; }
 #endif
+
 
 /********************************************* Misc ***************************************************/
 
@@ -2503,6 +2494,16 @@ static void monitorStack()
         }
     }
 }
+#endif
+
+#if BLD_MEMORY_DEBUG
+#undef mprSetName
+#undef mprCopyName
+#undef mprSetAllocName
+void mprCheckBlock(MprMem *mp) {}
+void *mprSetName(void *ptr, cchar *name) { return 0; }
+void *mprCopyName(void *dest, void *src) { return 0; }
+void *mprSetAllocName(void *ptr, cchar *name) { return 0; }
 #endif
 
 /*
@@ -22688,9 +22689,9 @@ void mprManageSelect(MprWaitService *ws, int flags)
 }
 
 
-static int growFds(MprWaitService *ws)
+static int growFds(MprWaitService *ws, int fd)
 {
-    ws->handlerMax *= 2;
+    ws->handlerMax = min(ws->handlerMax * 2, fd);
     if ((ws->handlerMap = mprRealloc(ws->handlerMap, sizeof(MprWaitHandler*) * ws->handlerMax)) == 0) {
         mprAssert(!MPR_ERR_MEMORY);
         return MPR_ERR_MEMORY;
@@ -22723,7 +22724,7 @@ int mprNotifyOn(MprWaitService *ws, MprWaitHandler *wp, int mask)
             FD_SET(fd, &ws->writeMask);
         }
         if (mask) {
-            if (fd >= ws->handlerMax && growFds(ws) < 0) {
+            if (fd >= ws->handlerMax && growFds(ws, fd) < 0) {
                 unlock(ws);
                 mprAssert(!MPR_ERR_MEMORY);
                 return MPR_ERR_MEMORY;
