@@ -325,6 +325,8 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
     if (host) {
         if (mprIsIPv6(host) && *host != '[') {
             host = sfmt("[%s]", host);
+        } else if (schr(host, ':')) {
+            port = 0;
         }
     }
     if (port != 0 && port != getDefaultPort(scheme)) {

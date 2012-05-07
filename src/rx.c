@@ -615,7 +615,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
             if ((strcasecmp(key, "if-modified-since") == 0) || (strcasecmp(key, "if-unmodified-since") == 0)) {
                 MprTime     newDate = 0;
                 char        *cp;
-                bool        ifModified = (key[3] == 'm');
+                bool        ifModified = (tolower((uchar) key[3]) == 'm');
 
                 if ((cp = strchr(value, ';')) != 0) {
                     *cp = '\0';
@@ -632,7 +632,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
 
             } else if ((strcasecmp(key, "if-match") == 0) || (strcasecmp(key, "if-none-match") == 0)) {
                 char    *word, *tok;
-                bool    ifMatch = key[3] == 'm';
+                bool    ifMatch = (tolower((uchar) key[3]) == 'm');
 
                 if ((tok = strchr(value, ';')) != 0) {
                     *tok = '\0';
