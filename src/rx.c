@@ -1036,7 +1036,7 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
  */
 static bool processReady(HttpConn *conn)
 {
-    httpRunHandlerReady(conn);
+    httpReadyHandler(conn);
     httpSetState(conn, HTTP_STATE_RUNNING);
     return 1;
 }
@@ -1064,7 +1064,7 @@ static bool processRunning(HttpConn *conn)
                 httpEnableConnEvents(q->conn);
                 canProceed = 0;
             }
-        } else if (!httpRunHandlerOutput(conn)) {
+        } else if (!httpProcessHandler(conn)) {
             canProceed = 0;
         } else if (q->count == 0) {
             /* Queue is empty and data may have drained above in httpServiceQueues. Yield to reclaim memory. */

@@ -250,7 +250,7 @@ void httpStartPipeline(HttpConn *conn)
 }
 
 
-void httpRunHandlerReady(HttpConn *conn)
+void httpReadyHandler(HttpConn *conn)
 {
     HttpQueue   *q;
     
@@ -261,16 +261,16 @@ void httpRunHandlerReady(HttpConn *conn)
 }
 
 
-int httpRunHandlerOutput(HttpConn *conn)
+int httpProcessHandler(HttpConn *conn)
 {
     HttpQueue   *q;
     
     q = conn->writeq;
-    if (!q->stage->output) {
+    if (!q->stage->process) {
        return 0;
     }
     if (!conn->finalized) {
-        q->stage->output(q);
+        q->stage->process(q);
         if (q->count > 0) {
             httpScheduleQueue(q);
             httpServiceQueues(conn);
