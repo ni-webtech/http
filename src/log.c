@@ -110,10 +110,11 @@ void httpLogRequest(HttpConn *conn)
     char        keyBuf[80], *timeText, *fmt, *cp, *qualifier, *value, c;
     int         len;
 
-    rx = conn->rx;
+    if ((rx = conn->rx) == 0) {
+        return;
+    }
     tx = conn->tx;
-    route = rx->route;
-    if (!route->log) {
+    if ((route = rx->route) == 0 || route->log == 0) {
         return;
     }
     fmt = route->logFormat;

@@ -190,7 +190,8 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     start = mprGetBufStart(packet->content);
     if ((end = scontains(start, "\r\n\r\n", len)) == 0) {
         if (len >= conn->limits->headerSize) {
-            httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
+            httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, 
+                "Header too big. Length %d vs limit %d", len, conn->limits->headerSize);
         }
         return 0;
     }
@@ -198,7 +199,8 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     mprAddNullToBuf(packet->content);
 
     if (len >= conn->limits->headerSize) {
-        httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, "Header too big");
+        httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, 
+            "Header too big. Length %d vs limit %d", len, conn->limits->headerSize);
         return 0;
     }
     if (conn->endpoint) {
@@ -209,7 +211,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     parseHeaders(conn, packet);
     if (conn->endpoint) {
         httpMatchHost(conn);
-        if (httpSetUri(conn, rx->uri, "") < 0) {
+        if (httpSetUri(conn, rx->uri, "") < 0 || rx->pathInfo[0] != '/') {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad URL format");
         }
         if (conn->secure) {
@@ -377,6 +379,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
     char        *method, *uri, *protocol;
+    ssize       len;
 
     rx = conn->rx;
 #if BLD_DEBUG
@@ -390,10 +393,12 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     parseMethod(conn);
 
     uri = getToken(conn, " ");
+    len = slen(uri);
     if (*uri == '\0') {
         httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Empty URI");
-    } else if ((int) strlen(uri) >= conn->limits->uriSize) {
-        httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad request. URI too long");
+    } else if (len >= conn->limits->uriSize) {
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_URL_TOO_LARGE, 
+            "Bad request. URI too long. Length %d vs limit %d", len, conn->limits->uriSize);
     }
     protocol = conn->protocol = supper(getToken(conn, "\r\n"));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
@@ -451,8 +456,10 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     rx->status = atoi(status);
     rx->statusMessage = sclone(getToken(conn, "\r\n"));
 
-    if (slen(rx->statusMessage) >= conn->limits->uriSize) {
-        httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_URL_TOO_LARGE, "Bad response. Status message too long");
+    len = slen(rx->statusMessage);
+    if (len >= conn->limits->uriSize) {
+        httpError(conn, HTTP_CLOSE | HTTP_CODE_REQUEST_URL_TOO_LARGE, 
+            "Bad response. Status message too long. Length %d vs limit %d", len, conn->limits->uriSize);
     }
     if (!traced && (level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_FIRST, tx->ext)) >= 0) {
         mprLog(level, "%s %d %s", protocol, rx->status, rx->statusMessage);
@@ -1128,7 +1135,7 @@ static bool processCompletion(HttpConn *conn)
     httpDestroyPipeline(conn);
     measure(conn);
     if (conn->endpoint && rx) {
-        if (rx->route->log) {
+        if (rx->route && rx->route->log) {
             httpLogRequest(conn);
         }
         rx->conn = 0;

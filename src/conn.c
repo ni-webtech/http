@@ -198,7 +198,6 @@ void httpConnTimeout(HttpConn *conn)
         } else if ((conn->started + limits->requestTimeout) < now) {
             httpError(conn, HTTP_CODE_REQUEST_TIMEOUT, "Exceeded timeout %d sec", limits->requestTimeout / 1000);
         }
-        httpFinalize(conn);
     }
     httpDisconnect(conn);
     httpDiscardData(conn->writeq, 1);
@@ -435,6 +434,26 @@ void httpUsePrimary(HttpConn *conn)
     conn->oldDispatcher = 0;
     conn->worker = 0;
     unlock(conn->http);
+}
+
+
+void httpStealConn(HttpConn *conn)
+{
+    if (conn->waitHandler) {
+        mprRemoveWaitHandler(conn->waitHandler);
+        conn->waitHandler = 0;
+    }
+    if (conn->http) {
+        lock(conn->http);
+        if (conn->endpoint) {
+            if (conn->state >= HTTP_STATE_PARSED) {
+                httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
+            }
+            httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_CONN, conn);
+        }
+        httpRemoveConn(conn->http, conn);
+        unlock(conn->http);
+    }
 }
 
 

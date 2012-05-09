@@ -306,7 +306,7 @@ HttpUri *httpCompleteUri(HttpUri *uri, HttpUri *missing)
 char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *reference, cchar *query, int flags)
 {
     char    *uri;
-    cchar   *portStr, *hostDelim, *portDelim, *pathDelim, *queryDelim, *referenceDelim;
+    cchar   *portStr, *hostDelim, *portDelim, *pathDelim, *queryDelim, *referenceDelim, *cp;
 
     portDelim = "";
     portStr = "";
@@ -323,8 +323,12 @@ char *httpFormatUri(cchar *scheme, cchar *host, int port, cchar *path, cchar *re
         host = hostDelim = "";
     }
     if (host) {
-        if (mprIsIPv6(host) && *host != '[') {
-            host = sfmt("[%s]", host);
+        if (mprIsIPv6(host)) {
+            if (*host != '[') {
+                host = sfmt("[%s]", host);
+            } else if ((cp = scontains(host, "]:", -1)) != 0) {
+                port = 0;
+            }
         } else if (schr(host, ':')) {
             port = 0;
         }
