@@ -1673,7 +1673,6 @@ extern ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet);
 #define HTTP_STATE_READY            6       /**< Handler ready - all body data received  */
 #define HTTP_STATE_RUNNING          7       /**< Handler running */
 #define HTTP_STATE_COMPLETE         8       /**< Request complete */
-#define HTTP_STATE_ABANDON          9       /**< Abandon request from Http */
 
 /*
     I/O Events

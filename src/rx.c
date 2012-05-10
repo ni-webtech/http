@@ -19,7 +19,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet);
 static bool parseRange(HttpConn *conn, char *value);
 static void parseRequestLine(HttpConn *conn, HttpPacket *packet);
 static void parseResponseLine(HttpConn *conn, HttpPacket *packet);
-static bool processAbandon(HttpConn *conn);
 static bool processCompletion(HttpConn *conn);
 static bool processContent(HttpConn *conn, HttpPacket *packet);
 static void parseMethod(HttpConn *conn);
@@ -152,17 +151,10 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
         case HTTP_STATE_COMPLETE:
             conn->canProceed = processCompletion(conn);
             break;
-
-        case HTTP_STATE_ABANDON:
-            conn->canProceed = processAbandon(conn);
-            goto done;
         }
-        //  MOB - refactor using ABANDON?
         if (conn->connError || (conn->endpoint && conn->connectorComplete && conn->state >= HTTP_STATE_RUNNING)) {
-            if (conn->state < HTTP_STATE_ABANDON) {
-                httpSetState(conn, HTTP_STATE_COMPLETE);
-                continue;
-            }
+            httpSetState(conn, HTTP_STATE_COMPLETE);
+            continue;
         }
         packet = conn->input;
     }
@@ -1159,15 +1151,6 @@ static bool processCompletion(HttpConn *conn)
         }
         return more;
     }
-    return 0;
-}
-
-
-//  MOB rename
-static bool processAbandon(HttpConn *conn)
-{
-    httpDestroyPipeline(conn);
-    httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
     return 0;
 }
 
