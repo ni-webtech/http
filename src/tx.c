@@ -378,7 +378,7 @@ void httpOmitBody(HttpConn *conn)
         mprError("Can't set response body if headers have already been created");
         /* Connectors will detect this also and disconnect */
     } else {
-        httpDiscardTransmitData(conn);
+        httpDiscardData(conn, HTTP_QUEUE_TX);
     }
 }
 
@@ -716,7 +716,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
     if (tx->altBody) {
         mprPutStringToBuf(buf, tx->altBody);
-        httpDiscardData(tx->queue[HTTP_QUEUE_TX]->nextQ, 0);
+        httpDiscardQueueData(tx->queue[HTTP_QUEUE_TX]->nextQ, 0);
     }
     tx->headerSize = mprGetBufLength(buf);
     tx->flags |= HTTP_TX_HEADERS_CREATED;

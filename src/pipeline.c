@@ -302,7 +302,7 @@ bool httpServiceQueues(HttpConn *conn)
 }
 
 
-void httpDiscardTransmitData(HttpConn *conn)
+void httpDiscardData(HttpConn *conn, int dir)
 {
     HttpTx      *tx;
     HttpQueue   *q, *qhead;
@@ -311,9 +311,9 @@ void httpDiscardTransmitData(HttpConn *conn)
     if (tx == 0) {
         return;
     }
-    qhead = tx->queue[HTTP_QUEUE_TX];
+    qhead = tx->queue[dir];
     for (q = qhead->nextQ; q != qhead; q = q->nextQ) {
-        httpDiscardData(q, 1);
+        httpDiscardQueueData(q, 1);
     }
 }
 

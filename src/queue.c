@@ -132,7 +132,7 @@ void httpSuspendQueue(HttpQueue *q)
     Remove all data in the queue. If removePackets is true, actually remove the packet too.
     This preserves the header and EOT packets.
  */
-void httpDiscardData(HttpQueue *q, bool removePackets)
+void httpDiscardQueueData(HttpQueue *q, bool removePackets)
 {
     HttpPacket  *packet, *prev, *next;
     ssize       len;

@@ -68,7 +68,7 @@ static void netOutgoingService(HttpQueue *q)
         return;
     }
     if (tx->flags & HTTP_TX_NO_BODY) {
-        httpDiscardData(q, 1);
+        httpDiscardQueueData(q, 1);
     }
     if ((tx->bytesWritten + q->count) > conn->limits->transmissionBodySize) {
         httpError(conn, HTTP_CODE_REQUEST_TOO_LARGE | ((tx->bytesWritten) ? HTTP_ABORT : 0),

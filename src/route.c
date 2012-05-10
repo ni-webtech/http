@@ -1734,6 +1734,7 @@ char *httpTemplate(HttpConn *conn, cchar *tplate, MprHash *options)
 }
 
 
+//  MOB - rename SetRouteVar
 void httpSetRoutePathVar(HttpRoute *route, cchar *key, cchar *value)
 {
     mprAssert(route);

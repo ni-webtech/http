@@ -200,7 +200,7 @@ void httpConnTimeout(HttpConn *conn)
         }
     }
     httpDisconnect(conn);
-    httpDiscardData(conn->writeq, 1);
+    httpDiscardQueueData(conn->writeq, 1);
     httpEnableConnEvents(conn);
     conn->timeoutEvent = 0;
 }
@@ -324,15 +324,10 @@ void httpEvent(HttpConn *conn, MprEvent *event)
     if (event->mask & MPR_READABLE) {
         readEvent(conn);
     }
-    mprAssert(conn->sock);
-
     if (conn->endpoint) {
-        if (conn->error) {
-            httpDestroyConn(conn);
-
-        } else if (conn->keepAliveCount < 0 && conn->state <= HTTP_STATE_CONNECTED) {
+        if (conn->error || (conn->keepAliveCount < 0 && conn->state <= HTTP_STATE_CONNECTED)) {
             /*  
-                Idle connection.
+                Either an unhandled error or an Idle connection.
                 NOTE: compare keepAliveCount with "< 0" so that the client can have one more keep alive request. 
                 It should respond to the "Connection: close" and thus initiate a client-led close. This reduces 
                 TIME_WAIT states on the server. NOTE: after httpDestroyConn, conn structure and memory is still 
@@ -340,12 +335,13 @@ void httpEvent(HttpConn *conn, MprEvent *event)
              */
             httpDestroyConn(conn);
 
-        } else if (mprIsSocketEof(conn->sock)) {
-            httpDestroyConn(conn);
-
-        } else {
-            mprAssert(conn->state < HTTP_STATE_COMPLETE);
-            httpEnableConnEvents(conn);
+        } else if (conn->sock) {
+            if (mprIsSocketEof(conn->sock)) {
+                httpDestroyConn(conn);
+            } else {
+                mprAssert(conn->state < HTTP_STATE_COMPLETE);
+                httpEnableConnEvents(conn);
+            }
         }
     } else if (conn->state < HTTP_STATE_COMPLETE) {
         httpEnableConnEvents(conn);
@@ -437,23 +433,31 @@ void httpUsePrimary(HttpConn *conn)
 }
 
 
-void httpStealConn(HttpConn *conn)
+/*
+    Steal a connection with open socket from Http.
+    This flushes all buffered data and completes the request as far as Http is concerned.
+    It is the callers responsibility to call mprCloseSocket when required.
+ */
+MprSocket *httpStealConn(HttpConn *conn)
 {
+    MprSocket   *sock;
+
+    sock = conn->sock;
+    conn->sock = 0;
+
     if (conn->waitHandler) {
         mprRemoveWaitHandler(conn->waitHandler);
         conn->waitHandler = 0;
     }
     if (conn->http) {
         lock(conn->http);
-        if (conn->endpoint) {
-            if (conn->state >= HTTP_STATE_PARSED) {
-                httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
-            }
-            httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_CONN, conn);
-        }
         httpRemoveConn(conn->http, conn);
+        httpDiscardData(conn, HTTP_QUEUE_TX);
+        httpDiscardData(conn, HTTP_QUEUE_RX);
+        httpSetState(conn, HTTP_STATE_COMPLETE);
         unlock(conn->http);
     }
+    return sock;
 }
 
 
@@ -678,7 +682,7 @@ void httpSetRetries(HttpConn *conn, int count)
 
 
 static char *notifyState[] = {
-    "IO_EVENT", "BEGIN", "STARTED", "FIRST", "PARSED", "CONTENT", "READY", "RUNNING", "COMPLETE",
+    "IO_EVENT", "BEGIN", "STARTED", "FIRST", "PARSED", "CONTENT", "READY", "RUNNING", "COMPLETE", "ABANDON",
 };
 
 
