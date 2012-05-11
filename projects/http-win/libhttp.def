@@ -100,7 +100,7 @@ EXPORTS
   httpDestroyRx
   httpDestroyTx
   httpDiscardData
-  httpDiscardTransmitData
+  httpDiscardQueueData
   httpDisconnect
   httpEaseLimits
   httpEnableConnEvents
