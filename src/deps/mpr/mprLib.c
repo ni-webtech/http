@@ -10264,6 +10264,7 @@ static int blendEnv(MprCmd *cmd, cchar **env, int flags)
     if ((cmd->env = mprCreateList(128, MPR_LIST_STATIC_VALUES)) == 0) {
         return MPR_ERR_MEMORY;
     }
+#if !VXWORKS
     /*
         Add prior environment to the list
      */
@@ -10272,6 +10273,7 @@ static int blendEnv(MprCmd *cmd, cchar **env, int flags)
             mprAddItem(cmd->env, *ep);
         }
     }
+#endif
     /*
         Add new env keys. Detect and overwrite duplicates
      */
@@ -10348,7 +10350,7 @@ static int sanitizeArgs(MprCmd *cmd, int argc, cchar **argv, cchar **env, int fl
     cchar       *saveArg0, **ap, *start, *cp;
     char        *pp, *program, *dp, *localArgv[2];
     ssize       len;
-    int         i, quote;
+    int         quote;
 
     mprAssert(argc > 0 && argv[0] != NULL);
 
@@ -10427,7 +10429,7 @@ static int startProcess(MprCmd *cmd)
 {
     PROCESS_INFORMATION procInfo;
     STARTUPINFO         startInfo;
-    char                *envBlock;
+    cchar               *envBlock;
     int                 err;
 
     memset(&startInfo, 0, sizeof(startInfo));
@@ -10462,9 +10464,8 @@ static int startProcess(MprCmd *cmd)
     } else {
         startInfo.hStdError = (HANDLE) _get_osfhandle((int) fileno(stderr));
     }
-
     envBlock = makeWinEnvBlock(cmd);
-    if (! CreateProcess(0, cmd->command, 0, 0, 1, 0, envBlock, cmd->dir, &startInfo, &procInfo)) {
+    if (! CreateProcess(0, cmd->command, 0, 0, 1, 0, (char*) envBlock, cmd->dir, &startInfo, &procInfo)) {
         err = mprGetOsError();
         if (err == ERROR_DIRECTORY) {
             mprError("Can't create process: %s, directory %s is invalid", cmd->program, cmd->dir);
@@ -10753,16 +10754,16 @@ int startProcess(MprCmd *cmd)
     MprCmdTaskFn    entryFn;
     MprModule       *mp;
     SYM_TYPE        symType;
-    char            *entryPoint, *program;
-    int             i, pri;
+    char            *entryPoint, *program, *pair;
+    int             i, pri, next;
 
     mprLog(4, "cmd: start %s", cmd->program);
 
     entryPoint = 0;
     if (cmd->env) {
-        for (i = 0; cmd->env[i]; i++) {
-            if (strncmp(cmd->env[i], "entryPoint=", 11) == 0) {
-                entryPoint = sclone(cmd->env[i]);
+        for (ITERATE_ITEMS(cmd->env, pair, next)) {
+            if (sncmp(pair, "entryPoint=", 11) == 0) {
+                entryPoint = sclone(&pair[11]);
             }
         }
     }
