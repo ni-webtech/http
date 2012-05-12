@@ -158,7 +158,6 @@ void httpProcess(HttpConn *conn, HttpPacket *packet)
         }
         packet = conn->input;
     }
-done:
     conn->inHttpProcess = 0;
 }
 

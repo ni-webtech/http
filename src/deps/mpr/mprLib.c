@@ -10302,9 +10302,6 @@ static int blendEnv(MprCmd *cmd, cchar **env, int flags)
 static int sanitizeArgs(MprCmd *cmd, int argc, cchar **argv, cchar **env, int flags)
 {
 #if BLD_UNIX_LIKE || VXWORKS
-    cchar   **envp;
-    int     ecount, index, i, hasPath, hasLibPath;
-
     cmd->argv = argv;
     cmd->argc = argc;
 #endif
@@ -10319,10 +10316,10 @@ static int sanitizeArgs(MprCmd *cmd, int argc, cchar **argv, cchar **env, int fl
             Cygwin will parse as  argv[1] == c:/path \a \b
             Windows will parse as argv[1] == c:/path "a b"
      */
-    cchar       *saveArg0, **ap, **ep, *start, *cp;
-    char        *pp, *program, *SYSTEMROOT, *dp, *localArgv[2], *PATH, *endp;
+    cchar       *saveArg0, **ap, *start, *cp;
+    char        *pp, *program, *dp, *localArgv[2];
     ssize       len;
-    int         i, hasPath, hasSystemRoot, quote;
+    int         i, quote;
 
     mprAssert(argc > 0 && argv[0] != NULL);
 
