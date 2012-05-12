@@ -360,7 +360,7 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
     while (q->count <= 0 && !conn->async && !conn->error && conn->sock && (conn->state <= HTTP_STATE_CONTENT)) {
         httpServiceQueues(conn);
         if (conn->sock) {
-            httpWait(conn, 0, MPR_TIMEOUT_SOCKETS);
+            httpWait(conn, 0, MPR_TIMEOUT_NO_BUSY);
         }
     }
     //  TODO - better place for this?
