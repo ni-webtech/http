@@ -431,7 +431,8 @@ static void parseResponseLine(HttpConn *conn, HttpPacket *packet)
     MprBuf      *content;
     cchar       *endp;
     char        *protocol, *status;
-    int         len, level, traced;
+    ssize       len;
+    int         level, traced;
 
     rx = conn->rx;
     tx = conn->tx;
