@@ -18,6 +18,7 @@
 #define BLD_VNUM 100000000
 #define BLD_CONFIG_CMD "bit -emulate solaris-x86 -q -d -without all configure -gen sh,make"
 #define BLD_LIB_NAME "bin"
+#define BLD_PROFILE "debug"
 #define BLD_CFG_PREFIX "/etc/http"
 #define BLD_BIN_PREFIX "/usr/lib/http/1.0.0/bin"
 #define BLD_DOC_PREFIX "/usr/lib/http/doc"

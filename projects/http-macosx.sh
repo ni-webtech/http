@@ -3,7 +3,7 @@
 #
 
 ARCH="x64"
-ARCH="$(shell uname -m | sed 's/i.86/x86/')"
+ARCH="$(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/')"
 OS="macosx"
 PROFILE="debug"
 CONFIG="${OS}-${ARCH}-${PROFILE}"
