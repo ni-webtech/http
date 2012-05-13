@@ -566,6 +566,15 @@
 [ ! -f ${INC_DIR}/bit.h ] && cp http-macosx-bit.h ${INC_DIR}/bit.h
 if ! diff ${INC_DIR}/bit.h http-macosx-bit.h >/dev/null ; then
 cp http-macosx-bit.h ${INC_DIR}/bit.h
+fi
+if [ ../src/deps/mpr/mpr.h -nt ${CFG_DIR}/inc/mpr.h ] ; then
+cp ../src/deps/mpr/mpr.h ${CFG_DIR}/inc/mpr.h
+fi
+if [ ../src/deps/mpr/mprSsl.h -nt ${CFG_DIR}/inc/mprSsl.h ] ; then
+cp ../src/deps/mpr/mprSsl.h ${CFG_DIR}/inc/mprSsl.h
+fi
+if [ ../src/http.h -nt ${CFG_DIR}/inc/http.h ] ; then
+cp ../src/http.h ${CFG_DIR}/inc/http.h
 fi";
 		};
 /* End PBXShellScriptBuildPhase section */
