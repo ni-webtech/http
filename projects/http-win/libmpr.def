@@ -405,6 +405,7 @@ EXPORTS
   mprSetDomainName
   mprSetEnv
   mprSetExitStrategy
+  mprSetExitTimeout
   mprSetHostName
   mprSetHwnd
   mprSetIdleCallback
