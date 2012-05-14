@@ -27,6 +27,7 @@ Bit.load({
         sync: ['mpr'],
         '+required': [ 'pcre' ],
         '+optional': [ 'doxygen', 'dsi', 'ejs', 'man', 'man2html', 'openssl', 'matrixssl', 'ssl', 'utest' ],
+        'without-all': ['doxygen', 'dsi', 'man', 'man2html', 'pmaker', 'ssl'],
     },
 
     usage: {
