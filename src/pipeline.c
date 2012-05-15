@@ -9,7 +9,7 @@
 
 /********************************** Forward ***********************************/
 
-static bool matchStage(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir);
+static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir);
 static void openQueues(HttpConn *conn);
 static void pairQueues(HttpConn *conn);
 
@@ -40,7 +40,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
     hasOutputFilters = 0;
     if (route->outputStages) {
         for (next = 0; (filter = mprGetNextItem(route->outputStages, &next)) != 0; ) {
-            if (matchStage(conn, filter, route, HTTP_STAGE_TX) == HTTP_ROUTE_OK) {
+            if (matchFilter(conn, filter, route, HTTP_STAGE_TX) == HTTP_ROUTE_OK) {
                 mprAddItem(tx->outputPipeline, filter);
                 hasOutputFilters = 1;
             }
@@ -65,8 +65,8 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
     }
     conn->writeq = tx->queue[HTTP_QUEUE_TX]->nextQ;
     conn->connectorq = tx->queue[HTTP_QUEUE_TX]->prevQ;
-
     pairQueues(conn);
+
     /*
         Put the header before opening the queues incase an open routine actually services and completes the request
         httpHandleOptionsTrace does this when called from openFile() in fileHandler.
@@ -100,7 +100,7 @@ void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
     rx->inputPipeline = mprCreateList(-1, 0);
     if (route) {
         for (next = 0; (filter = mprGetNextItem(route->inputStages, &next)) != 0; ) {
-            if (matchStage(conn, filter, route, HTTP_STAGE_RX) == HTTP_ROUTE_OK) {
+            if (matchFilter(conn, filter, route, HTTP_STAGE_RX) == HTTP_ROUTE_OK) {
                 mprAddItem(rx->inputPipeline, filter);
             }
         }
@@ -113,7 +113,6 @@ void httpCreateRxPipeline(HttpConn *conn, HttpRoute *route)
         q = httpCreateQueue(conn, stage, HTTP_QUEUE_RX, q);
     }
     conn->readq = tx->queue[HTTP_QUEUE_RX]->prevQ;
-
     if (!conn->endpoint) {
         pairQueues(conn);
         openQueues(conn);
@@ -211,6 +210,9 @@ void httpStartPipeline(HttpConn *conn)
     HttpRx      *rx;
     
     tx = conn->tx;
+
+    //  MOB - how can this ever be already true?
+    mprAssert(!tx->started);
     if (tx->started) {
         return;
     }
@@ -218,7 +220,7 @@ void httpStartPipeline(HttpConn *conn)
     rx = conn->rx;
     if (rx->needInputPipeline) {
         qhead = tx->queue[HTTP_QUEUE_RX];
-        for (q = qhead->nextQ; q->nextQ != qhead; q = nextQ) {
+        for (q = qhead->nextQ; !conn->error && q->nextQ != qhead; q = nextQ) {
             nextQ = q->nextQ;
             if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
                 if (q->pair == 0 || !(q->pair->flags & HTTP_QUEUE_STARTED)) {
@@ -229,7 +231,7 @@ void httpStartPipeline(HttpConn *conn)
         }
     }
     qhead = tx->queue[HTTP_QUEUE_TX];
-    for (q = qhead->prevQ; q->prevQ != qhead; q = prevQ) {
+    for (q = qhead->prevQ; !conn->error && q->prevQ != qhead; q = prevQ) {
         prevQ = q->prevQ;
         if (q->start && !(q->flags & HTTP_QUEUE_STARTED)) {
             q->flags |= HTTP_QUEUE_STARTED;
@@ -238,7 +240,7 @@ void httpStartPipeline(HttpConn *conn)
     }
     /* Start the handler last */
     q = qhead->nextQ;
-    if (q->start) {
+    if (q->start && !conn->error) {
         mprAssert(!(q->flags & HTTP_QUEUE_STARTED));
         q->flags |= HTTP_QUEUE_STARTED;
         q->stage->start(q);
@@ -255,7 +257,7 @@ void httpReadyHandler(HttpConn *conn)
     HttpQueue   *q;
     
     q = conn->writeq;
-    if (q->stage->ready) {
+    if (q->stage->ready && !conn->error) {
         q->stage->ready(q);
     }
 }
@@ -318,7 +320,7 @@ void httpDiscardData(HttpConn *conn, int dir)
 }
 
 
-static bool matchStage(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir)
+static bool matchFilter(HttpConn *conn, HttpStage *filter, HttpRoute *route, int dir)
 {
     HttpTx      *tx;
 

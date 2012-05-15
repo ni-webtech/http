@@ -259,11 +259,14 @@ void httpInitLimits(HttpLimits *limits, bool serverSide)
     memset(limits, 0, sizeof(HttpLimits));
     limits->cacheItemSize = HTTP_MAX_CACHE_ITEM;
     limits->chunkSize = HTTP_MAX_CHUNK;
-    limits->headerCount = HTTP_MAX_NUM_HEADERS;
+    limits->clientMax = HTTP_MAX_CLIENTS;
+    limits->headerMax = HTTP_MAX_NUM_HEADERS;
     limits->headerSize = HTTP_MAX_HEADERS;
+    limits->keepAliveMax = HTTP_MAX_KEEP_ALIVE;
     limits->receiveFormSize = HTTP_MAX_RECEIVE_FORM;
     limits->receiveBodySize = HTTP_MAX_RECEIVE_BODY;
-    limits->requestCount = HTTP_MAX_REQUESTS;
+    limits->processMax = HTTP_MAX_REQUESTS;
+    limits->requestMax = HTTP_MAX_REQUESTS;
     limits->stageBufferSize = HTTP_MAX_STAGE_BUFFER;
     limits->transmissionBodySize = HTTP_MAX_TX_BODY;
     limits->uploadSize = HTTP_MAX_UPLOAD;
@@ -272,10 +275,6 @@ void httpInitLimits(HttpLimits *limits, bool serverSide)
     limits->inactivityTimeout = HTTP_INACTIVITY_TIMEOUT;
     limits->requestTimeout = MAXINT;
     limits->sessionTimeout = HTTP_SESSION_TIMEOUT;
-
-    limits->clientCount = HTTP_MAX_CLIENTS;
-    limits->keepAliveCount = HTTP_MAX_KEEP_ALIVE;
-    limits->requestCount = HTTP_MAX_REQUESTS;
 
 #if FUTURE
     mprSetMaxSocketClients(endpoint, atoi(value));

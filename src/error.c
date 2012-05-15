@@ -61,22 +61,22 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
     if (status == 0) {
         status = HTTP_CODE_INTERNAL_SERVER_ERROR;
     }
-    if (flags & HTTP_ABORT) {
-        conn->connError = 1;
-    }
     if (flags & (HTTP_ABORT | HTTP_CLOSE)) {
         conn->keepAliveCount = -1;
+    }
+    if (flags & HTTP_ABORT) {
+        conn->connError = 1;
     }
     if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
         /* 
             If headers have been sent, must let the other side of the failure - abort is the only way.
-            Disconnect will cause a readable (EOF) event. Call formatErrorv just to set errorMsg for clients-side.
+            Disconnect will cause a readable (EOF) event. Call formatErrorv for client-side code to set errorMsg.
          */
         httpDisconnect(conn);
+        formatErrorv(conn, status, fmt, args);
         conn->error = 1;
+        return;
     }
-    formatErrorv(conn, status, fmt, args);
-    
     if (conn->error) {
         return;
     }
@@ -84,6 +84,8 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
     if (rx) {
         rx->eof = 1;
     }
+    formatErrorv(conn, status, fmt, args);
+
     if (conn->endpoint && tx && rx) {
         if (!(tx->flags & HTTP_TX_HEADERS_CREATED)) {
             if (rx->route && (uri = httpLookupRouteErrorDocument(rx->route, tx->status))) {

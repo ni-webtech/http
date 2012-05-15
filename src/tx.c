@@ -715,6 +715,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
         mprPutStringToBuf(buf, "\r\n");
     }
     if (tx->altBody) {
+        /* Error responses are emitted here */
         mprPutStringToBuf(buf, tx->altBody);
         httpDiscardQueueData(tx->queue[HTTP_QUEUE_TX]->nextQ, 0);
     }

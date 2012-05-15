@@ -75,7 +75,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
     conn->ip = sclone(ip);
     conn->port = port;
     conn->secure = uri->secure;
-    conn->keepAliveCount = (conn->limits->keepAliveCount) ? conn->limits->keepAliveCount : -1;
+    conn->keepAliveCount = (conn->limits->keepAliveMax) ? conn->limits->keepAliveMax : -1;
 
     if ((level = httpShouldTrace(conn, HTTP_TRACE_RX, HTTP_TRACE_CONN, NULL)) >= 0) {
         mprLog(level, "### Outgoing connection from %s:%d to %s:%d", 

@@ -363,6 +363,7 @@ void httpRouteRequest(HttpConn *conn)
     conn->trace[0] = route->trace[0];
     conn->trace[1] = route->trace[1];
 
+    //  MOB - not right as the data could be queued in the service queue and no error
     if (conn->finalized) {
         tx->handler = conn->http->passHandler;
         if (rewrites >= HTTP_MAX_REWRITE) {
@@ -540,8 +541,8 @@ static int testRoute(HttpConn *conn, HttpRoute *route)
     if ((rc = (*proc)(conn, route, 0)) != HTTP_ROUTE_OK) {
         return rc;
     }
-    if (!conn->finalized && tx->handler->check) {
-        rc = tx->handler->check(conn, route);
+    if (!conn->finalized && tx->handler->match) {
+        rc = tx->handler->match(conn, route, HTTP_QUEUE_TX);
     }
     return rc;
 }

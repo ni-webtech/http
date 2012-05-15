@@ -179,6 +179,9 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpError(conn, HTTP_ABORT | HTTP_CODE_NOT_ACCEPTABLE, "Server terminating");
         return 0;
     }
+    if (conn->endpoint && !httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
+        return 0;
+    }
     if (conn->rx == NULL) {
         conn->rx = httpCreateRx(conn);
         conn->tx = httpCreateTx(conn, NULL);
@@ -225,10 +228,6 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpCreateRxPipeline(conn, conn->http->clientRoute);
     }
     httpSetState(conn, HTTP_STATE_PARSED);
-    if (conn->endpoint && !httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
-        rx->flags |= HTTP_LIMIT_DENIED;
-        return 0;
-    }
     return 1;
 }
 
@@ -489,7 +488,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
     keepAlive = (conn->http10) ? 0 : 1;
 
     for (count = 0; content->start[0] != '\r' && !conn->error; count++) {
-        if (count >= limits->headerCount) {
+        if (count >= limits->headerMax) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Too many headers");
             break;
         }
@@ -1139,13 +1138,13 @@ static bool processCompletion(HttpConn *conn)
         if (rx->route && rx->route->log) {
             httpLogRequest(conn);
         }
+        httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
         rx->conn = 0;
         conn->tx->conn = 0;
         conn->rx = 0;
         conn->tx = 0;
         packet = conn->input;
         more = packet && !conn->connError && (httpGetPacketLength(packet) > 0);
-        httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
         if (conn->sock) {
             httpPrepServerConn(conn);
         }

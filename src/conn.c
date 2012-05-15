@@ -52,7 +52,7 @@ HttpConn *httpCreateConn(Http *http, HttpEndpoint *endpoint, MprDispatcher *disp
         conn->limits = http->clientLimits;
         httpInitTrace(conn->trace);
     }
-    conn->keepAliveCount = conn->limits->keepAliveCount;
+    conn->keepAliveCount = conn->limits->keepAliveMax;
     conn->serviceq = httpCreateQueueHead(conn, "serviceq");
 
     if (dispatcher) {
@@ -77,9 +77,7 @@ void httpDestroyConn(HttpConn *conn)
         mprAssert(conn->http);
         httpRemoveConn(conn->http, conn);
         if (conn->endpoint) {
-            if (conn->state >= HTTP_STATE_PARSED) {
-                httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
-            }
+            httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
             httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_CONN, conn);
         }
         if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {

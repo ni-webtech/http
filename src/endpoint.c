@@ -218,6 +218,7 @@ void httpStopEndpoint(HttpEndpoint *endpoint)
 bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
 {
     HttpLimits      *limits;
+    Http            *http;
     cchar           *action;
     int             count, level, dir;
 
@@ -225,17 +226,20 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
     dir = HTTP_TRACE_RX;
     action = "unknown";
     mprAssert(conn->endpoint == endpoint);
-    lock(endpoint->http);
+    http = endpoint->http;
+
+    lock(http);
 
     switch (event) {
     case HTTP_VALIDATE_OPEN_CONN:
         /*
-            This active client systems with unique IP addresses.
+            This measures active client systems with unique IP addresses.
          */
-        if (endpoint->clientCount >= limits->clientCount) {
-            unlock(endpoint->http);
+        if (endpoint->clientCount >= limits->clientMax) {
+            unlock(http);
+            /*  Abort connection */
             httpError(conn, HTTP_ABORT | HTTP_CODE_SERVICE_UNAVAILABLE, 
-                "Too many concurrent clients %d/%d", endpoint->clientCount, limits->clientCount);
+                "Too many concurrent clients %d/%d", endpoint->clientCount, limits->clientMax);
             return 0;
         }
         count = (int) PTOL(mprLookupKey(endpoint->clientLoad, conn->ip));
@@ -258,10 +262,10 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         break;
     
     case HTTP_VALIDATE_OPEN_REQUEST:
-        if (endpoint->requestCount >= limits->requestCount) {
-            unlock(endpoint->http);
-            httpError(conn, HTTP_ABORT | HTTP_CODE_SERVICE_UNAVAILABLE, 
-                "Too many concurrent requests %d/%d", endpoint->requestCount, limits->requestCount);
+        if (endpoint->requestCount >= limits->requestMax) {
+            unlock(http);
+            httpError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, "Server overloaded");
+            mprError("Too many concurrent requests %d/%d", endpoint->requestCount, limits->requestMax);
             return 0;
         }
         endpoint->requestCount++;
@@ -270,24 +274,40 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         break;
 
     case HTTP_VALIDATE_CLOSE_REQUEST:
-        if (conn->rx && conn->rx->flags & HTTP_LIMIT_DENIED && conn->state >= HTTP_STATE_PARSED) {
-            event = 0;
-        } else {
+        if (conn->rx) {
+            /* Requests incremented only when conn->rx is assigned */
             endpoint->requestCount--;
             mprAssert(endpoint->requestCount >= 0);
             action = "close request";
             dir = HTTP_TRACE_TX;
         }
         break;
+
+    case HTTP_VALIDATE_OPEN_PROCESS:
+        if (http->processCount >= limits->processMax) {
+            unlock(http);
+            httpError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, "Server overloaded");
+            mprError("Too many concurrent processes %d/%d", http->processCount, limits->processMax);
+            return 0;
+        }
+        http->processCount++;
+        action = "start process";
+        dir = HTTP_TRACE_RX;
+        break;
+
+    case HTTP_VALIDATE_CLOSE_PROCESS:
+        http->processCount--;
+        mprAssert(http->processCount >= 0);
+        break;
     }
     if (event == HTTP_VALIDATE_CLOSE_CONN || event == HTTP_VALIDATE_CLOSE_REQUEST) {
         if ((level = httpShouldTrace(conn, dir, HTTP_TRACE_LIMITS, NULL)) >= 0) {
             LOG(4, "Validate request for %s. Active connections %d, active requests: %d/%d, active client IP %d/%d", 
-                action, mprGetListLength(endpoint->http->connections), endpoint->requestCount, limits->requestCount, 
-                endpoint->clientCount, limits->clientCount);
+                action, mprGetListLength(http->connections), endpoint->requestCount, limits->requestMax, 
+                endpoint->clientCount, limits->clientMax);
         }
     }
-    unlock(endpoint->http);
+    unlock(http);
     return 1;
 }
 
