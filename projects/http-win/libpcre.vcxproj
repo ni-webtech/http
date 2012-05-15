@@ -3,7 +3,7 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IncDir);..\..\src\deps\pcre;..\..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IncDir);..\..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -103,6 +103,10 @@
     <ClCompile Include="..\..\src\deps\pcre\pcre.c" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ClInclude Include="$(IncDir)\pcre.h" />
+  </ItemGroup>
+
   <ItemDefinitionGroup>
     <Link>
       <ModuleDefinitionFile>libpcre.def</ModuleDefinitionFile>
@@ -114,6 +118,13 @@
     <AdditionalDependencies>;%(AdditionalDependencies)</AdditionalDependencies>
     <AdditionalLibraryDirectories>$(OutDir);$(Cfg)\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
   </Link>
+
+  <CustomBuildStep>
+    <Command>cd ..\..\src\deps\pcre
+xcopy /Y /S /D pcre.h $(IncDir)
+cd ..\..\..\projects\http-win</Command>
+    <Outputs>$(BinDir)\libpcre.dll</Outputs>
+  </CustomBuildStep>
   </ItemDefinitionGroup>
 
   <Import Project="$(VCTargetsPath)Microsoft.Cpp.targets" />

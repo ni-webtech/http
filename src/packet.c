@@ -416,7 +416,7 @@ HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
         if (mprPutBlockToBuf(packet->content, mprGetBufEnd(orig->content), (ssize) count) != count) {
             return 0;
         }
-#if BLD_DEBUG
+#if BIT_DEBUG
         mprAddNullToBuf(orig->content);
 #endif
     }

@@ -2,7 +2,7 @@
     testHttp.tst - Valgrind testHttp on Unix-like systems
  */
 
-if (test.config["BLD_HOST_OS"] == "LINUX") {
+if (test.config["BIT_HOST_OS"] == "LINUX") {
     let command = locate("testHttp") + " --iterations 5 "
     let valgrind = "/usr/bin/env valgrind -q --tool=memcheck --suppressions=mpr.supp " + command + test.mapVerbosity(-1)
 

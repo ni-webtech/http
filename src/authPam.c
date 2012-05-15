@@ -8,7 +8,7 @@
 
 #include    "http.h"
 
-#if BLD_FEATURE_AUTH_PAM && BLD_UNIX_LIKE
+#if BIT_FEATURE_AUTH_PAM && BIT_UNIX_LIKE
 
 #if MACOSX
     #include    <pam/pam_appl.h>
@@ -102,7 +102,7 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 
 #else
 void __pamAuth() {}
-#endif /* BLD_FEATURE_AUTH_PAM */
+#endif /* BIT_FEATURE_AUTH_PAM */
 
 /*
     @copy   default

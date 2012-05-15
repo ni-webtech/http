@@ -290,7 +290,7 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *pattern, cchar *path, 
 
 int httpStartRoute(HttpRoute *route)
 {
-#if !BLD_FEATURE_ROMFS
+#if !BIT_FEATURE_ROMFS
     if (!(route->flags & HTTP_ROUTE_STARTED)) {
         route->flags |= HTTP_ROUTE_STARTED;
         if (route->logPath && (!route->parent || route->logPath != route->parent->logPath)) {
@@ -1565,7 +1565,7 @@ void httpFinalizeRoute(HttpRoute *route)
         mprAddItem(route->indicies,  sclone("index.html"));
     }
     httpAddRoute(route->host, route);
-#if BLD_FEATURE_SSL
+#if BIT_FEATURE_SSL
     mprConfigureSsl(route->ssl);
 #endif
 }
@@ -2398,10 +2398,10 @@ static void definePathVars(HttpRoute *route)
 {
     mprAssert(route);
 
-    mprAddKey(route->pathTokens, "PRODUCT", sclone(BLD_PRODUCT));
-    mprAddKey(route->pathTokens, "OS", sclone(BLD_OS));
-    mprAddKey(route->pathTokens, "VERSION", sclone(BLD_VERSION));
-    mprAddKey(route->pathTokens, "LIBDIR", mprJoinPath(mprGetPathParent(mprGetAppDir()), mprGetPathBase(BLD_LIB_NAME)));
+    mprAddKey(route->pathTokens, "PRODUCT", sclone(BIT_PRODUCT));
+    mprAddKey(route->pathTokens, "OS", sclone(BIT_OS));
+    mprAddKey(route->pathTokens, "VERSION", sclone(BIT_VERSION));
+    mprAddKey(route->pathTokens, "LIBDIR", mprJoinPath(mprGetPathParent(mprGetAppDir()), mprGetPathBase(BIT_LIB_NAME)));
     if (route->host) {
         defineHostVars(route);
     }

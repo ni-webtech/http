@@ -25,7 +25,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
     conn->tx->parsedUri = uri;
 
     if (uri->secure) {
-#if BLD_FEATURE_SSL
+#if BIT_FEATURE_SSL
         if (!http->sslLoaded) {
             if (!mprLoadSsl(0)) {
                 mprError("Can't load SSL provider");
@@ -62,7 +62,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
         return 0;
     }
-#if BLD_FEATURE_SSL
+#if BIT_FEATURE_SSL
     if (uri->secure && ssl) {
         mprSetSocketSslConfig(sp, ssl);
     }
@@ -195,7 +195,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url, struct MprSsl *ssl)
     conn->sentCredentials = 0;
     conn->tx->method = supper(method);
 
-#if BLD_DEBUG
+#if BIT_DEBUG
     conn->startTime = conn->http->now;
     conn->startTicks = mprGetTicks();
 #endif

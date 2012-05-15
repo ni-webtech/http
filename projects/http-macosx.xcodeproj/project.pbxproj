@@ -221,7 +221,7 @@
 		741E1913741E474500000015 /* makerom.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = makerom.c; path = src/deps/mpr/makerom.c; sourceTree = "<group>"; };
 		741E1913741E474500000079 /* makerom */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = makerom; sourceTree = BUILT_PRODUCTS_DIR; };
 		741E1913741E474500000017 /* pcre.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pcre.c; path = src/deps/pcre/pcre.c; sourceTree = "<group>"; };
-		741E1913741E47450000007A /* pcre.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = pcre.h; path = src/deps/pcre/pcre.h; sourceTree = "<group>"; };
+		741E1913741E47450000007A /* pcre.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = pcre.h; path = macosx-x64-debug/inc/pcre.h; sourceTree = "<group>"; };
 		741E1913741E474500000057 /* libpcre */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libpcre.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		741E1913741E474500000019 /* auth.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = auth.c; path = src/auth.c; sourceTree = "<group>"; };
 		741E1913741E47450000007B /* http.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = http.h; path = macosx-x64-debug/inc/http.h; sourceTree = "<group>"; };
@@ -573,6 +573,9 @@ fi
 if [ ../src/deps/mpr/mprSsl.h -nt ${CFG_DIR}/inc/mprSsl.h ] ; then
 cp ../src/deps/mpr/mprSsl.h ${CFG_DIR}/inc/mprSsl.h
 fi
+if [ ../src/deps/pcre/pcre.h -nt ${CFG_DIR}/inc/pcre.h ] ; then
+cp ../src/deps/pcre/pcre.h ${CFG_DIR}/inc/pcre.h
+fi
 if [ ../src/http.h -nt ${CFG_DIR}/inc/http.h ] ; then
 cp ../src/http.h ${CFG_DIR}/inc/http.h
 fi";
@@ -829,13 +832,12 @@ fi";
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
 					"../macosx-x64-debug/inc",
-					"../src/deps/pcre",
 					"../src",
 					"$(inherited)"
 				);
 
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"BLD_DEBUG",
+					"BIT_DEBUG",
 						"$(inherited)"
 				);
 				LIBRARY_SEARCH_PATHS = (
@@ -903,13 +905,12 @@ fi";
                 GCC_WARN_UNINITIALIZED_AUTOS = NO;
 				HEADER_SEARCH_PATHS = (
 					"../macosx-x64-debug/inc",
-					"../src/deps/pcre",
 					"../src",
 					"$(inherited)"
 				);
 
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"BLD_DEBUG",
+					"BIT_DEBUG",
 						"$(inherited)"
 				);
 				LIBRARY_SEARCH_PATHS = (

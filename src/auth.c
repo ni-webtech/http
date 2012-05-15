@@ -18,9 +18,9 @@ HttpAuth *httpCreateAuth()
     HttpAuth      *auth;
 
     auth = mprAllocObj(HttpAuth, manageAuth);
-#if BLD_FEATURE_AUTH_PAM
+#if BIT_FEATURE_AUTH_PAM
     auth->backend = HTTP_AUTH_METHOD_PAM;
-#elif BLD_FEATURE_AUTH_FILE
+#elif BIT_FEATURE_AUTH_FILE
     auth->backend = HTTP_AUTH_METHOD_FILE;
 #endif
     return auth;
@@ -55,9 +55,9 @@ HttpAuth *httpCreateInheritedAuth(HttpAuth *parent)
         auth->groups = parent->groups;
 
     } else{
-#if BLD_FEATURE_AUTH_PAM
+#if BIT_FEATURE_AUTH_PAM
         auth->backend = HTTP_AUTH_METHOD_PAM;
-#elif BLD_FEATURE_AUTH_FILE
+#elif BIT_FEATURE_AUTH_FILE
         auth->backend = HTTP_AUTH_METHOD_FILE;
 #endif
     }
@@ -160,11 +160,11 @@ static bool validateCred(HttpAuth *auth, cchar *realm, char *user, cchar *passwo
         Use this funny code construct incase no backend method is configured. Still want the code to compile.
      */
     if (0) {
-#if BLD_FEATURE_AUTH_FILE
+#if BIT_FEATURE_AUTH_FILE
     } else if (auth->backend == HTTP_AUTH_METHOD_FILE) {
         return httpValidateFileCredentials(auth, realm, user, password, requiredPass, msg);
 #endif
-#if BLD_FEATURE_AUTH_PAM
+#if BIT_FEATURE_AUTH_PAM
     } else if (auth->backend == HTTP_AUTH_METHOD_PAM) {
         return httpValidatePamCredentials(auth, realm, user, password, NULL, msg);
 #endif
@@ -184,11 +184,11 @@ static cchar *getPassword(HttpAuth *auth, cchar *realm, cchar *user)
         Use this funny code construct incase no backend method is configured. Still want the code to compile.
      */
     if (0) {
-#if BLD_FEATURE_AUTH_FILE
+#if BIT_FEATURE_AUTH_FILE
     } else if (auth->backend == HTTP_AUTH_METHOD_FILE) {
         return httpGetFilePassword(auth, realm, user);
 #endif
-#if BLD_FEATURE_AUTH_PAM
+#if BIT_FEATURE_AUTH_PAM
     } else if (auth->backend == HTTP_AUTH_METHOD_PAM) {
         return httpGetPamPassword(auth, realm, user);
 #endif

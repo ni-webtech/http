@@ -56,7 +56,7 @@ MAIN(testMain, int argc, char **argv, char **envp)
         exit(4);
     }
 
-#if BLD_FEATURE_SSL && (BLD_FEATURE_MATRIXSSL || BLD_FEATURE_OPENSSL)
+#if BIT_FEATURE_SSL && (BIT_FEATURE_MATRIXSSL || BIT_FEATURE_OPENSSL)
     if (!mprLoadSsl(0)) {
         exit(5);
     }

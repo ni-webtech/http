@@ -636,7 +636,7 @@ cchar *httpGetDefaultClientHost(Http *http)
 
 int httpLoadSsl(Http *http)
 {
-#if BLD_FEATURE_SSL
+#if BIT_FEATURE_SSL
     if (!http->sslLoaded) {
         if (!mprLoadSsl(0)) {
             mprError("Can't load SSL provider");

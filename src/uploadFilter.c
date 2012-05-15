@@ -113,7 +113,7 @@ static void openUpload(HttpQueue *q)
     up->contentState = HTTP_UPLOAD_BOUNDARY;
 
     if (rx->uploadDir == 0) {
-#if BLD_WIN_LIKE
+#if BIT_WIN_LIKE
         rx->uploadDir = mprNormalizePath(getenv("TEMP"));
 #else
         rx->uploadDir = sclone("/tmp");

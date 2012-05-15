@@ -1,24 +1,3 @@
-
-/******************************************************************************/
-/* 
-    This file is an amalgamation of all the individual source code files for the
-    .
-  
-    Catenating all the source into a single file makes embedding simpler and
-    the resulting application faster, as many compilers can do whole file
-    optimization.
-  
-    If you want to modify the product, you can still get the whole source as 
-    individual files if you need.
- */
-
-
-/************************************************************************/
-/*
- *  Start of file "./out/inc/pcre.h"
- */
-/************************************************************************/
-
 /*************************************************
 *       Perl-Compatible Regular Expressions      *
 *************************************************/
@@ -60,6 +39,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef _PCRE_H
 #define _PCRE_H
 
+#ifndef BIT_FEATURE_PCRE
+    #define BIT_FEATURE_PCRE 1
+#endif
+
 /* The current PCRE version information. */
 
 #define PCRE_MAJOR          7
@@ -77,7 +60,8 @@ don't change existing definitions of PCRE_EXP_DECL and PCRECPP_EXP_DECL. */
     #define _VSB_CONFIG_FILE "vsbConfig.h"
 #endif
 
-#if BLD_ALL_IN_ONE
+/* UNUSED */
+#if BIT_ALL_IN_ONE && 0
     /*
      *  When building all-in-one, we must use internal definitions
      */
@@ -276,8 +260,8 @@ typedef struct real_pcre pcre;
 replaced with a custom type. For conventional use, the public interface is a
 const char *. */
 
-#ifdef BLD_CHAR
-#define PCRE_SPTR const BLD_CHAR *
+#ifdef BIT_CHAR
+#define PCRE_SPTR const BIT_CHAR *
 #else
 #ifndef PCRE_SPTR
 #define PCRE_SPTR const char *
@@ -379,9 +363,3 @@ PCRE_EXP_DECL const char *pcre_version(void);
 #endif
 
 #endif /* End of pcre.h */
-/************************************************************************/
-/*
- *  End of file "./out/inc/pcre.h"
- */
-/************************************************************************/
-

@@ -98,7 +98,7 @@ static void testBasicHttpGet(MprTestGroup *gp)
 }
 
 
-#if BLD_FEATURE_SSL && (BLD_FEATURE_MATRIXSSL || BLD_FEATURE_OPENSSL)
+#if BIT_FEATURE_SSL && (BIT_FEATURE_MATRIXSSL || BIT_FEATURE_OPENSSL)
 static void testSecureHttpGet(MprTestGroup *gp)
 {
     TestHttp    *th;
@@ -148,7 +148,7 @@ MprTestDef testHttpGen = {
     {
         MPR_TEST(0, testCreateHttp),
         MPR_TEST(0, testBasicHttpGet),
-#if BLD_FEATURE_SSL && (BLD_FEATURE_MATRIXSSL || BLD_FEATURE_OPENSSL)
+#if BIT_FEATURE_SSL && (BIT_FEATURE_MATRIXSSL || BIT_FEATURE_OPENSSL)
         MPR_TEST(0, testSecureHttpGet),
 #endif
         MPR_TEST(0, 0),

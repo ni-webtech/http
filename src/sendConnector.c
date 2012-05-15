@@ -13,7 +13,7 @@
 #include    "http.h"
 
 /**************************** Forward Declarations ****************************/
-#if !BLD_FEATURE_ROMFS
+#if !BIT_FEATURE_ROMFS
 
 static void addPacketForSend(HttpQueue *q, HttpPacket *packet);
 static void adjustSendVec(HttpQueue *q, MprOff written);
@@ -346,7 +346,7 @@ int httpOpenSendConnector(Http *http) { return 0; }
 void httpSendOpen(HttpQueue *q) {}
 void httpSendOutgoingService(HttpQueue *q) {}
 
-#endif /* !BLD_FEATURE_ROMFS */
+#endif /* !BIT_FEATURE_ROMFS */
 /*
     @copy   default
     

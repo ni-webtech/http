@@ -381,7 +381,7 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
     ssize       len;
 
     rx = conn->rx;
-#if BLD_DEBUG
+#if BIT_DEBUG
     conn->startTime = conn->http->now;
     conn->startTicks = mprGetTicks();
 #endif
@@ -728,7 +728,7 @@ static void parseHeaders(HttpConn *conn, HttpPacket *packet)
         case 'x':
             if (strcasecmp(key, "x-http-method-override") == 0) {
                 httpSetMethod(conn, value);
-#if BLD_DEBUG
+#if BIT_DEBUG
             } else if (strcasecmp(key, "x-chunk-size") == 0) {
                 tx->chunkSize = atoi(value);
                 if (tx->chunkSize <= 0) {
@@ -1094,7 +1094,7 @@ static bool processRunning(HttpConn *conn)
 }
 
 
-#if BLD_DEBUG
+#if BIT_DEBUG
 static void measure(HttpConn *conn)
 {
     MprTime     elapsed;
