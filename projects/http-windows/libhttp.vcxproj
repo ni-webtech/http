@@ -135,6 +135,12 @@
   </ItemGroup>
 
   <ItemDefinitionGroup>
+    <Link>
+      <ModuleDefinitionFile>libhttp.def</ModuleDefinitionFile>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup>
   <Link>
     <AdditionalDependencies>libmpr.lib;libpcre.lib;libmprssl.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <AdditionalLibraryDirectories>$(OutDir);$(Cfg)\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
