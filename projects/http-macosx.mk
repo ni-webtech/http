@@ -82,10 +82,6 @@ $(CONFIG)/inc/mpr.h:
 	rm -fr $(CONFIG)/inc/mpr.h
 	cp -r src/deps/mpr/mpr.h $(CONFIG)/inc/mpr.h
 
-$(CONFIG)/inc/mprSsl.h: 
-	rm -fr $(CONFIG)/inc/mprSsl.h
-	cp -r src/deps/mpr/mprSsl.h $(CONFIG)/inc/mprSsl.h
-
 $(CONFIG)/obj/mprLib.o: \
         src/deps/mpr/mprLib.c \
         $(CONFIG)/inc/bit.h \
@@ -94,7 +90,6 @@ $(CONFIG)/obj/mprLib.o: \
 
 $(CONFIG)/bin/libmpr.dylib:  \
         $(CONFIG)/inc/mpr.h \
-        $(CONFIG)/inc/mprSsl.h \
         $(CONFIG)/obj/mprLib.o
 	$(CC) -dynamiclib -o $(CONFIG)/bin/libmpr.dylib -arch x86_64 $(LDFLAGS) -compatibility_version 1.0.0 -current_version 1.0.0 -compatibility_version 1.0.0 -current_version 1.0.0 $(LIBPATHS) -install_name @rpath/libmpr.dylib $(CONFIG)/obj/mprLib.o $(LIBS)
 

@@ -82,10 +82,6 @@ $(CONFIG)/inc/mpr.h:
 	rm -fr $(CONFIG)/inc/mpr.h
 	cp -r src/deps/mpr/mpr.h $(CONFIG)/inc/mpr.h
 
-$(CONFIG)/inc/mprSsl.h: 
-	rm -fr $(CONFIG)/inc/mprSsl.h
-	cp -r src/deps/mpr/mprSsl.h $(CONFIG)/inc/mprSsl.h
-
 $(CONFIG)/obj/mprLib.o: \
         src/deps/mpr/mprLib.c \
         $(CONFIG)/inc/bit.h
@@ -93,7 +89,6 @@ $(CONFIG)/obj/mprLib.o: \
 
 $(CONFIG)/bin/libmpr.so:  \
         $(CONFIG)/inc/mpr.h \
-        $(CONFIG)/inc/mprSsl.h \
         $(CONFIG)/obj/mprLib.o
 	$(CC) -shared -o $(CONFIG)/bin/libmpr.so $(LDFLAGS) $(LIBPATHS) $(CONFIG)/obj/mprLib.o $(LIBS)
 
