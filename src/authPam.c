@@ -8,13 +8,8 @@
 
 #include    "http.h"
 
-#if BIT_FEATURE_AUTH_PAM && BIT_UNIX_LIKE
-
-#if MACOSX
-    #include    <pam/pam_appl.h>
-#else
-    #include    <security/pam_appl.h>
-#endif
+#if BIT_CC_PAM
+ #include    <security/pam_appl.h>
 
 /********************************* Defines ************************************/
 
@@ -31,7 +26,8 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 
 cchar *httpGetPamPassword(HttpAuth *auth, cchar *realm, cchar *user)
 {
-    /*  Can't return the password.
+    /*  
+        Can't return the password.
      */
     return "";
 }
@@ -101,8 +97,12 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 
 
 #else
-void __pamAuth() {}
-#endif /* BIT_FEATURE_AUTH_PAM */
+cchar *httpGetPamPassword(HttpAuth *auth, cchar *realm, cchar *user) { return 0; }
+bool httpValidatePamCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar *password, cchar *requiredPass, char **msg)
+{
+    return 0;
+}
+#endif /* BIT_CC_PAM */
 
 /*
     @copy   default

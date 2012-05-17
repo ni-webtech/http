@@ -8,7 +8,6 @@
 
 #include    "http.h"
 
-#if BIT_FEATURE_AUTH_FILE
 /********************************** Forwards **********************************/
 
 static bool isUserValid(HttpAuth *auth, cchar *realm, cchar *user);
@@ -628,10 +627,6 @@ int httpWriteGroupFile(HttpAuth *auth, char *path)
     }
     return 0;
 }
-
-#else
-void __nativeAuthFile() {}
-#endif /* BIT_FEATURE_AUTH_FILE */
 
 /*
     @copy   default

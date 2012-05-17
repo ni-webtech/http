@@ -17,12 +17,10 @@ HttpAuth *httpCreateAuth()
 {
     HttpAuth      *auth;
 
-    auth = mprAllocObj(HttpAuth, manageAuth);
-#if BIT_FEATURE_AUTH_PAM
-    auth->backend = HTTP_AUTH_METHOD_PAM;
-#elif BIT_FEATURE_AUTH_FILE
-    auth->backend = HTTP_AUTH_METHOD_FILE;
-#endif
+    if ((auth = mprAllocObj(HttpAuth, manageAuth)) == 0) {
+        return 0;
+    }
+    auth->backend = HTTP_AUTH_FILE;
     return auth;
 }
 
@@ -31,7 +29,9 @@ HttpAuth *httpCreateInheritedAuth(HttpAuth *parent)
 {
     HttpAuth      *auth;
 
-    auth = mprAllocObj(HttpAuth, manageAuth);
+    if ((auth = mprAllocObj(HttpAuth, manageAuth)) == 0) {
+        return 0;
+    }
     if (parent) {
         if (parent->allow) {
             auth->allow = mprCloneHash(parent->allow);
@@ -55,11 +55,7 @@ HttpAuth *httpCreateInheritedAuth(HttpAuth *parent)
         auth->groups = parent->groups;
 
     } else{
-#if BIT_FEATURE_AUTH_PAM
-        auth->backend = HTTP_AUTH_METHOD_PAM;
-#elif BIT_FEATURE_AUTH_FILE
-        auth->backend = HTTP_AUTH_METHOD_FILE;
-#endif
+        auth->backend = HTTP_AUTH_FILE;
     }
     return auth;
 }
@@ -156,18 +152,10 @@ void httpSetAuthUser(HttpConn *conn, cchar *user)
  */
 static bool validateCred(HttpAuth *auth, cchar *realm, char *user, cchar *password, cchar *requiredPass, char **msg)
 {
-    /*  
-        Use this funny code construct incase no backend method is configured. Still want the code to compile.
-     */
-    if (0) {
-#if BIT_FEATURE_AUTH_FILE
-    } else if (auth->backend == HTTP_AUTH_METHOD_FILE) {
+    if (auth->backend == HTTP_AUTH_FILE) {
         return httpValidateFileCredentials(auth, realm, user, password, requiredPass, msg);
-#endif
-#if BIT_FEATURE_AUTH_PAM
-    } else if (auth->backend == HTTP_AUTH_METHOD_PAM) {
+    } else if (auth->backend == HTTP_AUTH_PAM) {
         return httpValidatePamCredentials(auth, realm, user, password, NULL, msg);
-#endif
     } else {
         *msg = "Required authorization backend method is not enabled or configured";
     }
@@ -180,18 +168,10 @@ static bool validateCred(HttpAuth *auth, cchar *realm, char *user, cchar *passwo
  */
 static cchar *getPassword(HttpAuth *auth, cchar *realm, cchar *user)
 {
-    /*  
-        Use this funny code construct incase no backend method is configured. Still want the code to compile.
-     */
-    if (0) {
-#if BIT_FEATURE_AUTH_FILE
-    } else if (auth->backend == HTTP_AUTH_METHOD_FILE) {
+    if (auth->backend == HTTP_AUTH_FILE) {
         return httpGetFilePassword(auth, realm, user);
-#endif
-#if BIT_FEATURE_AUTH_PAM
-    } else if (auth->backend == HTTP_AUTH_METHOD_PAM) {
+    } else if (auth->backend == HTTP_AUTH_PAM) {
         return httpGetPamPassword(auth, realm, user);
-#endif
     }
     return 0;
 }
