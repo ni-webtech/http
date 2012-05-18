@@ -848,7 +848,6 @@ fi";
 					"-lpthread",
 					"-lm",
 					"-ldl",
-					"-lpam",
 					"$(inherited)"
 				);
 
@@ -922,7 +921,6 @@ fi";
 					"-lpthread",
 					"-lm",
 					"-ldl",
-					"-lpam",
 					"$(inherited)"
 				);
 
@@ -1012,6 +1010,12 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = libhttp;
 
+				OTHER_LDFLAGS = (
+					"-lpam",
+					"-lpam",
+					"-lpam",
+					"$(inherited)"
+				);
 
 			};
 			name = Debug;
@@ -1021,6 +1025,12 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = libhttp;
 
+				OTHER_LDFLAGS = (
+					"-lpam",
+					"-lpam",
+					"-lpam",
+					"$(inherited)"
+				);
 
 			};
 			name = Release;
