@@ -1,8 +1,6 @@
 LIBRARY libhttp.dll
 EXPORTS
   HttpStatusCodes
-  __nativeAuthFile
-  __pamAuth
   httpAcceptConn
   httpAddCache
   httpAddConn
