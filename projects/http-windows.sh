@@ -12,7 +12,7 @@ OS="windows"
 PROFILE="debug"
 CONFIG="${OS}-${ARCH}-${PROFILE}"
 CC="cl.exe"
-LD="undefined"
+LD="link.exe"
 CFLAGS="-nologo -GR- -W3 -Zi -Od -MDd"
 DFLAGS="-D_REENTRANT -D_MT -DBIT_DEBUG"
 IFLAGS="-I${CONFIG}/inc -Isrc"
@@ -32,18 +32,18 @@ cp -r src/deps/mpr/mpr.h ${CONFIG}/inc/mpr.h
 
 "${CC}" -c -Fo${CONFIG}/obj/mprLib.obj -Fd${CONFIG}/obj/mprLib.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/deps/mpr/mprLib.c
 
-"" -dll -out:${CONFIG}/bin/libmpr.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libmpr.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/mprLib.obj ${LIBS}
+"${LD}" -dll -out:${CONFIG}/bin/libmpr.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libmpr.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/mprLib.obj ${LIBS}
 
 "${CC}" -c -Fo${CONFIG}/obj/mprSsl.obj -Fd${CONFIG}/obj/mprSsl.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/deps/mpr/mprSsl.c
 
-"" -dll -out:${CONFIG}/bin/libmprssl.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libmprssl.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/mprSsl.obj ${LIBS} libmpr.lib
+"${LD}" -dll -out:${CONFIG}/bin/libmprssl.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libmprssl.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/mprSsl.obj ${LIBS} libmpr.lib
 
 rm -rf ${CONFIG}/inc/pcre.h
 cp -r src/deps/pcre/pcre.h ${CONFIG}/inc/pcre.h
 
 "${CC}" -c -Fo${CONFIG}/obj/pcre.obj -Fd${CONFIG}/obj/pcre.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/deps/pcre/pcre.c
 
-"" -dll -out:${CONFIG}/bin/libpcre.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libpcre.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/pcre.obj ${LIBS}
+"${LD}" -dll -out:${CONFIG}/bin/libpcre.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libpcre.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/pcre.obj ${LIBS}
 
 rm -rf ${CONFIG}/inc/http.h
 cp -r src/http.h ${CONFIG}/inc/http.h
@@ -104,9 +104,9 @@ cp -r src/http.h ${CONFIG}/inc/http.h
 
 "${CC}" -c -Fo${CONFIG}/obj/var.obj -Fd${CONFIG}/obj/var.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/var.c
 
-"" -dll -out:${CONFIG}/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libhttp.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/auth.obj ${CONFIG}/obj/authCheck.obj ${CONFIG}/obj/authFile.obj ${CONFIG}/obj/authPam.obj ${CONFIG}/obj/cache.obj ${CONFIG}/obj/chunkFilter.obj ${CONFIG}/obj/client.obj ${CONFIG}/obj/conn.obj ${CONFIG}/obj/endpoint.obj ${CONFIG}/obj/error.obj ${CONFIG}/obj/host.obj ${CONFIG}/obj/httpService.obj ${CONFIG}/obj/log.obj ${CONFIG}/obj/netConnector.obj ${CONFIG}/obj/packet.obj ${CONFIG}/obj/passHandler.obj ${CONFIG}/obj/pipeline.obj ${CONFIG}/obj/queue.obj ${CONFIG}/obj/rangeFilter.obj ${CONFIG}/obj/route.obj ${CONFIG}/obj/rx.obj ${CONFIG}/obj/sendConnector.obj ${CONFIG}/obj/stage.obj ${CONFIG}/obj/trace.obj ${CONFIG}/obj/tx.obj ${CONFIG}/obj/uploadFilter.obj ${CONFIG}/obj/uri.obj ${CONFIG}/obj/var.obj ${LIBS} libmpr.lib libpcre.lib libmprssl.lib
+"${LD}" -dll -out:${CONFIG}/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libhttp.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/auth.obj ${CONFIG}/obj/authCheck.obj ${CONFIG}/obj/authFile.obj ${CONFIG}/obj/authPam.obj ${CONFIG}/obj/cache.obj ${CONFIG}/obj/chunkFilter.obj ${CONFIG}/obj/client.obj ${CONFIG}/obj/conn.obj ${CONFIG}/obj/endpoint.obj ${CONFIG}/obj/error.obj ${CONFIG}/obj/host.obj ${CONFIG}/obj/httpService.obj ${CONFIG}/obj/log.obj ${CONFIG}/obj/netConnector.obj ${CONFIG}/obj/packet.obj ${CONFIG}/obj/passHandler.obj ${CONFIG}/obj/pipeline.obj ${CONFIG}/obj/queue.obj ${CONFIG}/obj/rangeFilter.obj ${CONFIG}/obj/route.obj ${CONFIG}/obj/rx.obj ${CONFIG}/obj/sendConnector.obj ${CONFIG}/obj/stage.obj ${CONFIG}/obj/trace.obj ${CONFIG}/obj/tx.obj ${CONFIG}/obj/uploadFilter.obj ${CONFIG}/obj/uri.obj ${CONFIG}/obj/var.obj ${LIBS} libmpr.lib libpcre.lib libmprssl.lib
 
 "${CC}" -c -Fo${CONFIG}/obj/http.obj -Fd${CONFIG}/obj/http.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/utils/http.c
 
-"" -out:${CONFIG}/bin/http.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/http.obj ${LIBS} libhttp.lib libmpr.lib libpcre.lib libmprssl.lib
+"${LD}" -out:${CONFIG}/bin/http.exe -entry:mainCRTStartup -subsystem:console ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/http.obj ${LIBS} libhttp.lib libmpr.lib libpcre.lib libmprssl.lib
 
