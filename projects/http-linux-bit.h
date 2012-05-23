@@ -35,9 +35,9 @@
 #define BIT_LIB ".a"
 #define BIT_OBJ ".o"
 #define BIT_MANAGER ""
-#define BIT_CC_DOUBLE_BRACES 1
+#define BIT_CC_DOUBLE_BRACES 0
 #define BIT_CC_DYN_LOAD 1
-#define BIT_CC_EDITLINE 1
+#define BIT_CC_EDITLINE 0
 #define BIT_CC_MMU 1
 #define BIT_CC_MTUNE 1
 #define BIT_CC_PAM 1
@@ -45,8 +45,8 @@
 #define BIT_CC_SYNC 1
 #define BIT_CC_SYNC_CAS 1
 #define BIT_CC_UNNAMED_UNIONS 1
-#define BIT_CC_WARN_64TO32 1
-#define BIT_CC_WARN_UNUSED 0
+#define BIT_CC_WARN_64TO32 0
+#define BIT_CC_WARN_UNUSED 1
 #define BIT_FEATURE_DOXYGEN 0
 #define BIT_FEATURE_DSI 0
 #define BIT_FEATURE_MAN 0
