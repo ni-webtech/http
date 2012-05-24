@@ -265,7 +265,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         if (endpoint->requestCount >= limits->requestMax) {
             unlock(http);
             httpError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, "Server overloaded");
-            mprError("Too many concurrent requests %d/%d", endpoint->requestCount, limits->requestMax);
+            mprLog(2, "Too many concurrent requests %d/%d", endpoint->requestCount, limits->requestMax);
             return 0;
         }
         endpoint->requestCount++;
@@ -287,7 +287,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         if (http->processCount >= limits->processMax) {
             unlock(http);
             httpError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, "Server overloaded");
-            mprError("Too many concurrent processes %d/%d", http->processCount, limits->processMax);
+            mprLog(2, "Too many concurrent processes %d/%d", http->processCount, limits->processMax);
             return 0;
         }
         http->processCount++;
