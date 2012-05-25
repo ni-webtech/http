@@ -37,18 +37,6 @@ static void defaultClose(HttpQueue *q)
 }
 
 
-#if UNUSED
-/*
-    Invoked for handlers only
- */
-static void defaultProcess(HttpQueue *q)
-{
-    httpFinalize(q->conn);
-}
-#endif
-
-
-
 /*  
     Put packets on the service queue.
  */
@@ -139,11 +127,6 @@ HttpStage *httpCreateStage(Http *http, cchar *name, int flags, MprModule *module
     stage->outgoingData = outgoingData;
     stage->outgoingService = httpDefaultOutgoingServiceStage;
     stage->module = module;
-#if UNUSED
-    if (flags & HTTP_STAGE_HANDLER) {
-        stage->process = defaultProcess;
-    }
-#endif
     httpAddStage(http, stage);
     return stage;
 }
