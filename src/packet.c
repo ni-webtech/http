@@ -153,14 +153,10 @@ HttpPacket *httpGetPacket(HttpQueue *q)
                 mprAssert(q->first == 0);
             }
         }
-        if (/* MOB q->flags & HTTP_QUEUE_FULL && */ q->count < q->low) {
+        if (q->count < q->low) {
             /*
                 This queue was full and now is below the low water mark. Back-enable the previous queue.
              */
-#if MOB && UNUSED
-            q->flags &= ~HTTP_QUEUE_FULL;
-#endif
-            //  MOB - would not need this if all queues always had a service routine?
             prev = httpFindPreviousQueue(q);
             if (prev && prev->flags & HTTP_QUEUE_SUSPENDED) {
                 httpResumeQueue(prev);
@@ -271,7 +267,7 @@ void httpPutPacket(HttpQueue *q, HttpPacket *packet)
 
 
 /*  
-    Pass to the next queue
+    Pass to the next stage in the pipeline
  */
 void httpPutPacketToNext(HttpQueue *q, HttpPacket *packet)
 {
@@ -393,7 +389,7 @@ HttpPacket *httpSplitPacket(HttpPacket *orig, ssize offset)
             return 0;
         }
         /*
-            MOB OPT - this is not efficient. A large packet will often be resized by splitting into chunks that the
+            OPT - A large packet will often be resized by splitting into chunks that the
             downstream queues will accept. This causes many allocations that are a small delta less than the large
             packet 
             Better:
