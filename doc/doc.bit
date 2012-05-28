@@ -1,0 +1,33 @@
+/*
+    doc.bit -- Appweb documentation build file
+ */
+
+Bit.load({
+
+    targets: {
+        patch: {
+            action: "
+                trace('Patch', 'Expand DSI')
+                for each (path in Path('.').glob('**.html', {exclude: /Bare.html|dsi/})) {
+                    vtrace('Patch', path)
+                    Cmd('dsi -v -I. ' + path)
+                }
+            "
+        },
+
+        api: {
+            action: "
+                apidoc('api/http.dox', '${SRC}/src/http.h', 'Http API', 'api/*.tags')
+                apiwrap(['api/http.html' ])
+            ",
+        }, 
+
+        'clean-doc': {
+            type: 'clean',
+            action: "
+                rmdir(['../doc/api/html', '../doc/api/xml'])
+            "
+        },
+    
+    },
+})
