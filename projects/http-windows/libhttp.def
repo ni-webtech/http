@@ -217,7 +217,7 @@ EXPORTS
   httpOpenUploadFilter
   httpPrepClientConn
   httpPrepServerConn
-  httpProcess
+  httpPump
   httpProcessHandler
   httpPutBackPacket
   httpPutForService
