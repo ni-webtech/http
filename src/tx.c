@@ -250,7 +250,7 @@ void httpFinalize(HttpConn *conn)
         httpPutForService(conn->writeq, httpCreateEndPacket(), HTTP_SCHEDULE_QUEUE);
         httpServiceQueues(conn);
         if (conn->state >= HTTP_STATE_READY /* MOB && conn->connectorComplete */ && !conn->inHttpProcess) {
-            httpProcess(conn, NULL);
+            httpPump(conn, NULL);
         }
         conn->refinalize = 0;
     } else {

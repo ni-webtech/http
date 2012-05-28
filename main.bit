@@ -7,6 +7,7 @@ Bit.load({
         "${BITS}/embedthis.bit",
         "src/deps/mpr/mpr.bit",
         "src/deps/pcre/pcre.bit",
+        "doc/doc.bit",
     ],
 
     customize: [

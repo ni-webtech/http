@@ -362,7 +362,7 @@ static void readEvent(HttpConn *conn)
        
         if (nbytes > 0) {
             mprAdjustBufEnd(packet->content, nbytes);
-            httpProcess(conn, packet);
+            httpPump(conn, packet);
 
         } else if (nbytes < 0) {
             if (conn->state <= HTTP_STATE_CONNECTED) {
@@ -371,7 +371,7 @@ static void readEvent(HttpConn *conn)
                 }
                 break;
             } else if (conn->state < HTTP_STATE_COMPLETE) {
-                httpProcess(conn, packet);
+                httpPump(conn, packet);
                 if (!conn->error && conn->state < HTTP_STATE_COMPLETE && mprIsSocketEof(conn->sock)) {
                     httpError(conn, HTTP_ABORT | HTTP_CODE_COMMS_ERROR, "Connection lost");
                     break;
@@ -401,7 +401,7 @@ static void writeEvent(HttpConn *conn)
     if (conn->tx) {
         httpResumeQueue(conn->connectorq);
         httpServiceQueues(conn);
-        httpProcess(conn, NULL);
+        httpPump(conn, NULL);
     }
 }
 
@@ -432,8 +432,7 @@ void httpUsePrimary(HttpConn *conn)
 
 
 /*
-    Steal a connection with open socket from Http.
-    This flushes all buffered data and completes the request as far as Http is concerned.
+    Steal a connection with open socket from Http and disconnect it from management by Http.
     It is the callers responsibility to call mprCloseSocket when required.
  */
 MprSocket *httpStealConn(HttpConn *conn)

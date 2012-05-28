@@ -2280,7 +2280,14 @@ extern int httpShouldTrace(HttpConn *conn, int dir, int item, cchar *ext);
  */
 extern void httpStartPipeline(HttpConn *conn);
 
-//  MOB
+/**
+    Steal a connection from Appweb
+    @description Steal a connection from Appweb and assume total responsibility for the connection.
+    This removes the connection from active management by Appweb. After calling, request and inactivity
+    timeouts will not be enforced. It is the callers responsibility to call mprCloseSocket.
+    @param conn HttpConn object created via $httpCreateConn
+    @return The connection socket object.
+ */
 extern MprSocket *httpStealConn(HttpConn *conn);
 
 /** Internal APIs */
@@ -4475,6 +4482,14 @@ extern int httpTestParam(HttpConn *conn, cchar *var);
  */
 extern void httpTrimExtraPath(HttpConn *conn);
 
+/**
+    Pump the Http engine
+    @param conn HttpConn connection object
+    @param packet Optional packet of input data. Set to NULL if calling from user handlers.
+    @ingroup HttpRx
+ */
+extern void httpPump(HttpConn *conn, HttpPacket *packet);
+
 /* Internal */
 extern void httpCloseRx(struct HttpConn *conn);
 extern HttpRange *httpCreateRange(HttpConn *conn, MprOff start, MprOff end);
@@ -4482,7 +4497,6 @@ extern HttpRx *httpCreateRx(HttpConn *conn);
 extern void httpDestroyRx(HttpRx *rx);
 extern bool httpMatchEtag(HttpConn *conn, char *requestedEtag);
 extern bool httpMatchModified(HttpConn *conn, MprTime time);
-extern void httpProcess(HttpConn *conn, HttpPacket *packet);
 extern bool httpProcessCompletion(HttpConn *conn);
 extern void httpProcessWriteEvent(HttpConn *conn);
 

@@ -114,10 +114,11 @@ void httpDestroyRx(HttpRx *rx)
 
 
 /*  
+    Pump the Http engine.
     Process incoming requests and drive the state machine. This will process as many requests as possible before returning. 
     All socket I/O is non-blocking, and this routine must not block. Note: packet may be null.
  */
-void httpProcess(HttpConn *conn, HttpPacket *packet)
+void httpPump(HttpConn *conn, HttpPacket *packet)
 {
     mprAssert(conn);
 
@@ -1066,21 +1067,24 @@ static bool processRunning(HttpConn *conn)
         if (conn->finalized) {
             if (!conn->connectorComplete) {
                 /* Wait for Tx I/O event. Do suspend incase handler not using auto-flow routines */
+                conn->writeBlocked = 1;
                 httpSuspendQueue(q);
-                httpSocketBlocked(q->conn);
                 httpEnableConnEvents(q->conn);
                 canProceed = 0;
             }
         } else if (!httpProcessHandler(conn)) {
+            /* No process callback defined */
             canProceed = 0;
         } else if (q->count == 0) {
             /* Queue is empty and data may have drained above in httpServiceQueues. Yield to reclaim memory. */
             mprYield(0);
         } else if (q->count < q->low) {
-            httpResumeQueue(q);
+            if (q->flags & HTTP_QUEUE_SUSPENDED) {
+                httpResumeQueue(q);
+            }
         } else {
+            conn->writeBlocked = 1;
             httpSuspendQueue(q);
-            httpSocketBlocked(q->conn);
             httpEnableConnEvents(q->conn);
             canProceed = 0;
         }
@@ -1161,7 +1165,7 @@ void httpCloseRx(HttpConn *conn)
         conn->keepAliveCount = -1;
     }
     if (conn->state < HTTP_STATE_COMPLETE && !conn->inHttpProcess) {
-        httpProcess(conn, NULL);
+        httpPump(conn, NULL);
     }
 }
 
@@ -1378,7 +1382,7 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
         return MPR_ERR_BAD_STATE;
     } 
     if (conn->input && httpGetPacketLength(conn->input) > 0) {
-        httpProcess(conn, conn->input);
+        httpPump(conn, conn->input);
     }
     if (conn->error) {
         return MPR_ERR_BAD_STATE;
@@ -1435,10 +1439,6 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
 void httpSocketBlocked(HttpConn *conn)
 {
     mprLog(6, "Socket Blocked");
-#if MOB
-    //  SHOULD REMOVE THIS - not required and process() does not listen to it
-    conn->canProceed = 0;
-#endif 
     conn->writeBlocked = 1;
 }
 
