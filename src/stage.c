@@ -40,7 +40,7 @@ static void defaultClose(HttpQueue *q)
 /*  
     Put packets on the service queue.
  */
-static void outgoingData(HttpQueue *q, HttpPacket *packet)
+static void outgoing(HttpQueue *q, HttpPacket *packet)
 {
     int     enableService;
 
@@ -57,7 +57,7 @@ static void outgoingData(HttpQueue *q, HttpPacket *packet)
 /*  
     Default incoming data routine.  Simply transfer the data upstream to the next filter or handler.
  */
-static void incomingData(HttpQueue *q, HttpPacket *packet)
+static void incoming(HttpQueue *q, HttpPacket *packet)
 {
     mprAssert(q);
     mprAssert(packet);
@@ -122,9 +122,9 @@ HttpStage *httpCreateStage(Http *http, cchar *name, int flags, MprModule *module
     stage->name = sclone(name);
     stage->open = defaultOpen;
     stage->close = defaultClose;
-    stage->incomingData = incomingData;
+    stage->incoming = incoming;
     stage->incomingService = incomingService;
-    stage->outgoingData = outgoingData;
+    stage->outgoing = outgoing;
     stage->outgoingService = httpDefaultOutgoingServiceStage;
     stage->module = module;
     httpAddStage(http, stage);

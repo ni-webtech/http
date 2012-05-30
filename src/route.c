@@ -700,11 +700,11 @@ int httpAddRouteFilter(HttpRoute *route, cchar *name, cchar *extensions, int dir
             word = stok(0, " \t\r\n", &tok);
         }
     }
-    if (direction & HTTP_STAGE_RX && filter->incomingData) {
+    if (direction & HTTP_STAGE_RX && filter->incoming) {
         GRADUATE_LIST(route, inputStages);
         mprAddItem(route->inputStages, filter);
     }
-    if (direction & HTTP_STAGE_TX && filter->outgoingData) {
+    if (direction & HTTP_STAGE_TX && filter->outgoing) {
         GRADUATE_LIST(route, outputStages);
         if (smatch(name, "cacheFilter") && 
                 (pos = mprGetListLength(route->outputStages) - 1) >= 0 &&

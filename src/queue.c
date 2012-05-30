@@ -78,10 +78,10 @@ void httpAssignQueue(HttpQueue *q, HttpStage *stage, int dir)
     q->open = stage->open;
     q->start = stage->start;
     if (dir == HTTP_QUEUE_TX) {
-        q->put = stage->outgoingData;
+        q->put = stage->outgoing;
         q->service = stage->outgoingService;
     } else {
-        q->put = stage->incomingData;
+        q->put = stage->incoming;
         q->service = stage->incomingService;
     }
     q->owner = stage->name;

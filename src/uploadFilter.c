@@ -38,7 +38,7 @@ typedef struct Upload {
 
 static void closeUpload(HttpQueue *q);
 static char *getBoundary(void *buf, ssize bufLen, void *boundary, ssize boundaryLen);
-static void incomingUploadData(HttpQueue *q, HttpPacket *packet);
+static void incomingUpload(HttpQueue *q, HttpPacket *packet);
 static void manageHttpUploadFile(HttpUploadFile *file, int flags);
 static void manageUpload(Upload *up, int flags);
 static int matchUpload(HttpConn *conn, HttpRoute *route, int dir);
@@ -60,7 +60,7 @@ int httpOpenUploadFilter(Http *http)
     filter->match = matchUpload; 
     filter->open = openUpload; 
     filter->close = closeUpload; 
-    filter->incomingData = incomingUploadData; 
+    filter->incoming = incomingUpload; 
     return 0;
 }
 
@@ -173,7 +173,7 @@ static void closeUpload(HttpQueue *q)
     Incoming data acceptance routine. The service queue is used, but not a service routine as the data is processed
     immediately. Partial data is buffered on the service queue until a correct mime boundary is seen.
  */
-static void incomingUploadData(HttpQueue *q, HttpPacket *packet)
+static void incomingUpload(HttpQueue *q, HttpPacket *packet)
 {
     HttpConn    *conn;
     HttpRx      *rx;

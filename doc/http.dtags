@@ -540,9 +540,9 @@
     </member>
     <member kind="variable">
       <type>void(*</type>
-      <name>incomingData</name>
+      <name>incoming</name>
       <anchorfile>group___http_stage.html</anchorfile>
-      <anchor>ga382fb76a25d300c01959209c0b9906bb</anchor>
+      <anchor>ga616f14c304844c058002841bb99c5a1f</anchor>
       <arglist>)(HttpQueue *q, HttpPacket *packet)</arglist>
     </member>
     <member kind="variable">
@@ -568,9 +568,9 @@
     </member>
     <member kind="variable">
       <type>void(*</type>
-      <name>outgoingData</name>
+      <name>outgoing</name>
       <anchorfile>group___http_stage.html</anchorfile>
-      <anchor>ga034bbf8e92fb2a5b16c909ef4d27052f</anchor>
+      <anchor>gadd94e12e4e2c67441a752e82a3b46a33</anchor>
       <arglist>)(HttpQueue *q, HttpPacket *packet)</arglist>
     </member>
     <member kind="variable">
