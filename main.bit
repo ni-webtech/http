@@ -19,11 +19,11 @@ Bit.load({
 
     settings: {
         /* Default settings overridden by build.bit */
-		product: 'http',
-		title: 'Http Library',
+        product: 'http',
+        title: 'Http Library',
         company: 'Embedthis',
-		version: '1.0.0',
-		buildNumber: 'B2',
+        version: '1.0.0',
+        buildNumber: 'B2',
         manager: '',
         sync: [ 'mpr', 'pcre' ],
         '+required': [ 'pcre' ],
@@ -102,5 +102,5 @@ Bit.load({
                 apiwrap('${SRC}/doc/api/http.html')
             ",
         },
-	},
+    },
 })
