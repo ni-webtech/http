@@ -582,13 +582,6 @@
     </member>
     <member kind="variable">
       <type>void(*</type>
-      <name>process</name>
-      <anchorfile>group___http_stage.html</anchorfile>
-      <anchor>gaae9ad8d07973afc2b57350d4614cd0e0</anchor>
-      <arglist>)(HttpQueue *q)</arglist>
-    </member>
-    <member kind="variable">
-      <type>void(*</type>
       <name>ready</name>
       <anchorfile>group___http_stage.html</anchorfile>
       <anchor>ga08748a8b2dadc3c32f425620491c4827</anchor>
@@ -599,6 +592,13 @@
       <name>start</name>
       <anchorfile>group___http_stage.html</anchorfile>
       <anchor>ga70b2d0ce56405eb004cce1b3eff374dc</anchor>
+      <arglist>)(HttpQueue *q)</arglist>
+    </member>
+    <member kind="variable">
+      <type>void(*</type>
+      <name>writable</name>
+      <anchorfile>group___http_stage.html</anchorfile>
+      <anchor>gac45f407201b5738ebe12595701fd5831</anchor>
       <arglist>)(HttpQueue *q)</arglist>
     </member>
   </compound>
