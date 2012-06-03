@@ -77,7 +77,9 @@ void httpDestroyConn(HttpConn *conn)
         mprAssert(conn->http);
         httpRemoveConn(conn->http, conn);
         if (conn->endpoint) {
-            httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
+            if (conn->rx) {
+                httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_REQUEST, conn);
+            }
             httpValidateLimits(conn->endpoint, HTTP_VALIDATE_CLOSE_CONN, conn);
         }
         if (HTTP_STATE_PARSED <= conn->state && conn->state < HTTP_STATE_COMPLETE) {
