@@ -3536,9 +3536,10 @@ extern cchar *httpGetRouteMethods(HttpRoute *route);
     Graduate the limits from the parent route.
     @description This creates a unique limit structure for the route if it is currently inheriting its parents limits.
     @param route Route to modify
+    @param limits Limits to use if graduating.
     @ingroup HttpRoute
  */
-extern HttpLimits *httpGraduateLimits(HttpRoute *route);
+extern HttpLimits *httpGraduateLimits(HttpRoute *route, HttpLimits *limits);
 
 /** 
     Create a URI link. 

@@ -2948,10 +2948,13 @@ void httpSetOption(MprHash *options, cchar *field, cchar *value)
 }
 
 
-HttpLimits *httpGraduateLimits(HttpRoute *route)
+HttpLimits *httpGraduateLimits(HttpRoute *route, HttpLimits *limits)
 {
     if (route->parent && route->limits == route->parent->limits) {
-        route->limits = mprMemdup(((Http*) MPR->httpService)->serverLimits, sizeof(HttpLimits));
+        if (limits == 0) {
+            limits = ((Http*) MPR->httpService)->serverLimits;
+        }
+        route->limits = mprMemdup(limits, sizeof(HttpLimits));
     }
     return route->limits;
 }
