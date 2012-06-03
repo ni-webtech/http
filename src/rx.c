@@ -180,10 +180,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         httpError(conn, HTTP_ABORT | HTTP_CODE_NOT_ACCEPTABLE, "Server terminating");
         return 0;
     }
-    if (conn->endpoint && !httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
-        return 0;
-    }
-    if (conn->rx == NULL) {
+    if (!conn->rx) {
         conn->rx = httpCreateRx(conn);
         conn->tx = httpCreateTx(conn, NULL);
     }
@@ -199,7 +196,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         }
         return 0;
     }
-    len = (int) (end - start);
+    len = end - start;
     mprAddNullToBuf(packet->content);
 
     if (len >= conn->limits->headerSize) {
@@ -319,7 +316,9 @@ static void parseMethod(HttpConn *conn)
     method = rx->method;
     methodFlags = 0;
 
+#if UNUSED
     rx->flags &= (HTTP_DELETE | HTTP_GET | HTTP_HEAD | HTTP_POST | HTTP_PUT | HTTP_TRACE | HTTP_UNKNOWN);
+#endif
 
     switch (method[0]) {
     case 'D':
@@ -378,7 +377,7 @@ static void parseMethod(HttpConn *conn)
 static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
 {
     HttpRx      *rx;
-    char        *method, *uri, *protocol;
+    char        *uri, *protocol;
     ssize       len;
 
     rx = conn->rx;
@@ -388,8 +387,10 @@ static void parseRequestLine(HttpConn *conn, HttpPacket *packet)
 #endif
     traceRequest(conn, packet);
 
-    method = getToken(conn, " ");
-    rx->originalMethod = rx->method = method = supper(method);
+    if (!httpValidateLimits(conn->endpoint, HTTP_VALIDATE_OPEN_REQUEST, conn)) {
+        return;
+    }
+    rx->originalMethod = rx->method = supper(getToken(conn, " "));
     parseMethod(conn);
 
     uri = getToken(conn, " ");

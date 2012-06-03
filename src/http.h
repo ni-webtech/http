@@ -4098,6 +4098,7 @@ extern void httpRemoveUploadFile(HttpConn *conn, cchar *id);
 #define HTTP_CHUNKED            0x400       /**< Content is chunk encoded */
 #define HTTP_ADDED_QUERY_PARAMS 0x800       /**< Query added to params */
 #define HTTP_ADDED_FORM_PARAMS  0x1000      /**< Form body data added to params */
+#define HTTP_LIMITS_OPENED      0x2000      /**< Request limits opened */
 
 /*  
     Incoming chunk encoding states

@@ -215,6 +215,9 @@ void httpStopEndpoint(HttpEndpoint *endpoint)
 }
 
 
+/*
+    TODO OPT
+ */
 bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
 {
     HttpLimits      *limits;
@@ -262,6 +265,7 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
         break;
     
     case HTTP_VALIDATE_OPEN_REQUEST:
+        mprAssert(conn->rx);
         if (endpoint->requestCount >= limits->requestMax) {
             unlock(http);
             httpError(conn, HTTP_CODE_SERVICE_UNAVAILABLE, "Server overloaded");
@@ -269,17 +273,19 @@ bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
             return 0;
         }
         endpoint->requestCount++;
+        conn->rx->flags |= HTTP_LIMITS_OPENED;
         action = "open request";
         dir = HTTP_TRACE_RX;
         break;
 
     case HTTP_VALIDATE_CLOSE_REQUEST:
-        if (conn->rx) {
+        if (conn->rx && conn->rx->flags & HTTP_LIMITS_OPENED) {
             /* Requests incremented only when conn->rx is assigned */
             endpoint->requestCount--;
             mprAssert(endpoint->requestCount >= 0);
             action = "close request";
             dir = HTTP_TRACE_TX;
+            conn->rx->flags &= ~HTTP_LIMITS_OPENED;
         }
         break;
 
