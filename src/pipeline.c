@@ -42,6 +42,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
         for (next = 0; (filter = mprGetNextItem(route->outputStages, &next)) != 0; ) {
             if (matchFilter(conn, filter, route, HTTP_STAGE_TX) == HTTP_ROUTE_OK) {
                 mprAddItem(tx->outputPipeline, filter);
+                mprLog(4, "Select output filter: \"%s\"", filter->name);
                 hasOutputFilters = 1;
             }
         }
@@ -57,6 +58,7 @@ void httpCreateTxPipeline(HttpConn *conn, HttpRoute *route)
         }
     }
     mprAddItem(tx->outputPipeline, tx->connector);
+    mprLog(4, "Select connector: \"%s\"", tx->connector->name);
 
     /*  Create the outgoing queue heads and open the queues */
     q = tx->queue[HTTP_QUEUE_TX];
