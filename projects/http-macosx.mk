@@ -11,7 +11,7 @@ LD       := /usr/bin/ld
 CFLAGS   := -Wno-deprecated-declarations -g -w
 DFLAGS   := -DBIT_DEBUG
 IFLAGS   := -I$(CONFIG)/inc -Isrc
-LDFLAGS  := '-Wl,-rpath,@executable_path/../lib' '-Wl,-rpath,@executable_path/' '-Wl,-rpath,@loader_path/' '-g'
+LDFLAGS  := '-Wl,-rpath,@executable_path/' '-Wl,-rpath,@loader_path/' '-g'
 LIBPATHS := -L$(CONFIG)/bin
 LIBS     := -lpthread -lm -ldl
 

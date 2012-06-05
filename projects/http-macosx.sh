@@ -12,7 +12,7 @@ LD="/usr/bin/ld"
 CFLAGS="-Wall -Wno-deprecated-declarations -g -Wno-unused-result -Wshorten-64-to-32"
 DFLAGS="-DBIT_DEBUG"
 IFLAGS="-I${CONFIG}/inc -Isrc"
-LDFLAGS="-Wl,-rpath,@executable_path/../lib -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/ -g"
+LDFLAGS="-Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/ -g"
 LIBPATHS="-L${CONFIG}/bin"
 LIBS="-lpthread -lm -ldl"
 
