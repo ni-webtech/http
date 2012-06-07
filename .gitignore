@@ -54,3 +54,4 @@ xcode
 .*.guid
 start.bit
 *.dmp
+*-xcode
