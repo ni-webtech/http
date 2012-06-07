@@ -10,12 +10,12 @@
 #define BIT_NAME "Http Library"
 #define BIT_COMPANY "Embedthis"
 #define BIT_HTTP_PRODUCT 1
-#define BIT_VERSION "1.0.0"
-#define BIT_NUMBER "B2"
+#define BIT_VERSION "1.0.1"
+#define BIT_NUMBER "-repos"
 #define BIT_MAJOR_VERSION 1
 #define BIT_MINOR_VERSION 0
-#define BIT_PATCH_VERSION 0
-#define BIT_VNUM 100000000
+#define BIT_PATCH_VERSION 1
+#define BIT_VNUM 100000001
 #define BIT_CONFIG_CMD "bit -d -q -platform windows-x86 -without all -configure . -gen sh,nmake,vs"
 #define BIT_PROFILE "debug"
 #define BIT_CFG_PREFIX "C:/Program Files (x86)/Http Library"
