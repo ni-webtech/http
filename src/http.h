@@ -3009,8 +3009,8 @@ extern ssize httpWriteCached(HttpConn *conn);
 #define HTTP_ROUTE_FREE           0x2       /**< Free Route.mdata back to malloc when route is freed */
 #define HTTP_ROUTE_FREE_PATTERN   0x4       /**< Free Route.patternCompiled back to malloc when route is freed */
 #define HTTP_ROUTE_RAW            0x8       /**< Don't html encode the write data */
-#define HTTP_ROUTE_PUT_DELETE     0x1000    /**< Support PUT|DELETE */
-#define HTTP_ROUTE_GZIP           0x2000    /**< Support gzipped content */
+#define HTTP_ROUTE_PUT_DELETE     0x1000    /**< Support PUT|DELETE on this route */
+#define HTTP_ROUTE_GZIP           0x2000    /**< Support gzipped content on this route */
 #define HTTP_ROUTE_STARTED        0x4000    /**< Route initialized */
 
 /**

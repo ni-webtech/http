@@ -23,7 +23,7 @@ Bit.load({
         title: 'Http Library',
         company: 'Embedthis',
         version: '1.0.1',
-        buildNumber: '-repos',
+        buildNumber: 'repos',
         manager: '',
         sync: [ 'mpr', 'pcre' ],
         '+required': [ 'pcre' ],

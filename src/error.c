@@ -66,6 +66,9 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
     }
     if (flags & HTTP_ABORT) {
         conn->connError = 1;
+        if (rx) {
+            rx->eof = 1;
+        }
     }
     if (flags & HTTP_ABORT || (tx && tx->flags & HTTP_TX_HEADERS_CREATED)) {
         /* 
@@ -81,9 +84,6 @@ static void errorv(HttpConn *conn, int flags, cchar *fmt, va_list args)
         return;
     }
     conn->error = 1;
-    if (rx) {
-        rx->eof = 1;
-    }
     formatErrorv(conn, status, fmt, args);
 
     if (conn->endpoint && tx && rx) {

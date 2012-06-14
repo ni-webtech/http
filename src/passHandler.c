@@ -63,14 +63,6 @@ static void openPass(HttpQueue *q)
 
 static void readyPass(HttpQueue *q)
 {
-#if UNUSED
-    HttpConn    *conn;
-
-    conn = q->conn;
-    if (!conn->finalized) {
-        httpError(conn, HTTP_CODE_NOT_FOUND, "Can't serve request: %s", conn->rx->uri);
-    }
-#endif
     httpFinalize(q->conn);
 }
 
