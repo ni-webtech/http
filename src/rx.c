@@ -324,10 +324,6 @@ static void parseMethod(HttpConn *conn)
     method = rx->method;
     methodFlags = 0;
 
-#if UNUSED
-    rx->flags &= (HTTP_DELETE | HTTP_GET | HTTP_HEAD | HTTP_POST | HTTP_PUT | HTTP_TRACE | HTTP_UNKNOWN);
-#endif
-
     switch (method[0]) {
     case 'D':
         if (strcmp(method, "DELETE") == 0) {

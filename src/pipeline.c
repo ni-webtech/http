@@ -213,7 +213,7 @@ void httpStartPipeline(HttpConn *conn)
     
     tx = conn->tx;
 
-    //  MOB - how can this ever be already true?
+    //  TODO - how can this ever be already true?
     mprAssert(!tx->started);
     if (tx->started) {
         return;

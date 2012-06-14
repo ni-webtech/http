@@ -424,7 +424,6 @@ static void httpTimer(Http *http, MprEvent *event)
 
     /*
         Check for unloadable modules
-        MOB - move down into MPR and set stage->flags in an unload callback
      */
     if (mprGetListLength(http->connections) == 0) {
         for (next = 0; (module = mprGetNextItem(MPR->moduleService->modules, &next)) != 0; ) {
