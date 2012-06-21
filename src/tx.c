@@ -373,6 +373,7 @@ void httpOmitBody(HttpConn *conn)
 {
     if (conn->tx) {
         conn->tx->flags |= HTTP_TX_NO_BODY;
+        conn->tx->length = -1;
     }
     if (conn->tx->flags & HTTP_TX_HEADERS_CREATED) {
         mprError("Can't set response body if headers have already been created");
@@ -576,7 +577,8 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         if (!(rx->flags & HTTP_HEAD)) {
             httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
         }
-    } else if (tx->length > 0 || conn->endpoint) {
+    } else if (tx->length >= 0 /* UNUSED || conn->endpoint */) {
+        mprAssert(tx->status != 304 && tx->status != 204 && !(100 <= tx->status && tx->status <= 199));
         httpAddHeader(conn, "Content-Length", "%Ld", tx->length);
     }
     if (tx->outputRanges) {

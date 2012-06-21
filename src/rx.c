@@ -340,7 +340,9 @@ static void parseMethod(HttpConn *conn)
     case 'H':
         if (strcmp(method, "HEAD") == 0) {
             methodFlags = HTTP_HEAD;
+#if UNUSED
             httpOmitBody(conn);
+#endif
         }
         break;
 
@@ -966,12 +968,20 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     ssize       nbytes;
 
     rx = conn->rx;
+    if (rx->eof) {
+        return 1;
+    }
+
     tx = conn->tx;
     content = packet->content;
     q = tx->queue[HTTP_QUEUE_RX];
 
     LOG(7, "processContent: packet of %d bytes, remaining %d", mprGetBufLength(content), rx->remainingContent);
     if ((nbytes = httpFilterChunkData(q, packet)) <= 0) {
+        if (rx->chunkState & HTTP_CHUNK_EOF) {
+            rx->eof = 1;
+            return 1;
+        }
         return 0;
     }
     rx->remainingContent -= nbytes;
@@ -1024,7 +1034,10 @@ static bool processContent(HttpConn *conn, HttpPacket *packet)
 
     rx = conn->rx;
 
-    if (!packet || (!rx->eof && !analyseContent(conn, packet))) {
+    if (!packet) {
+        return 0;
+    }
+    if (!analyseContent(conn, packet)) {
         return 0;
     }
     if (rx->eof) {

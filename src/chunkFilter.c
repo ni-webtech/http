@@ -35,26 +35,27 @@ int httpOpenChunkFilter(Http *http)
 }
 
 
+/*
+    This is called twice: once for TX and once for RX
+ */
 static int matchChunk(HttpConn *conn, HttpRoute *route, int dir)
 {
-    HttpTx  *tx;
-
     if (dir & HTTP_STAGE_TX) {
-        /*
-            Don't match if chunking is explicitly turned off vi a the X_APPWEB_CHUNK_SIZE header which sets the chunk 
-            size to zero. Also remove if the response length is already known.
+        /* 
+            If content length is defined, don't need chunking. Also disable chunking if explicitly turned off vi 
+            the X_APPWEB_CHUNK_SIZE header which may set the chunk size to zero.
          */
-        tx = conn->tx;
-        if (tx->length < 0 && tx->chunkSize != 0) {
-            return HTTP_ROUTE_OK;
+        if (conn->tx->length >= 0 || conn->tx->chunkSize == 0) {
+            return HTTP_ROUTE_REJECT;
         }
-        return HTTP_ROUTE_REJECT;
+        return HTTP_ROUTE_OK;
+    } else {
+        /* 
+            Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
+            know what the response data looks like (chunked or not).
+         */
+        return HTTP_ROUTE_OK;
     }
-    /* 
-        Must always be ready to handle chunked response data. Clients create their incoming pipeline before it is
-        know what the response data looks like (chunked or not).
-     */
-    return HTTP_ROUTE_OK;
 }
 
 
@@ -77,6 +78,9 @@ static void openChunk(HttpQueue *q)
     Chunk spec is: "HEX_COUNT; chunk length DECIMAL_COUNT\r\n". The "; chunk length DECIMAL_COUNT is optional.
     As an optimization, use "\r\nSIZE ...\r\n" as the delimiter so that the CRLF after data does not special consideration.
     Achive this by parseHeaders reversing the input start by 2.
+
+    Return number of bytes available to read.
+    NOTE: may set rx->eof and return 0 bytes on EOF.
  */
 ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet)
 {
@@ -167,25 +171,20 @@ static void outgoingChunkService(HttpQueue *q)
     tx = conn->tx;
 
     if (!(q->flags & HTTP_QUEUE_SERVICED)) {
-        /*  
+        /*
             If we don't know the content length (tx->length < 0) and if the last packet is the end packet. Then
             we have all the data. Thus we can determine the actual content length and can bypass the chunk handler.
          */
         if (tx->length < 0 && (value = mprLookupKey(tx->headers, "Content-Length")) != 0) {
             tx->length = stoi(value);
         }
-        if (tx->length < 0) {
+        if (tx->length < 0 && tx->chunkSize < 0) {
             if (q->last->flags & HTTP_PACKET_END) {
-                if (tx->chunkSize < 0 && tx->length <= 0) {
-                    /*  
-                        Set the response content length and thus disable chunking -- not needed as we know the entity length.
-                     */
-                    tx->length = (int) q->count;
+                if (q->count > 0) {
+                    tx->length = q->count;
                 }
             } else {
-                if (tx->chunkSize < 0) {
-                    tx->chunkSize = min(conn->limits->chunkSize, q->max);
-                }
+                tx->chunkSize = min(conn->limits->chunkSize, q->max);
             }
         }
     }

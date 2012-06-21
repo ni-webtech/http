@@ -36,6 +36,9 @@ int httpOpenRangeFilter(Http *http)
 }
 
 
+/*
+    This is called twice: once for TX and once for RX
+ */
 static int matchRange(HttpConn *conn, HttpRoute *route, int dir)
 {
     mprAssert(conn->rx);
