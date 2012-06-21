@@ -230,7 +230,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         rx->parsedUri->port = conn->sock->listenSock->port;
         rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
 
-    } else if (!(100 <= rx->status && rx->status < 200)) {
+    } else if (!(100 <= rx->status && rx->status <= 199)) {
         /* Clients have already created their Tx pipeline */
         httpCreateRxPipeline(conn, conn->http->clientRoute);
     }
@@ -340,9 +340,6 @@ static void parseMethod(HttpConn *conn)
     case 'H':
         if (strcmp(method, "HEAD") == 0) {
             methodFlags = HTTP_HEAD;
-#if UNUSED
-            httpOmitBody(conn);
-#endif
         }
         break;
 
