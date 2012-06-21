@@ -577,7 +577,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         if (!(rx->flags & HTTP_HEAD)) {
             httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
         }
-    } else if (tx->length >= 0 /* UNUSED || conn->endpoint */) {
+    } else if (tx->length >= 0) {
         mprAssert(tx->status != 304 && tx->status != 204 && !(100 <= tx->status && tx->status <= 199));
         httpAddHeader(conn, "Content-Length", "%Ld", tx->length);
     }
