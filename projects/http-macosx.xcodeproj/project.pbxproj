@@ -825,7 +825,10 @@ fi";
 					"../src",
 					"$(inherited)"
 				);
-
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"../macosx-x64-xcode/bin",
 					"$(inherited)"
@@ -915,7 +918,10 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = libmpr;
 
-
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 			};
 			name = Debug;
 		};
@@ -933,7 +939,10 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = libmprssl;
 
-
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 			};
 			name = Debug;
 		};
@@ -951,7 +960,10 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = makerom;
 
-
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 			};
 			name = Debug;
 		};
@@ -971,7 +983,8 @@ fi";
 
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"PCRE_CHAR=char",
-						"$(inherited)"
+					"BIT_DEBUG",
+					"$(inherited)"
 				);
 			};
 			name = Debug;
@@ -983,7 +996,7 @@ fi";
 
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"PCRE_CHAR=char",
-						"$(inherited)"
+					"$(inherited)"
 				);
 			};
 			name = Release;
@@ -993,6 +1006,10 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = libhttp;
 
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 				OTHER_LDFLAGS = (
 					"-lpam",
 					"$(inherited)"
@@ -1019,7 +1036,10 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = http;
 
-
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 			};
 			name = Debug;
 		};
@@ -1037,7 +1057,10 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = All;
 
-
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 			};
 			name = Debug;
 		};
@@ -1055,7 +1078,10 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = Prep;
 
-
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 			};
 			name = Debug;
 		};

@@ -11,7 +11,7 @@
 #define BIT_COMPANY "Embedthis"
 #define BIT_HTTP_PRODUCT 1
 #define BIT_VERSION "1.0.1"
-#define BIT_NUMBER "-repos"
+#define BIT_NUMBER "repos"
 #define BIT_MAJOR_VERSION 1
 #define BIT_MINOR_VERSION 0
 #define BIT_PATCH_VERSION 1
