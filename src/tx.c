@@ -552,7 +552,6 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     /*
         Mandatory headers that must be defined here use httpSetHeader which overwrites existing values. 
      */
-    httpAddHeaderString(conn, "Server", conn->http->software);
     httpAddHeaderString(conn, "Date", conn->http->currentDate);
 
     if (tx->ext) {
@@ -589,6 +588,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         httpSetHeader(conn, "Accept-Ranges", "bytes");
     }
     if (conn->endpoint) {
+        httpAddHeaderString(conn, "Server", conn->http->software);
         if (--conn->keepAliveCount > 0) {
             httpAddHeaderString(conn, "Connection", "keep-alive");
             httpAddHeader(conn, "Keep-Alive", "timeout=%Ld, max=%d", conn->limits->inactivityTimeout / 1000,
