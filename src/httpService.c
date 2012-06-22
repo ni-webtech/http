@@ -449,6 +449,7 @@ static void httpTimer(Http *http, MprEvent *event)
         mprRemoveEvent(event);
         http->timer = 0;
     }
+    //  OPT - run GC here
     unlock(http);
 }
 

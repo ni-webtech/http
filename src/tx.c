@@ -34,9 +34,7 @@ HttpTx *httpCreateTx(HttpConn *conn, MprHash *headers)
     if (headers) {
         tx->headers = headers;
     } else if ((tx->headers = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS)) != 0) {
-        if (conn->endpoint) {
-            httpAddHeaderString(conn, "Server", conn->http->software);
-        } else {
+        if (!conn->endpoint) {
             httpAddHeaderString(conn, "User-Agent", sclone(HTTP_NAME));
         }
     }
@@ -554,6 +552,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     /*
         Mandatory headers that must be defined here use httpSetHeader which overwrites existing values. 
      */
+    httpAddHeaderString(conn, "Server", conn->http->software);
     httpAddHeaderString(conn, "Date", conn->http->currentDate);
 
     if (tx->ext) {
@@ -650,10 +649,15 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->flags & HTTP_TX_HEADERS_CREATED) {
         return;
     }    
+    tx->flags |= HTTP_TX_HEADERS_CREATED;
     conn->responded = 1;
     if (conn->headersCallback) {
         /* Must be before headers below */
         (conn->headersCallback)(conn->headersCallbackArg);
+    }
+    if (tx->flags & HTTP_TX_USE_OWN_HEADERS && !conn->error) {
+        conn->keepAliveCount = -1;
+        return;
     }
     setHeaders(conn, packet);
 
@@ -692,7 +696,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     mprPutStringToBuf(buf, "\r\n");
 
     /* 
-       Output headers
+        Output headers
      */
     kp = mprGetFirstKey(conn->tx->headers);
     while (kp) {
@@ -706,7 +710,7 @@ void httpWriteHeaders(HttpConn *conn, HttpPacket *packet)
     }
 
     /* 
-       By omitting the "\r\n" delimiter after the headers, chunks can emit "\r\nSize\r\n" as a single chunk delimiter
+        By omitting the "\r\n" delimiter after the headers, chunks can emit "\r\nSize\r\n" as a single chunk delimiter
      */
     if (tx->chunkSize <= 0) {
         mprPutStringToBuf(buf, "\r\n");

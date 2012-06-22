@@ -192,6 +192,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
 
     /*
         Don't start processing until all the headers have been received (delimited by two blank lines)
+        MOB - should be tolerant and allow '\n\n'
      */
     if ((end = scontains(start, "\r\n\r\n", len)) == 0) {
         if (len >= conn->limits->headerSize) {
@@ -452,6 +453,7 @@ static bool parseResponseLine(HttpConn *conn, HttpPacket *packet)
     protocol = conn->protocol = supper(getToken(conn, " "));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         conn->http10 = 1;
+        rx->remainingContent = MAXINT;
     } else if (strcmp(protocol, "HTTP/1.1") != 0) {
         httpError(conn, HTTP_ABORT | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
         return 0;
@@ -506,6 +508,7 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
             httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad header format");
             return 0;
         }
+        //  MOB - should be tolerant and allow '\n'
         value = getToken(conn, "\r\n");
         while (isspace((uchar) *value)) {
             value++;
@@ -968,18 +971,13 @@ static bool analyseContent(HttpConn *conn, HttpPacket *packet)
     if (rx->eof) {
         return 1;
     }
-
     tx = conn->tx;
     content = packet->content;
     q = tx->queue[HTTP_QUEUE_RX];
-
     LOG(7, "processContent: packet of %d bytes, remaining %d", mprGetBufLength(content), rx->remainingContent);
+    
     if ((nbytes = httpFilterChunkData(q, packet)) <= 0) {
-        if (rx->chunkState & HTTP_CHUNK_EOF) {
-            rx->eof = 1;
-            return 1;
-        }
-        return 0;
+        return rx->eof ? 1 : 0;
     }
     rx->remainingContent -= nbytes;
     rx->bytesRead += nbytes;
@@ -1481,6 +1479,8 @@ static void addMatchEtag(HttpConn *conn, char *etag)
     non-zero token. The empty string means the delimiter was not found. The delimiter is a string to match and not
     a set of characters. HTTP header header parsing does not work as well using classical strtok parsing as you must
     know when the "/r/n/r/n" body delimiter has been encountered. Strtok will eat such delimiters.
+
+    MOB - OPT
  */
 static char *getToken(HttpConn *conn, cchar *delim)
 {

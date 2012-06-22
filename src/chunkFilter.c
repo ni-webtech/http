@@ -87,7 +87,7 @@ ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet)
     HttpConn    *conn;
     HttpRx      *rx;
     MprBuf      *buf;
-    ssize       chunkSize;
+    ssize       chunkSize, nbytes;
     char        *start, *cp;
     int         bad;
 
@@ -99,7 +99,11 @@ ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet)
 
     switch (rx->chunkState) {
     case HTTP_CHUNK_UNCHUNKED:
-        return (ssize) min(rx->remainingContent, mprGetBufLength(buf));
+        nbytes = mprGetBufLength(buf);
+        if (conn->http10 && nbytes == 0) {
+            rx->eof = 1;
+        }
+        return (ssize) min(rx->remainingContent, nbytes);
 
     case HTTP_CHUNK_DATA:
         mprLog(7, "chunkFilter: data %d bytes, rx->remainingContent %d", httpGetPacketLength(packet), rx->remainingContent);
@@ -154,7 +158,7 @@ ssize httpFilterChunkData(HttpQueue *q, HttpPacket *packet)
         return min(chunkSize, mprGetBufLength(buf));
 
     default:
-        mprError("chunkFilter: bad state %d", rx->chunkState);
+        httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad chunk state %d", rx->chunkState);
     }
     return 0;
 }
@@ -186,6 +190,9 @@ static void outgoingChunkService(HttpQueue *q)
             } else {
                 tx->chunkSize = min(conn->limits->chunkSize, q->max);
             }
+        }
+        if (tx->flags & HTTP_TX_USE_OWN_HEADERS) {
+            tx->chunkSize = -1;
         }
     }
     if (tx->chunkSize <= 0) {
