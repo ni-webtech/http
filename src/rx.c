@@ -614,8 +614,12 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
 
             } else if (strcasecmp(key, "content-type") == 0) {
                 rx->mimeType = sclone(value);
-                rx->form = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "application/x-www-form-urlencoded", -1);
-                rx->upload = (rx->flags & HTTP_POST) && scontains(rx->mimeType, "multipart/form-data", -1);
+                if (rx->flags & (HTTP_POST | HTTP_PUT)) {
+                    rx->form = scontains(rx->mimeType, "application/x-www-form-urlencoded", -1) != 0;
+                    rx->upload = scontains(rx->mimeType, "multipart/form-data", -1) != 0;
+                } else { 
+                    rx->form = rx->upload = 0;
+                }
 
             } else if (strcasecmp(key, "cookie") == 0) {
                 if (rx->cookie && *rx->cookie) {
