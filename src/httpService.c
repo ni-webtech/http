@@ -381,6 +381,7 @@ static void startTimer(Http *http)
 
 /*  
     The http timer does maintenance activities and will fire per second while there are active requests.
+    This is run in both servers and clients.
     NOTE: Because we lock the http here, connections cannot be deleted while we are modifying the list.
  */
 static void httpTimer(Http *http, MprEvent *event)
