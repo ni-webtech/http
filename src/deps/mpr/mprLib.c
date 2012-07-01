@@ -2591,6 +2591,7 @@ Mpr *mprCreate(int argc, char **argv, int flags)
         mprAssert(mpr);
         return 0;
     }
+    mpr->start = mprGetTime(); 
     mpr->exitStrategy = MPR_EXIT_NORMAL;
     mpr->emptyString = sclone("");
     mpr->exitTimeout = MPR_TIMEOUT_STOP;
@@ -9664,10 +9665,9 @@ int mprStartCmd(MprCmd *cmd, int argc, cchar **argv, cchar **envp, int flags)
 
     mprAssert(cmd);
     mprAssert(argv);
-    mprAssert(argc > 0);
 
     if (argc <= 0 || argv == NULL || argv[0] == NULL) {
-        return MPR_ERR_BAD_STATE;
+        return MPR_ERR_BAD_ARGS;
     }
     resetCmd(cmd);
     program = argv[0];
@@ -10281,6 +10281,7 @@ static int blendEnv(MprCmd *cmd, cchar **env, int flags)
         Add new env keys. Detect and overwrite duplicates
      */
     for (ep = env; ep && *ep; ep++) {
+        prior = 0;
         for (ITERATE_ITEMS(cmd->env, prior, next)) {
             if (matchEnvKey(*ep, prior)) {
                 mprSetItem(cmd->env, next - 1, *ep);
@@ -15103,7 +15104,7 @@ MprHash *mprCreateHash(int hashSize, int flags)
         return NULL;
     }
     hash->size = hashSize;
-    hash->flags = flags;
+    hash->flags = flags | MPR_OBJ_HASH;
     hash->length = 0;
     hash->mutex = mprCreateLock();
 #if BIT_CHAR_LEN > 1
@@ -15290,8 +15291,7 @@ MprHash *mprCloneHash(MprHash *master)
     MprKey      *kp;
     MprHash     *hash;
 
-    hash = mprCreateHash(master->size, master->flags);
-    if (hash == 0) {
+    if ((hash = mprCreateHash(master->size, master->flags)) == 0) {
         return 0;
     }
     kp = mprGetFirstKey(master);
@@ -15803,7 +15803,15 @@ static int setValue(MprJson *jp, MprObj *obj, int index, cchar *key, cchar *valu
 
 static MprObj *makeObj(MprJson *jp, bool list)
 {
-    return (MprObj*) mprCreateHash(0, 0);
+    MprHash     *hash;
+
+    if ((hash = mprCreateHash(0, 0)) == 0) {
+        return 0;
+    }
+    if (list) {
+        hash->flags |= MPR_HASH_LIST;
+    }
+    return hash;
 }
 
 
@@ -16378,7 +16386,7 @@ MprList *mprCreateList(int size, int flags)
         return 0;
     }
     lp->maxSize = MAXINT;
-    lp->flags = flags;
+    lp->flags = flags | MPR_OBJ_LIST;
     lp->mutex = mprCreateLock();
     if (size != 0) {
         mprSetListLimits(lp, size, -1);
@@ -19572,7 +19580,7 @@ char *mprGetPathDir(cchar *path)
 
     mprAssert(path);
 
-    if (*path == '\0') {
+    if (path == 0 || *path == '\0') {
         return sclone(path);
     }
 
