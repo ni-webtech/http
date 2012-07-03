@@ -109,6 +109,7 @@ Third Party Components
 2) MatrixSSL. The MatrixSSL interface contains some licensed code from PeerSec. MatrixSSL is an optional component.
 3) DTOA (Decimal to Ascii conversion code). This is used in the runtime core. It is licensed by Lucent with a BSD style license.
 4) Hashing algorithm inspired by Paul Hsieh at http://www.azillionmonkeys.com/qed/hash.html.
+5) Qsort routine - (c) Michael Ringgaard. BSD license.
 
 Contributors have provided other portions of the software that are covered by the Embedthis Contributor license that grants Embedthis sufficient rights to execute this license Agreement.
 
