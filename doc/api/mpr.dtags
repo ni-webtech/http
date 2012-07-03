@@ -739,6 +739,13 @@
     </member>
     <member kind="define">
       <type>#define</type>
+      <name>MPR_HASH_LIST</name>
+      <anchorfile>mpr_8h.html</anchorfile>
+      <anchor>aead51de23663190607c1affa83d6aea3</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="define">
+      <type>#define</type>
       <name>MPR_HASH_STATIC_KEYS</name>
       <anchorfile>mpr_8h.html</anchorfile>
       <anchor>a4b4def421c22a58a925f617230ddb1ac</anchor>
@@ -1008,6 +1015,20 @@
       <name>MPR_NORMAL_PRIORITY</name>
       <anchorfile>mpr_8h.html</anchorfile>
       <anchor>a00253cececc72225524d098e29d552a9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="define">
+      <type>#define</type>
+      <name>MPR_OBJ_HASH</name>
+      <anchorfile>mpr_8h.html</anchorfile>
+      <anchor>aa3a00f803c06f8d85b8281dff1021acb</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="define">
+      <type>#define</type>
+      <name>MPR_OBJ_LIST</name>
+      <anchorfile>mpr_8h.html</anchorfile>
+      <anchor>aad59e2d06de4bfe82780a8da386d39f7</anchor>
       <arglist></arglist>
     </member>
     <member kind="define">
@@ -2339,6 +2360,13 @@
       <anchorfile>group___mpr.html</anchorfile>
       <anchor>ga85bb50d63a783a867786d7df20a1e2ec</anchor>
       <arglist>()</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>mprCreateOutsideEvent</name>
+      <anchorfile>group___mpr_event.html</anchorfile>
+      <anchor>ga041faeaea5f29bd86d35270f2f408a50</anchor>
+      <arglist>(MprDispatcher *dispatcher, void *proc, void *data)</arglist>
     </member>
     <member kind="function">
       <type>MprRomFileSystem *</type>
@@ -3707,6 +3735,13 @@
     </member>
     <member kind="function">
       <type>int</type>
+      <name>mprLookupStringItem</name>
+      <anchorfile>group___mpr_list.html</anchorfile>
+      <anchor>ga8b32a32be34fbcc2194767eb7031a3ad</anchor>
+      <arglist>(MprList *list, cchar *str)</arglist>
+    </member>
+    <member kind="function">
+      <type>int</type>
       <name>mprMakeArgv</name>
       <anchorfile>group___mpr.html</anchorfile>
       <anchor>ga02a389f1cd2f5a8ba4e5d2417ae87276</anchor>
@@ -4138,6 +4173,13 @@
       <anchorfile>group___mpr_socket.html</anchorfile>
       <anchor>ga02e481047fbc58df3cf3afc31f15a2b4</anchor>
       <arglist>(MprSocket *sp)</arglist>
+    </member>
+    <member kind="function">
+      <type>int</type>
+      <name>mprRemoveStringItem</name>
+      <anchorfile>group___mpr_list.html</anchorfile>
+      <anchor>ga7d948c448d34a433b728c7a19aae1814</anchor>
+      <arglist>(MprList *list, cchar *str)</arglist>
     </member>
     <member kind="function">
       <type>void</type>
@@ -4766,8 +4808,8 @@
       <type>void</type>
       <name>mprSortList</name>
       <anchorfile>group___mpr_list.html</anchorfile>
-      <anchor>gaf4ea2773fbe55ad1492d3ca0d4a33648</anchor>
-      <arglist>(MprList *list, void *compare)</arglist>
+      <anchor>ga52571417a4127b5a17d411083dca45df</anchor>
+      <arglist>(MprList *list, MprSortProc compare, void *ctx)</arglist>
     </member>
     <member kind="function">
       <type>void</type>
@@ -6693,6 +6735,13 @@
     </member>
     <member kind="function">
       <type>int</type>
+      <name>mprLookupStringItem</name>
+      <anchorfile>group___mpr_list.html</anchorfile>
+      <anchor>ga8b32a32be34fbcc2194767eb7031a3ad</anchor>
+      <arglist>(MprList *list, cchar *str)</arglist>
+    </member>
+    <member kind="function">
+      <type>int</type>
       <name>mprRemoveItem</name>
       <anchorfile>group___mpr_list.html</anchorfile>
       <anchor>gaa7e9868693c4c804b2c356509dcbb798</anchor>
@@ -6720,6 +6769,13 @@
       <arglist>(MprList *list, int start, int end)</arglist>
     </member>
     <member kind="function">
+      <type>int</type>
+      <name>mprRemoveStringItem</name>
+      <anchorfile>group___mpr_list.html</anchorfile>
+      <anchor>ga7d948c448d34a433b728c7a19aae1814</anchor>
+      <arglist>(MprList *list, cchar *str)</arglist>
+    </member>
+    <member kind="function">
       <type>void *</type>
       <name>mprSetItem</name>
       <anchorfile>group___mpr_list.html</anchorfile>
@@ -6737,8 +6793,8 @@
       <type>void</type>
       <name>mprSortList</name>
       <anchorfile>group___mpr_list.html</anchorfile>
-      <anchor>gaf4ea2773fbe55ad1492d3ca0d4a33648</anchor>
-      <arglist>(MprList *list, void *compare)</arglist>
+      <anchor>ga52571417a4127b5a17d411083dca45df</anchor>
+      <arglist>(MprList *list, MprSortProc compare, void *ctx)</arglist>
     </member>
   </compound>
   <compound kind="group">
@@ -7564,6 +7620,13 @@
       <anchorfile>group___mpr_event.html</anchorfile>
       <anchor>ga6154e34c582e39cd64b4505a6afb39c4</anchor>
       <arglist>(MprDispatcher *dispatcher, cchar *name, MprTime period, void *proc, void *data, int flags)</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>mprCreateOutsideEvent</name>
+      <anchorfile>group___mpr_event.html</anchorfile>
+      <anchor>ga041faeaea5f29bd86d35270f2f408a50</anchor>
+      <arglist>(MprDispatcher *dispatcher, void *proc, void *data)</arglist>
     </member>
     <member kind="function">
       <type>MprEvent *</type>
@@ -9261,10 +9324,31 @@
       <arglist></arglist>
     </member>
     <member kind="variable">
+      <type>MprCond *</type>
+      <name>markerCond</name>
+      <anchorfile>struct_mpr_heap.html</anchorfile>
+      <anchor>ac8dff11b856053c56957a55d6a680204</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>marking</name>
+      <anchorfile>struct_mpr_heap.html</anchorfile>
+      <anchor>a84ff2a7503d4bfbf2e089f6717376615</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
       <type>int</type>
       <name>mustYield</name>
       <anchorfile>struct_mpr_heap.html</anchorfile>
       <anchor>a96061b691a2b5d247f2eae9de73a29ef</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>MprMutex *</type>
+      <name>mutex</name>
+      <anchorfile>struct_mpr_heap.html</anchorfile>
+      <anchor>a6706b2115861c275cbc20778cca0f17f</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -9300,6 +9384,13 @@
       <name>pageSize</name>
       <anchorfile>struct_mpr_heap.html</anchorfile>
       <anchor>aeb5711432166603a0b5bc90f325336bd</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>pauseGC</name>
+      <anchorfile>struct_mpr_heap.html</anchorfile>
+      <anchor>af042d31267c6ab1b22a0bd03a8d19613</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -9953,13 +10044,6 @@
       <name>mainThread</name>
       <anchorfile>struct_mpr_thread_service.html</anchorfile>
       <anchor>afa377fab1e440a5e2c24214d5c6f8dde</anchor>
-      <arglist></arglist>
-    </member>
-    <member kind="variable">
-      <type>MprMutex *</type>
-      <name>mutex</name>
-      <anchorfile>struct_mpr_thread_service.html</anchorfile>
-      <anchor>af804f049bfcfd5921f4e6bf9b5b5cdfb</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">

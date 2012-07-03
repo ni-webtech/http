@@ -8,9 +8,9 @@ Bit.load({
         patch: {
             action: "
                 trace('Patch', 'Expand DSI')
-                for each (path in Path('.').glob('**.html', {exclude: /Bare.html|dsi/})) {
+                for each (path in Path('.').files('**.html', {exclude: /Bare.html|dsi/})) {
                     vtrace('Patch', path)
-                    Cmd('dsi -v -I. ' + path)
+                    Cmd('dsi -I. ' + path)
                 }
             "
         },
