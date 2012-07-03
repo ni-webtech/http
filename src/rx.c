@@ -1705,6 +1705,7 @@ char *httpGetExt(HttpConn *conn)
 }
 
 
+//  MOB - can this just use the default
 static int compareLang(char **s1, char **s2)
 {
     return scmp(*s1, *s2);
@@ -1736,7 +1737,7 @@ HttpLang *httpGetLanguage(HttpConn *conn, MprHash *spoken, cchar *defaultLang)
             }
             mprAddItem(list, sfmt("%03d %s", (int) (atof(quality) * 100), language));
         }
-        mprSortList(list, compareLang);
+        mprSortList(list, (MprSortProc) compareLang, 0);
         for (next = 0; (language = mprGetNextItem(list, &next)) != 0; ) {
             if ((lang = mprLookupKey(rx->route->languages, &language[4])) != 0) {
                 rx->lang = lang;

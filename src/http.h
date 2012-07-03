@@ -2848,7 +2848,7 @@ extern cchar *httpGetPamPassword(HttpAuth *auth, cchar *realm, cchar *user);
     @param realm Authentication realm
     @param user User name
     @param password User password
-    @param requriedPass Required user password
+    @param requiredPass Required user password
     @param msg Output parameter, error message.
     @return True if the user could be successfully validated
     @ingroup HttpAuth
@@ -5201,6 +5201,9 @@ typedef struct HttpHost {
  */
 extern void httpAddOption(MprHash *options, cchar *field, cchar *value);
 
+//  MOB DOC
+extern void httpInsertOption(MprHash *options, cchar *field, cchar *value);
+
 /**
     Add a route to a host
     @description Add the route to the host list of routes. During request route matching, routes are processed 
@@ -5284,6 +5287,16 @@ extern MprHash *httpGetOptionHash(MprHash *options, cchar *field);
     @return Options table
  */
 extern MprHash *httpGetOptions(cchar *options);
+
+/**
+    Test a field value from an option string. 
+    @param options Option string of the form: "field='value' field='value'..."
+    @param field Field key name
+    @param value Test if the field is set to this value
+    @param useDefault If true and "field" is not found in options, return true
+    @return Allocated value string.
+ */
+extern bool httpOption(MprHash *options, cchar *field, cchar *value, int useDefault);
 
 /**
     Get a path extension 

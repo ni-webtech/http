@@ -2905,6 +2905,26 @@ MprHash *httpGetOptionHash(MprHash *options, cchar *field)
 }
 
 
+/* 
+    Prepend an option
+ */
+void httpInsertOption(MprHash *options, cchar *field, cchar *value)
+{
+    MprKey      *kp;
+
+    if (options == 0) {
+        mprAssert(options);
+        return;
+    }
+    if ((kp = mprLookupKeyEntry(options, field)) != 0) {
+        kp = mprAddKey(options, field, sjoin(value, " ", kp->data, NULL));
+    } else {
+        kp = mprAddKey(options, field, value);
+    }
+    kp->type = MPR_JSON_STRING;
+}
+
+
 void httpAddOption(MprHash *options, cchar *field, cchar *value)
 {
     MprKey      *kp;
@@ -2929,6 +2949,12 @@ void httpRemoveOption(MprHash *options, cchar *field)
         return;
     }
     mprRemoveKey(options, field);
+}
+
+
+bool httpOption(MprHash *hash, cchar *field, cchar *value, int useDefault)
+{
+    return smatch(value, httpGetOption(hash, field, useDefault ? value : 0));
 }
 
 

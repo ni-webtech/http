@@ -263,7 +263,7 @@ char *httpGetParamsString(HttpConn *conn)
                     len += slen(kp->key) + slen(kp->data) + 2;
                 }
                 if ((buf = mprAlloc(len + 1)) != 0) {
-                    mprSortList(list, sortParam);
+                    mprSortList(list, (MprSortProc) sortParam, 0);
                     cp = buf;
                     for (next = 0; (kp = mprGetNextItem(list, &next)) != 0; ) {
                         strcpy(cp, kp->key); cp += slen(kp->key);
