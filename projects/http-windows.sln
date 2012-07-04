@@ -38,9 +38,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhttp", "http-windows\lib
 	ProjectSection(ProjectDependencies) = postProject
 		{42D2A7DF-906E-4BAF-9432-CE3A9124CFD9} = {42D2A7DF-906E-4BAF-9432-CE3A9124CFD9}
 	EndProjectSection
-	ProjectSection(ProjectDependencies) = postProject
-		{2E9536A1-2AD1-4EE1-AF03-10E9C06EC4E1} = {2E9536A1-2AD1-4EE1-AF03-10E9C06EC4E1}
-	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "http", "http-windows\http.vcxproj", "{D547BDE7-ED8E-4C5C-9A84-85D77BEB805A}"
 	ProjectSection(ProjectDependencies) = postProject

@@ -1131,13 +1131,6 @@
     </member>
     <member kind="define">
       <type>#define</type>
-      <name>MPR_SECURE_CLIENT</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>a7bbe6982e4e64f2f034971b88d3da3af</anchor>
-      <arglist></arglist>
-    </member>
-    <member kind="define">
-      <type>#define</type>
       <name>MPR_SERVICE_NO_GC</name>
       <anchorfile>mpr_8h.html</anchorfile>
       <anchor>a2a21cf060065f6162ecae871533ea9f7</anchor>
@@ -1267,13 +1260,6 @@
       <name>MPR_SSL_BUFSIZE</name>
       <anchorfile>mpr_8h.html</anchorfile>
       <anchor>ae2d5fc1b9d658c93d2833e75ed45eb99</anchor>
-      <arglist></arglist>
-    </member>
-    <member kind="define">
-      <type>#define</type>
-      <name>MPR_SSL_PROVIDER_LOADED</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>a02f1e1cc6a700feecac32b1a4c31b3c6</anchor>
       <arglist></arglist>
     </member>
     <member kind="define">
@@ -2201,13 +2187,6 @@
       <arglist>(MprTime t1, MprTime t2)</arglist>
     </member>
     <member kind="function">
-      <type>void</type>
-      <name>mprConfigureSsl</name>
-      <anchorfile>group___mpr_socket.html</anchorfile>
-      <anchor>ga5f3e1db5d7e207edaa4dde272a63c5fa</anchor>
-      <arglist>(struct MprSsl *ssl)</arglist>
-    </member>
-    <member kind="function">
       <type>int</type>
       <name>mprConnectSocket</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
@@ -2379,8 +2358,8 @@
       <type>MprSocket *</type>
       <name>mprCreateSocket</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
-      <anchor>gabe2236ae68abd47188e86e4f8a62ea72</anchor>
-      <arglist>(struct MprSsl *ssl)</arglist>
+      <anchor>ga0ef02d313ec268eae6038a5af0ee5cc4</anchor>
+      <arglist>()</arglist>
     </member>
     <member kind="function">
       <type>MprSpin *</type>
@@ -3643,11 +3622,11 @@
       <arglist>(MprModule *mp)</arglist>
     </member>
     <member kind="function">
-      <type>MprModule *</type>
+      <type>int</type>
       <name>mprLoadSsl</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
-      <anchor>ga4b64ed8b6bc299fc4b74704440b8f954</anchor>
-      <arglist>(bool lazy)</arglist>
+      <anchor>ga4cf59cde7f99bce19be6056483180e51</anchor>
+      <arglist>()</arglist>
     </member>
     <member kind="function">
       <type>void</type>
@@ -4680,13 +4659,6 @@
     </member>
     <member kind="function">
       <type>void</type>
-      <name>mprSetSocketSslConfig</name>
-      <anchorfile>mpr_8h.html</anchorfile>
-      <anchor>a01199611ed4a5bbc42cdee37bb013b59</anchor>
-      <arglist>(MprSocket *sp, struct MprSsl *ssl)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
       <name>mprSetSslCaFile</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
       <anchor>ga472960cd4ec2360bf05ab678e7cba577</anchor>
@@ -5020,6 +4992,13 @@
       <anchorfile>mpr_8h.html</anchorfile>
       <anchor>a64b669a1f52e62b8010fe14094db885b</anchor>
       <arglist>(MprWaitHandler *wp, bool wakeup)</arglist>
+    </member>
+    <member kind="function">
+      <type>int</type>
+      <name>mprUpgradeSocket</name>
+      <anchorfile>group___mpr_socket.html</anchorfile>
+      <anchor>gad6d08288a5b584089e713f24012f7bee</anchor>
+      <arglist>(MprSocket *sp, struct MprSsl *ssl, int server)</arglist>
     </member>
     <member kind="function">
       <type>char *</type>
@@ -7939,13 +7918,6 @@
       <arglist>(MprSocket *sp, bool graceful)</arglist>
     </member>
     <member kind="function">
-      <type>void</type>
-      <name>mprConfigureSsl</name>
-      <anchorfile>group___mpr_socket.html</anchorfile>
-      <anchor>ga5f3e1db5d7e207edaa4dde272a63c5fa</anchor>
-      <arglist>(struct MprSsl *ssl)</arglist>
-    </member>
-    <member kind="function">
       <type>int</type>
       <name>mprConnectSocket</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
@@ -7956,8 +7928,8 @@
       <type>MprSocket *</type>
       <name>mprCreateSocket</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
-      <anchor>gabe2236ae68abd47188e86e4f8a62ea72</anchor>
-      <arglist>(struct MprSsl *ssl)</arglist>
+      <anchor>ga0ef02d313ec268eae6038a5af0ee5cc4</anchor>
+      <arglist>()</arglist>
     </member>
     <member kind="function">
       <type>struct MprSsl *</type>
@@ -8051,11 +8023,11 @@
       <arglist>(MprSocket *sp, cchar *ip, int port, int flags)</arglist>
     </member>
     <member kind="function">
-      <type>MprModule *</type>
+      <type>int</type>
       <name>mprLoadSsl</name>
       <anchorfile>group___mpr_socket.html</anchorfile>
-      <anchor>ga4b64ed8b6bc299fc4b74704440b8f954</anchor>
-      <arglist>(bool lazy)</arglist>
+      <anchor>ga4cf59cde7f99bce19be6056483180e51</anchor>
+      <arglist>()</arglist>
     </member>
     <member kind="function">
       <type>int</type>
@@ -8161,6 +8133,13 @@
       <anchorfile>group___mpr_socket.html</anchorfile>
       <anchor>ga784846d3b4945a9b63d5827ae0098a2f</anchor>
       <arglist>(MprSocket *sp)</arglist>
+    </member>
+    <member kind="function">
+      <type>int</type>
+      <name>mprUpgradeSocket</name>
+      <anchorfile>group___mpr_socket.html</anchorfile>
+      <anchor>gad6d08288a5b584089e713f24012f7bee</anchor>
+      <arglist>(MprSocket *sp, struct MprSsl *ssl, int server)</arglist>
     </member>
     <member kind="function">
       <type>void</type>

@@ -1570,7 +1570,7 @@ void httpFinalizeRoute(HttpRoute *route)
         mprAddItem(route->indicies,  sclone("index.html"));
     }
     httpAddRoute(route->host, route);
-#if BIT_FEATURE_SSL
+#if UNUSED && BIT_FEATURE_SSL
     mprConfigureSsl(route->ssl);
 #endif
 }

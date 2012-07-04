@@ -6482,9 +6482,6 @@ extern void mprJsonParseError(MprJson *jp, cchar *fmt, ...);
 typedef struct MprThreadService {
     MprList         *threads;           /**< List of all threads */
     struct MprThread *mainThread;       /**< Main application Mpr thread id */
-#if UNUSED
-    MprMutex        *mutex;             /**< Multi-thread lock */
-#endif
     MprCond         *cond;              /**< Multi-thread sync */
     ssize           stackSize;          /**< Default thread stack size */
 } MprThreadService;
@@ -6924,16 +6921,13 @@ typedef struct MprSocketProvider {
     cchar             *name;
     void              *data;
     struct MprSsl     *defaultSsl;
-    struct MprSocket  *(*acceptSocket)(struct MprSocket *sp);
     void              (*closeSocket)(struct MprSocket *socket, bool gracefully);
-    int               (*configureSsl)(struct MprSsl *ssl);
-    int               (*connectSocket)(struct MprSocket *socket, cchar *host, int port, int flags);
-    struct MprSocket  *(*createSocket)(struct MprSsl *ssl);
     void              (*disconnectSocket)(struct MprSocket *socket);
     ssize             (*flushSocket)(struct MprSocket *socket);
     int               (*listenSocket)(struct MprSocket *socket, cchar *host, int port, int flags);
     ssize             (*readSocket)(struct MprSocket *socket, void *buf, ssize len);
     ssize             (*writeSocket)(struct MprSocket *socket, cvoid *buf, ssize len);
+    int               (*upgradeSocket)(struct MprSocket *socket, struct MprSsl *ssl, int server);
 } MprSocketProvider;
 
 /**
@@ -6953,9 +6947,7 @@ typedef struct MprSocketService {
     MprSocketProvider *standardProvider;        /**< Socket provider for non-SSL connections */
     MprSocketProvider *secureProvider;          /**< Socket provider for SSL connections */
     MprSocketPrebind  prebind;                  /**< Prebind callback */
-#if BIT_FEATURE_SSL
     MprList         *secureSockets;             /**< List of secured (matrixssl) sockets */
-#endif
     MprMutex        *mutex;                     /**< Multithread locking */
 } MprSocketService;
 
@@ -7023,7 +7015,7 @@ extern void mprSetSecureProvider(MprSocketProvider *provider);
     by threads from the worker thread pool for scalable, multithreaded applications.
     @stability Evolving
     @see MprSocket MprSocketPrebind MprSocketProc MprSocketProvider MprSocketService mprAddSocketHandler 
-        mprCloseSocket mprConfigureSsl mprConnectSocket mprCreateSocket mprCreateSocketService mprCreateSsl 
+        mprCloseSocket mprConnectSocket mprCreateSocket mprCreateSocketService mprCreateSsl 
         mprDisconnectSocket mprEnableSocketEvents mprFlushSocket mprGetSocketBlockingMode mprGetSocketError 
         mprGetSocketFd mprGetSocketInfo mprGetSocketPort mprHasSecureSockets mprIsSocketEof mprIsSocketSecure 
         mprListenOnSocket mprLoadSsl mprParseIp mprReadSocket mprSendFileToSocket mprSetSecureProvider 
@@ -7061,17 +7053,23 @@ typedef struct MprIOVec {
 
 
 /**
-    Flag for mprCreateSocket to use the default SSL provider
- */ 
-#define MPR_SECURE_CLIENT ((struct MprSsl*) 1)
-
-/**
     Accept an incoming connection
     @param listen Listening server socket
     @returns A new socket connection
     @ingroup MprSocket
  */
 MprSocket *mprAcceptSocket(MprSocket *listen);
+
+//  MOB - move
+/**
+    Upgrade a socket to use SSL/TLS
+    @param sp Socket to upgrade
+    @param ssl SSL configuration to use. Set to NULL to use the default.
+    @param server Set to one for server-side, set to zero for client side.
+    @returns Zero if successful, otherwise a negative MPR error code.
+    @ingroup MprSocket
+ */
+int mprUpgradeSocket(MprSocket *sp, struct MprSsl *ssl, int server);
 
 /**
     Add a wait handler to a socket.
@@ -7120,12 +7118,10 @@ extern int mprConnectSocket(MprSocket *sp, cchar *hostName, int port, int flags)
 /**
     Create a socket
     @description Create a new socket
-    @param ssl An optional SSL context if the socket is to support SSL. Use the #MPR_SECURE_CLIENT define to specify
-        that mprCreateSocket should use the default SSL provider.
     @return A new socket object
     @ingroup MprSocket
  */
-extern MprSocket *mprCreateSocket(struct MprSsl *ssl);
+extern MprSocket *mprCreateSocket();
 
 /**
     Disconnect a socket by closing its underlying file descriptor. This is used to prevent further I/O wait events while
@@ -7343,15 +7339,6 @@ extern void mprSetSocketEof(MprSocket *sp, bool eof);
 extern int mprSetSocketNoDelay(MprSocket *sp, bool on);
 
 /**
-    Set the SSL configuration for a client socket.
-    @description The SSL configuration defines the eligible ciphers and if certificate verification should be used.
-    This call must be made before calling mprConnectSocket
-    @param sp Socket object returned from #mprCreateSocket
-    @param ssl SSL configuration object created via #mprCreateSsl
- */
-extern void mprSetSocketSslConfig(MprSocket *sp, struct MprSsl *ssl);
-
-/**
     Test if the socket has buffered read data.
     @description Use this function to avoid waiting for incoming I/O if data is already buffered.
     @param sp Socket object returned from #mprCreateSocket
@@ -7406,23 +7393,23 @@ typedef struct MprSsl {
     /*
         Server key and certificate configuration
      */
-    char            *key;               /* Key string */
-    char            *cert;              /* Cert string */
-    char            *keyFile;           /* Alternatively, locate the key in a file */
-    char            *certFile;          /* Alternatively, locate the cert in a file */
-    char            *caFile;            /* Client verification cert file or bundle */
-    char            *caPath;            /* Client verification cert directory */
-    char            *ciphers;           /* Candidate ciphers to use */
-    int             configured;         /* Set if this SSL configuration has been processed */
+    char            *key;               /**< Key string */
+    char            *cert;              /**< Cert string */
+    char            *keyFile;           /**< Alternatively, locate the key in a file */
+    char            *certFile;          /**< Alternatively, locate the cert in a file */
+    char            *caFile;            /**< Client verification cert file or bundle */
+    char            *caPath;            /**< Client verification cert directory */
+    char            *ciphers;           /**< Candidate ciphers to use */
+    int             configured;         /**< Set if this SSL configuration has been processed */
+    void            *pconfig;           /**< Extended provider SSL configuration */
 
     /*
         Client configuration
      */
-    int             verifyServer;       /* Set if the server cert should be verified */
-    int             verifyClient;       /* Set if the client cert should be verified */
-    int             verifyDepth;        /* Set if the server cert should be verified */
-    int             protocols;          /* SSL protocols */
-    void            *extendedSsl;       /* Extended provider SSL configuration */
+    int             verifyServer;       /**< Set if the server cert should be verified */
+    int             verifyClient;       /**< Set if the client cert should be verified */
+    int             verifyDepth;        /**< Set if the server cert should be verified */
+    int             protocols;          /**< SSL protocols */
 } MprSsl;
 
 
@@ -7442,22 +7429,9 @@ typedef struct MprSsl {
 
 /**
     Load the SSL module.
-    @param lazy Set to true to delay initialization until SSL is actually used.
     @ingroup MprSocket
  */
-extern MprModule *mprLoadSsl(bool lazy);
-
-/**
-    Configure SSL based on the parsed MprSsl configuration
-    @param ssl MprSsl configuration
-    @ingroup MprSocket
- */
-extern void mprConfigureSsl(struct MprSsl *ssl);
-
-/*
-    Internal
- */
-extern MprModule *mprSslInit(cchar *path);
+extern int mprLoadSsl();
 
 /**
     Create the SSL control structure
@@ -7530,10 +7504,10 @@ extern void mprVerifySslClients(struct MprSsl *ssl, bool on);
 extern void mprVerifySslServers(struct MprSsl *ssl, bool on);
 
 #if BIT_FEATURE_MATRIXSSL
-    extern int mprCreateMatrixSslModule(bool lazy);
+    extern int mprCreateMatrixSslModule();
 #endif
 #if BIT_FEATURE_OPENSSL
-    extern int mprCreateOpenSslModule(bool lazy);
+    extern int mprCreateOpenSslModule();
 #endif
 
 /******************************* Worker Threads *******************************/
@@ -8487,9 +8461,8 @@ extern int mprSetMimeProgram(MprHash *table, cchar *mimeType, cchar *program);
 /*
     MPR flags
  */
-#define MPR_SSL_PROVIDER_LOADED     0x20    /**< SSL provider loaded */
-#define MPR_LOG_APPEND              0x40    /**< Append to existing log files */
-#define MPR_LOG_ANEW                0x80    /**< Start anew on boot (rotate) */
+#define MPR_LOG_APPEND              0x10    /**< Append to existing log files */
+#define MPR_LOG_ANEW                0x20    /**< Start anew on boot (rotate) */
 
 typedef bool (*MprIdleCallback)();
 typedef void (*MprTerminator)(int how, int status);

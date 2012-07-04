@@ -259,7 +259,7 @@ extern void httpSetForkCallback(struct Http *http, MprForkCallback proc, void *a
     @stability Evolving
     @defgroup Http Http
     @see Http HttpConn HttpEndpoint gettGetDateString httpConfigurenamedVirtualEndpoint httpCreate httpCreateSecret 
-        httpDestroy httpGetContext httpGetDateString httpLoadSsl httpLookupEndpoint httpLookupStatus httpLooupHost 
+        httpDestroy httpGetContext httpGetDateString httpLookupEndpoint httpLookupStatus httpLooupHost 
         httpSetContext httpSetDefaultClientHost httpSetDefaultClientPort httpSetDefaultHost httpSetDefaultPort 
         httpSetForkCallback httpSetProxy httpSetSoftware 
  */
@@ -320,7 +320,9 @@ typedef struct Http {
     char            *proxyHost;             /**< Proxy ip address */
     int             proxyPort;              /**< Proxy port */
     int             processCount;           /**< Count of current active external processes */
+#if UNUSED
     int             sslLoaded;              /**< True when the SSL provider has been loaded */
+#endif
 
     /*
         Callbacks
@@ -381,6 +383,7 @@ extern void *httpGetContext(Http *http);
  */
 extern char *httpGetDateString(MprPath *sbuf);
 
+#if UNUSED
 /**
     Load SSL
     @description This loads the configured SSL provider. SSL providers are configured when the product is built
@@ -390,6 +393,7 @@ extern char *httpGetDateString(MprPath *sbuf);
     @ingroup Http
  */
 extern int httpLoadSsl(Http *http);
+#endif
 
 /**
     Set the http context object

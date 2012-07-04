@@ -637,6 +637,7 @@ cchar *httpGetDefaultClientHost(Http *http)
 }
 
 
+#if UNUSED
 int httpLoadSsl(Http *http)
 {
 #if BIT_FEATURE_SSL
@@ -652,6 +653,7 @@ int httpLoadSsl(Http *http)
 #endif
     return 0;
 }
+#endif
 
 
 void httpSetDefaultClientPort(Http *http, int port)

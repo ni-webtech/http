@@ -55,7 +55,7 @@ Bit.load({
             type: 'lib',
             headers: [ 'src/*.h' ],
             sources: [ 'src/*.c' ],
-            depends: [ 'libmpr', 'libpcre', 'libmprssl' ],
+            depends: [ 'libmpr', 'libpcre' ],
             scripts: {
                 prebuild: "
                     if (bit.settings.hasPam) {

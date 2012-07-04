@@ -184,7 +184,7 @@ int httpStartEndpoint(HttpEndpoint *endpoint)
     } else {
         mprSetSocketBlockingMode(endpoint->sock, 1);
     }
-    proto = mprIsSocketSecure(endpoint->sock) ? "HTTPS" : "HTTP ";
+    proto = endpoint->ssl ? "HTTPS" : "HTTP ";
     ip = *endpoint->ip ? endpoint->ip : "*";
     if (mprIsSocketV6(endpoint->sock)) {
         mprLog(2, "Started %s service on \"[%s]:%d\"", proto, ip, endpoint->port);
@@ -342,6 +342,9 @@ HttpConn *httpAcceptConn(HttpEndpoint *endpoint, MprEvent *event)
         }
         return 0;
     }
+    if (endpoint->ssl) {
+        mprUpgradeSocket(sock, endpoint->ssl, 1);
+    }
     if (endpoint->waitHandler) {
         /* Re-enable events on the listen socket */
         mprWaitOn(endpoint->waitHandler, MPR_READABLE);
@@ -362,7 +365,7 @@ HttpConn *httpAcceptConn(HttpEndpoint *endpoint, MprEvent *event)
     conn->sock = sock;
     conn->port = sock->port;
     conn->ip = sclone(sock->ip);
-    conn->secure = mprIsSocketSecure(sock);
+    conn->secure = (endpoint->ssl != 0);
 
     if (!httpValidateLimits(endpoint, HTTP_VALIDATE_OPEN_CONN, conn)) {
         conn->endpoint = 0;

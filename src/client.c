@@ -24,20 +24,24 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
     uri = httpCreateUri(url, HTTP_COMPLETE_URI);
     conn->tx->parsedUri = uri;
 
+#if UNUSED
     if (uri->secure) {
 #if BIT_FEATURE_SSL
-        if (!http->sslLoaded) {
-            if (!mprLoadSsl(0)) {
+        if (!MPR->socketService->secureProvider) {
+            if (mprLoadSsl() < 0) {
                 mprError("Can't load SSL provider");
                 return 0;
             }
+#if UNUSED
             http->sslLoaded = 1;
+#endif
         }
 #else
         httpError(conn, HTTP_CODE_COMMS_ERROR, "SSL communications support not included in build");
         return 0;
 #endif
     }
+#endif
     if (*url == '/') {
         ip = (http->proxyHost) ? http->proxyHost : http->defaultClientHost;
         port = (http->proxyHost) ? http->proxyPort : http->defaultClientPort;
@@ -58,11 +62,11 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
     if (conn->sock) {
         return conn;
     }
-    if ((sp = mprCreateSocket((uri->secure) ? MPR_SECURE_CLIENT: NULL)) == 0) {
+    if ((sp = mprCreateSocket()) == 0) {
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't create socket for %s", url);
         return 0;
     }
-#if BIT_FEATURE_SSL
+#if UNUSED && BIT_FEATURE_SSL
     if (uri->secure && ssl) {
         mprSetSocketSslConfig(sp, ssl);
     }
@@ -71,6 +75,11 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
         httpError(conn, HTTP_CODE_COMMS_ERROR, "Can't open socket on %s:%d", ip, port);
         return 0;
     }
+#if BIT_FEATURE_SSL
+    if (uri->secure) {
+        mprUpgradeSocket(sp, ssl, 0);
+    }
+#endif
     conn->sock = sp;
     conn->ip = sclone(ip);
     conn->port = port;

@@ -40,13 +40,6 @@
       <arglist>(MprPath *sbuf)</arglist>
     </member>
     <member kind="function">
-      <type>int</type>
-      <name>httpLoadSsl</name>
-      <anchorfile>group___http.html</anchorfile>
-      <anchor>ga32b6dc607dee33e788e2c921314c72df</anchor>
-      <arglist>(Http *http)</arglist>
-    </member>
-    <member kind="function">
       <type>struct HttpHost *</type>
       <name>httpLookupHost</name>
       <anchorfile>group___http.html</anchorfile>

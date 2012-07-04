@@ -1359,9 +1359,6 @@ void mprCreateOutsideEvent(MprDispatcher *dispatcher, void *proc, void *data)
 static void marker(void *unused, MprThread *tp)
 {
     LOG(5, "DEBUG: marker thread started");
-#if UNUSED
-    heap->marker = 1;
-#endif
     tp->stickyYield = 1;
     tp->yielded = 1;
 
@@ -1375,9 +1372,6 @@ static void marker(void *unused, MprThread *tp)
         MPR_MEASURE(7, "GC", "mark", mark());
     }
     heap->mustYield = 0;
-#if UNUSED
-    heap->marker = 0;
-#endif
 }
 
 
@@ -23598,10 +23592,8 @@ static void standardSignalHandler(void *ignored, MprSignal *sp)
 
 /******************************* Forward Declarations *************************/
 
-static MprSocket *acceptSocket(MprSocket *listen);
 static void closeSocket(MprSocket *sp, bool gracefully);
 static int connectSocket(MprSocket *sp, cchar *ipAddr, int port, int initialFlags);
-static MprSocket *createSocket(MprSsl *ssl);
 static MprSocketProvider *createStandardProvider(MprSocketService *ss);
 static void disconnectSocket(MprSocket *sp);
 static ssize flushSocket(MprSocket *sp);
@@ -23611,6 +23603,7 @@ static int listenSocket(MprSocket *sp, cchar *ip, int port, int initialFlags);
 static void manageSocket(MprSocket *sp, int flags);
 static void manageSocketProvider(MprSocketProvider *provider, int flags);
 static void manageSocketService(MprSocketService *ss, int flags);
+static void manageSsl(MprSsl *ssl, int flags);
 static ssize readSocket(MprSocket *sp, void *buf, ssize bufsize);
 static ssize writeSocket(MprSocket *sp, cvoid *buf, ssize bufsize);
 
@@ -23656,9 +23649,7 @@ MprSocketService *mprCreateSocketService()
     mprSetServerName(serverName);
     mprSetDomainName(domainName);
     mprSetHostName(hostName);
-#if BIT_FEATURE_SSL
     ss->secureSockets = mprCreateList(0, 0);
-#endif
     return ss;
 }
 
@@ -23669,9 +23660,7 @@ static void manageSocketService(MprSocketService *ss, int flags)
         mprMark(ss->standardProvider);
         mprMark(ss->secureProvider);
         mprMark(ss->mutex);
-#if BIT_FEATURE_SSL
         mprMark(ss->secureSockets);
-#endif
     }
 }
 
@@ -23684,10 +23673,7 @@ static MprSocketProvider *createStandardProvider(MprSocketService *ss)
         return 0;
     }
     provider->name = sclone("standard");
-    provider->acceptSocket = acceptSocket;
     provider->closeSocket = closeSocket;
-    provider->connectSocket = connectSocket;
-    provider->createSocket = createSocket;
     provider->disconnectSocket = disconnectSocket;
     provider->flushSocket = flushSocket;
     provider->listenSocket = listenSocket;
@@ -23728,13 +23714,12 @@ int mprSetMaxSocketAccept(int max)
 }
 
 
-/*  
-    Create a new socket
- */
-static MprSocket *createSocket(struct MprSsl *ssl)
+MprSocket *mprCreateSocket()
 {
-    MprSocket       *sp;
+    MprSocketService    *ss;
+    MprSocket           *sp;
 
+    ss = MPR->socketService;
     if ((sp = mprAllocObj(MprSocket, manageSocket)) == 0) {
         return 0;
     }
@@ -23742,8 +23727,8 @@ static MprSocket *createSocket(struct MprSsl *ssl)
     sp->fd = -1;
     sp->flags = 0;
 
-    sp->provider = MPR->socketService->standardProvider;
-    sp->service = MPR->socketService;
+    sp->provider = ss->standardProvider;
+    sp->service = ss;
     sp->mutex = mprCreateLock();
     return sp;
 }
@@ -23769,32 +23754,6 @@ static void manageSocket(MprSocket *sp, int flags)
             mprCloseSocket(sp, 1);
         }
     }
-}
-
-
-MprSocket *mprCreateSocket(struct MprSsl *ssl)
-{
-    MprSocketService    *ss;
-    MprSocket           *sp;
-
-    ss = MPR->socketService;
-
-    if (ssl) {
-#if !BIT_FEATURE_SSL
-        return 0;
-#endif
-        if (ss->secureProvider == NULL || ss->secureProvider->createSocket == NULL) {
-            mprError("Missing socket service provider");
-            return 0;
-        }
-        sp = ss->secureProvider->createSocket(ssl);
-
-    } else {
-        mprAssert(ss->standardProvider->createSocket);
-        sp = ss->standardProvider->createSocket(NULL);
-    }
-    sp->service = ss;
-    return sp;
 }
 
 
@@ -23968,7 +23927,7 @@ int mprConnectSocket(MprSocket *sp, cchar *ip, int port, int flags)
     if (sp->provider == 0) {
         return MPR_ERR_NOT_INITIALIZED;
     }
-    return sp->provider->connectSocket(sp, ip, port, flags);
+    return connectSocket(sp, ip, port, flags);
 }
 
 
@@ -23978,11 +23937,10 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
     MprSocklen          addrlen;
     int                 broadcast, datagram, family, protocol, rc;
 
-    lock(sp);
-
-    resetSocket(sp);
-
     mprLog(6, "openClient: %s:%d, flags %x", ip, port, initialFlags);
+
+    lock(sp);
+    resetSocket(sp);
 
     sp->port = port;
     sp->flags = (initialFlags &
@@ -24003,20 +23961,16 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
         unlock(sp);
         return MPR_ERR_CANT_ACCESS;
     }
-    sp->fd = (int) socket(family, datagram ? SOCK_DGRAM: SOCK_STREAM, protocol);
-    if (sp->fd < 0) {
+    if ((sp->fd = socket(family, datagram ? SOCK_DGRAM: SOCK_STREAM, protocol)) < 0) {
         unlock(sp);
         return MPR_ERR_CANT_OPEN;
     }
-
 #if !BIT_WIN_LIKE && !VXWORKS
-
     /*  
         Children should not inherit this fd
      */
     fcntl(sp->fd, F_SETFD, FD_CLOEXEC);
 #endif
-
     if (broadcast) {
         int flag = 1;
         if (setsockopt(sp->fd, SOL_SOCKET, SO_BROADCAST, (char *) &flag, sizeof(flag)) < 0) {
@@ -24026,7 +23980,6 @@ static int connectSocket(MprSocket *sp, cchar *ip, int port, int initialFlags)
             return MPR_ERR_CANT_INITIALIZE;
         }
     }
-
     if (!datagram) {
         sp->flags |= MPR_SOCKET_CONNECTING;
         do {
@@ -24184,15 +24137,6 @@ static void closeSocket(MprSocket *sp, bool gracefully)
 
 MprSocket *mprAcceptSocket(MprSocket *listen)
 {
-    if (listen->provider) {
-        return listen->provider->acceptSocket(listen);
-    }
-    return 0;
-}
-
-
-static MprSocket *acceptSocket(MprSocket *listen)
-{
     MprSocketService            *ss;
     MprSocket                   *nsp;
     struct sockaddr_storage     addrStorage, saddrStorage;
@@ -24218,7 +24162,7 @@ static MprSocket *acceptSocket(MprSocket *listen)
         }
         return 0;
     }
-    if ((nsp = mprCreateSocket(listen->ssl)) == 0) {
+    if ((nsp = mprCreateSocket()) == 0) {
         closesocket(fd);
         return 0;
     }
@@ -24250,7 +24194,6 @@ static MprSocket *acceptSocket(MprSocket *listen)
     if (nsp->flags & MPR_SOCKET_NODELAY) {
         mprSetSocketNoDelay(nsp, 1);
     }
-
     /*
         Get the remote client address
      */
@@ -25133,6 +25076,146 @@ bool mprIsIPv6(cchar *ip)
 void mprSetSocketPrebindCallback(MprSocketPrebind callback)
 {
     MPR->socketService->prebind = callback;
+}
+
+
+static void manageSsl(MprSsl *ssl, int flags) 
+{
+    if (flags & MPR_MANAGE_MARK) {
+        mprMark(ssl->key);
+        mprMark(ssl->cert);
+        mprMark(ssl->keyFile);
+        mprMark(ssl->certFile);
+        mprMark(ssl->caFile);
+        mprMark(ssl->caPath);
+        mprMark(ssl->ciphers);
+        mprMark(ssl->pconfig);
+    }
+}
+
+
+/*
+    Create a new SSL context object
+ */
+MprSsl *mprCreateSsl()
+{
+    MprSsl      *ssl;
+
+    if ((ssl = mprAllocObj(MprSsl, manageSsl)) == 0) {
+        return 0;
+    }
+    ssl->ciphers = sclone(MPR_DEFAULT_CIPHER_SUITE);
+    ssl->protocols = MPR_PROTO_TLSV1 | MPR_PROTO_TLSV11;
+    ssl->verifyDepth = 6;
+    ssl->verifyClient = 0;
+    ssl->verifyServer = 1;
+    return ssl;
+}
+
+
+int mprLoadSsl()
+{
+#if BIT_FEATURE_SSL
+    MprSocketService    *ss;
+    MprModule           *mp;
+    cchar               *path;
+
+    ss = MPR->socketService;
+    if (ss->secureProvider) {
+        return 0;
+    }
+    path = mprJoinPath(mprGetAppDir(), "libmprssl");
+    if ((mp = mprCreateModule("sslModule", path, "mprSslInit", NULL)) == 0) {
+        return MPR_ERR_CANT_CREATE;
+    }
+    if (mprLoadModule(mp) < 0) {
+        mprError("Can't load %s", path);
+        return MPR_ERR_CANT_READ;
+    }
+    return 0;
+#else
+    mprError("SSL communications support not included in build");
+    return MPR_ERR_BAD_STATE;
+#endif
+}
+
+
+/*
+    Upgrade a socket to use SSL
+ */
+int mprUpgradeSocket(MprSocket *sp, MprSsl *ssl, int server)
+{
+    MprSocketService    *ss;
+
+    ss  = sp->service;
+    if (!ss->secureProvider) {
+        if (mprLoadSsl() < 0) {
+            return MPR_ERR_CANT_READ;
+        }
+    }
+    if (!ss->secureProvider) {
+        mprError("Can't upgrade socket - missing SSL provider");
+        return MPR_ERR_BAD_STATE;
+    }
+    return ss->secureProvider->upgradeSocket(sp, ssl, server);
+}
+
+
+void mprSetSslCiphers(MprSsl *ssl, cchar *ciphers)
+{
+    mprAssert(ssl);
+    
+    ssl->ciphers = sclone(ciphers);
+}
+
+
+void mprSetSslKeyFile(MprSsl *ssl, cchar *keyFile)
+{
+    mprAssert(ssl);
+    
+    ssl->keyFile = sclone(keyFile);
+}
+
+
+void mprSetSslCertFile(MprSsl *ssl, cchar *certFile)
+{
+    mprAssert(ssl);
+    
+    ssl->certFile = sclone(certFile);
+}
+
+
+void mprSetSslCaFile(MprSsl *ssl, cchar *caFile)
+{
+    mprAssert(ssl);
+    
+    ssl->caFile = sclone(caFile);
+}
+
+
+void mprSetSslCaPath(MprSsl *ssl, cchar *caPath)
+{
+    mprAssert(ssl);
+    
+    ssl->caPath = sclone(caPath);
+}
+
+
+void mprSetSslProtocols(MprSsl *ssl, int protocols)
+{
+    ssl->protocols = protocols;
+}
+
+
+void mprVerifySslClients(MprSsl *ssl, bool on)
+{
+    ssl->verifyClient = on;
+}
+
+
+void mprVerifySslServers(MprSsl *ssl, bool on)
+{
+    ssl->verifyServer = on;
 }
 
 
@@ -27268,11 +27351,6 @@ MprThreadService *mprCreateThreadService()
     if ((ts = mprAllocObj(MprThreadService, manageThreadService)) == 0) {
         return 0;
     }
-#if UNUSED
-    if ((ts->mutex = mprCreateLock()) == 0) {
-        return 0;
-    }
-#endif
     if ((ts->cond = mprCreateCond()) == 0) {
         return 0;
     }
@@ -27304,9 +27382,6 @@ static void manageThreadService(MprThreadService *ts, int flags)
     if (flags & MPR_MANAGE_MARK) {
         mprMark(ts->threads);
         mprMark(ts->mainThread);
-#if UNUSED
-        mprMark(ts->mutex);
-#endif
         mprMark(ts->cond);
 
     } else if (flags & MPR_MANAGE_FREE) {
@@ -27420,9 +27495,7 @@ static void manageThread(MprThread *tp, int flags)
         mprMark(tp->name);
         mprMark(tp->data);
         mprMark(tp->cond);
-#if UNUSED
         mprMark(tp->mutex);
-#endif
 
     } else if (flags & MPR_MANAGE_FREE) {
         if (ts->threads) {
