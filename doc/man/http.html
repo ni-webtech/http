@@ -12,10 +12,10 @@ HTTP(1)                          User Commands                         HTTP(1)
        [<I>--header  'key:  value'</I>]  [<I>--host hostName</I>] [<I>--insecure</I>] [<I>--iterations</I>
        <I>count</I>] [<I>--key file</I>] [<I>--log logSpec</I>] [<I>--method HTTP_METHOD</I>] [<I>--nofollow</I>]
        [<I>--noout</I>] [<I>--out file</I>] [<I>--password pass</I>] [<I>--post</I>] [<I>--printable</I>] [<I>--pro-</I>
-       <I>tocol  version</I>]  [<I>--put</I>]   [<I>--range   byteRanges</I>]   [<I>--retries   count</I>]
-       [<I>--sequence</I>]   [<I>--showHeaders</I>]   [<I>--showStatus</I>]  [<I>--single</I>]  [<I>--threads</I>
-       <I>count</I>]  [<I>--timeout  seconds</I>]  [<I>--upload</I>]  [<I>--user   name</I>]   [<I>--verbose</I>]
-       [<I>--workers count</I>] [<I>--zero</I>]
+       <I>tocol  version</I>]  [<I>--provider   name</I>]   [<I>--put</I>]   [<I>--range   byteRanges</I>]
+       [<I>--retries  count</I>]  [<I>--sequence</I>] [<I>--showHeaders</I>] [<I>--showStatus</I>] [<I>--sin-</I>
+       <I>gle</I>] [<I>--threads count</I>] [<I>--timeout  seconds</I>]  [<I>--upload</I>]  [<I>--user  name</I>]
+       [<I>--verbose</I>] [<I>--workers count</I>] [<I>--zero</I>]
 
 <B>DESCRIPTION</B>
        The  http  command  issues  HTTP  commands to retrieve files from a web
@@ -113,6 +113,9 @@ HTTP(1)                          User Commands                         HTTP(1)
        <B>--protocol HTTP_VERSION</B>
               Use the specified HTTP protocol. httpVersion  should  be  either
               '0' for HTTP/1.0 or 1 for HTTP/1.1.
+
+       <B>--provider openssl|matrixssl</B>
+              Select the SSL stack provider.
 
        <B>--put  </B>Issue a PUT request. This is an alias for --method PUT.
 

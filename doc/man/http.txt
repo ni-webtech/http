@@ -13,10 +13,10 @@ SYNOPSIS
        [--header  'key:  value']  [--host hostName] [--insecure] [--iterations
        count] [--key file] [--log logSpec] [--method HTTP_METHOD] [--nofollow]
        [--noout] [--out file] [--password pass] [--post] [--printable] [--pro-
-       tocol  version]  [--put]   [--range   byteRanges]   [--retries   count]
-       [--sequence]   [--showHeaders]   [--showStatus]  [--single]  [--threads
-       count]  [--timeout  seconds]  [--upload]  [--user   name]   [--verbose]
-       [--workers count] [--zero]
+       tocol  version]  [--provider   name]   [--put]   [--range   byteRanges]
+       [--retries  count]  [--sequence] [--showHeaders] [--showStatus] [--sin-
+       gle] [--threads count] [--timeout  seconds]  [--upload]  [--user  name]
+       [--verbose] [--workers count] [--zero]
 
 DESCRIPTION
        The  http  command  issues  HTTP  commands to retrieve files from a web
@@ -114,6 +114,9 @@ OPTIONS
        --protocol HTTP_VERSION
               Use the specified HTTP protocol. httpVersion  should  be  either
               '0' for HTTP/1.0 or 1 for HTTP/1.1.
+
+       --provider openssl|matrixssl
+              Select the SSL stack provider.
 
        --put  Issue a PUT request. This is an alias for --method PUT.
 
