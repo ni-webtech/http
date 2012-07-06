@@ -204,18 +204,18 @@
 
 /* Begin PBXFileReference section */
 		741E1913741E474500000011 /* mprLib.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mprLib.c; path = src/deps/mpr/mprLib.c; sourceTree = "<group>"; };
-		741E1913741E474500000073 /* bit.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = bit.h; path = macosx-x64-xcode/inc/bit.h; sourceTree = "<group>"; };
-		741E1913741E474500000074 /* mpr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mpr.h; path = macosx-x64-xcode/inc/mpr.h; sourceTree = "<group>"; };
+		741E1913741E474500000073 /* bit.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = bit.h; path = macosx-x64-debug/inc/bit.h; sourceTree = "<group>"; };
+		741E1913741E474500000074 /* mpr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mpr.h; path = macosx-x64-debug/inc/mpr.h; sourceTree = "<group>"; };
 		741E1913741E474500000053 /* libmpr */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libmpr.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		741E1913741E474500000013 /* mprSsl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mprSsl.c; path = src/deps/mpr/mprSsl.c; sourceTree = "<group>"; };
 		741E1913741E474500000075 /* libmprssl */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libmprssl.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		741E1913741E474500000015 /* makerom.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = makerom.c; path = src/deps/mpr/makerom.c; sourceTree = "<group>"; };
 		741E1913741E474500000076 /* makerom */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = makerom; sourceTree = BUILT_PRODUCTS_DIR; };
 		741E1913741E474500000017 /* pcre.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pcre.c; path = src/deps/pcre/pcre.c; sourceTree = "<group>"; };
-		741E1913741E474500000077 /* pcre.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = pcre.h; path = macosx-x64-xcode/inc/pcre.h; sourceTree = "<group>"; };
+		741E1913741E474500000077 /* pcre.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = pcre.h; path = macosx-x64-debug/inc/pcre.h; sourceTree = "<group>"; };
 		741E1913741E474500000057 /* libpcre */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libpcre.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		741E1913741E474500000019 /* auth.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = auth.c; path = src/auth.c; sourceTree = "<group>"; };
-		741E1913741E474500000078 /* http.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = http.h; path = macosx-x64-xcode/inc/http.h; sourceTree = "<group>"; };
+		741E1913741E474500000078 /* http.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = http.h; path = macosx-x64-debug/inc/http.h; sourceTree = "<group>"; };
 		741E1913741E47450000001B /* authCheck.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authCheck.c; path = src/authCheck.c; sourceTree = "<group>"; };
 		741E1913741E47450000001D /* authFile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authFile.c; path = src/authFile.c; sourceTree = "<group>"; };
 		741E1913741E47450000001F /* authPam.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = authPam.c; path = src/authPam.c; sourceTree = "<group>"; };
@@ -782,11 +782,11 @@ fi";
 				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				SDKROOT = macosx;
 
-                CFG_DIR = "../macosx-x64-xcode";
-                BIN_DIR = "../macosx-x64-xcode/bin";
-                LIB_DIR = "../macosx-x64-xcode/bin";
-                INC_DIR = "../macosx-x64-xcode/inc";
-                OBJ_DIR = "../macosx-x64-xcode/obj";
+                CFG_DIR = "../macosx-x64-debug";
+                BIN_DIR = "../macosx-x64-debug/bin";
+                LIB_DIR = "../macosx-x64-debug/bin";
+                INC_DIR = "../macosx-x64-debug/inc";
+                OBJ_DIR = "../macosx-x64-debug/obj";
                 SRC_DIR = "..";
 
                 CONFIGURATION_TEMP_DIR = "$(OBJ_DIR)/tmp/$(CONFIGURATION)";
@@ -811,16 +811,17 @@ fi";
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
-					"../macosx-x64-xcode/inc",
+					"../macosx-x64-debug/inc",
 					"../src",
 					"$(inherited)"
 				);
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"BIT_DEBUG",
+					"BIT_DEBUG",
 					"$(inherited)"
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"../macosx-x64-xcode/bin",
+					"../macosx-x64-debug/bin",
 					"$(inherited)"
 				);
 				OTHER_LDFLAGS = (
@@ -852,11 +853,11 @@ fi";
 				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				SDKROOT = macosx;
 
-                CFG_DIR = "../macosx-x64-xcode";
-                BIN_DIR = "../macosx-x64-xcode/bin";
-                LIB_DIR = "../macosx-x64-xcode/bin";
-                INC_DIR = "../macosx-x64-xcode/inc";
-                OBJ_DIR = "../macosx-x64-xcode/obj";
+                CFG_DIR = "../macosx-x64-debug";
+                BIN_DIR = "../macosx-x64-debug/bin";
+                LIB_DIR = "../macosx-x64-debug/bin";
+                INC_DIR = "../macosx-x64-debug/inc";
+                OBJ_DIR = "../macosx-x64-debug/obj";
                 SRC_DIR = "..";
 
                 CONFIGURATION_TEMP_DIR = "$(OBJ_DIR)/tmp/$(CONFIGURATION)";
@@ -882,13 +883,16 @@ fi";
 				GCC_OPTIMIZATION_LEVEL = s;
                 GCC_WARN_UNINITIALIZED_AUTOS = NO;
 				HEADER_SEARCH_PATHS = (
-					"../macosx-x64-xcode/inc",
+					"../macosx-x64-debug/inc",
 					"../src",
 					"$(inherited)"
 				);
-
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"BIT_DEBUG",
+					"$(inherited)"
+				);
 				LIBRARY_SEARCH_PATHS = (
-					"../macosx-x64-xcode/bin",
+					"../macosx-x64-debug/bin",
 					"$(inherited)"
 				);
 				OTHER_LDFLAGS = (
@@ -929,10 +933,30 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = libmprssl;
 
+				HEADER_SEARCH_PATHS = (
+					"../../packages-macosx-x64/openssl/openssl-1.0.1b/include",
+					"../../packages-macosx-x64/matrixssl/matrixssl-3-3-open/matrixssl",
+					"../../packages-macosx-x64/matrixssl/matrixssl-3-3-open",
+					"$(inherited)"
+				);
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					"POSIX",
+					"MATRIX_USE_FILE_SYSTEM",
 					"BIT_DEBUG",
 					"$(inherited)"
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"../../packages-macosx-x64/openssl/openssl-1.0.1b",
+					"../../packages-macosx-x64/matrixssl/matrixssl-3-3-open",
+					"$(inherited)"
+				);
+				OTHER_LDFLAGS = (
+					"-lssl",
+					"-lcrypto",
+					"-lmatrixssl",
+					"$(inherited)"
+				);
+
 			};
 			name = Debug;
 		};
@@ -941,6 +965,28 @@ fi";
 			buildSettings = {
 				PRODUCT_NAME = libmprssl;
 
+				HEADER_SEARCH_PATHS = (
+					"../../packages-macosx-x64/openssl/openssl-1.0.1b/include",
+					"../../packages-macosx-x64/matrixssl/matrixssl-3-3-open/matrixssl",
+					"../../packages-macosx-x64/matrixssl/matrixssl-3-3-open",
+					"$(inherited)"
+				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"POSIX",
+					"MATRIX_USE_FILE_SYSTEM",
+					"$(inherited)"
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"../../packages-macosx-x64/openssl/openssl-1.0.1b",
+					"../../packages-macosx-x64/matrixssl/matrixssl-3-3-open",
+					"$(inherited)"
+				);
+				OTHER_LDFLAGS = (
+					"-lssl",
+					"-lcrypto",
+					"-lmatrixssl",
+					"$(inherited)"
+				);
 
 			};
 			name = Release;
@@ -1002,6 +1048,8 @@ fi";
 				);
 				OTHER_LDFLAGS = (
 					"-lpam",
+					"-lpam",
+					"-lpam",
 					"$(inherited)"
 				);
 
@@ -1014,6 +1062,8 @@ fi";
 				PRODUCT_NAME = libhttp;
 
 				OTHER_LDFLAGS = (
+					"-lpam",
+					"-lpam",
 					"-lpam",
 					"$(inherited)"
 				);

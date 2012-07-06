@@ -637,25 +637,6 @@ cchar *httpGetDefaultClientHost(Http *http)
 }
 
 
-#if UNUSED
-int httpLoadSsl(Http *http)
-{
-#if BIT_FEATURE_SSL
-    if (!http->sslLoaded) {
-        if (!mprLoadSsl(0)) {
-            mprError("Can't load SSL provider");
-            return MPR_ERR_CANT_LOAD;
-        }
-        http->sslLoaded = 1;
-    }
-#else
-    mprError("SSL communications support not included in build");
-#endif
-    return 0;
-}
-#endif
-
-
 void httpSetDefaultClientPort(Http *http, int port)
 {
     http->defaultClientPort = port;
