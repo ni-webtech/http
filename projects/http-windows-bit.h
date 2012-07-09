@@ -16,17 +16,17 @@
 #define BIT_MINOR_VERSION 0
 #define BIT_PATCH_VERSION 1
 #define BIT_VNUM 100000001
-#define BIT_CONFIG_CMD "bit -d -q -platform windows-x86 -without all -configure . -gen sh,nmake,vs"
+#define BIT_CONFIG_CMD "bit -d -without all -configure ."
 #define BIT_PROFILE "debug"
-#define BIT_CFG_PREFIX "C:/Program Files (x86)/Http Library"
-#define BIT_BIN_PREFIX "C:/Program Files (x86)/Http Library/bin"
-#define BIT_INC_PREFIX "C:/Program Files (x86)/Http Library/inc"
-#define BIT_LOG_PREFIX "C:/Program Files (x86)/Http Library/logs"
-#define BIT_PRD_PREFIX "C:/Program Files (x86)/Http Library"
-#define BIT_SPL_PREFIX "C:/Program Files (x86)/Http Library/tmp"
-#define BIT_SRC_PREFIX "C:/Program Files (x86)/Http Library/src"
-#define BIT_VER_PREFIX "C:/Program Files (x86)/Http Library"
-#define BIT_WEB_PREFIX "C:/Program Files (x86)/Http Library/web"
+#define BIT_CFG_PREFIX "C:/Program Files/Http Library"
+#define BIT_BIN_PREFIX "C:/Program Files/Http Library/bin"
+#define BIT_INC_PREFIX "C:/Program Files/Http Library/inc"
+#define BIT_LOG_PREFIX "C:/Program Files/Http Library/logs"
+#define BIT_PRD_PREFIX "C:/Program Files/Http Library"
+#define BIT_SPL_PREFIX "C:/Program Files/Http Library/tmp"
+#define BIT_SRC_PREFIX "C:/Program Files/Http Library/src"
+#define BIT_VER_PREFIX "C:/Program Files/Http Library"
+#define BIT_WEB_PREFIX "C:/Program Files/Http Library/web"
 #define BIT_EXE ".exe"
 #define BIT_SHLIB ".lib"
 #define BIT_SHOBJ ".dll"
@@ -54,7 +54,7 @@
 #define BIT_FEATURE_WINSDK 1
 #define BIT_FEATURE_CC 1
 #define BIT_FEATURE_LINK 1
-#define BIT_FEATURE_DUMPBIN 0
+#define BIT_FEATURE_DUMPBIN 1
 #define BIT_FEATURE_RC 1
 #define BIT_FEATURE_PCRE 1
 #define BIT_FEATURE_EJS 1

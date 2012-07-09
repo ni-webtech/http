@@ -93,7 +93,8 @@ $(CONFIG)\inc\mpr.h:
 
 $(CONFIG)\obj\mprLib.obj: \
         src\deps\mpr\mprLib.c \
-        $(CONFIG)\inc\bit.h
+        $(CONFIG)\inc\bit.h \
+        $(CONFIG)\inc\mpr.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\mprLib.obj -Fd$(CONFIG)\obj\mprLib.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\deps\mpr\mprLib.c
 
 $(CONFIG)\bin\libmpr.dll:  \
@@ -103,7 +104,8 @@ $(CONFIG)\bin\libmpr.dll:  \
 
 $(CONFIG)\obj\mprSsl.obj: \
         src\deps\mpr\mprSsl.c \
-        $(CONFIG)\inc\bit.h
+        $(CONFIG)\inc\bit.h \
+        $(CONFIG)\inc\mpr.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\mprSsl.obj -Fd$(CONFIG)\obj\mprSsl.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\deps\mpr\mprSsl.c
 
 $(CONFIG)\bin\libmprssl.dll:  \
@@ -113,7 +115,8 @@ $(CONFIG)\bin\libmprssl.dll:  \
 
 $(CONFIG)\obj\makerom.obj: \
         src\deps\mpr\makerom.c \
-        $(CONFIG)\inc\bit.h
+        $(CONFIG)\inc\bit.h \
+        $(CONFIG)\inc\mpr.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\makerom.obj -Fd$(CONFIG)\obj\makerom.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\deps\mpr\makerom.c
 
 $(CONFIG)\bin\makerom.exe:  \
@@ -127,7 +130,8 @@ $(CONFIG)\inc\pcre.h:
 
 $(CONFIG)\obj\pcre.obj: \
         src\deps\pcre\pcre.c \
-        $(CONFIG)\inc\bit.h
+        $(CONFIG)\inc\bit.h \
+        $(CONFIG)\inc\pcre.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\pcre.obj -Fd$(CONFIG)\obj\pcre.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\deps\pcre\pcre.c
 
 $(CONFIG)\bin\libpcre.dll:  \
@@ -142,169 +146,170 @@ $(CONFIG)\inc\http.h:
 $(CONFIG)\obj\auth.obj: \
         src\auth.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\auth.obj -Fd$(CONFIG)\obj\auth.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\auth.c
 
 $(CONFIG)\obj\authCheck.obj: \
         src\authCheck.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\authCheck.obj -Fd$(CONFIG)\obj\authCheck.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\authCheck.c
 
 $(CONFIG)\obj\authFile.obj: \
         src\authFile.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\authFile.obj -Fd$(CONFIG)\obj\authFile.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\authFile.c
 
 $(CONFIG)\obj\authPam.obj: \
         src\authPam.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\authPam.obj -Fd$(CONFIG)\obj\authPam.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\authPam.c
 
 $(CONFIG)\obj\cache.obj: \
         src\cache.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\cache.obj -Fd$(CONFIG)\obj\cache.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\cache.c
 
 $(CONFIG)\obj\chunkFilter.obj: \
         src\chunkFilter.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\chunkFilter.obj -Fd$(CONFIG)\obj\chunkFilter.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\chunkFilter.c
 
 $(CONFIG)\obj\client.obj: \
         src\client.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\client.obj -Fd$(CONFIG)\obj\client.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\client.c
 
 $(CONFIG)\obj\conn.obj: \
         src\conn.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\conn.obj -Fd$(CONFIG)\obj\conn.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\conn.c
 
 $(CONFIG)\obj\endpoint.obj: \
         src\endpoint.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\endpoint.obj -Fd$(CONFIG)\obj\endpoint.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\endpoint.c
 
 $(CONFIG)\obj\error.obj: \
         src\error.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\error.obj -Fd$(CONFIG)\obj\error.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\error.c
 
 $(CONFIG)\obj\host.obj: \
         src\host.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\host.obj -Fd$(CONFIG)\obj\host.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\host.c
 
 $(CONFIG)\obj\httpService.obj: \
         src\httpService.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\httpService.obj -Fd$(CONFIG)\obj\httpService.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\httpService.c
 
 $(CONFIG)\obj\log.obj: \
         src\log.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\log.obj -Fd$(CONFIG)\obj\log.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\log.c
 
 $(CONFIG)\obj\netConnector.obj: \
         src\netConnector.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\netConnector.obj -Fd$(CONFIG)\obj\netConnector.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\netConnector.c
 
 $(CONFIG)\obj\packet.obj: \
         src\packet.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\packet.obj -Fd$(CONFIG)\obj\packet.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\packet.c
 
 $(CONFIG)\obj\passHandler.obj: \
         src\passHandler.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\passHandler.obj -Fd$(CONFIG)\obj\passHandler.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\passHandler.c
 
 $(CONFIG)\obj\pipeline.obj: \
         src\pipeline.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\pipeline.obj -Fd$(CONFIG)\obj\pipeline.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\pipeline.c
 
 $(CONFIG)\obj\queue.obj: \
         src\queue.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\queue.obj -Fd$(CONFIG)\obj\queue.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\queue.c
 
 $(CONFIG)\obj\rangeFilter.obj: \
         src\rangeFilter.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\rangeFilter.obj -Fd$(CONFIG)\obj\rangeFilter.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\rangeFilter.c
 
 $(CONFIG)\obj\route.obj: \
         src\route.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h \
+        $(CONFIG)\inc\pcre.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\route.obj -Fd$(CONFIG)\obj\route.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\route.c
 
 $(CONFIG)\obj\rx.obj: \
         src\rx.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\rx.obj -Fd$(CONFIG)\obj\rx.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\rx.c
 
 $(CONFIG)\obj\sendConnector.obj: \
         src\sendConnector.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\sendConnector.obj -Fd$(CONFIG)\obj\sendConnector.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\sendConnector.c
 
 $(CONFIG)\obj\stage.obj: \
         src\stage.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\stage.obj -Fd$(CONFIG)\obj\stage.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\stage.c
 
 $(CONFIG)\obj\trace.obj: \
         src\trace.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\trace.obj -Fd$(CONFIG)\obj\trace.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\trace.c
 
 $(CONFIG)\obj\tx.obj: \
         src\tx.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\tx.obj -Fd$(CONFIG)\obj\tx.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\tx.c
 
 $(CONFIG)\obj\uploadFilter.obj: \
         src\uploadFilter.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\uploadFilter.obj -Fd$(CONFIG)\obj\uploadFilter.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\uploadFilter.c
 
 $(CONFIG)\obj\uri.obj: \
         src\uri.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\uri.obj -Fd$(CONFIG)\obj\uri.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\uri.c
 
 $(CONFIG)\obj\var.obj: \
         src\var.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\var.obj -Fd$(CONFIG)\obj\var.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\var.c
 
 $(CONFIG)\bin\libhttp.dll:  \
@@ -344,7 +349,7 @@ $(CONFIG)\bin\libhttp.dll:  \
 $(CONFIG)\obj\http.obj: \
         src\utils\http.c \
         $(CONFIG)\inc\bit.h \
-        src\http.h
+        $(CONFIG)\inc\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\http.obj -Fd$(CONFIG)\obj\http.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\utils\http.c
 
 $(CONFIG)\bin\http.exe:  \
