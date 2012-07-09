@@ -52,6 +52,6 @@ xcode
 /*-*-debug/
 /*-*-release/
 .*.guid
-start.bit
+/start.bit
 *.dmp
 *-xcode
