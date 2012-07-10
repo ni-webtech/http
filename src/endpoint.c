@@ -40,10 +40,6 @@ HttpEndpoint *httpCreateEndpoint(cchar *ip, int port, MprDispatcher *dispatcher)
 
 void httpDestroyEndpoint(HttpEndpoint *endpoint)
 {
-    if (endpoint->waitHandler) {
-        mprRemoveWaitHandler(endpoint->waitHandler);
-        endpoint->waitHandler = 0;
-    }
     destroyEndpointConnections(endpoint);
     if (endpoint->sock) {
         mprCloseSocket(endpoint->sock, 0);
@@ -59,7 +55,6 @@ static int manageEndpoint(HttpEndpoint *endpoint, int flags)
         mprMark(endpoint->http);
         mprMark(endpoint->hosts);
         mprMark(endpoint->limits);
-        mprMark(endpoint->waitHandler);
         mprMark(endpoint->clientLoad);
         mprMark(endpoint->ip);
         mprMark(endpoint->context);
@@ -177,10 +172,9 @@ int httpStartEndpoint(HttpEndpoint *endpoint)
     if (endpoint->http->listenCallback && (endpoint->http->listenCallback)(endpoint) < 0) {
         return MPR_ERR_CANT_OPEN;
     }
-    if (endpoint->async && endpoint->waitHandler ==  0) {
-        //  MOB this really should be in endpoint->listen->handler
-        endpoint->waitHandler = mprCreateWaitHandler(endpoint->sock->fd, MPR_SOCKET_READABLE, endpoint->dispatcher,
-            httpAcceptConn, endpoint, (endpoint->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
+    if (endpoint->async && !endpoint->sock->handler) {
+        mprAddSocketHandler(endpoint->sock, MPR_SOCKET_READABLE, endpoint->dispatcher, httpAcceptConn, endpoint, 
+            (endpoint->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
     } else {
         mprSetSocketBlockingMode(endpoint->sock, 1);
     }
@@ -203,12 +197,7 @@ void httpStopEndpoint(HttpEndpoint *endpoint)
     for (ITERATE_ITEMS(endpoint->hosts, host, next)) {
         httpStopHost(host);
     }
-    if (endpoint->waitHandler) {
-        mprRemoveWaitHandler(endpoint->waitHandler);
-        endpoint->waitHandler = 0;
-    }
     if (endpoint->sock) {
-        mprRemoveSocketHandler(endpoint->sock);
         mprCloseSocket(endpoint->sock, 0);
         endpoint->sock = 0;
     }
@@ -337,17 +326,17 @@ HttpConn *httpAcceptConn(HttpEndpoint *endpoint, MprEvent *event)
         This will block in sync mode until a connection arrives
      */
     if ((sock = mprAcceptSocket(endpoint->sock)) == 0) {
-        if (endpoint->waitHandler) {
-            mprWaitOn(endpoint->waitHandler, MPR_READABLE);
+        if (endpoint->sock->handler) {
+            mprEnableSocketEvents(endpoint->sock, MPR_READABLE);
         }
         return 0;
     }
     if (endpoint->ssl) {
         mprUpgradeSocket(sock, endpoint->ssl, 1);
     }
-    if (endpoint->waitHandler) {
+    if (endpoint->sock->handler) {
         /* Re-enable events on the listen socket */
-        mprWaitOn(endpoint->waitHandler, MPR_READABLE);
+        mprEnableSocketEvents(endpoint->sock, MPR_READABLE);
     }
     dispatcher = event->dispatcher;
 
