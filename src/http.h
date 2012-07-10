@@ -4959,9 +4959,6 @@ typedef struct HttpEndpoint {
     Http            *http;                  /**< Http service object */
     MprList         *hosts;                 /**< List of host objects */
     HttpLimits      *limits;                /**< Alias for first host, default route resource limits */
-#if UNUSED
-    MprWaitHandler  *waitHandler;           /**< I/O wait handler */
-#endif
     MprHash         *clientLoad;            /**< Table of active client IPs and connection counts */
     char            *ip;                    /**< Listen IP address. May be null if listening on all interfaces. */
     int             port;                   /**< Listen port */
