@@ -551,7 +551,7 @@ HttpHost *httpLookupHostOnEndpoint(HttpEndpoint *endpoint, cchar *name)
             if (host->name[1] == '\0') {
                 return host;
             }
-            if (scontains(name, &host->name[1], -1)) {
+            if (scontains(name, &host->name[1])) {
                 return host;
             }
         }

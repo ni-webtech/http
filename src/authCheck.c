@@ -64,11 +64,11 @@ int httpCheckAuth(HttpConn *conn)
         formatAuthResponse(conn, auth, HTTP_CODE_UNAUTHORIZED, "Access Denied, Missing authorization details.", 0);
         return HTTP_ROUTE_OK;
     }
-    if (scasecmp(rx->authType, "basic") == 0) {
+    if (scaselesscmp(rx->authType, "basic") == 0) {
         decodeBasicAuth(conn, ad);
         actualAuthType = HTTP_AUTH_BASIC;
 
-    } else if (scasecmp(rx->authType, "digest") == 0) {
+    } else if (scaselesscmp(rx->authType, "digest") == 0) {
         if (decodeDigestDetails(conn, ad) < 0) {
             httpError(conn, 400, "Bad authorization header");
             return HTTP_ROUTE_OK;
@@ -208,63 +208,63 @@ static int decodeDigestDetails(HttpConn *conn, AuthData *ad)
          */
         switch (tolower((uchar) *key)) {
         case 'a':
-            if (scasecmp(key, "algorithm") == 0) {
+            if (scaselesscmp(key, "algorithm") == 0) {
                 break;
-            } else if (scasecmp(key, "auth-param") == 0) {
+            } else if (scaselesscmp(key, "auth-param") == 0) {
                 break;
             }
             break;
 
         case 'c':
-            if (scasecmp(key, "cnonce") == 0) {
+            if (scaselesscmp(key, "cnonce") == 0) {
                 ad->cnonce = sclone(value);
             }
             break;
 
         case 'd':
-            if (scasecmp(key, "domain") == 0) {
+            if (scaselesscmp(key, "domain") == 0) {
                 break;
             }
             break;
 
         case 'n':
-            if (scasecmp(key, "nc") == 0) {
+            if (scaselesscmp(key, "nc") == 0) {
                 ad->nc = sclone(value);
-            } else if (scasecmp(key, "nonce") == 0) {
+            } else if (scaselesscmp(key, "nonce") == 0) {
                 ad->nonce = sclone(value);
             }
             break;
 
         case 'o':
-            if (scasecmp(key, "opaque") == 0) {
+            if (scaselesscmp(key, "opaque") == 0) {
                 ad->opaque = sclone(value);
             }
             break;
 
         case 'q':
-            if (scasecmp(key, "qop") == 0) {
+            if (scaselesscmp(key, "qop") == 0) {
                 ad->qop = sclone(value);
             }
             break;
 
         case 'r':
-            if (scasecmp(key, "realm") == 0) {
+            if (scaselesscmp(key, "realm") == 0) {
                 ad->realm = sclone(value);
-            } else if (scasecmp(key, "response") == 0) {
+            } else if (scaselesscmp(key, "response") == 0) {
                 /* Store the response digest in the password field */
                 ad->password = sclone(value);
             }
             break;
 
         case 's':
-            if (scasecmp(key, "stale") == 0) {
+            if (scaselesscmp(key, "stale") == 0) {
                 break;
             }
         
         case 'u':
-            if (scasecmp(key, "uri") == 0) {
+            if (scaselesscmp(key, "uri") == 0) {
                 ad->uri = sclone(value);
-            } else if (scasecmp(key, "username") == 0 || scasecmp(key, "user") == 0) {
+            } else if (scaselesscmp(key, "username") == 0 || scaselesscmp(key, "user") == 0) {
                 ad->userName = sclone(value);
             }
             break;

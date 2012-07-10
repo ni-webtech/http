@@ -306,7 +306,7 @@ static bool fetchCachedResponse(HttpConn *conn)
      */
     key = makeCacheKey(conn);
     if ((value = httpGetHeader(conn, "Cache-Control")) != 0 && 
-            (scontains(value, "max-age=0", -1) == 0 || scontains(value, "no-cache", -1) == 0)) {
+            (scontains(value, "max-age=0") == 0 || scontains(value, "no-cache") == 0)) {
         mprLog(3, "Client reload. Cache-control header '%s' rejects use of cached content.", value);
 
     } else if ((tx->cachedContent = mprReadCache(conn->host->responseCache, key, &modified, 0)) != 0) {
@@ -472,7 +472,7 @@ void httpAddCache(HttpRoute *route, cchar *methods, cchar *uris, cchar *extensio
     if (uris) {
         cache->uris = mprCreateHash(0, 0);
         for (item = stok(sclone(uris), " \t,", &tok); item; item = stok(0, " \t,", &tok)) {
-            if (flags & HTTP_CACHE_ONLY && route->prefix && !scontains(item, sfmt("prefix=%s", route->prefix), -1)) {
+            if (flags & HTTP_CACHE_ONLY && route->prefix && !scontains(item, sfmt("prefix=%s", route->prefix))) {
                 /*
                     Auto-add ?prefix=ROUTE_NAME if there is no query
                  */

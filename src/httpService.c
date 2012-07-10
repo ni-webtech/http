@@ -281,15 +281,15 @@ void httpInitLimits(HttpLimits *limits, bool serverSide)
 #if FUTURE
     mprSetMaxSocketClients(endpoint, atoi(value));
 
-    if (scasecmp(key, "LimitClients") == 0) {
+    if (scaselesscmp(key, "LimitClients") == 0) {
         mprSetMaxSocketClients(endpoint, atoi(value));
         return 1;
     }
-    if (scasecmp(key, "LimitMemoryMax") == 0) {
+    if (scaselesscmp(key, "LimitMemoryMax") == 0) {
         mprSetAllocLimits(endpoint, -1, atoi(value));
         return 1;
     }
-    if (scasecmp(key, "LimitMemoryRedline") == 0) {
+    if (scaselesscmp(key, "LimitMemoryRedline") == 0) {
         mprSetAllocLimits(endpoint, atoi(value), -1);
         return 1;
     }

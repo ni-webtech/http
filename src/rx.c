@@ -194,7 +194,7 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         Don't start processing until all the headers have been received (delimited by two blank lines)
         MOB - should be tolerant and allow '\n\n'
      */
-    if ((end = scontains(start, "\r\n\r\n", len)) == 0) {
+    if ((end = sncontains(start, "\r\n\r\n", len)) == 0) {
         if (len >= conn->limits->headerSize) {
             httpError(conn, HTTP_ABORT | HTTP_CODE_REQUEST_TOO_LARGE, 
                 "Header too big. Length %d vs limit %d", len, conn->limits->headerSize);
@@ -248,7 +248,7 @@ static void mapMethod(HttpConn *conn)
     rx = conn->rx;
     if (rx->flags & HTTP_POST) {
         if ((method = httpGetParam(conn, "-http-method-", 0)) != 0) {
-            if (!scasematch(method, rx->method)) {
+            if (!scaselessmatch(method, rx->method)) {
                 mprLog(3, "Change method from %s to %s for %s", rx->method, method, rx->uri);
                 httpSetMethod(conn, method);
             }
@@ -549,9 +549,9 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
         case 'c':
             if (strcasecmp(key, "connection") == 0) {
                 rx->connection = sclone(value);
-                if (scasecmp(value, "KEEP-ALIVE") == 0) {
+                if (scaselesscmp(value, "KEEP-ALIVE") == 0) {
                     keepAlive = 1;
-                } else if (scasecmp(value, "CLOSE") == 0) {
+                } else if (scaselesscmp(value, "CLOSE") == 0) {
                     /*  Not really required, but set to 0 to be sure */
                     conn->keepAliveCount = 0;
                 }
@@ -615,8 +615,8 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
             } else if (strcasecmp(key, "content-type") == 0) {
                 rx->mimeType = sclone(value);
                 if (rx->flags & (HTTP_POST | HTTP_PUT)) {
-                    rx->form = scontains(rx->mimeType, "application/x-www-form-urlencoded", -1) != 0;
-                    rx->upload = scontains(rx->mimeType, "multipart/form-data", -1) != 0;
+                    rx->form = scontains(rx->mimeType, "application/x-www-form-urlencoded") != 0;
+                    rx->upload = scontains(rx->mimeType, "multipart/form-data") != 0;
                 } else { 
                     rx->form = rx->upload = 0;
                 }
@@ -692,7 +692,7 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
             /* Keep-Alive: timeout=N, max=1 */
             if (strcasecmp(key, "keep-alive") == 0) {
                 keepAlive = 1;
-                if ((tok = scontains(value, "max=", -1)) != 0) {
+                if ((tok = scontains(value, "max=")) != 0) {
                     conn->keepAliveCount = atoi(&tok[4]);
                     /*  
                         IMPORTANT: Deliberately close the connection one request early. This ensures a client-led 
@@ -730,7 +730,7 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 't':
             if (strcasecmp(key, "transfer-encoding") == 0) {
-                if (scasecmp(value, "chunked") == 0) {
+                if (scaselesscmp(value, "chunked") == 0) {
                     /*  
                         remainingContent will be revised by the chunk filter as chunks are processed and will 
                         be set to zero when the last chunk has been received.
@@ -860,46 +860,46 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
          */
         switch (tolower((uchar) *key)) {
         case 'a':
-            if (scasecmp(key, "algorithm") == 0) {
+            if (scaselesscmp(key, "algorithm") == 0) {
                 rx->authAlgorithm = sclone(value);
                 break;
             }
             break;
 
         case 'd':
-            if (scasecmp(key, "domain") == 0) {
+            if (scaselesscmp(key, "domain") == 0) {
                 conn->authDomain = sclone(value);
                 break;
             }
             break;
 
         case 'n':
-            if (scasecmp(key, "nonce") == 0) {
+            if (scaselesscmp(key, "nonce") == 0) {
                 conn->authNonce = sclone(value);
                 conn->authNc = 0;
             }
             break;
 
         case 'o':
-            if (scasecmp(key, "opaque") == 0) {
+            if (scaselesscmp(key, "opaque") == 0) {
                 conn->authOpaque = sclone(value);
             }
             break;
 
         case 'q':
-            if (scasecmp(key, "qop") == 0) {
+            if (scaselesscmp(key, "qop") == 0) {
                 conn->authQop = sclone(value);
             }
             break;
 
         case 'r':
-            if (scasecmp(key, "realm") == 0) {
+            if (scaselesscmp(key, "realm") == 0) {
                 conn->authRealm = sclone(value);
             }
             break;
 
         case 's':
-            if (scasecmp(key, "stale") == 0) {
+            if (scaselesscmp(key, "stale") == 0) {
                 rx->authStale = sclone(value);
                 break;
             }
@@ -1494,7 +1494,7 @@ static char *getToken(HttpConn *conn, cchar *delim)
 
     buf = conn->input->content;
     token = mprGetBufStart(buf);
-    nextToken = scontains(mprGetBufStart(buf), delim, mprGetBufLength(buf));
+    nextToken = sncontains(mprGetBufStart(buf), delim, mprGetBufLength(buf));
     if (nextToken) {
         *nextToken = '\0';
         len = (int) strlen(delim);

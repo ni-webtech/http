@@ -164,7 +164,7 @@ void httpAppendHeader(HttpConn *conn, cchar *key, cchar *fmt, ...)
         /*
             Set-Cookie has legacy behavior and some browsers require separate headers
          */
-        if (scasematch(key, "Set-Cookie")) {
+        if (scaselessmatch(key, "Set-Cookie")) {
             mprAddDuplicateKey(conn->tx->headers, key, value);
         } else {
             addHdr(conn, key, sfmt("%s, %s", oldValue, value));
@@ -188,7 +188,7 @@ void httpAppendHeaderString(HttpConn *conn, cchar *key, cchar *value)
 
     oldValue = mprLookupKey(conn->tx->headers, key);
     if (oldValue) {
-        if (scasematch(key, "Set-Cookie")) {
+        if (scaselessmatch(key, "Set-Cookie")) {
             mprAddDuplicateKey(conn->tx->headers, key, sclone(value));
         } else {
             addHdr(conn, key, sfmt("%s, %s", oldValue, value));

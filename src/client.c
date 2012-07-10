@@ -117,10 +117,10 @@ static int setClientHeaders(HttpConn *conn)
         qop = (conn->authQop) ? conn->authQop : (char*) "";
 
         conn->authNc++;
-        if (scasecmp(conn->authQop, "auth") == 0) {
+        if (scaselesscmp(conn->authQop, "auth") == 0) {
             mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
                 ha1, conn->authNonce, conn->authNc, conn->authCnonce, conn->authQop, ha2);
-        } else if (scasecmp(conn->authQop, "auth-int") == 0) {
+        } else if (scaselesscmp(conn->authQop, "auth-int") == 0) {
             mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
                 ha1, conn->authNonce, conn->authNc, conn->authCnonce, conn->authQop, ha2);
         } else {
