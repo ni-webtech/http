@@ -67,7 +67,7 @@ static void incoming(HttpQueue *q, HttpPacket *packet)
         httpPutPacketToNext(q, packet);
     } else {
         /* This queue is the last queue in the pipeline */
-        //  TODO - should this call WillAccept?
+        //  MOB - should this call WillAccept?
         if (httpGetPacketLength(packet) > 0) {
             httpJoinPacketForService(q, packet, 0);
             HTTP_NOTIFY(q->conn, 0, HTTP_NOTIFY_READABLE);

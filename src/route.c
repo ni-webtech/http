@@ -1331,7 +1331,6 @@ static void finalizePattern(HttpRoute *route)
     }
     for (cp = startPattern; *cp; cp++) {
         /* Alias for optional, non-capturing pattern:  "(?: PAT )?" */
-        //  MOB - change ~ is confusing with ~ for top of app
         if (*cp == '(' && cp[1] == '~') {
             mprPutStringToBuf(pattern, "(?:");
             cp++;

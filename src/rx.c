@@ -1484,7 +1484,7 @@ static void addMatchEtag(HttpConn *conn, char *etag)
     a set of characters. HTTP header header parsing does not work as well using classical strtok parsing as you must
     know when the "/r/n/r/n" body delimiter has been encountered. Strtok will eat such delimiters.
 
-    MOB - OPT
+    OPT
  */
 static char *getToken(HttpConn *conn, cchar *delim)
 {
