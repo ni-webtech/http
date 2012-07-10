@@ -247,7 +247,7 @@ void httpInitSchedulerQueue(HttpQueue *q)
 
 /*  
     Insert a queue after the previous element
-    TODO - rename append
+    MOB - rename append
  */
 void httpInsertQueue(HttpQueue *prev, HttpQueue *q)
 {
@@ -320,7 +320,7 @@ ssize httpRead(HttpConn *conn, char *buf, ssize size)
             httpWait(conn, 0, MPR_TIMEOUT_NO_BUSY);
         }
     }
-    //  TODO - better place for this?
+    //  MOB - better place for this?
     conn->lastActivity = conn->http->now;
     mprAssert(httpVerifyQueue(q));
 

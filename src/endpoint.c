@@ -178,7 +178,7 @@ int httpStartEndpoint(HttpEndpoint *endpoint)
         return MPR_ERR_CANT_OPEN;
     }
     if (endpoint->async && endpoint->waitHandler ==  0) {
-        //  MOB TODO -- this really should be in endpoint->listen->handler
+        //  MOB this really should be in endpoint->listen->handler
         endpoint->waitHandler = mprCreateWaitHandler(endpoint->sock->fd, MPR_SOCKET_READABLE, endpoint->dispatcher,
             httpAcceptConn, endpoint, (endpoint->dispatcher) ? 0 : MPR_WAIT_NEW_DISPATCHER);
     } else {
@@ -216,7 +216,7 @@ void httpStopEndpoint(HttpEndpoint *endpoint)
 
 
 /*
-    TODO OPT
+    OPT
  */
 bool httpValidateLimits(HttpEndpoint *endpoint, int event, HttpConn *conn)
 {
@@ -551,7 +551,7 @@ HttpHost *httpLookupHostOnEndpoint(HttpEndpoint *endpoint, cchar *name)
             if (host->name[1] == '\0') {
                 return host;
             }
-            if (scontains(name, &host->name[1], -1)) {
+            if (scontains(name, &host->name[1])) {
                 return host;
             }
         }

@@ -83,7 +83,7 @@ static int matchUpload(HttpConn *conn, HttpRoute *route, int dir)
     }
     pat = "multipart/form-data";
     len = strlen(pat);
-    if (sncasecmp(rx->mimeType, pat, len) == 0) {
+    if (sncaselesscmp(rx->mimeType, pat, len) == 0) {
         rx->upload = 1;
         mprLog(5, "matchUpload for %s", rx->uri);
         return HTTP_ROUTE_OK;
@@ -327,7 +327,7 @@ static int processContentHeader(HttpQueue *q, char *line)
     headerTok = line;
     stok(line, ": ", &rest);
 
-    if (scasecmp(headerTok, "Content-Disposition") == 0) {
+    if (scaselesscmp(headerTok, "Content-Disposition") == 0) {
 
         /*  
             The content disposition header describes either a form
@@ -352,13 +352,13 @@ static int processContentHeader(HttpQueue *q, char *line)
             stok(key, "= ", &value);
             value = strim(value, "\"", MPR_TRIM_BOTH);
 
-            if (scasecmp(key, "form-data") == 0) {
+            if (scaselesscmp(key, "form-data") == 0) {
                 /* Nothing to do */
 
-            } else if (scasecmp(key, "name") == 0) {
+            } else if (scaselesscmp(key, "name") == 0) {
                 up->id = sclone(value);
 
-            } else if (scasecmp(key, "filename") == 0) {
+            } else if (scaselesscmp(key, "filename") == 0) {
                 if (up->id == 0) {
                     httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad upload state. Missing name field");
                     return MPR_ERR_BAD_STATE;
@@ -390,7 +390,7 @@ static int processContentHeader(HttpQueue *q, char *line)
             key = nextPair;
         }
 
-    } else if (scasecmp(headerTok, "Content-Type") == 0) {
+    } else if (scaselesscmp(headerTok, "Content-Type") == 0) {
         if (up->clientFilename) {
             mprLog(5, "Set files[%s][CONTENT_TYPE] = %s", up->id, rest);
             up->currentFile->contentType = sclone(rest);

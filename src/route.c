@@ -638,19 +638,19 @@ int httpAddRouteCondition(HttpRoute *route, cchar *name, cchar *details, int fla
     if ((op = createRouteOp(name, flags)) == 0) {
         return MPR_ERR_MEMORY;
     }
-    if (scasematch(name, "auth")) {
+    if (scaselessmatch(name, "auth")) {
         /* Nothing to do. Route->auth has it all */
 
-    } else if (scasematch(name, "missing")) {
+    } else if (scaselessmatch(name, "missing")) {
         op->details = finalizeReplacement(route, "${request:filename}");
 
-    } else if (scasematch(name, "directory")) {
+    } else if (scaselessmatch(name, "directory")) {
         op->details = finalizeReplacement(route, details);
 
-    } else if (scasematch(name, "exists")) {
+    } else if (scaselessmatch(name, "exists")) {
         op->details = finalizeReplacement(route, details);
 
-    } else if (scasematch(name, "match")) {
+    } else if (scaselessmatch(name, "match")) {
         /* 
             Condition match string pattern
             String can contain matching ${tokens} from the route->pattern and can contain request ${tokens}
@@ -862,13 +862,13 @@ int httpAddRouteUpdate(HttpRoute *route, cchar *rule, cchar *details, int flags)
     if ((op = createRouteOp(rule, flags)) == 0) {
         return MPR_ERR_MEMORY;
     }
-    if (scasematch(rule, "cmd")) {
+    if (scaselessmatch(rule, "cmd")) {
         op->details = sclone(details);
 
-    } else if (scasematch(rule, "lang")) {
+    } else if (scaselessmatch(rule, "lang")) {
         /* Nothing to do */;
 
-    } else if (scasematch(rule, "param")) {
+    } else if (scaselessmatch(rule, "param")) {
         if (!httpTokenize(route, details, "%S %S", &op->var, &value)) {
             return MPR_ERR_BAD_SYNTAX;
         }
@@ -1177,20 +1177,20 @@ int httpSetRouteTarget(HttpRoute *route, cchar *rule, cchar *details)
     route->targetRule = sclone(rule);
     route->target = sclone(details);
 
-    if (scasematch(rule, "close")) {
+    if (scaselessmatch(rule, "close")) {
         route->target = sclone(details);
 
-    } else if (scasematch(rule, "redirect")) {
+    } else if (scaselessmatch(rule, "redirect")) {
         if (!httpTokenize(route, details, "%N ?S", &route->responseStatus, &redirect)) {
             return MPR_ERR_BAD_SYNTAX;
         }
         route->target = finalizeReplacement(route, redirect);
         return 0;
 
-    } else if (scasematch(rule, "run")) {
+    } else if (scaselessmatch(rule, "run")) {
         route->target = finalizeReplacement(route, details);
 
-    } else if (scasematch(rule, "write")) {
+    } else if (scaselessmatch(rule, "write")) {
         /*
             Write [-r] status Message
          */
@@ -1257,7 +1257,7 @@ static void finalizeMethods(HttpRoute *route)
 
     mprAssert(route);
     methods = route->methodSpec;
-    if (methods && *methods && !scasematch(methods, "ALL") && !smatch(methods, "*")) {
+    if (methods && *methods && !scaselessmatch(methods, "ALL") && !smatch(methods, "*")) {
         if ((route->methods = mprCreateHash(-1, 0)) == 0) {
             return;
         }
@@ -1331,7 +1331,6 @@ static void finalizePattern(HttpRoute *route)
     }
     for (cp = startPattern; *cp; cp++) {
         /* Alias for optional, non-capturing pattern:  "(?: PAT )?" */
-        //  MOB - change ~ is confusing with ~ for top of app
         if (*cp == '(' && cp[1] == '~') {
             mprPutStringToBuf(pattern, "(?:");
             cp++;
@@ -2283,21 +2282,21 @@ void httpAddHomeRoute(HttpRoute *parent)
 
 void httpAddRouteSet(HttpRoute *parent, cchar *set)
 {
-    if (scasematch(set, "simple")) {
+    if (scaselessmatch(set, "simple")) {
         httpAddHomeRoute(parent);
 
-    } else if (scasematch(set, "mvc")) {
+    } else if (scaselessmatch(set, "mvc")) {
         httpAddHomeRoute(parent);
         httpAddStaticRoute(parent);
         httpDefineRoute(parent, "default", NULL, "^/{controller}(~/{action}~)", "${controller}-${action}", 
             "${controller}.c");
 
-    } else if (scasematch(set, "restful")) {
+    } else if (scaselessmatch(set, "restful")) {
         httpAddHomeRoute(parent);
         httpAddStaticRoute(parent);
         httpAddResourceGroup(parent, "{controller}");
 
-    } else if (!scasematch(set, "none")) {
+    } else if (!scaselessmatch(set, "none")) {
         mprError("Unknown route set %s", set);
     }
 }
@@ -2498,7 +2497,7 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
             } else if (smatch(value, "filename")) {
                 mprPutStringToBuf(buf, tx->filename);
 
-            } else if (scasematch(value, "language")) {
+            } else if (scaselessmatch(value, "language")) {
                 if (!defaultValue) {
                     defaultValue = route->defaultLanguage;
                 }
@@ -2508,7 +2507,7 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
                     mprPutStringToBuf(buf, defaultValue);
                 }
 
-            } else if (scasematch(value, "languageDir")) {
+            } else if (scaselessmatch(value, "languageDir")) {
                 lang = httpGetLanguage(conn, route->languages, 0);
                 if (!defaultValue) {
                     defaultValue = ".";
@@ -2754,7 +2753,7 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
                 }
                 break;
             case 'B':
-                if (scasecmp(tok, "on") == 0 || scasecmp(tok, "true") == 0 || scasecmp(tok, "yes") == 0) {
+                if (scaselesscmp(tok, "on") == 0 || scaselesscmp(tok, "true") == 0 || scaselesscmp(tok, "yes") == 0) {
                     *va_arg(args, bool*) = 1;
                 } else {
                     *va_arg(args, bool*) = 0;

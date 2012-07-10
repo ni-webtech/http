@@ -8,9 +8,13 @@ Bit.load({
         patch: {
             action: "
                 trace('Patch', 'Expand DSI')
+                let path = Path('dsi/head.html')
+                let settings = bit.settings
+                path.write(path.readString().replace(/version\">.*</, 'version\">' + 
+                    settings.title + ' ' + settings.version + '<'))
                 for each (path in Path('.').files('**.html', {exclude: /Bare.html|dsi/})) {
                     vtrace('Patch', path)
-                    Cmd('dsi -I. ' + path)
+                    Cmd('dsi -v -I. ' + path)
                 }
             "
         },

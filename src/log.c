@@ -90,7 +90,7 @@ void httpWriteRouteLog(HttpRoute *route, cchar *buf, ssize len)
 {
     lock(MPR);
     if (route->logBackup > 0) {
-        //  TODO OPT - don't check this on every write
+        //  OPT - don't check this on every write
         httpBackupRouteLog(route);
         if (!route->log && !httpOpenRouteLog(route)) {
             unlock(MPR);
@@ -156,7 +156,6 @@ void httpLogRequest(HttpConn *conn)
             break;
 
         case 'h':                           /* Remote host */
-            //  TODO - Should this trigger a reverse DNS?
             mprPutStringToBuf(buf, conn->ip);
             break;
 
