@@ -55,3 +55,4 @@ xcode
 /start.bit
 *.dmp
 *-xcode
+*-vsdebug
