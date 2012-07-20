@@ -53,9 +53,9 @@ void httpHandleOptionsTrace(HttpConn *conn)
 }
 
 
-static void openPass(HttpQueue *q)
+static void startPass(HttpQueue *q)
 {
-    mprLog(5, "Open passHandler");
+    mprLog(5, "Start passHandler");
     if (q->conn->rx->flags & (HTTP_OPTIONS | HTTP_TRACE)) {
         httpHandleOptionsTrace(q->conn);
     }
@@ -76,7 +76,7 @@ int httpOpenPassHandler(Http *http)
         return MPR_ERR_CANT_CREATE;
     }
     http->passHandler = stage;
-    stage->open = openPass;
+    stage->start = startPass;
     stage->ready = readyPass;
 
     /*
@@ -85,7 +85,7 @@ int httpOpenPassHandler(Http *http)
     if ((stage = httpCreateHandler(http, "errorHandler", HTTP_STAGE_ALL, NULL)) == 0) {
         return MPR_ERR_CANT_CREATE;
     }
-    stage->open = openPass;
+    stage->start = startPass;
     stage->ready = readyPass;
     return 0;
 }
