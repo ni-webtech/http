@@ -5363,9 +5363,9 @@ extern void httpInsertOption(MprHash *options, cchar *field, cchar *value);
     @param options Option string of the form: "field='value' field='value'..."
     @param field Field key name
     @param defaultValue Value to use if "field" is not found in options
-    @return Allocated value string.
+    @return Option value.
  */
-extern cchar *httpGetOption(MprHash *options, cchar *field, cchar *defaultValue);
+extern void *httpGetOption(MprHash *options, cchar *field, cchar *defaultValue);
 
 /**
     Get an option value that is itself an object (hash)
@@ -5386,6 +5386,7 @@ extern MprHash *httpGetOptionHash(MprHash *options, cchar *field);
  */
 extern MprHash *httpGetOptions(cchar *options);
 
+//  MOB - inconsistent with httpGetOption
 /**
     Test a field value from an option string. 
     @param options Option string of the form: "field='value' field='value'..."

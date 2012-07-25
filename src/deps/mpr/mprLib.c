@@ -1485,7 +1485,7 @@ static int pauseThreads()
          */
         lock(ts->threads);
         if (!heap->pauseGC) {
-            allYielded = (heap->pauseGC == 0);
+            allYielded = 1;
             for (i = 0; i < ts->threads->length; i++) {
                 tp = (MprThread*) mprGetItem(ts->threads, i);
                 if (!tp->yielded) {
@@ -1501,6 +1501,8 @@ static int pauseThreads()
                 unlock(ts->threads);
                 break;
             }
+        } else {
+            allYielded = 0;
         }
         unlock(ts->threads);
         LOG(7, "pauseThreads: waiting for threads to yield");
@@ -23908,7 +23910,10 @@ void mprRemoveSocketHandler(MprSocket *sp)
 
 void mprEnableSocketEvents(MprSocket *sp, int mask)
 {
-    mprWaitOn(sp->handler, mask);
+    mprAssert(sp->handler);
+    if (sp->handler) {
+        mprWaitOn(sp->handler, mask);
+    }
 }
 
 
@@ -25225,7 +25230,7 @@ void mprSetSslProtocols(MprSsl *ssl, int protocols)
 
 void mprSetSslProvider(MprSsl *ssl, cchar *provider)
 {
-    ssl->providerName = sclone(provider);
+    ssl->providerName = (provider && *provider) ? sclone(provider) : 0;
 }
 
 
