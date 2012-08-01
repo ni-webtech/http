@@ -8,7 +8,7 @@
 
 #include    "http.h"
 
-#if BIT_CC_PAM
+#if BIT_HAS_PAM
  #include    <security/pam_appl.h>
 
 /********************************* Defines ************************************/
@@ -102,7 +102,7 @@ bool httpValidatePamCredentials(HttpAuth *auth, cchar *realm, cchar *user, cchar
 {
     return 0;
 }
-#endif /* BIT_CC_PAM */
+#endif /* BIT_HAS_PAM */
 
 /*
     @copy   default

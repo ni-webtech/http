@@ -22,8 +22,8 @@
 
 #include    "bit.h"
 
-#if BIT_FEATURE_MATRIXSSL
-#if WIN32
+#if BIT_PACK_MATRIXSSL
+#if WINDOWS
  #include   <winsock2.h>
  #include   <windows.h>
 #endif
@@ -739,7 +739,7 @@ static ssize flushMss(MprSocket *sp)
 #else
 
 int mprCreateMatrixSslModule() { return -1; }
-#endif /* BIT_FEATURE_MATRIXSSL */
+#endif /* BIT_PACK_MATRIXSSL */
 
 /*
     @copy   default
@@ -793,7 +793,7 @@ int mprCreateMatrixSslModule() { return -1; }
 
 #include    "mpr.h"
 
-#if BIT_FEATURE_OPENSSL
+#if BIT_PACK_OPENSSL
 
 /* Clashes with WinCrypt.h */
 #undef OCSP_RESPONSE
@@ -875,12 +875,8 @@ static DH       *get_dh1024();
  */
 int mprCreateOpenSslModule()
 {
-    MprSocketService    *ss;
-    RandBuf             randBuf;
-    int                 i;
-
-    ss = MPR->socketService;
-    mprAssert(ss);
+    RandBuf     randBuf;
+    int         i;
 
     /*
         Get some random data
@@ -1214,15 +1210,12 @@ static int listenOss(MprSocket *sp, cchar *host, int port, int flags)
  */
 static int upgradeOss(MprSocket *sp, MprSsl *ssl, int server)
 {
-    MprSocketService    *ss;
-    MprOpenSocket       *osp;
-    MprOpenSsl          *ossl;
-    char                ebuf[MPR_MAX_STRING];
-    ulong               error;
-    int                 rc;
+    MprOpenSocket   *osp;
+    MprOpenSsl      *ossl;
+    char            ebuf[MPR_MAX_STRING];
+    ulong           error;
+    int             rc;
 
-    ss = sp->service;
-    mprAssert(ss);
     mprAssert(sp);
 
     if (ssl == 0) {
@@ -1689,7 +1682,7 @@ static DH *get_dh1024()
     return dh;
 }
 
-#endif /* BIT_FEATURE_OPENSSL */
+#endif /* BIT_PACK_OPENSSL */
 
 /*
     @copy   default
@@ -1743,7 +1736,7 @@ static DH *get_dh1024()
 
 #include    "mpr.h"
 
-#if BIT_FEATURE_SSL
+#if BIT_PACK_SSL
 /************************************ Code ************************************/
 /*
     Module initialization entry point
@@ -1752,13 +1745,13 @@ int mprSslInit(void *unused, MprModule *module)
 {
     mprAssert(module);
 
-#if BIT_FEATURE_MATRIXSSL
+#if BIT_PACK_MATRIXSSL
     if (mprCreateMatrixSslModule() < 0) {
         return MPR_ERR_CANT_OPEN;
     }
     MPR->socketService->defaultProvider = sclone("matrixssl");
 #endif
-#if BIT_FEATURE_OPENSSL
+#if BIT_PACK_OPENSSL
     if (mprCreateOpenSslModule() < 0) {
         return MPR_ERR_CANT_OPEN;
     }
@@ -1767,7 +1760,7 @@ int mprSslInit(void *unused, MprModule *module)
     return 0;
 }
 
-#endif /* BLD_FEATURE_SSL */
+#endif /* BLD_PACK_SSL */
 
 /*
     @copy   default

@@ -465,7 +465,7 @@ void httpSetEndpointNotifier(HttpEndpoint *endpoint, HttpNotifier notifier)
 
 int httpSecureEndpoint(HttpEndpoint *endpoint, struct MprSsl *ssl)
 {
-#if BIT_FEATURE_SSL
+#if BIT_PACK_SSL
     endpoint->ssl = ssl;
     return 0;
 #else

@@ -6,18 +6,32 @@
     time configuration is performed.
  */
 
-#define BIT_PRODUCT "http"
-#define BIT_NAME "Http Library"
+/* Settings */
+#define BIT_BUILD_NUMBER "0"
 #define BIT_COMPANY "Embedthis"
-#define BIT_HTTP_PRODUCT 1
+#define BIT_DEPTH 1
+#define BIT_HAS_DOUBLE_BRACES 1
+#define BIT_HAS_DYN_LOAD 1
+#define BIT_HAS_LIB_EDIT 1
+#define BIT_HAS_MMU 1
+#define BIT_HAS_MTUNE 1
+#define BIT_HAS_PAM 1
+#define BIT_HAS_STACK_PROTECTOR 1
+#define BIT_HAS_SYNC 1
+#define BIT_HAS_SYNC_CAS 1
+#define BIT_HAS_UNNAMED_UNIONS 1
+#define BIT_MANAGER ""
+#define BIT_MINIMAL "doxygen,dsi,man,man2html,pmaker,ssl"
+#define BIT_OPTIONAL "doxygen,dsi,ejs,man,man2html,openssl,matrixssl,ssl,utest"
+#define BIT_PRODUCT "http"
+#define BIT_REQUIRED "compiler,link,pcre"
+#define BIT_SYNC "mpr,pcre"
+#define BIT_TITLE "Http Library"
 #define BIT_VERSION "1.0.1"
-#define BIT_NUMBER "0"
-#define BIT_MAJOR_VERSION 1
-#define BIT_MINOR_VERSION 0
-#define BIT_PATCH_VERSION 1
-#define BIT_VNUM 100000001
-#define BIT_CONFIG_CMD "bit -q -configure . -debug"
-#define BIT_PROFILE "debug"
+#define BIT_WARN64TO32 1
+#define BIT_WARN_UNUSED 1
+
+/* Prefixes */
 #define BIT_CFG_PREFIX "/etc/http"
 #define BIT_BIN_PREFIX "/usr/lib/http/1.0.1/bin"
 #define BIT_INC_PREFIX "/usr/lib/http/1.0.1/inc"
@@ -27,34 +41,36 @@
 #define BIT_SRC_PREFIX "/usr/src/http-1.0.1"
 #define BIT_VER_PREFIX "/usr/lib/http/1.0.1"
 #define BIT_WEB_PREFIX "/var/www/http-default"
+
+/* Suffixes */
 #define BIT_EXE ""
 #define BIT_SHLIB ".dylib"
 #define BIT_SHOBJ ".dylib"
 #define BIT_LIB ".a"
 #define BIT_OBJ ".o"
-#define BIT_FEATURE_ASSERT 1
-#define BIT_MANAGER ""
-#define BIT_CC_DOUBLE_BRACES 1
-#define BIT_CC_DYN_LOAD 1
-#define BIT_CC_EDITLINE 1
-#define BIT_CC_MMU 1
-#define BIT_CC_MTUNE 1
-#define BIT_CC_PAM 1
-#define BIT_CC_STACK_PROTECTOR 1
-#define BIT_CC_SYNC 1
-#define BIT_CC_SYNC_CAS 1
-#define BIT_CC_UNNAMED_UNIONS 1
-#define BIT_CC_WARN_64TO32 1
-#define BIT_CC_WARN_UNUSED 1
-#define BIT_FEATURE_CC 1
-#define BIT_FEATURE_LINK 1
-#define BIT_FEATURE_PCRE 1
-#define BIT_FEATURE_DOXYGEN 1
-#define BIT_FEATURE_DSI 1
-#define BIT_FEATURE_EJS 1
-#define BIT_FEATURE_MAN 1
-#define BIT_FEATURE_MAN2HTML 1
-#define BIT_FEATURE_OPENSSL 1
-#define BIT_FEATURE_MATRIXSSL 1
-#define BIT_FEATURE_SSL 1
-#define BIT_FEATURE_UTEST 1
+
+/* Profile */
+#define BIT_HTTP_PRODUCT 1
+#define BIT_PROFILE "debug"
+#define BIT_CONFIG_CMD "bit -d -without all -configure ."
+
+/* Miscellaneous */
+#define BIT_MAJOR_VERSION 1
+#define BIT_MINOR_VERSION 0
+#define BIT_PATCH_VERSION 1
+#define BIT_VNUM 100000001
+
+/* Packs */
+#define BIT_PACK_CC 1
+#define BIT_PACK_DOXYGEN 0
+#define BIT_PACK_DSI 0
+#define BIT_PACK_EJS 1
+#define BIT_PACK_LINK 1
+#define BIT_PACK_MAN 0
+#define BIT_PACK_MAN2HTML 0
+#define BIT_PACK_MATRIXSSL 0
+#define BIT_PACK_OPENSSL 0
+#define BIT_PACK_PCRE 1
+#define BIT_PACK_PMAKER 0
+#define BIT_PACK_SSL 0
+#define BIT_PACK_UTEST 1

@@ -232,7 +232,9 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
         rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
 
     } else if (!(100 <= rx->status && rx->status <= 199)) {
-        /* Clients have already created their Tx pipeline */
+        /* 
+            Ignore Expect status responses. NOTE: Clients have already created their Tx pipeline.
+         */
         httpCreateRxPipeline(conn, conn->http->clientRoute);
     }
     httpSetState(conn, HTTP_STATE_PARSED);

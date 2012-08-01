@@ -6,58 +6,66 @@
     time configuration is performed.
  */
 
-#define BIT_PRODUCT "http"
-#define BIT_NAME "Http Library"
+/* Settings */
+#define BIT_BUILD_NUMBER "0"
 #define BIT_COMPANY "Embedthis"
-#define BIT_HTTP_PRODUCT 1
+#define BIT_DEPTH 1
+#define BIT_HAS_DYN_LOAD 1
+#define BIT_HAS_LIB_EDIT 0
+#define BIT_HAS_MMU 1
+#define BIT_HAS_UNNAMED_UNIONS 1
+#define BIT_MANAGER ""
+#define BIT_MINIMAL "doxygen,dsi,man,man2html,pmaker,ssl"
+#define BIT_OPTIONAL "doxygen,dsi,ejs,man,man2html,openssl,matrixssl,ssl,utest"
+#define BIT_PRODUCT "http"
+#define BIT_REQUIRED "winsdk,compiler,link,dumpbin,rc,pcre"
+#define BIT_SYNC "mpr,pcre"
+#define BIT_TITLE "Http Library"
 #define BIT_VERSION "1.0.1"
-#define BIT_NUMBER "0"
-#define BIT_MAJOR_VERSION 1
-#define BIT_MINOR_VERSION 0
-#define BIT_PATCH_VERSION 1
-#define BIT_VNUM 100000001
-#define BIT_CONFIG_CMD "bit -d -without all -configure ."
-#define BIT_PROFILE "debug"
-#define BIT_CFG_PREFIX "C:/Program Files/Http Library"
-#define BIT_BIN_PREFIX "C:/Program Files/Http Library/bin"
-#define BIT_INC_PREFIX "C:/Program Files/Http Library/inc"
-#define BIT_LOG_PREFIX "C:/Program Files/Http Library/logs"
-#define BIT_PRD_PREFIX "C:/Program Files/Http Library"
-#define BIT_SPL_PREFIX "C:/Program Files/Http Library/tmp"
-#define BIT_SRC_PREFIX "C:/Program Files/Http Library/src"
-#define BIT_VER_PREFIX "C:/Program Files/Http Library"
-#define BIT_WEB_PREFIX "C:/Program Files/Http Library/web"
+
+/* Prefixes */
+#define BIT_CFG_PREFIX "C:/Program Files (x86)/Http Library"
+#define BIT_BIN_PREFIX "C:/Program Files (x86)/Http Library/bin"
+#define BIT_INC_PREFIX "C:/Program Files (x86)/Http Library/inc"
+#define BIT_LOG_PREFIX "C:/Program Files (x86)/Http Library/logs"
+#define BIT_PRD_PREFIX "C:/Program Files (x86)/Http Library"
+#define BIT_SPL_PREFIX "C:/Program Files (x86)/Http Library/tmp"
+#define BIT_SRC_PREFIX "C:/Program Files (x86)/Http Library/src"
+#define BIT_VER_PREFIX "C:/Program Files (x86)/Http Library"
+#define BIT_WEB_PREFIX "C:/Program Files (x86)/Http Library/web"
+
+/* Suffixes */
 #define BIT_EXE ".exe"
 #define BIT_SHLIB ".lib"
 #define BIT_SHOBJ ".dll"
 #define BIT_LIB ".a"
 #define BIT_OBJ ".obj"
-#define BIT_MANAGER ""
-#define BIT_CC_DOUBLE_BRACES 0
-#define BIT_CC_DYN_LOAD 1
-#define BIT_CC_EDITLINE 0
-#define BIT_CC_MMU 1
-#define BIT_CC_MTUNE 0
-#define BIT_CC_PAM 0
-#define BIT_CC_STACK_PROTECTOR 0
-#define BIT_CC_SYNC 0
-#define BIT_CC_SYNC_CAS 0
-#define BIT_CC_UNNAMED_UNIONS 1
-#define BIT_CC_WARN_64TO32 0
-#define BIT_CC_WARN_UNUSED 0
-#define BIT_FEATURE_DOXYGEN 0
-#define BIT_FEATURE_DSI 0
-#define BIT_FEATURE_MAN 0
-#define BIT_FEATURE_MAN2HTML 0
-#define BIT_FEATURE_PMAKER 0
-#define BIT_FEATURE_SSL 0
-#define BIT_FEATURE_WINSDK 1
-#define BIT_FEATURE_CC 1
-#define BIT_FEATURE_LINK 1
-#define BIT_FEATURE_DUMPBIN 1
-#define BIT_FEATURE_RC 1
-#define BIT_FEATURE_PCRE 1
-#define BIT_FEATURE_EJS 1
-#define BIT_FEATURE_OPENSSL 0
-#define BIT_FEATURE_MATRIXSSL 0
-#define BIT_FEATURE_UTEST 1
+
+/* Profile */
+#define BIT_HTTP_PRODUCT 1
+#define BIT_PROFILE "vs"
+#define BIT_CONFIG_CMD "bit -d -q -platform windows-x86 -without all -profile vs -configure . -gen vs"
+
+/* Miscellaneous */
+#define BIT_MAJOR_VERSION 1
+#define BIT_MINOR_VERSION 0
+#define BIT_PATCH_VERSION 1
+#define BIT_VNUM 100000001
+
+/* Packs */
+#define BIT_PACK_CC 1
+#define BIT_PACK_DOXYGEN 0
+#define BIT_PACK_DSI 0
+#define BIT_PACK_DUMPBIN 0
+#define BIT_PACK_EJS 1
+#define BIT_PACK_LINK 1
+#define BIT_PACK_MAN 0
+#define BIT_PACK_MAN2HTML 0
+#define BIT_PACK_MATRIXSSL 0
+#define BIT_PACK_OPENSSL 0
+#define BIT_PACK_PCRE 1
+#define BIT_PACK_PMAKER 0
+#define BIT_PACK_RC 1
+#define BIT_PACK_SSL 0
+#define BIT_PACK_UTEST 1
+#define BIT_PACK_WINSDK 1

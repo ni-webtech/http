@@ -172,7 +172,7 @@ void httpSetPipelineHandler(HttpConn *conn, HttpStage *handler)
 
 void httpSetSendConnector(HttpConn *conn, cchar *path)
 {
-#if !BIT_FEATURE_ROMFS
+#if !BIT_ROM
     HttpTx      *tx;
 
     tx = conn->tx;

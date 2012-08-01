@@ -13,7 +13,7 @@
   </ItemDefinitionGroup>
 
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{bf13124b-ddfe-426c-b7e4-b517576101e5}</ProjectGuid>
+    <ProjectGuid>{37a646f7-44cd-4e2c-bbc1-4589bad01502}</ProjectGuid>
     <RootNamespace />
     <Keyword>Win32Proj</Keyword>
   </PropertyGroup>
@@ -156,14 +156,14 @@ cd projects\http-windows</Command>
 
 <ItemGroup>
   <ProjectReference Include="libmpr.vcxproj">
-  <Project>7c176c3b-d057-4720-af66-52d8bf6d3cb8</Project>
+  <Project>898e2c1e-65bb-4ce6-8505-1d107e18b50f</Project>
   <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
   </ProjectReference>
 </ItemGroup>
 
 <ItemGroup>
   <ProjectReference Include="libpcre.vcxproj">
-  <Project>ba4698d5-9b9f-488c-b8d4-4757f335e52b</Project>
+  <Project>42d2a7df-906e-4baf-9432-ce3a9124cfd9</Project>
   <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
   </ProjectReference>
 </ItemGroup>
