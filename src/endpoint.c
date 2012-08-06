@@ -332,7 +332,10 @@ HttpConn *httpAcceptConn(HttpEndpoint *endpoint, MprEvent *event)
         return 0;
     }
     if (endpoint->ssl) {
-        mprUpgradeSocket(sock, endpoint->ssl, 1);
+        if (mprUpgradeSocket(sock, endpoint->ssl, 1) < 0) {
+            mprCloseSocket(sock, 0);
+            return 0;
+        }
     }
     if (endpoint->sock->handler) {
         /* Re-enable events on the listen socket */
