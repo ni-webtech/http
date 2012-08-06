@@ -151,6 +151,7 @@ static int setClientHeaders(HttpConn *conn)
     } else {
         httpAddHeaderString(conn, "Host", conn->ip);
     }
+#if UNUSED
     if (strcmp(conn->protocol, "HTTP/1.1") == 0) {
         /* If zero, we ask the client to close one request early. This helps with client led closes */
         if (conn->keepAliveCount > 0) {
@@ -158,12 +159,18 @@ static int setClientHeaders(HttpConn *conn)
         } else {
             httpSetHeaderString(conn, "Connection", "close");
         }
-
     } else {
         /* Set to zero to let the client initiate the close */
         conn->keepAliveCount = 0;
         httpSetHeaderString(conn, "Connection", "close");
     }
+#else
+    if (conn->keepAliveCount > 0) {
+        httpSetHeaderString(conn, "Connection", "Keep-Alive");
+    } else {
+        httpSetHeaderString(conn, "Connection", "close");
+    }
+#endif
     return 0;
 }
 
