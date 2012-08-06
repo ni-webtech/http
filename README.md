@@ -1,19 +1,50 @@
 Embedthis Http Library
-======================
+===
 
-This is a high performance, multithreaded Http Library. It is used by Appweb and Ejscript.
+Licensing
+---
+The Http library is dual-licensed under a GPLv2 license and commercial licenses are offered by Embedthis Software.
+See http://embedthis.com/licensing/index.html for licensing details.
 
-To build, you will need to install Ejscript and Built It (bit). See:
-    https://github.com/embedthis/ejs-2
-    https://github.com/embedthis/bit
+### To Read Documentation:
 
-To build:
-<pre>
-    configure
+  See doc/index.html
+
+### Prerequisites:
+    Ejscript (http://www.ejscript.org/downloads/ejs/download.ejs) for the Bit and Utest tools to configure and build.
+
+### To Build:
+
+    ./configure
     bit
-</pre>
 
---------------------------------------------------------------------------------
-Copyright (c) 2003-2012 Embedthis Software, LLC. All Rights Reserved.
-Embedthis and MPR are trademarks of Embedthis Software, LLC. Other 
-brands and their products are trademarks of their respective holders.
+    Alternatively to build without Ejscript:
+
+    make
+
+Images are built into */bin. The build configuration is saved in */inc/bit.h.
+
+### To Test:
+
+    bit test
+
+### To Run:
+
+    bit run
+
+This will run appweb in the src/server directory using the src/server/appweb.conf configuration file.
+
+### To Install:
+
+    bit install
+
+### To Create Packages:
+
+    bit package
+
+Resources
+---
+  - [Appweb web site](http://appwebserver.org/)
+  - [Embedthis web site](http://embedthis.com/)
+  - [MPR GitHub repository](http://github.com/embedthis/mpr-4)
+  - [Appweb GitHub repository](http://github.com/embedthis/appweb-4)
