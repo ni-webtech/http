@@ -567,13 +567,21 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
         httpAddHeader(conn, "ETag", "%s", tx->etag);
     }
     if (tx->chunkSize > 0) {
+        mprAssert(tx->status != 304 && tx->status != 204 && !(100 <= tx->status && tx->status <= 199) && 
+            !(rx->flags & HTTP_HEAD));
         if (!(rx->flags & HTTP_HEAD)) {
             httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
         }
+    } else if (tx->status == 304 || tx->status == 204 || (100 <= tx->status && tx->status <= 199) || 
+            !(rx->flags & HTTP_HEAD)) {
+        httpAddHeader(conn, "Content-Length", "%Ld", tx->length > 0 ? tx->length : 0);
+    }
+#if UNUSED
     } else if (tx->length >= 0) {
         mprAssert(tx->status != 304 && tx->status != 204 && !(100 <= tx->status && tx->status <= 199));
         httpAddHeader(conn, "Content-Length", "%Ld", tx->length);
     }
+#endif
     if (tx->outputRanges) {
         if (tx->outputRanges->next == 0) {
             range = tx->outputRanges;

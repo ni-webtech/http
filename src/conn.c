@@ -667,9 +667,11 @@ void httpSetProtocol(HttpConn *conn, cchar *protocol)
 {
     if (conn->state < HTTP_STATE_CONNECTED) {
         conn->protocol = sclone(protocol);
-        if (strcmp(protocol, "HTTP/1.0") == 0) {
+#if UNUSED
+        if (strcmp(conn->protocol, "HTTP/1.0") == 0) {
             conn->keepAliveCount = -1;
         }
+#endif
     }
 }
 

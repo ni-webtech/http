@@ -2792,7 +2792,7 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
             Extra unparsed text
          */
         for (; tok < end && isspace((uchar) *tok); tok++) ;
-        if (*tok) {
+        if (*tok && *tok != '#') {
             mprError("Extra unparsed text: \"%s\"", tok);
             return 0;
         }
