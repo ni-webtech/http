@@ -576,7 +576,9 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
                 }
                 rx->contentLength = sclone(value);
                 mprAssert(rx->length >= 0);
-                if (conn->endpoint || strcasecmp(tx->method, "HEAD") != 0) {
+                if (strcasecmp(tx->method, "HEAD") == 0) {
+                    rx->remainingContent = 0;
+                } else if (conn->endpoint) {
                     rx->remainingContent = rx->length;
                     rx->needInputPipeline = 1;
                 }

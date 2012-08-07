@@ -285,9 +285,10 @@ ssize httpFormatResponsev(HttpConn *conn, cchar *fmt, va_list args)
     tx = conn->tx;
     conn->responded = 1;
     body = sfmtv(fmt, args);
-    httpOmitBody(conn);
     tx->altBody = body;
     tx->length = slen(tx->altBody);
+    conn->tx->flags |= HTTP_TX_NO_BODY;
+    httpDiscardData(conn, HTTP_QUEUE_TX);
     return (ssize) tx->length;
 }
 
@@ -542,6 +543,7 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     HttpRoute   *route;
     HttpRange   *range;
     cchar       *mimeType;
+    ssize       length;
 
     mprAssert(packet->flags == HTTP_PACKET_HEADER);
 
@@ -566,16 +568,16 @@ static void setHeaders(HttpConn *conn, HttpPacket *packet)
     if (tx->etag) {
         httpAddHeader(conn, "ETag", "%s", tx->etag);
     }
-    /* 
-        HTTP spec says that 1XX, 204, 304 or HEAD requests must not have a Content-Length. Enforce that here.
-     */
-    if ((100 <= tx->status && tx->status <= 199) || tx->status == 204 || tx->status == 304 || (rx->flags & HTTP_HEAD)) {
-        httpOmitBody(conn);
+    length = tx->length > 0 ? tx->length : 0;
+    if (rx->flags & HTTP_HEAD) {
+        conn->tx->flags |= HTTP_TX_NO_BODY;
+        httpDiscardData(conn, HTTP_QUEUE_TX);
+        httpAddHeader(conn, "Content-Length", "%Ld", length);
     } else if (tx->chunkSize > 0) {
         httpSetHeaderString(conn, "Transfer-Encoding", "chunked");
     } else if (conn->endpoint || tx->length > 0) {
         /* Server or client with body */
-        httpAddHeader(conn, "Content-Length", "%Ld", tx->length > 0 ? tx->length : 0);
+        httpAddHeader(conn, "Content-Length", "%Ld", length);
     }
     if (tx->outputRanges) {
         if (tx->outputRanges->next == 0) {
