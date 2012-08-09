@@ -632,6 +632,22 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
             }
             break;
 
+        case 'e':
+            if (strcasecmp(key, "expect") == 0) {
+                /*
+                    Handle 100-continue for HTTP/1.1 clients only. This is the only expectation that is currently
+                    supported.
+                 */
+                if (!conn->http10) {
+                    if (strcasecmp(value, "100-continue") != 0) {
+                        httpError(conn, HTTP_CODE_EXPECTATION_FAILED, "Expect header value \"%s\" is unsupported", value);
+                    } else {
+                        rx->flags |= HTTP_EXPECT_100CONTINUE;
+                    }
+                }
+            }
+            break;
+
         case 'h':
             if (strcasecmp(key, "host") == 0) {
                 rx->hostHeader = sclone(value);
@@ -940,6 +956,28 @@ static bool parseAuthenticate(HttpConn *conn, char *authDetails)
 
 
 /*
+    Sends an HTTP 100 Continue response to the client. This bypasses the transmission pipeline, writing
+    directly to the socket.
+ */
+static int send100Continue(HttpConn *conn)
+{
+    cchar      *response;
+
+    mprAssert(conn);
+    mprAssert(conn->sock);
+
+    /* Create a string for the 100 Continue response. */
+    response = sfmt("%s 100 Continue\r\n\r\n", conn->protocol);
+
+    /* Write the response to the socket and flush. */
+    mprWriteSocket(conn->sock, response, slen(response));
+    mprFlushSocket(conn->sock);
+
+    return 0;
+}
+
+
+/*
     Called once the HTTP request/response headers have been parsed
  */
 static bool processParsed(HttpConn *conn)
@@ -956,6 +994,19 @@ static bool processParsed(HttpConn *conn)
     if (rx->streamInput) {
         httpStartPipeline(conn);
     }
+
+    /*
+        Send 100 Continue now if the client has requested it.
+
+        If the connection has an error, that takes precedence and 100 Continue will not be sent. Also, if the
+        connector has already written bytes to the socket, we do not send 100 Continue to avoid corrupting the
+        response.
+     */
+    if ((rx->flags & HTTP_EXPECT_100CONTINUE) && !conn->error && !conn->tx->bytesWritten) {
+        send100Continue(conn);
+        rx->flags &= ~HTTP_EXPECT_100CONTINUE;
+    }
+
     httpSetState(conn, HTTP_STATE_CONTENT);
     if (conn->workerEvent && conn->tx->started && rx->eof) {
         httpSetState(conn, HTTP_STATE_READY);
