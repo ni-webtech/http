@@ -455,7 +455,9 @@ static bool parseResponseLine(HttpConn *conn, HttpPacket *packet)
     protocol = conn->protocol = supper(getToken(conn, " "));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         conn->http10 = 1;
-        rx->remainingContent = MAXINT;
+        if (!scaselessmatch(tx->method, "HEAD")) {
+            rx->remainingContent = MAXINT;
+        }
     } else if (strcmp(protocol, "HTTP/1.1") != 0) {
         httpError(conn, HTTP_ABORT | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
         return 0;
