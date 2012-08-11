@@ -62,7 +62,6 @@ static void netOutgoingService(HttpQueue *q)
     tx = conn->tx;
     conn->lastActivity = conn->http->now;
     mprAssert(conn->sock);
-    mprAssert(!conn->connectorComplete);
     
     if (!conn->sock || conn->connectorComplete) {
         return;
