@@ -23,6 +23,7 @@
 #define BIT_MANAGER ""
 #define BIT_MINIMAL "doxygen,dsi,man,man2html,pmaker,ssl"
 #define BIT_OPTIONAL "doxygen,dsi,ejs,man,man2html,openssl,matrixssl,ssl,utest"
+#define BIT_PAM 1
 #define BIT_PRODUCT "http"
 #define BIT_REQUIRED "compiler,link,pcre"
 #define BIT_SYNC "mpr,pcre"

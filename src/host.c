@@ -11,6 +11,10 @@
 
 #include    "http.h"
 
+/*********************************** Locals ***********************************/
+
+static HttpHost *defaultHost;
+
 /********************************** Forwards **********************************/
 
 static void manageHost(HttpHost *host, int flags);
@@ -203,6 +207,7 @@ void httpSetHostIpAddr(HttpHost *host, cchar *ip, int port)
     host->ip = sclone(ip);
     host->port = port;
 
+    //  MOB - refactor this. Need a Host.name for trace and Host.name for using in redirections based on ServerName
     if (!host->name) {
         if (ip) {
             if (port > 0) {
@@ -232,7 +237,7 @@ void httpSetHostProtocol(HttpHost *host, cchar *protocol)
 
 int httpAddRoute(HttpHost *host, HttpRoute *route)
 {
-    HttpRoute   *prev, *item;
+    HttpRoute   *prev, *item, *lastRoute;
     int         i, thisRoute;
 
     mprAssert(route);
@@ -241,7 +246,12 @@ int httpAddRoute(HttpHost *host, HttpRoute *route)
         host->routes = mprCloneList(host->parent->routes);
     }
     if (mprLookupItem(host->routes, route) < 0) {
-        thisRoute = mprAddItem(host->routes, route);
+        if ((lastRoute = mprGetLastItem(host->routes)) && lastRoute->pattern[0] == '\0') {
+            /* Insert before default route */
+            thisRoute = mprInsertItemAtPos(host->routes, mprGetListLength(host->routes) - 1, route);
+        } else {
+            thisRoute = mprAddItem(host->routes, route);
+        }
         if (thisRoute > 0) {
             prev = mprGetItem(host->routes, thisRoute - 1);
             if (!smatch(prev->startSegment, route->startSegment)) {
@@ -270,6 +280,9 @@ HttpRoute *httpLookupRoute(HttpHost *host, cchar *name)
     if (name == 0 || *name == '\0') {
         name = "default";
     }
+    if (!host && (host = httpGetDefaultHost()) == 0) {
+        return 0;
+    }
     for (next = 0; (route = mprGetNextItem(host->routes, &next)) != 0; ) {
         mprAssert(route->name);
         if (smatch(route->name, name)) {
@@ -291,32 +304,40 @@ void httpSetHostDefaultRoute(HttpHost *host, HttpRoute *route)
     host->defaultRoute = route;
 }
 
+
+void httpSetDefaultHost(HttpHost *host)
+{
+    defaultHost = host;
+}
+
+
+HttpHost *httpGetDefaultHost()
+{
+    return defaultHost;
+}
+
+
+HttpRoute *httpGetDefaultRoute(HttpHost *host)
+{
+    if (host) {
+        return host->defaultRoute;
+    } else if (defaultHost) {
+        return defaultHost->defaultRoute;
+    }
+    return 0;
+}
+
+
 /*
     @copy   default
 
     Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2012. All Rights Reserved.
 
     This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire
-    a commercial license from Embedthis Software. You agree to be fully bound
+    You may use the Embedthis Open Source license or you may acquire a 
+    commercial license from Embedthis Software. You agree to be fully bound
     by the terms of either license. Consult the LICENSE.md distributed with
-    this software for full details.
-
-    This software is open source; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License as published by the
-    Free Software Foundation; either version 2 of the License, or (at your
-    option) any later version. See the GNU General Public License for more
-    details at: http://embedthis.com/downloads/gplLicense.html
-
-    This program is distributed WITHOUT ANY WARRANTY; without even the
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-    This GPL license does NOT permit incorporating this software into
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses
-    for this software and support services are available from Embedthis
-    Software at http://embedthis.com
+    this software for full details and other copyrights.
 
     Local variables:
     tab-width: 4

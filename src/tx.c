@@ -396,12 +396,14 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
     int         port;
 
     mprAssert(targetUri);
-
-    mprLog(3, "redirect %d %s", status, targetUri);
-
     rx = conn->rx;
     tx = conn->tx;
     tx->status = status;
+
+    if (schr(targetUri, '$')) {
+        targetUri = httpExpandRouteVars(conn, targetUri);
+    }
+    mprLog(3, "redirect %d %s", status, targetUri);
     msg = httpLookupStatus(conn->http, status);
 
     if (300 <= status && status <= 399) {
@@ -409,7 +411,10 @@ void httpRedirect(HttpConn *conn, int status, cchar *targetUri)
             targetUri = "/";
         }
         target = httpCreateUri(targetUri, 0);
-
+        if (!target->host) {
+            target->host = rx->parsedUri->host;
+            targetUri = httpUriToString(target, 0);
+        }
         if (conn->http->redirectCallback) {
             targetUri = (conn->http->redirectCallback)(conn, &status, target);
         }
@@ -467,53 +472,28 @@ void httpSetContentLength(HttpConn *conn, MprOff length)
     httpSetHeader(conn, "Content-Length", "%Ld", tx->length);
 }
 
-
-void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar *cookieDomain, 
-        MprTime lifespan, int flags)
+void httpSetCookie(HttpConn *conn, cchar *name, cchar *value, cchar *path, cchar *cookieDomain, MprTime lifespan, int flags)
 {
     HttpRx      *rx;
     char        *cp, *expiresAtt, *expires, *domainAtt, *domain, *secure, *httponly;
-    int         webkitVersion;
 
     rx = conn->rx;
     if (path == 0) {
         path = "/";
     }
-    /* 
-        Fix for Safari >= 3.2.1 with Bonjour addresses with a trailing ".". Safari discards cookies without a domain 
-        specifier or with a domain that includes a trailing ".". Solution: include an explicit domain and trim the 
-        trailing ".".
-      
-        User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_5_6; en-us) 
-             AppleWebKit/530.0+ (KHTML, like Gecko) Version/3.1.2 Safari/525.20.1
-    */
-    webkitVersion = 0;
-    if (cookieDomain == 0 && rx->userAgent && strstr(rx->userAgent, "AppleWebKit") != 0) {
-        if ((cp = strstr(rx->userAgent, "Version/")) != NULL && strlen(cp) >= 13) {
-            cp = &cp[8];
-            webkitVersion = (cp[0] - '0') * 100 + (cp[2] - '0') * 10 + (cp[4] - '0');
-        }
-    }
     domain = (char*) cookieDomain;
-    if (webkitVersion >= 312) {
+    if (!domain) {
         domain = sclone(rx->hostHeader);
         if ((cp = strchr(domain, ':')) != 0) {
             *cp = '\0';
         }
         if (*domain && domain[strlen(domain) - 1] == '.') {
             domain[strlen(domain) - 1] = '\0';
-        } else {
-            domain = 0;
         }
     }
-    if (domain) {
-        if (*domain != '.') {
-            domain = sjoin(".", domain, NULL);
-        }
-        domainAtt = "; domain=";
-    } else {
-        domainAtt = "";
-        domain = "";
+    domainAtt = domain ? "; domain=" : "";
+    if (domain && !strchr(domain, '.')) {
+        domain = sjoin(".", domain, NULL);
     }
     if (lifespan > 0) {
         expiresAtt = "; expires=";
@@ -751,28 +731,12 @@ bool httpFileExists(HttpConn *conn)
     @copy   default
 
     Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2012. All Rights Reserved.
 
     This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire
-    a commercial license from Embedthis Software. You agree to be fully bound
+    You may use the Embedthis Open Source license or you may acquire a 
+    commercial license from Embedthis Software. You agree to be fully bound
     by the terms of either license. Consult the LICENSE.md distributed with
-    this software for full details.
-
-    This software is open source; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License as published by the
-    Free Software Foundation; either version 2 of the License, or (at your
-    option) any later version. See the GNU General Public License for more
-    details at: http://embedthis.com/downloads/gplLicense.html
-
-    This program is distributed WITHOUT ANY WARRANTY; without even the
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-    This GPL license does NOT permit incorporating this software into
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses
-    for this software and support services are available from Embedthis
-    Software at http://embedthis.com
+    this software for full details and other copyrights.
 
     Local variables:
     tab-width: 4

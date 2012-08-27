@@ -101,13 +101,12 @@
   
   <ItemGroup>
     <ClCompile Include="..\..\src\auth.c" />
-    <ClCompile Include="..\..\src\authCheck.c" />
-    <ClCompile Include="..\..\src\authFile.c" />
-    <ClCompile Include="..\..\src\authPam.c" />
+    <ClCompile Include="..\..\src\basic.c" />
     <ClCompile Include="..\..\src\cache.c" />
     <ClCompile Include="..\..\src\chunkFilter.c" />
     <ClCompile Include="..\..\src\client.c" />
     <ClCompile Include="..\..\src\conn.c" />
+    <ClCompile Include="..\..\src\digest.c" />
     <ClCompile Include="..\..\src\endpoint.c" />
     <ClCompile Include="..\..\src\error.c" />
     <ClCompile Include="..\..\src\host.c" />
@@ -115,13 +114,16 @@
     <ClCompile Include="..\..\src\log.c" />
     <ClCompile Include="..\..\src\netConnector.c" />
     <ClCompile Include="..\..\src\packet.c" />
+    <ClCompile Include="..\..\src\pam.c" />
     <ClCompile Include="..\..\src\passHandler.c" />
     <ClCompile Include="..\..\src\pipeline.c" />
+    <ClCompile Include="..\..\src\procHandler.c" />
     <ClCompile Include="..\..\src\queue.c" />
     <ClCompile Include="..\..\src\rangeFilter.c" />
     <ClCompile Include="..\..\src\route.c" />
     <ClCompile Include="..\..\src\rx.c" />
     <ClCompile Include="..\..\src\sendConnector.c" />
+    <ClCompile Include="..\..\src\session.c" />
     <ClCompile Include="..\..\src\stage.c" />
     <ClCompile Include="..\..\src\trace.c" />
     <ClCompile Include="..\..\src\tx.c" />
@@ -148,7 +150,7 @@
 
   <CustomBuildStep>
     <Command>cd ..\..
-xcopy /Y /S /D src\http.h $(IncDir)
+copy /Y src\http.h $(IncDir)
 cd projects\http-windows</Command>
     <Outputs>$(BinDir)\libhttp.dll</Outputs>
   </CustomBuildStep>

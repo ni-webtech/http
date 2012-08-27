@@ -84,93 +84,24 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
  */
 static int setClientHeaders(HttpConn *conn)
 {
-    Http        *http;
-    HttpTx      *tx;
-    HttpUri     *parsedUri;
-    char        *encoded;
+    HttpAuthType    *authType;
 
     mprAssert(conn);
 
-    http = conn->http;
-    tx = conn->tx;
-    parsedUri = tx->parsedUri;
-    if (conn->authType && strcmp(conn->authType, "basic") == 0) {
-        char    abuf[MPR_MAX_STRING];
-        mprSprintf(abuf, sizeof(abuf), "%s:%s", conn->authUser, conn->authPassword);
-        encoded = mprEncode64(abuf);
-        httpAddHeader(conn, "Authorization", "basic %s", encoded);
-        conn->sentCredentials = 1;
-
-    } else if (conn->authType && strcmp(conn->authType, "digest") == 0) {
-        char    a1Buf[256], a2Buf[256], digestBuf[256];
-        char    *ha1, *ha2, *digest, *qop;
-        if (http->secret == 0 && httpCreateSecret(http) < 0) {
-            mprLog(MPR_ERROR, "Http: Can't create secret for digest authentication");
-            return MPR_ERR_CANT_CREATE;
-        }
-        conn->authCnonce = sfmt("%s:%s:%x", http->secret, conn->authRealm, (int) http->now);
-
-        mprSprintf(a1Buf, sizeof(a1Buf), "%s:%s:%s", conn->authUser, conn->authRealm, conn->authPassword);
-        ha1 = mprGetMD5(a1Buf);
-        mprSprintf(a2Buf, sizeof(a2Buf), "%s:%s", tx->method, parsedUri->path);
-        ha2 = mprGetMD5(a2Buf);
-        qop = (conn->authQop) ? conn->authQop : (char*) "";
-
-        conn->authNc++;
-        if (scaselesscmp(conn->authQop, "auth") == 0) {
-            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
-                ha1, conn->authNonce, conn->authNc, conn->authCnonce, conn->authQop, ha2);
-        } else if (scaselesscmp(conn->authQop, "auth-int") == 0) {
-            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%08x:%s:%s:%s",
-                ha1, conn->authNonce, conn->authNc, conn->authCnonce, conn->authQop, ha2);
-        } else {
-            qop = "";
-            mprSprintf(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, conn->authNonce, ha2);
-        }
-        digest = mprGetMD5(digestBuf);
-
-        if (*qop == '\0') {
-            httpAddHeader(conn, "Authorization", "Digest username=\"%s\", realm=\"%s\", nonce=\"%s\", "
-                "uri=\"%s\", response=\"%s\"",
-                conn->authUser, conn->authRealm, conn->authNonce, parsedUri->path, digest);
-
-        } else if (strcmp(qop, "auth") == 0) {
-            httpAddHeader(conn, "Authorization", "Digest username=\"%s\", realm=\"%s\", domain=\"%s\", "
-                "algorithm=\"MD5\", qop=\"%s\", cnonce=\"%s\", nc=\"%08x\", nonce=\"%s\", opaque=\"%s\", "
-                "stale=\"FALSE\", uri=\"%s\", response=\"%s\"",
-                conn->authUser, conn->authRealm, conn->authDomain, conn->authQop, conn->authCnonce, conn->authNc,
-                conn->authNonce, conn->authOpaque, parsedUri->path, digest);
-
-        } else if (strcmp(qop, "auth-int") == 0) {
-            ;
-        }
-        conn->sentCredentials = 1;
+    if (conn->authType && (authType = httpLookupAuthType(conn->authType)) != 0) {
+        (authType->setAuth)(conn);
+        conn->setCredentials = 1;
     }
     if (conn->port != 80) {
         httpAddHeader(conn, "Host", "%s:%d", conn->ip, conn->port);
     } else {
         httpAddHeaderString(conn, "Host", conn->ip);
     }
-#if UNUSED
-    if (strcmp(conn->protocol, "HTTP/1.1") == 0) {
-        /* If zero, we ask the client to close one request early. This helps with client led closes */
-        if (conn->keepAliveCount > 0) {
-            httpSetHeaderString(conn, "Connection", "Keep-Alive");
-        } else {
-            httpSetHeaderString(conn, "Connection", "close");
-        }
-    } else {
-        /* Set to zero to let the client initiate the close */
-        conn->keepAliveCount = 0;
-        httpSetHeaderString(conn, "Connection", "close");
-    }
-#else
     if (conn->keepAliveCount > 0) {
         httpSetHeaderString(conn, "Connection", "Keep-Alive");
     } else {
         httpSetHeaderString(conn, "Connection", "close");
     }
-#endif
     return 0;
 }
 
@@ -193,7 +124,7 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url, struct MprSsl *ssl)
     }
     mprAssert(conn->state == HTTP_STATE_BEGIN);
     httpSetState(conn, HTTP_STATE_CONNECTED);
-    conn->sentCredentials = 0;
+    conn->setCredentials = 0;
     conn->tx->method = supper(method);
 
 #if BIT_DEBUG
@@ -216,7 +147,8 @@ int httpConnect(HttpConn *conn, cchar *method, cchar *url, struct MprSsl *ssl)
  */
 bool httpNeedRetry(HttpConn *conn, char **url)
 {
-    HttpRx      *rx;
+    HttpAuthType    *authType;
+    HttpRx          *rx;
 
     mprAssert(conn->rx);
 
@@ -227,11 +159,14 @@ bool httpNeedRetry(HttpConn *conn, char **url)
         return 0;
     }
     if (rx->status == HTTP_CODE_UNAUTHORIZED) {
-        if (conn->authUser == 0) {
+        if (conn->username == 0) {
             httpFormatError(conn, rx->status, "Authentication required");
-        } else if (conn->sentCredentials) {
+        } else if (conn->setCredentials) {
             httpFormatError(conn, rx->status, "Authentication failed");
         } else {
+            if (conn->authType && (authType = httpLookupAuthType(conn->authType)) != 0) {
+                (authType->parseAuth)(conn);
+            }
             return 1;
         }
     } else if (HTTP_CODE_MOVED_PERMANENTLY <= rx->status && rx->status <= HTTP_CODE_MOVED_TEMPORARILY && 
@@ -330,28 +265,12 @@ ssize httpWriteUploadData(HttpConn *conn, MprList *fileData, MprList *formData)
     @copy   default
 
     Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2012. All Rights Reserved.
 
     This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire
-    a commercial license from Embedthis Software. You agree to be fully bound
+    You may use the Embedthis Open Source license or you may acquire a 
+    commercial license from Embedthis Software. You agree to be fully bound
     by the terms of either license. Consult the LICENSE.md distributed with
-    this software for full details.
-
-    This software is open source; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License as published by the
-    Free Software Foundation; either version 2 of the License, or (at your
-    option) any later version. See the GNU General Public License for more
-    details at: http://embedthis.com/downloads/gplLicense.html
-
-    This program is distributed WITHOUT ANY WARRANTY; without even the
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-    This GPL license does NOT permit incorporating this software into
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses
-    for this software and support services are available from Embedthis
-    Software at http://embedthis.com
+    this software for full details and other copyrights.
 
     Local variables:
     tab-width: 4

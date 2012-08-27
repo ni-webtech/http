@@ -13,7 +13,6 @@ static void addMatchEtag(HttpConn *conn, char *etag);
 static char *getToken(HttpConn *conn, cchar *delim);
 static void manageRange(HttpRange *range, int flags);
 static void manageRx(HttpRx *rx, int flags);
-static bool parseAuthenticate(HttpConn *conn, char *authDetails);
 static bool parseHeaders(HttpConn *conn, HttpPacket *packet);
 static bool parseIncoming(HttpConn *conn, HttpPacket *packet);
 static bool parseRange(HttpConn *conn, char *value);
@@ -82,14 +81,12 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->redirect);
         mprMark(rx->referrer);
         mprMark(rx->securityToken);
+        mprMark(rx->session);
         mprMark(rx->userAgent);
         mprMark(rx->params);
         mprMark(rx->svars);
         mprMark(rx->inputRange);
-        mprMark(rx->authAlgorithm);
-        mprMark(rx->authDetails);
-        mprMark(rx->authStale);
-        mprMark(rx->authType);
+        mprMark(rx->passDigest);
         mprMark(rx->files);
         mprMark(rx->uploadDir);
         mprMark(rx->paramString);
@@ -229,7 +226,12 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
             rx->parsedUri->scheme = sclone("https");
         }
         rx->parsedUri->port = conn->sock->listenSock->port;
+
+        //  MOB - refactor what conn->host is set to
         rx->parsedUri->host = rx->hostHeader ? rx->hostHeader : conn->host->name;
+        if (!rx->parsedUri->host) {
+           rx->parsedUri->host = (conn->host->name[0] == '*') ? conn->sock->acceptIp : conn->host->name;
+        }
 
     } else if (!(100 <= rx->status && rx->status <= 199)) {
         /* 
@@ -492,7 +494,7 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
     HttpTx      *tx;
     HttpLimits  *limits;
     MprBuf      *content;
-    char        *key, *value, *tok, *hvalue;
+    char        *cp, *key, *value, *tok, *hvalue;
     cchar       *oldValue;
     int         count, keepAlive;
 
@@ -533,7 +535,7 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
         case 'a':
             if (strcasecmp(key, "authorization") == 0) {
                 value = sclone(value);
-                rx->authType = stok(value, " \t", &tok);
+                conn->authType = slower(stok(value, " \t", &tok));
                 rx->authDetails = sclone(tok);
 
             } else if (strcasecmp(key, "accept-charset") == 0) {
@@ -785,16 +787,13 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
 
         case 'w':
             if (strcasecmp(key, "www-authenticate") == 0) {
-                conn->authType = value;
+                cp = value;
                 while (*value && !isspace((uchar) *value)) {
                     value++;
                 }
                 *value++ = '\0';
-                conn->authType = slower(conn->authType);
-                if (!parseAuthenticate(conn, value)) {
-                    httpError(conn, HTTP_CODE_BAD_REQUEST, "Bad Authentication header");
-                    break;
-                }
+                conn->authType = slower(cp);
+                rx->authDetails = sclone(value);
             }
             break;
         }
@@ -814,142 +813,6 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
          */
         if (httpGetPacketLength(packet) >= 2) {
             mprAdjustBufStart(content, 2);
-        }
-    }
-    return 1;
-}
-
-
-/*  
-    Parse an authentication response (client side only)
- */
-static bool parseAuthenticate(HttpConn *conn, char *authDetails)
-{
-    HttpRx  *rx;
-    char    *value, *tok, *key, *dp, *sp;
-    int     seenComma;
-
-    rx = conn->rx;
-    key = (char*) authDetails;
-
-    while (*key) {
-        while (*key && isspace((uchar) *key)) {
-            key++;
-        }
-        tok = key;
-        while (*tok && !isspace((uchar) *tok) && *tok != ',' && *tok != '=') {
-            tok++;
-        }
-        *tok++ = '\0';
-
-        while (isspace((uchar) *tok)) {
-            tok++;
-        }
-        seenComma = 0;
-        if (*tok == '\"') {
-            value = ++tok;
-            while (*tok != '\"' && *tok != '\0') {
-                tok++;
-            }
-        } else {
-            value = tok;
-            while (*tok != ',' && *tok != '\0') {
-                tok++;
-            }
-            seenComma++;
-        }
-        *tok++ = '\0';
-
-        /*
-            Handle back-quoting
-         */
-        if (strchr(value, '\\')) {
-            for (dp = sp = value; *sp; sp++) {
-                if (*sp == '\\') {
-                    sp++;
-                }
-                *dp++ = *sp++;
-            }
-            *dp = '\0';
-        }
-
-        /*
-            algorithm, domain, nonce, oqaque, realm, qop, stale
-            We don't strdup any of the values as the headers are persistently saved.
-         */
-        switch (tolower((uchar) *key)) {
-        case 'a':
-            if (scaselesscmp(key, "algorithm") == 0) {
-                rx->authAlgorithm = sclone(value);
-                break;
-            }
-            break;
-
-        case 'd':
-            if (scaselesscmp(key, "domain") == 0) {
-                conn->authDomain = sclone(value);
-                break;
-            }
-            break;
-
-        case 'n':
-            if (scaselesscmp(key, "nonce") == 0) {
-                conn->authNonce = sclone(value);
-                conn->authNc = 0;
-            }
-            break;
-
-        case 'o':
-            if (scaselesscmp(key, "opaque") == 0) {
-                conn->authOpaque = sclone(value);
-            }
-            break;
-
-        case 'q':
-            if (scaselesscmp(key, "qop") == 0) {
-                conn->authQop = sclone(value);
-            }
-            break;
-
-        case 'r':
-            if (scaselesscmp(key, "realm") == 0) {
-                conn->authRealm = sclone(value);
-            }
-            break;
-
-        case 's':
-            if (scaselesscmp(key, "stale") == 0) {
-                rx->authStale = sclone(value);
-                break;
-            }
-
-        default:
-            /*  For upward compatibility --  ignore keywords we don't understand */
-            ;
-        }
-        key = tok;
-        if (!seenComma) {
-            while (*key && *key != ',') {
-                key++;
-            }
-            if (*key) {
-                key++;
-            }
-        }
-    }
-    if (strcmp(rx->conn->authType, "basic") == 0) {
-        if (conn->authRealm == 0) {
-            return 0;
-        }
-        return 1;
-    }
-    /* Digest */
-    if (conn->authRealm == 0 || conn->authNonce == 0) {
-        return 0;
-    }
-    if (conn->authQop) {
-        if (conn->authDomain == 0 || conn->authOpaque == 0 || rx->authAlgorithm == 0 || rx->authStale == 0) {
-            return 0;
         }
     }
     return 1;
@@ -1453,7 +1316,8 @@ int httpWait(HttpConn *conn, int state, MprTime timeout)
     if (conn->input && httpGetPacketLength(conn->input) > 0) {
         httpPump(conn, conn->input);
     }
-    if (conn->error) {
+    mprAssert(conn->sock);
+    if (conn->error || !conn->sock) {
         return MPR_ERR_BAD_STATE;
     }
     mark = mprGetTime();
@@ -1834,28 +1698,12 @@ void httpTrimExtraPath(HttpConn *conn)
     @copy   default
 
     Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2012. All Rights Reserved.
 
     This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire
-    a commercial license from Embedthis Software. You agree to be fully bound
+    You may use the Embedthis Open Source license or you may acquire a 
+    commercial license from Embedthis Software. You agree to be fully bound
     by the terms of either license. Consult the LICENSE.md distributed with
-    this software for full details.
-
-    This software is open source; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License as published by the
-    Free Software Foundation; either version 2 of the License, or (at your
-    option) any later version. See the GNU General Public License for more
-    details at: http://embedthis.com/downloads/gplLicense.html
-
-    This program is distributed WITHOUT ANY WARRANTY; without even the
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-    This GPL license does NOT permit incorporating this software into
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses
-    for this software and support services are available from Embedthis
-    Software at http://embedthis.com
+    this software for full details and other copyrights.
 
     Local variables:
     tab-width: 4

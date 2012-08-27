@@ -3,8 +3,8 @@
 #
 
 export PATH="$(SDK)/Bin:$(VS)/VC/Bin:$(VS)/Common7/IDE:$(VS)/Common7/Tools:$(VS)/SDK/v3.5/bin:$(VS)/VC/VCPackages;$(PATH)"
-export INCLUDE="$(INCLUDE);$(SDK)/INCLUDE:$(VS)/VC/INCLUDE"
-export LIB="$(LIB);$(SDK)/lib:$(VS)/VC/lib"
+export INCLUDE="$(INCLUDE);$(SDK)/Include:$(VS)/VC/INCLUDE"
+export LIB="$(LIB);$(SDK)/Lib:$(VS)/VC/lib"
 
 ARCH="x86"
 ARCH="$(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/')"
@@ -54,11 +54,7 @@ cp -r src/http.h ${CONFIG}/inc/http.h
 
 "${CC}" -c -Fo${CONFIG}/obj/auth.obj -Fd${CONFIG}/obj/auth.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/auth.c
 
-"${CC}" -c -Fo${CONFIG}/obj/authCheck.obj -Fd${CONFIG}/obj/authCheck.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/authCheck.c
-
-"${CC}" -c -Fo${CONFIG}/obj/authFile.obj -Fd${CONFIG}/obj/authFile.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/authFile.c
-
-"${CC}" -c -Fo${CONFIG}/obj/authPam.obj -Fd${CONFIG}/obj/authPam.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/authPam.c
+"${CC}" -c -Fo${CONFIG}/obj/basic.obj -Fd${CONFIG}/obj/basic.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/basic.c
 
 "${CC}" -c -Fo${CONFIG}/obj/cache.obj -Fd${CONFIG}/obj/cache.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/cache.c
 
@@ -67,6 +63,8 @@ cp -r src/http.h ${CONFIG}/inc/http.h
 "${CC}" -c -Fo${CONFIG}/obj/client.obj -Fd${CONFIG}/obj/client.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/client.c
 
 "${CC}" -c -Fo${CONFIG}/obj/conn.obj -Fd${CONFIG}/obj/conn.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/conn.c
+
+"${CC}" -c -Fo${CONFIG}/obj/digest.obj -Fd${CONFIG}/obj/digest.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/digest.c
 
 "${CC}" -c -Fo${CONFIG}/obj/endpoint.obj -Fd${CONFIG}/obj/endpoint.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/endpoint.c
 
@@ -82,9 +80,13 @@ cp -r src/http.h ${CONFIG}/inc/http.h
 
 "${CC}" -c -Fo${CONFIG}/obj/packet.obj -Fd${CONFIG}/obj/packet.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/packet.c
 
+"${CC}" -c -Fo${CONFIG}/obj/pam.obj -Fd${CONFIG}/obj/pam.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/pam.c
+
 "${CC}" -c -Fo${CONFIG}/obj/passHandler.obj -Fd${CONFIG}/obj/passHandler.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/passHandler.c
 
 "${CC}" -c -Fo${CONFIG}/obj/pipeline.obj -Fd${CONFIG}/obj/pipeline.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/pipeline.c
+
+"${CC}" -c -Fo${CONFIG}/obj/procHandler.obj -Fd${CONFIG}/obj/procHandler.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/procHandler.c
 
 "${CC}" -c -Fo${CONFIG}/obj/queue.obj -Fd${CONFIG}/obj/queue.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/queue.c
 
@@ -95,6 +97,8 @@ cp -r src/http.h ${CONFIG}/inc/http.h
 "${CC}" -c -Fo${CONFIG}/obj/rx.obj -Fd${CONFIG}/obj/rx.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/rx.c
 
 "${CC}" -c -Fo${CONFIG}/obj/sendConnector.obj -Fd${CONFIG}/obj/sendConnector.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/sendConnector.c
+
+"${CC}" -c -Fo${CONFIG}/obj/session.obj -Fd${CONFIG}/obj/session.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/session.c
 
 "${CC}" -c -Fo${CONFIG}/obj/stage.obj -Fd${CONFIG}/obj/stage.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/stage.c
 
@@ -108,7 +112,7 @@ cp -r src/http.h ${CONFIG}/inc/http.h
 
 "${CC}" -c -Fo${CONFIG}/obj/var.obj -Fd${CONFIG}/obj/var.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/var.c
 
-"${LD}" -dll -out:${CONFIG}/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libhttp.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/auth.obj ${CONFIG}/obj/authCheck.obj ${CONFIG}/obj/authFile.obj ${CONFIG}/obj/authPam.obj ${CONFIG}/obj/cache.obj ${CONFIG}/obj/chunkFilter.obj ${CONFIG}/obj/client.obj ${CONFIG}/obj/conn.obj ${CONFIG}/obj/endpoint.obj ${CONFIG}/obj/error.obj ${CONFIG}/obj/host.obj ${CONFIG}/obj/httpService.obj ${CONFIG}/obj/log.obj ${CONFIG}/obj/netConnector.obj ${CONFIG}/obj/packet.obj ${CONFIG}/obj/passHandler.obj ${CONFIG}/obj/pipeline.obj ${CONFIG}/obj/queue.obj ${CONFIG}/obj/rangeFilter.obj ${CONFIG}/obj/route.obj ${CONFIG}/obj/rx.obj ${CONFIG}/obj/sendConnector.obj ${CONFIG}/obj/stage.obj ${CONFIG}/obj/trace.obj ${CONFIG}/obj/tx.obj ${CONFIG}/obj/uploadFilter.obj ${CONFIG}/obj/uri.obj ${CONFIG}/obj/var.obj ${LIBS} libmpr.lib libpcre.lib
+"${LD}" -dll -out:${CONFIG}/bin/libhttp.dll -entry:_DllMainCRTStartup@12 -def:${CONFIG}/bin/libhttp.def ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/auth.obj ${CONFIG}/obj/basic.obj ${CONFIG}/obj/cache.obj ${CONFIG}/obj/chunkFilter.obj ${CONFIG}/obj/client.obj ${CONFIG}/obj/conn.obj ${CONFIG}/obj/digest.obj ${CONFIG}/obj/endpoint.obj ${CONFIG}/obj/error.obj ${CONFIG}/obj/host.obj ${CONFIG}/obj/httpService.obj ${CONFIG}/obj/log.obj ${CONFIG}/obj/netConnector.obj ${CONFIG}/obj/packet.obj ${CONFIG}/obj/pam.obj ${CONFIG}/obj/passHandler.obj ${CONFIG}/obj/pipeline.obj ${CONFIG}/obj/procHandler.obj ${CONFIG}/obj/queue.obj ${CONFIG}/obj/rangeFilter.obj ${CONFIG}/obj/route.obj ${CONFIG}/obj/rx.obj ${CONFIG}/obj/sendConnector.obj ${CONFIG}/obj/session.obj ${CONFIG}/obj/stage.obj ${CONFIG}/obj/trace.obj ${CONFIG}/obj/tx.obj ${CONFIG}/obj/uploadFilter.obj ${CONFIG}/obj/uri.obj ${CONFIG}/obj/var.obj ${LIBS} libmpr.lib libpcre.lib
 
 "${CC}" -c -Fo${CONFIG}/obj/http.obj -Fd${CONFIG}/obj/http.pdb ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/utils/http.c
 

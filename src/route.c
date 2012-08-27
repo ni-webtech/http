@@ -76,7 +76,7 @@ HttpRoute *httpCreateRoute(HttpHost *host)
     route->inputStages = mprCreateList(-1, 0);
     route->lifespan = HTTP_CACHE_LIFESPAN;
     route->outputStages = mprCreateList(-1, 0);
-    route->pathTokens = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
+    route->vars = mprCreateHash(HTTP_SMALL_HASH_SIZE, MPR_HASH_CASELESS);
     route->pattern = MPR->emptyString;
     route->targetRule = sclone("run");
     route->autoDelete = 1;
@@ -104,10 +104,13 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
 {
     HttpRoute  *route;
 
-    mprAssert(parent);
+    if (!parent && (parent = httpGetDefaultRoute(0)) == 0) {
+        return 0;
+    }
     if ((route = mprAllocObj(HttpRoute, manageRoute)) == 0) {
         return 0;
     }
+    //  OPT. Structure assigment then overwrite.
     route->parent = parent;
     route->auth = httpCreateInheritedAuth(parent->auth);
     route->autoDelete = parent->autoDelete;
@@ -135,7 +138,7 @@ HttpRoute *httpCreateInheritedRoute(HttpRoute *parent)
     route->outputStages = parent->outputStages;
     route->params = parent->params;
     route->parent = parent;
-    route->pathTokens = parent->pathTokens;
+    route->vars = parent->vars;
     route->pattern = parent->pattern;
     route->patternCompiled = parent->patternCompiled;
     route->optimizedPattern = parent->optimizedPattern;
@@ -196,7 +199,7 @@ static void manageRoute(HttpRoute *route, int flags)
         mprMark(route->connector);
         mprMark(route->data);
         mprMark(route->eroute);
-        mprMark(route->pathTokens);
+        mprMark(route->vars);
         mprMark(route->languages);
         mprMark(route->inputStages);
         mprMark(route->outputStages);
@@ -284,6 +287,26 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *pattern, cchar *path, 
         httpSetRouteDir(route, path);
     }
     route->responseStatus = status;
+    return route;
+}
+
+
+/*
+    This routine binds a new route to a URI. It creates a handler, route and binds a callback to that route. 
+ */
+HttpRoute *httpBindRoute(HttpRoute *parent, cchar *pattern, HttpProc proc)
+{
+    HttpRoute   *route;
+
+    if (!pattern || !proc) {
+        return 0;
+    }
+    if ((route = httpCreateInheritedRoute(parent)) != 0) {
+        route->handler = route->http->procHandler;
+        httpSetRoutePattern(route, pattern, 0);
+        httpDefineProc(pattern, proc);
+        httpFinalizeRoute(route);
+    }
     return route;
 }
 
@@ -1055,7 +1078,7 @@ void httpSetRouteDir(HttpRoute *route, cchar *path)
     mprAssert(path && *path);
     
     route->dir = httpMakePath(route, path);
-    httpSetRoutePathVar(route, "DOCUMENT_ROOT", route->dir);
+    httpSetRouteVar(route, "DOCUMENT_ROOT", route->dir);
 }
 
 
@@ -1739,18 +1762,17 @@ char *httpTemplate(HttpConn *conn, cchar *tplate, MprHash *options)
 }
 
 
-//  MOB - rename SetRouteVar
-void httpSetRoutePathVar(HttpRoute *route, cchar *key, cchar *value)
+void httpSetRouteVar(HttpRoute *route, cchar *key, cchar *value)
 {
     mprAssert(route);
     mprAssert(key);
     mprAssert(value);
 
-    GRADUATE_HASH(route, pathTokens);
+    GRADUATE_HASH(route, vars);
     if (schr(value, '$')) {
-        value = stemplate(value, route->pathTokens);
+        value = stemplate(value, route->vars);
     }
-    mprAddKey(route->pathTokens, key, sclone(value));
+    mprAddKey(route->vars, key, sclone(value));
 }
 
 
@@ -1765,7 +1787,7 @@ char *httpMakePath(HttpRoute *route, cchar *file)
     mprAssert(route);
     mprAssert(file);
 
-    if ((path = stemplate(file, route->pathTokens)) == 0) {
+    if ((path = stemplate(file, route->vars)) == 0) {
         return 0;
     }
     if (mprIsPathRel(path) && route->host) {
@@ -1870,7 +1892,7 @@ static int allowDenyCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     }
     allow = 0;
     deny = 0;
-    if (auth->order == HTTP_ALLOW_DENY) {
+    if (auth->flags & HTTP_ALLOW_DENY) {
         if (auth->allow && mprLookupKey(auth->allow, conn->ip)) {
             allow++;
         } else {
@@ -1907,10 +1929,14 @@ static int authCondition(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
     mprAssert(conn);
     mprAssert(route);
 
-    if (route->auth == 0 || route->auth->type == 0) {
+    if (!route->auth) {
         return HTTP_ROUTE_OK;
     }
-    return httpCheckAuth(conn);
+    if (!httpCheckAuth(conn)) {
+        /* Request has been denied and fully handled */
+        return HTTP_ROUTE_OK;
+    }
+    return HTTP_ROUTE_OK;
 }
 
 
@@ -2106,6 +2132,7 @@ static int redirectTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
         httpRedirect(conn, route->responseStatus, target);
         return HTTP_ROUTE_OK;
     }
+    //  MOB - OPT Use httpCompleteUri?
     prior = rx->parsedUri;
     dest = httpCreateUri(route->target, 0);
     scheme = dest->scheme ? dest->scheme : prior->scheme;
@@ -2152,8 +2179,7 @@ static int writeTarget(HttpConn *conn, HttpRoute *route, HttpRouteOp *op)
 
 /************************************************** Route Convenience ****************************************************/
 
-HttpRoute *httpDefineRoute(HttpRoute *parent, cchar *name, cchar *methods, cchar *pattern, cchar *target, 
-        cchar *source)
+HttpRoute *httpDefineRoute(HttpRoute *parent, cchar *name, cchar *methods, cchar *pattern, cchar *target, cchar *source)
 {
     HttpRoute   *route;
 
@@ -2260,7 +2286,7 @@ void httpAddStaticRoute(HttpRoute *parent)
     prefix = parent->prefix ? parent->prefix : "";
     source = parent->sourceName;
     name = qualifyName(parent, NULL, "home");
-    path = stemplate("${STATIC_DIR}/index.esp", parent->pathTokens);
+    path = stemplate("${STATIC_DIR}/index.esp", parent->vars);
     pattern = sfmt("^%s%s", prefix, "(/)*$");
     httpDefineRoute(parent, name, "GET,POST,PUT", pattern, path, source);
 }
@@ -2274,7 +2300,7 @@ void httpAddHomeRoute(HttpRoute *parent)
     source = parent->sourceName;
 
     name = qualifyName(parent, NULL, "static");
-    path = stemplate("${STATIC_DIR}/$1", parent->pathTokens);
+    path = stemplate("${STATIC_DIR}/$1", parent->vars);
     pattern = sfmt("^%s%s", prefix, "/static/(.*)");
     httpDefineRoute(parent, name, "GET", pattern, path, source);
 }
@@ -2399,10 +2425,10 @@ static void definePathVars(HttpRoute *route)
 {
     mprAssert(route);
 
-    mprAddKey(route->pathTokens, "PRODUCT", sclone(BIT_PRODUCT));
-    mprAddKey(route->pathTokens, "OS", sclone(BIT_OS));
-    mprAddKey(route->pathTokens, "VERSION", sclone(BIT_VERSION));
-    mprAddKey(route->pathTokens, "LIBDIR", mprGetAppDir());
+    mprAddKey(route->vars, "PRODUCT", sclone(BIT_PRODUCT));
+    mprAddKey(route->vars, "OS", sclone(BIT_OS));
+    mprAddKey(route->vars, "VERSION", sclone(BIT_VERSION));
+    mprAddKey(route->vars, "LIBDIR", mprGetAppDir());
     if (route->host) {
         defineHostVars(route);
     }
@@ -2412,8 +2438,10 @@ static void definePathVars(HttpRoute *route)
 static void defineHostVars(HttpRoute *route) 
 {
     mprAssert(route);
-    mprAddKey(route->pathTokens, "DOCUMENT_ROOT", route->dir);
-    mprAddKey(route->pathTokens, "SERVER_ROOT", route->host->home);
+    mprAddKey(route->vars, "DOCUMENT_ROOT", route->dir);
+    mprAddKey(route->vars, "SERVER_ROOT", route->host->home);
+    mprAddKey(route->vars, "SERVER_NAME", route->host->name);
+    mprAddKey(route->vars, "SERVER_PORT", itos(route->host->port));
 }
 
 
@@ -2515,6 +2543,7 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
                 mprPutStringToBuf(buf, lang ? lang->path : defaultValue);
 
             } else if (smatch(value, "host")) {
+                /* Includes port if present */
                 mprPutStringToBuf(buf, rx->parsedUri->host);
 
             } else if (smatch(value, "method")) {
@@ -2546,6 +2575,7 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
                 mprPutStringToBuf(buf, rx->scriptName);
 
             } else if (smatch(value, "serverAddress")) {
+                /* Pure IP address, no port. See "serverPort" */
                 mprPutStringToBuf(buf, conn->sock->acceptIp);
 
             } else if (smatch(value, "serverPort")) {
@@ -2565,6 +2595,12 @@ static char *expandRequestTokens(HttpConn *conn, char *str)
     }
     mprAddNullToBuf(buf);
     return sclone(mprGetBufStart(buf));
+}
+
+
+char *httpExpandRouteVars(HttpConn *conn, cchar *str)
+{
+    return expandRequestTokens(conn, stemplate(str, conn->rx->route->vars));
 }
 
 
@@ -2770,7 +2806,7 @@ bool httpTokenizev(HttpRoute *route, cchar *line, cchar *fmt, va_list args)
                 break;
             case 'T':
                 value = strim(tok, "\"", MPR_TRIM_BOTH);
-                *va_arg(args, char**) = stemplate(value, route->pathTokens);
+                *va_arg(args, char**) = stemplate(value, route->vars);
                 break;
             case 'W':
                 list = va_arg(args, MprList*);
@@ -2984,31 +3020,15 @@ HttpLimits *httpGraduateLimits(HttpRoute *route, HttpLimits *limits)
 
 /*
     @copy   default
-    
+
     Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2012. All Rights Reserved.
-    
+
     This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire 
-    a commercial license from Embedthis Software. You agree to be fully bound 
-    by the terms of either license. Consult the LICENSE.md distributed with 
-    this software for full details.
-    
-    This software is open source; you can redistribute it and/or modify it 
-    under the terms of the GNU General Public License as published by the 
-    Free Software Foundation; either version 2 of the License, or (at your 
-    option) any later version. See the GNU General Public License for more 
-    details at: http://embedthis.com/downloads/gplLicense.html
-    
-    This program is distributed WITHOUT ANY WARRANTY; without even the 
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
-    
-    This GPL license does NOT permit incorporating this software into 
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses 
-    for this software and support services are available from Embedthis 
-    Software at http://embedthis.com 
-    
+    You may use the Embedthis Open Source license or you may acquire a 
+    commercial license from Embedthis Software. You agree to be fully bound
+    by the terms of either license. Consult the LICENSE.md distributed with
+    this software for full details and other copyrights.
+
     Local variables:
     tab-width: 4
     c-basic-offset: 4

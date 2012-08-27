@@ -96,9 +96,12 @@ Http *httpCreate()
     http->hosts = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     http->endpoints = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
     http->connections = mprCreateList(-1, MPR_LIST_STATIC_VALUES);
+    http->authTypes = mprCreateHash(-1, MPR_HASH_CASELESS | MPR_HASH_UNIQUE);
+    http->authStores = mprCreateHash(-1, MPR_HASH_CASELESS | MPR_HASH_UNIQUE);
     http->defaultClientHost = sclone("127.0.0.1");
     http->defaultClientPort = 80;
     http->booted = mprGetTime();
+    http->sessionCache = mprCreateCache(MPR_CACHE_SHARED);
 
     updateCurrentDate(http);
     http->statusCodes = mprCreateHash(41, MPR_HASH_STATIC_VALUES | MPR_HASH_STATIC_KEYS);
@@ -114,6 +117,7 @@ Http *httpCreate()
     httpOpenUploadFilter(http);
     httpOpenCacheHandler(http);
     httpOpenPassHandler(http);
+    httpOpenProcHandler(http);
 
     http->clientLimits = httpCreateLimits(0);
     http->serverLimits = httpCreateLimits(1);
@@ -140,6 +144,7 @@ static void manageHttp(Http *http, int flags)
         mprMark(http->routeTargets);
         mprMark(http->routeConditions);
         mprMark(http->routeUpdates);
+        mprMark(http->sessionCache);
         /* Don't mark convenience stage references as they will be in http->stages */
         
         mprMark(http->clientLimits);
@@ -157,6 +162,8 @@ static void manageHttp(Http *http, int flags)
         mprMark(http->defaultClientHost);
         mprMark(http->protocol);
         mprMark(http->proxyHost);
+        mprMark(http->authTypes);
+        mprMark(http->authStores);
 
         /*
             Endpoints keep connections alive until a timeout. Keep marking even if no other references.
@@ -269,6 +276,7 @@ void httpInitLimits(HttpLimits *limits, bool serverSide)
     limits->receiveBodySize = HTTP_MAX_RECEIVE_BODY;
     limits->processMax = HTTP_MAX_REQUESTS;
     limits->requestMax = HTTP_MAX_REQUESTS;
+    limits->sessionMax = HTTP_MAX_SESSIONS;
     limits->stageBufferSize = HTTP_MAX_STAGE_BUFFER;
     limits->transmissionBodySize = HTTP_MAX_TX_BODY;
     limits->uploadSize = HTTP_MAX_UPLOAD;
@@ -682,28 +690,12 @@ static void updateCurrentDate(Http *http)
     @copy   default
 
     Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2012. All Rights Reserved.
 
     This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire
-    a commercial license from Embedthis Software. You agree to be fully bound
+    You may use the Embedthis Open Source license or you may acquire a 
+    commercial license from Embedthis Software. You agree to be fully bound
     by the terms of either license. Consult the LICENSE.md distributed with
-    this software for full details.
-
-    This software is open source; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License as published by the
-    Free Software Foundation; either version 2 of the License, or (at your
-    option) any later version. See the GNU General Public License for more
-    details at: http://embedthis.com/downloads/gplLicense.html
-
-    This program is distributed WITHOUT ANY WARRANTY; without even the
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-    This GPL license does NOT permit incorporating this software into
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses
-    for this software and support services are available from Embedthis
-    Software at http://embedthis.com
+    this software for full details and other copyrights.
 
     Local variables:
     tab-width: 4

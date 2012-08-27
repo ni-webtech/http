@@ -16,7 +16,7 @@ static void writeEvent(HttpConn *conn);
 
 /*********************************** Code *************************************/
 /*
-    Create a new connection object.
+    Create a new connection object
  */
 HttpConn *httpCreateConn(Http *http, HttpEndpoint *endpoint, MprDispatcher *dispatcher)
 {
@@ -140,17 +140,13 @@ static void manageConn(HttpConn *conn, int flags)
         mprMark(conn->protocol);
         httpManageTrace(&conn->trace[0], flags);
         httpManageTrace(&conn->trace[1], flags);
-
-        mprMark(conn->authCnonce);
-        mprMark(conn->authDomain);
-        mprMark(conn->authNonce);
-        mprMark(conn->authOpaque);
-        mprMark(conn->authRealm);
-        mprMark(conn->authQop);
-        mprMark(conn->authType);
-        mprMark(conn->authUser);
-        mprMark(conn->authPassword);
         mprMark(conn->headersCallbackArg);
+
+        //  MOB - move password, authType into authData!
+        mprMark(conn->authType);
+        mprMark(conn->authData);
+        mprMark(conn->username);
+        mprMark(conn->password);
 
     } else if (flags & MPR_MANAGE_FREE) {
         httpDestroyConn(conn);
@@ -216,16 +212,30 @@ static void commonPrep(HttpConn *conn)
     if (conn->timeoutEvent) {
         mprRemoveEvent(conn->timeoutEvent);
     }
+    conn->lastActivity = conn->http->now;
     conn->canProceed = 1;
     conn->error = 0;
     conn->connError = 0;
     conn->errorMsg = 0;
     conn->state = 0;
+
+    //  MOB - better if these were in HttpTx
     conn->responded = 0;
     conn->finalized = 0;
     conn->refinalize = 0;
     conn->connectorComplete = 0;
-    conn->lastActivity = conn->http->now;
+
+    //  MOB - better if these were in HttpRx
+    conn->authenticated = 0;
+    conn->setCredentials = 0;
+
+    if (conn->endpoint) {
+        conn->authType = 0;
+        conn->username = 0;
+        conn->password = 0;
+        conn->user = 0;
+        conn->authData = 0;
+    }
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpInitSchedulerQueue(conn->serviceq);
     unlock(http);
@@ -581,17 +591,10 @@ void *httpGetConnHost(HttpConn *conn)
 
 void httpResetCredentials(HttpConn *conn)
 {
+    //  MOB - check
     conn->authType = 0;
-    conn->authDomain = 0;
-    conn->authCnonce = 0;
-    conn->authNonce = 0;
-    conn->authOpaque = 0;
-    conn->authPassword = 0;
-    conn->authRealm = 0;
-    conn->authQop = 0;
-    conn->authType = 0;
-    conn->authUser = 0;
-    
+    conn->username = 0;
+    conn->password = 0;
     httpRemoveHeader(conn, "Authorization");
 }
 
@@ -608,15 +611,15 @@ void httpSetConnNotifier(HttpConn *conn, HttpNotifier notifier)
 }
 
 
-void httpSetCredentials(HttpConn *conn, cchar *user, cchar *password)
+void httpSetCredentials(HttpConn *conn, cchar *username, cchar *password)
 {
     httpResetCredentials(conn);
-    conn->authUser = sclone(user);
-    if (password == NULL && strchr(user, ':') != 0) {
-        conn->authUser = stok(conn->authUser, ":", &conn->authPassword);
-        conn->authPassword = sclone(conn->authPassword);
+    conn->username = sclone(username);
+    if (password == NULL && strchr(username, ':') != 0) {
+        conn->username = stok(conn->username, ":", &conn->password);
+        conn->password = sclone(conn->password);
     } else {
-        conn->authPassword = sclone(password);
+        conn->password = sclone(password);
     }
 }
 
@@ -745,29 +748,13 @@ void httpNotifyWritable(HttpConn *conn)
     @copy   default
 
     Copyright (c) Embedthis Software LLC, 2003-2012. All Rights Reserved.
-    Copyright (c) Michael O'Brien, 1993-2012. All Rights Reserved.
 
     This software is distributed under commercial and open source licenses.
-    You may use the GPL open source license described below or you may acquire
-    a commercial license from Embedthis Software. You agree to be fully bound
+    You may use the Embedthis Open Source license or you may acquire a 
+    commercial license from Embedthis Software. You agree to be fully bound
     by the terms of either license. Consult the LICENSE.md distributed with
-    this software for full details.
+    this software for full details and other copyrights.
 
-    This software is open source; you can redistribute it and/or modify it
-    under the terms of the GNU General Public License as published by the
-    Free Software Foundation; either version 2 of the License, or (at your
-    option) any later version. See the GNU General Public License for more
-    details at: http://embedthis.com/downloads/gplLicense.html
-
-    This program is distributed WITHOUT ANY WARRANTY; without even the
-    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-    This GPL license does NOT permit incorporating this software into
-    proprietary programs. If you are unable to comply with the GPL, you must
-    acquire a commercial license to use this software. Commercial licenses
-    for this software and support services are available from Embedthis
-    Software at http://embedthis.com
- 
     Local variables:
     tab-width: 4
     c-basic-offset: 4
