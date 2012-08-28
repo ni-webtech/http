@@ -150,12 +150,8 @@ bool httpLogin(HttpConn *conn, cchar *username, cchar *password)
         return 0;
     }
     conn->username = sclone(username);
-#if UNUSED
-    conn->password = mprGetMD5(sfmt("%s:%s:%s", conn->username, auth->realm, password));
-#else
     conn->password = sclone(password);
     conn->encoded = 0;
-#endif
     if (!(auth->store->verifyUser)(conn)) {
         return 0;
     }
