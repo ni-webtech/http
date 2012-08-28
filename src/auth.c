@@ -454,7 +454,7 @@ int httpSetAuthStore(HttpAuth *auth, cchar *store)
         return MPR_ERR_CANT_FIND;
     }
 #if BIT_HAS_PAM && BIT_PAM
-    if (smatch(store, "pam") && smatch(auth->type->name, "digest")) {
+    if (smatch(store, "pam") && auth->type && smatch(auth->type->name, "digest")) {
         mprError("Can't use PAM password stores with digest authentication");
         return MPR_ERR_BAD_ARGS;
     }
