@@ -37,7 +37,6 @@ void httpInitAuth(Http *http)
 
 int httpCheckAuth(HttpConn *conn)
 {
-    Http        *http;
     HttpRx      *rx;
     HttpAuth    *auth;
     HttpRoute   *route;
@@ -46,7 +45,6 @@ int httpCheckAuth(HttpConn *conn)
     bool        cached;
 
     rx = conn->rx;
-    http = conn->http;
     route = rx->route;
     auth = route->auth;
 
