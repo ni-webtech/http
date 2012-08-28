@@ -235,6 +235,7 @@ static void commonPrep(HttpConn *conn)
         conn->password = 0;
         conn->user = 0;
         conn->authData = 0;
+        conn->encoded = 0;
     }
     httpSetState(conn, HTTP_STATE_BEGIN);
     httpInitSchedulerQueue(conn->serviceq);

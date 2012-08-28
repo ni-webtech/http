@@ -18,6 +18,12 @@ typedef struct {
     char    *password;
 } UserInfo;
 
+#if MACOSX
+    typedef int Gid;
+#else
+    typedef gid_t Gid;
+#endif
+
 /********************************* Forwards ***********************************/
 
 static int pamChat(int msgCount, const struct pam_message **msg, struct pam_response **resp, void *data);
@@ -26,23 +32,25 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 
 bool httpPamVerifyUser(HttpConn *conn)
 {
+    MprBuf              *abilities;
     pam_handle_t        *pamh;
     UserInfo            info;
     struct pam_conv     conv = { pamChat, &info };
     struct group        *gp;
-    int                 res;
+    int                 res, i;
    
     mprAssert(conn->username);
     mprAssert(conn->password);
+    mprAssert(!conn->encoded);
 
     info.name = (char*) conn->username;
     info.password = (char*) conn->password;
     pamh = NULL;
-        
-    if ((res = pam_start("login", conn->username, &conv, &pamh)) != PAM_SUCCESS) {
+    if ((res = pam_start("login", info.name, &conv, &pamh)) != PAM_SUCCESS) {
         return 0;
     }
-    if ((res = pam_authenticate(pamh, 0)) != PAM_SUCCESS) {
+    if ((res = pam_authenticate(pamh, PAM_DISALLOW_NULL_AUTHTOK)) != PAM_SUCCESS) {
+        pam_end(pamh, PAM_SUCCESS);
         return 0;
     }
     pam_end(pamh, PAM_SUCCESS);
@@ -50,13 +58,27 @@ bool httpPamVerifyUser(HttpConn *conn)
     if (!conn->user) {
         conn->user = mprLookupKey(conn->rx->route->auth->users, conn->username);
     }
-    if (!conn->user && (gp = getgrgid(getgid())) != 0) {
-        /* Create a temporary user with an ability set to the group */
-        conn->user = httpCreateUser(conn->rx->route->auth, conn->username, 0, gp->gr_name);
+    if (!conn->user) {
+        Gid     groups[32];
+        int     ngroups;
+        /* 
+            Create a temporary user with a abilities set to the groups 
+         */
+        ngroups = sizeof(groups) / sizeof(Gid);
+        if ((i = getgrouplist(conn->username, 99999, groups, &ngroups)) >= 0) {
+            abilities = mprCreateBuf(0, 0);
+            for (i = 0; i < ngroups; i++) {
+                if ((gp = getgrgid(groups[i])) != 0) {
+                    mprPutFmtToBuf(abilities, "%s ", gp->gr_name);
+                }
+            }
+            mprAddNullToBuf(abilities);
+            mprLog(5, "Create temp user \"%s\" with abilities: %s", conn->username, mprGetBufStart(abilities));
+            conn->user = httpCreateUser(conn->rx->route->auth, conn->username, 0, mprGetBufStart(abilities));
+        }
     }
     return 1;
 }
-
 
 /*  
     Callback invoked by the pam_authenticate function
@@ -74,8 +96,7 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
     if (resp == 0 || msg == 0 || info == 0) {
         return PAM_CONV_ERR;
     }
-    //  MOB - who frees this?
-    if ((reply = malloc(msgCount * sizeof(struct pam_response))) == 0) {
+    if ((reply = calloc(msgCount, sizeof(struct pam_response))) == 0) {
         return PAM_CONV_ERR;
     }
     for (i = 0; i < msgCount; i++) {
@@ -88,11 +109,12 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
             break;
 
         case PAM_PROMPT_ECHO_OFF:
-            //  MOB - what is this doing?
+            /* Retrieve the user password and pass onto pam */
             reply[i].resp = strdup(info->password);
             break;
 
         default:
+            free(reply);
             return PAM_CONV_ERR;
         }
     }

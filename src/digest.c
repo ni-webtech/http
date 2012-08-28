@@ -141,8 +141,9 @@ int httpDigestParse(HttpConn *conn)
             if (scaselesscmp(key, "realm") == 0) {
                 dp->realm = sclone(value);
             } else if (scaselesscmp(key, "response") == 0) {
-                /* Store the response digest in the password field */
+                /* Store the response digest in the password field. This is MD5(user:realm:password) */
                 conn->password = sclone(value);
+                conn->encoded = 1;
             }
             break;
 

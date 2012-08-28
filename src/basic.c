@@ -26,8 +26,11 @@ int httpBasicParse(HttpConn *conn)
             *cp++ = '\0';
         }
         conn->username = sclone(decoded);
-        //  MOB - should not need realm?
+        conn->password = sclone(cp);
+        conn->encoded = 0;
+#if UNUSED
         conn->password = mprGetMD5(sfmt("%s:%s:%s", conn->username, conn->rx->route->auth->realm, cp));
+#endif
     }
     return 0;
 }

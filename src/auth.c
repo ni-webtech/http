@@ -150,7 +150,12 @@ bool httpLogin(HttpConn *conn, cchar *username, cchar *password)
         return 0;
     }
     conn->username = sclone(username);
+#if UNUSED
     conn->password = mprGetMD5(sfmt("%s:%s:%s", conn->username, auth->realm, password));
+#else
+    conn->password = sclone(password);
+    conn->encoded = 0;
+#endif
     if (!(auth->store->verifyUser)(conn)) {
         return 0;
     }
@@ -690,6 +695,10 @@ static bool verifyUser(HttpConn *conn)
 
     rx = conn->rx;
     auth = rx->route->auth;
+    if (!conn->encoded) {
+        conn->password = mprGetMD5(sfmt("%s:%s:%s", conn->username, auth->realm, conn->password));
+        conn->encoded = 1;
+    }
     if (!conn->user) {
         conn->user = mprLookupKey(auth->users, conn->username);
     }
