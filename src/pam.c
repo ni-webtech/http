@@ -51,9 +51,11 @@ bool httpPamVerifyUser(HttpConn *conn)
     }
     if ((res = pam_authenticate(pamh, PAM_DISALLOW_NULL_AUTHTOK)) != PAM_SUCCESS) {
         pam_end(pamh, PAM_SUCCESS);
+        mprLog(5, "httpPamVerifyUser failed to verify %s", conn->username);
         return 0;
     }
     pam_end(pamh, PAM_SUCCESS);
+    mprLog(5, "httpPamVerifyUser verified %s", conn->username);
 
     if (!conn->user) {
         conn->user = mprLookupKey(conn->rx->route->auth->users, conn->username);

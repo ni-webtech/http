@@ -56,6 +56,7 @@ Bit.load({
             type: 'lib',
             headers: [ 'src/*.h' ],
             sources: [ 'src/*.c' ],
+            exclude: /http.c/,
             depends: [ 'libmpr', 'libpcre' ],
             scripts: {
                 prebuild: "
@@ -69,7 +70,7 @@ Bit.load({
         http: {
             type: 'exe',
             depends: [ 'libhttp' ],
-            sources: [ 'src/utils/http.c' ],
+            sources: [ 'src/http.c' ],
         },
 
         package: {
@@ -85,9 +86,10 @@ Bit.load({
                 install(['doc/api/http.html', 'doc/api/httpBare.html', 'doc/api/http*.tags', 'doc/api/http.dtags'],
                     d.join('doc/api'))
                 install('doc/man/http.1', d.join('doc/man/http.1'))
-                install(['src/http.h', 'src/utils/http.c'], d.join('src/deps/http'))
+                install(['src/http.h', 'src/http.c'], d.join('src/deps/http'))
                 install('src/*.c', d.join('src/deps/http/httpLib.c'), {
                     cat: true,
+                    exclude: /http.c/,
                     filter: /^#inc.*http.*$/mg,
                     header: '#include \"http.h\"',
                     title: bit.settings.title + ' Library Source',

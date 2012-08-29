@@ -2340,6 +2340,7 @@ extern int httpAddAuthStore(Http *http, cchar *name, HttpVerifyUser verifyUser);
 typedef struct HttpUser {
     char            *name;                  /**< User name */
     char            *password;              /**< User password */
+    char            *roles;                 /**< Original list of roles */
     MprHash         *abilities;             /**< User abilities */
 } HttpUser;
 
@@ -2584,18 +2585,6 @@ extern int httpSetAuthStore(HttpAuth *auth, cchar *store);
  */
 extern int httpSetAuthType(HttpAuth *auth, cchar *proto, cchar *details);
 
-/**
-    Save the authorization database file
-    AuthFile schema:
-        User name password abilities...
-        Role name abilities...
-    @param auth Auth object allocated by #httpCreateAuth.
-    @param path Path name of file
-    @return "Zero" if successful, otherwise a negative MPR error code
-    @ingroup HttpAuth
-    @internal 
- */
-extern int httpWriteAuthFile(HttpAuth *auth, char *path);
 
 /*
     Internal

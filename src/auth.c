@@ -10,7 +10,7 @@
 
 /********************************* Forwards ***********************************/
 
-static void computeAbilities(HttpAuth *auth, MprHash *abilities, cchar *ability);
+static void computeAbilities(HttpAuth *auth, MprHash *abilities, cchar *role);
 static void manageAuth(HttpAuth *auth, int flags);
 static void manageRole(HttpRole *role, int flags);
 static void manageUser(HttpUser *user, int flags);
@@ -49,6 +49,7 @@ int httpCheckAuth(HttpConn *conn)
     auth = route->auth;
 
     mprAssert(auth);
+    mprLog(5, "Checking user authentication user %s on route %s", conn->username, route->name);
 
     if ((auth->flags & HTTP_SECURE) && !conn->secure) {
         httpError(conn, HTTP_CODE_BAD_REQUEST, "Access denied. Secure access required.");
@@ -305,6 +306,9 @@ void httpSetAuthAutoLogin(HttpAuth *auth, bool on)
 }
 
 
+/*
+    Can supply a roles or abilities in the "abilities" parameter 
+ */
 void httpSetAuthRequiredAbilities(HttpAuth *auth, cchar *abilities)
 {
     char    *ability, *tok;
@@ -554,21 +558,17 @@ int httpRemoveRole(HttpAuth *auth, cchar *role)
 }
 
 
-HttpUser *httpCreateUser(HttpAuth *auth, cchar *name, cchar *password, cchar *abilities)
+HttpUser *httpCreateUser(HttpAuth *auth, cchar *name, cchar *password, cchar *roles)
 {
     HttpUser    *user;
-    char        *ability, *tok;
 
     if ((user = mprAllocObj(HttpUser, manageUser)) == 0) {
         return 0;
     }
     user->name = sclone(name);
     user->password = sclone(password);
-    if (abilities) {
-        user->abilities = mprCreateHash(0, 0);
-        for (ability = stok(sclone(abilities), " \t,", &tok); ability; ability = stok(NULL, " \t,", &tok)) {
-            mprAddKey(user->abilities, ability, user);
-        }
+    if (roles) {
+        user->roles = sclone(roles);
         httpComputeUserAbilities(auth, user);
     }
     return user;
@@ -581,11 +581,12 @@ static void manageUser(HttpUser *user, int flags)
         mprMark(user->password);
         mprMark(user->name);
         mprMark(user->abilities);
+        mprMark(user->roles);
     }
 }
 
 
-int httpAddUser(HttpAuth *auth, cchar *name, cchar *password, cchar *abilities)
+int httpAddUser(HttpAuth *auth, cchar *name, cchar *password, cchar *roles)
 {
     HttpUser    *user;
 
@@ -600,7 +601,7 @@ int httpAddUser(HttpAuth *auth, cchar *name, cchar *password, cchar *abilities)
     if (mprLookupKey(auth->users, name)) {
         return MPR_ERR_ALREADY_EXISTS;
     }
-    if ((user = httpCreateUser(auth, name, password, abilities)) == 0) {
+    if ((user = httpCreateUser(auth, name, password, roles)) == 0) {
         return MPR_ERR_MEMORY;
     }
     if (mprAddKey(auth->users, name, user) == 0) {
@@ -621,43 +622,42 @@ int httpRemoveUser(HttpAuth *auth, cchar *user)
 
 
 /*
-    Compute the set of user abilities. User ability strings can be either roles or abilities. Expand roles into
-    the equivalent set of abilities.
+    Compute the set of user abilities from the user roles. Role strings can be either roles or abilities. 
+    Expand roles into the equivalent set of abilities.
  */
-static void computeAbilities(HttpAuth *auth, MprHash *abilities, cchar *ability)
+static void computeAbilities(HttpAuth *auth, MprHash *abilities, cchar *role)
 {
     MprKey      *ap;
-    HttpRole    *role;
+    HttpRole    *rp;
 
-    if ((role = mprLookupKey(auth->roles, ability)) != 0) {
+    if ((rp = mprLookupKey(auth->roles, role)) != 0) {
         /* Interpret as a role */
-        for (ITERATE_KEYS(role->abilities, ap)) {
+        for (ITERATE_KEYS(rp->abilities, ap)) {
             if (!mprLookupKey(abilities, ap->key)) {
                 mprAddKey(abilities, ap->key, MPR->emptyString);
             }
         }
     } else {
-        /* Not found: Interpret as an ability */
-        mprAddKey(abilities, ability, MPR->emptyString);
+        /* Not found as a role: Interpret role as an ability */
+        mprAddKey(abilities, role, MPR->emptyString);
     }
 }
 
 
 /*
-    Compute the set of user abilities. User ability strings can be either roles or abilities. Expand roles into
-    the equivalent set of abilities.
+    Compute the set of user abilities from the user roles. User ability strings can be either roles or abilities. Expand
+    roles into the equivalent set of abilities.
  */
 void httpComputeUserAbilities(HttpAuth *auth, HttpUser *user)
 {
-    MprHash     *abilities;
     MprKey      *ap;
     MprBuf      *buf;
+    char        *ability, *tok;
 
-    abilities = mprCreateHash(0, 0);
-    for (ITERATE_KEYS(user->abilities, ap)) {
-        computeAbilities(auth, abilities, ap->key);
+    user->abilities = mprCreateHash(0, 0);
+    for (ability = stok(sclone(user->roles), " \t,", &tok); ability; ability = stok(NULL, " \t,", &tok)) {
+        computeAbilities(auth, user->abilities, ability);
     }
-    user->abilities = abilities;
 #if BIT_DEBUG
     buf = mprCreateBuf(0, 0);
     for (ITERATE_KEYS(user->abilities, ap)) {
@@ -707,7 +707,7 @@ static bool verifyUser(HttpConn *conn)
         return smatch(conn->password, rx->passDigest);
     }
     if ((success = smatch(conn->password, conn->user->password)) != 0) {
-        mprLog(5, "verifyUser: User \"%s\" verified for route %s", conn->username, rx->route->name);
+        mprLog(5, "User \"%s\" verified for route %s", conn->username, rx->route->name);
     } else {
         mprLog(5, "Password for user \"%s\" failed to verify for route %s", conn->username, rx->route->name);
     }
@@ -721,38 +721,6 @@ static bool verifyUser(HttpConn *conn)
 static void postLogin(HttpConn *conn)
 {
     httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, conn->rx->route->auth->loginPage);
-}
-
-
-int httpWriteAuthFile(HttpAuth *auth, char *path)
-{
-    MprFile         *file;
-    MprKey          *kp;
-    HttpRole        *role;
-    HttpUser        *user;
-    char            *tempFile;
-
-    tempFile = mprGetTempPath(NULL);
-    if ((file = mprOpenFile(tempFile, O_CREAT | O_TRUNC | O_WRONLY | O_TEXT, 0444)) == 0) {
-        mprError("Can't open %s", tempFile);
-        return MPR_ERR_CANT_OPEN;
-    }
-    mprWriteFileFmt(file, "#\n#   %s - Authorization data\n#\n\n", mprGetPathBase(path));
-
-    for (ITERATE_KEY_DATA(auth->roles, kp, role)) {
-        mprWriteFileFmt(file, "Role %s %s\n", kp->key, role->abilities);
-    }
-    mprPutFileChar(file, '\n');
-    for (ITERATE_KEY_DATA(auth->users, kp, user)) {
-        mprWriteFileFmt(file, "User %s %s\n", user->password, user->abilities);
-    }
-    mprCloseFile(file);
-    unlink(path);
-    if (rename(tempFile, path) < 0) {
-        mprError("Can't create new %s", path);
-        return MPR_ERR_CANT_WRITE;
-    }
-    return 0;
 }
 
 
