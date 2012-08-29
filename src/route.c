@@ -294,7 +294,7 @@ HttpRoute *httpCreateAliasRoute(HttpRoute *parent, cchar *pattern, cchar *path, 
 /*
     This routine binds a new route to a URI. It creates a handler, route and binds a callback to that route. 
  */
-HttpRoute *httpBindRoute(HttpRoute *parent, cchar *pattern, HttpProc proc)
+HttpRoute *httpCreateProcRoute(HttpRoute *parent, cchar *pattern, HttpProc proc)
 {
     HttpRoute   *route;
 

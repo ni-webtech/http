@@ -404,11 +404,11 @@ void httpSetAuthPost(HttpRoute *parent, cchar *loginPage, cchar *loginService, c
         httpFinalizeRoute(route);
     }
     if (loginService && *loginService) {
-        route = httpBindRoute(parent, loginService, loginServiceProc);
+        route = httpCreateProcRoute(parent, loginService, loginServiceProc);
         route->auth->type = 0;
     }
     if (logoutService && *logoutService) {
-        route = httpBindRoute(parent, logoutService, logoutServiceProc);
+        route = httpCreateProcRoute(parent, logoutService, logoutServiceProc);
         route->auth->type = 0;
     }
 }
