@@ -246,7 +246,7 @@
 		741E1913741E474500000051 /* uri.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = uri.c; path = src/uri.c; sourceTree = "<group>"; };
 		741E1913741E474500000053 /* var.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = var.c; path = src/var.c; sourceTree = "<group>"; };
 		741E1913741E47450000005D /* libhttp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libhttp.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
-		741E1913741E474500000055 /* http.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = http.c; path = src/utils/http.c; sourceTree = "<group>"; };
+		741E1913741E474500000055 /* http.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = http.c; path = src/http.c; sourceTree = "<group>"; };
 		741E1913741E47450000007B /* http */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = http; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 

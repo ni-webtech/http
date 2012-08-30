@@ -100,7 +100,7 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <ClCompile Include="..\..\src\utils\http.c" />
+    <ClCompile Include="..\..\src\http.c" />
   </ItemGroup>
 
   <ItemDefinitionGroup>
