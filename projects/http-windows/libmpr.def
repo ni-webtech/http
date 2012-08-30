@@ -53,6 +53,7 @@ EXPORTS
   mprCloneBuf
   mprCloneHash
   mprCloneList
+  mprCloneSsl
   mprCloseCmdFd
   mprCloseFile
   mprCloseSocket
