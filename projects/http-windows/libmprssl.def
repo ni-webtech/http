@@ -1,2 +1,5 @@
 LIBRARY libmprssl.dll
 EXPORTS
+  mprCreateMatrixSslModule
+  mprCreateOpenSslModule
+  mprSslInit
