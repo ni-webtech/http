@@ -184,6 +184,8 @@ int httpDigestParse(HttpConn *conn)
         return MPR_ERR_BAD_FORMAT;
     }
     if (conn->endpoint) {
+        realm = secret = 0;
+        when = 0;
         parseDigestNonce(dp->nonce, &secret, &realm, &when);
         if (!smatch(secret, secret)) {
             //  How should this be reported

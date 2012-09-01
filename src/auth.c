@@ -650,8 +650,6 @@ static void computeAbilities(HttpAuth *auth, MprHash *abilities, cchar *role)
  */
 void httpComputeUserAbilities(HttpAuth *auth, HttpUser *user)
 {
-    MprKey      *ap;
-    MprBuf      *buf;
     char        *ability, *tok;
 
     user->abilities = mprCreateHash(0, 0);
@@ -659,12 +657,15 @@ void httpComputeUserAbilities(HttpAuth *auth, HttpUser *user)
         computeAbilities(auth, user->abilities, ability);
     }
 #if BIT_DEBUG
-    buf = mprCreateBuf(0, 0);
-    for (ITERATE_KEYS(user->abilities, ap)) {
-        mprPutFmtToBuf(buf, "%s ", ap->key);
+    {
+        MprBuf *buf = mprCreateBuf(0, 0);
+        MprKey *ap;
+        for (ITERATE_KEYS(user->abilities, ap)) {
+            mprPutFmtToBuf(buf, "%s ", ap->key);
+        }
+        mprAddNullToBuf(buf);
+        mprLog(5, "User \"%s\" has abilities: %s", user->name, mprGetBufStart(buf));
     }
-    mprAddNullToBuf(buf);
-    mprLog(5, "User \"%s\" has abilities: %s", user->name, mprGetBufStart(buf));
 #endif
 }
 
