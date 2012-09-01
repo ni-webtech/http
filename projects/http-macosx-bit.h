@@ -21,7 +21,7 @@
 #define BIT_HAS_SYNC_CAS 1
 #define BIT_HAS_UNNAMED_UNIONS 1
 #define BIT_MANAGER ""
-#define BIT_MINIMAL "doxygen,dsi,man,man2html,pmaker,matrixssl"
+#define BIT_MINIMAL "doxygen,dsi,man,man2html,pmaker,matrixssl,ssl"
 #define BIT_OPTIONAL "doxygen,dsi,ejs,man,man2html,openssl,matrixssl,ssl,utest"
 #define BIT_PAM 1
 #define BIT_PRODUCT "http"
@@ -70,8 +70,8 @@
 #define BIT_PACK_MAN 0
 #define BIT_PACK_MAN2HTML 0
 #define BIT_PACK_MATRIXSSL 0
-#define BIT_PACK_OPENSSL 1
+#define BIT_PACK_OPENSSL 0
 #define BIT_PACK_PCRE 1
 #define BIT_PACK_PMAKER 0
-#define BIT_PACK_SSL 1
+#define BIT_PACK_SSL 0
 #define BIT_PACK_UTEST 1
