@@ -36,7 +36,7 @@ static HttpConn *openConnection(HttpConn *conn, cchar *url, struct MprSsl *ssl)
     }
     if (conn && conn->sock) {
         if (--conn->keepAliveCount < 0 || port != conn->port || strcmp(ip, conn->ip) != 0 || 
-                (uri->secure != (conn->sock->ssl != 0)) || (conn->sock->ssl != ssl)) {
+                uri->secure != (conn->sock->ssl != 0) || conn->sock->ssl != ssl) {
             httpCloseConn(conn);
         } else {
             mprLog(4, "Http: reusing keep-alive socket on: %s:%d", ip, port);
@@ -88,6 +88,9 @@ static int setClientHeaders(HttpConn *conn)
 
     mprAssert(conn);
 
+    if (smatch(conn->protocol, "HTTP/1.0")) {
+        conn->http10 = 1;
+    }
     if (conn->authType && (authType = httpLookupAuthType(conn->authType)) != 0) {
         (authType->setAuth)(conn);
         conn->setCredentials = 1;
@@ -97,6 +100,11 @@ static int setClientHeaders(HttpConn *conn)
     } else {
         httpAddHeaderString(conn, "Host", conn->ip);
     }
+#if UNUSED
+    if (conn->http10 && !smatch(conn->tx->method, "GET")) {
+        conn->keepAliveCount = 0;
+    }
+#endif
     if (conn->keepAliveCount > 0) {
         httpSetHeaderString(conn, "Connection", "Keep-Alive");
     } else {

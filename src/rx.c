@@ -187,6 +187,13 @@ static bool parseIncoming(HttpConn *conn, HttpPacket *packet)
     }
     start = mprGetBufStart(packet->content);
 
+#if FUTURE
+    while (*start == '\r' || *start == '\n') {
+        mprGetCharFromBuf(packet->content);
+        start = mprGetBufStart(packet->content);
+    }
+#endif
+
     /*
         Don't start processing until all the headers have been received (delimited by two blank lines)
         MOB - should be tolerant and allow '\n\n'
@@ -395,10 +402,10 @@ static bool parseRequestLine(HttpConn *conn, HttpPacket *packet)
 #endif
     traceRequest(conn, packet);
 
-    rx->originalMethod = rx->method = supper(getToken(conn, " "));
+    rx->originalMethod = rx->method = supper(getToken(conn, 0));
     parseMethod(conn);
 
-    uri = getToken(conn, " ");
+    uri = getToken(conn, 0);
     len = slen(uri);
     if (*uri == '\0') {
         httpError(conn, HTTP_ABORT | HTTP_CODE_BAD_REQUEST, "Bad HTTP request. Empty URI");
@@ -454,7 +461,7 @@ static bool parseResponseLine(HttpConn *conn, HttpPacket *packet)
         httpTraceContent(conn, HTTP_TRACE_RX, HTTP_TRACE_HEADER, packet, len, 0);
         traced = 1;
     }
-    protocol = conn->protocol = supper(getToken(conn, " "));
+    protocol = conn->protocol = supper(getToken(conn, 0));
     if (strcmp(protocol, "HTTP/1.0") == 0) {
         conn->http10 = 1;
         if (!scaselessmatch(tx->method, "HEAD")) {
@@ -464,7 +471,7 @@ static bool parseResponseLine(HttpConn *conn, HttpPacket *packet)
         httpError(conn, HTTP_ABORT | HTTP_CODE_NOT_ACCEPTABLE, "Unsupported HTTP protocol");
         return 0;
     }
-    status = getToken(conn, " ");
+    status = getToken(conn, 0);
     if (*status == '\0') {
         httpError(conn, HTTP_ABORT | HTTP_CODE_NOT_ACCEPTABLE, "Bad response status code");
         return 0;
@@ -1388,31 +1395,35 @@ static void addMatchEtag(HttpConn *conn, char *etag)
 }
 
 
-/*  
+/*
     Get the next input token. The content buffer is advanced to the next token. This routine always returns a
     non-zero token. The empty string means the delimiter was not found. The delimiter is a string to match and not
-    a set of characters. HTTP header header parsing does not work as well using classical strtok parsing as you must
-    know when the "/r/n/r/n" body delimiter has been encountered. Strtok will eat such delimiters.
-
-    OPT
+    a set of characters. If null, it means use white space (space or tab) as a delimiter. 
  */
 static char *getToken(HttpConn *conn, cchar *delim)
 {
     MprBuf  *buf;
-    char    *token, *nextToken;
-    int     len;
+    char    *token, *endToken, *nextToken;
 
     buf = conn->input->content;
     token = mprGetBufStart(buf);
-    nextToken = sncontains(mprGetBufStart(buf), delim, mprGetBufLength(buf));
-    if (nextToken) {
-        *nextToken = '\0';
-        len = (int) strlen(delim);
-        nextToken += len;
-        buf->start = nextToken;
+    nextToken = mprGetBufEnd(buf);
+    for (token = mprGetBufStart(buf); (*token == ' ' || *token == '\t') && token < mprGetBufEnd(buf); token++) {}
+
+    if (delim == 0) {
+        delim = " \t";
+        if ((endToken = strpbrk(token, delim)) != 0) {
+            nextToken = endToken + strspn(endToken, delim);
+            *endToken = '\0';
+        }
     } else {
-        buf->start = mprGetBufEnd(buf);
+        if ((endToken = strstr(token, delim)) != 0) {
+            *endToken = '\0';
+            /* Only eat one occurence of the delimiter */
+            nextToken = endToken + strlen(delim);
+        }
     }
+    buf->start = nextToken;
     return token;
 }
 
