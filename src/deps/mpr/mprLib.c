@@ -12534,6 +12534,7 @@ int mprServiceEvents(MprTime timeout, int flags)
                 continue;
             }
             if (justOne) {
+                MPR->eventing = 0;
                 return abs(es->eventCount - beginEventCount);
             }
         } 
@@ -17884,6 +17885,8 @@ static char *standardMimeTypes[] = {
     "js",    "application/javascript",
     "json",  "application/json",
     "mp3",   "audio/mpeg",
+    "mpg",   "video/mpeg",
+    "mpeg",  "video/mpeg",
     "pdf",   "application/pdf",
     "php",   "application/x-php",
     "pl",    "application/x-perl",
@@ -23735,7 +23738,7 @@ MprSocket *mprAcceptSocket(MprSocket *listen)
 
 
 /*  
-    Read data. Return -1 for EOF and errors. On success, return the number of bytes read
+    Read data. Return -1 for EOF and errors. On success, return the number of bytes read.
  */
 ssize mprReadSocket(MprSocket *sp, void *buf, ssize bufsize)
 {
@@ -23888,6 +23891,7 @@ static ssize writeSocket(MprSocket *sp, cvoid *buf, ssize bufsize)
 #if BIT_WIN_LIKE
                     /*
                         Windows sockets don't support blocking I/O. So we simulate here
+                        OPT - could wait for a writable event
                      */
                     if (sp->flags & MPR_SOCKET_BLOCK) {
                         mprNap(0);
@@ -25723,7 +25727,6 @@ char *strim(cchar *str, cchar *set, int where)
     }
     return s;
 }
-
 
 
 /*  

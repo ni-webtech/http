@@ -96,6 +96,8 @@ ${CC} -c -o ${CONFIG}/obj/sendConnector.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -I
 
 ${CC} -c -o ${CONFIG}/obj/session.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/session.c
 
+${CC} -c -o ${CONFIG}/obj/sockFilter.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/sockFilter.c
+
 ${CC} -c -o ${CONFIG}/obj/stage.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/stage.c
 
 ${CC} -c -o ${CONFIG}/obj/trace.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/trace.c
@@ -108,7 +110,7 @@ ${CC} -c -o ${CONFIG}/obj/uri.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/ur
 
 ${CC} -c -o ${CONFIG}/obj/var.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/var.c
 
-${CC} -shared -o ${CONFIG}/bin/libhttp.so ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/auth.o ${CONFIG}/obj/basic.o ${CONFIG}/obj/cache.o ${CONFIG}/obj/chunkFilter.o ${CONFIG}/obj/client.o ${CONFIG}/obj/conn.o ${CONFIG}/obj/digest.o ${CONFIG}/obj/endpoint.o ${CONFIG}/obj/error.o ${CONFIG}/obj/host.o ${CONFIG}/obj/httpService.o ${CONFIG}/obj/log.o ${CONFIG}/obj/netConnector.o ${CONFIG}/obj/packet.o ${CONFIG}/obj/pam.o ${CONFIG}/obj/passHandler.o ${CONFIG}/obj/pipeline.o ${CONFIG}/obj/procHandler.o ${CONFIG}/obj/queue.o ${CONFIG}/obj/rangeFilter.o ${CONFIG}/obj/route.o ${CONFIG}/obj/rx.o ${CONFIG}/obj/sendConnector.o ${CONFIG}/obj/session.o ${CONFIG}/obj/stage.o ${CONFIG}/obj/trace.o ${CONFIG}/obj/tx.o ${CONFIG}/obj/uploadFilter.o ${CONFIG}/obj/uri.o ${CONFIG}/obj/var.o ${LIBS} -lmpr -lpcre
+${CC} -shared -o ${CONFIG}/bin/libhttp.so ${LDFLAGS} ${LIBPATHS} ${CONFIG}/obj/auth.o ${CONFIG}/obj/basic.o ${CONFIG}/obj/cache.o ${CONFIG}/obj/chunkFilter.o ${CONFIG}/obj/client.o ${CONFIG}/obj/conn.o ${CONFIG}/obj/digest.o ${CONFIG}/obj/endpoint.o ${CONFIG}/obj/error.o ${CONFIG}/obj/host.o ${CONFIG}/obj/httpService.o ${CONFIG}/obj/log.o ${CONFIG}/obj/netConnector.o ${CONFIG}/obj/packet.o ${CONFIG}/obj/pam.o ${CONFIG}/obj/passHandler.o ${CONFIG}/obj/pipeline.o ${CONFIG}/obj/procHandler.o ${CONFIG}/obj/queue.o ${CONFIG}/obj/rangeFilter.o ${CONFIG}/obj/route.o ${CONFIG}/obj/rx.o ${CONFIG}/obj/sendConnector.o ${CONFIG}/obj/session.o ${CONFIG}/obj/sockFilter.o ${CONFIG}/obj/stage.o ${CONFIG}/obj/trace.o ${CONFIG}/obj/tx.o ${CONFIG}/obj/uploadFilter.o ${CONFIG}/obj/uri.o ${CONFIG}/obj/var.o ${LIBS} -lmpr -lpcre
 
 ${CC} -c -o ${CONFIG}/obj/http.o ${CFLAGS} ${DFLAGS} -I${CONFIG}/inc -Isrc src/http.c
 

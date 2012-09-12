@@ -124,6 +124,7 @@
     <ClCompile Include="..\..\src\rx.c" />
     <ClCompile Include="..\..\src\sendConnector.c" />
     <ClCompile Include="..\..\src\session.c" />
+    <ClCompile Include="..\..\src\sockFilter.c" />
     <ClCompile Include="..\..\src\stage.c" />
     <ClCompile Include="..\..\src\trace.c" />
     <ClCompile Include="..\..\src\tx.c" />

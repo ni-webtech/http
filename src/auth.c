@@ -342,32 +342,27 @@ void httpSetAuthOrder(HttpAuth *auth, int order)
 static void loginServiceProc(HttpConn *conn)
 {
     HttpAuth    *auth;
-    cchar       *username, *password, *referrer, *uri;
+    cchar       *username, *password, *referrer;
 
     auth = conn->rx->route->auth;
     username = httpGetParam(conn, "username", 0);
     password = httpGetParam(conn, "password", 0);
 
     if (httpLogin(conn, username, password)) {
-        if (sstarts(auth->loggedIn, "referrer")) {
-            if ((referrer = httpGetSessionVar(conn, "referrer", 0)) != 0) {
-                /*
-                    Preserve protocol scheme from existing connection
-                 */
-                HttpUri *where = httpCreateUri(referrer, 0);
-                httpCompleteUri(where, conn->rx->parsedUri);
-                referrer = httpUriToString(where, 0);
-                httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, referrer);
-            } else {
-                //  MOB - can we do something simpler?
-                if ((uri = schr(referrer, ':')) != 0) {
-                    httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, ++uri);
-                } else {
-                    httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, httpLink(conn, "~", 0));
-                }
-            }
+        if ((referrer = httpGetSessionVar(conn, "referrer", 0)) != 0) {
+            /*
+                Preserve protocol scheme from existing connection
+             */
+            HttpUri *where = httpCreateUri(referrer, 0);
+            httpCompleteUri(where, conn->rx->parsedUri);
+            referrer = httpUriToString(where, 0);
+            httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, referrer);
         } else {
-            httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, auth->loggedIn);
+            if (auth->loggedIn) {
+                httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, auth->loggedIn);
+            } else {
+                httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, httpLink(conn, "~", 0));
+            }
         }
     } else {
         httpRedirect(conn, HTTP_CODE_MOVED_TEMPORARILY, auth->loginPage);

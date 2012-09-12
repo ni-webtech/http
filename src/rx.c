@@ -93,6 +93,14 @@ static void manageRx(HttpRx *rx, int flags)
         mprMark(rx->lang);
         mprMark(rx->target);
 
+#if WSS
+        mprMark(rx->upgrade);
+        mprMark(rx->sockKey);
+        mprMark(rx->sockProtocol);
+        mprMark(rx->sockVersion);
+        mprMark(rx->origin);
+#endif
+
     } else if (flags & MPR_MANAGE_FREE) {
         if (rx->conn) {
             rx->conn->rx = 0;
@@ -567,6 +575,9 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
                 } else if (scaselesscmp(value, "CLOSE") == 0) {
                     /*  Not really required, but set to 0 to be sure */
                     conn->keepAliveCount = 0;
+#if WSS
+                } else if (scaselesscmp(value, "upgrade") == 0) {
+#endif
                 }
 
             } else if (strcasecmp(key, "content-length") == 0) {
@@ -739,6 +750,14 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
             }
             break;
 
+#if WSS
+        case 'o':
+            if (strcasecmp(key, "origin") == 0) {
+                rx->origin = sclone(value);
+            }
+            break;
+#endif
+
         case 'p':
             if (strcasecmp(key, "pragma") == 0) {
                 rx->pragma = sclone(value);
@@ -756,6 +775,17 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
             }
             break;
 
+#if WSS
+        case 's':
+            if (strcasecmp(key, "sec-websocket-key") == 0) {
+                rx->sockKey = sclone(value);
+            } else if (strcasecmp(key, "sec-websocket-protocol") == 0) {
+                rx->sockProtocol = sclone(value);
+            } else if (strcasecmp(key, "sec-websocket-version") == 0) {
+                rx->sockVersion = sclone(value);
+            }
+            break;
+#endif
         case 't':
             if (strcasecmp(key, "transfer-encoding") == 0) {
                 if (scaselesscmp(value, "chunked") == 0) {
@@ -787,6 +817,11 @@ static bool parseHeaders(HttpConn *conn, HttpPacket *packet)
             break;
 
         case 'u':
+#if WSS
+            if (scaselesscmp(key, "upgrade") == 0) {
+                rx->upgrade = sclone(value);
+            } else
+#endif
             if (strcasecmp(key, "user-agent") == 0) {
                 rx->userAgent = sclone(value);
             }

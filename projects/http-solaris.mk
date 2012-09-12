@@ -1,19 +1,27 @@
 #
-#   http-solaris.mk -- Build It Makefile to build Http Library for solaris
+#   http-solaris.mk -- Makefile to build Http Library for solaris
 #
 
-ARCH     := $(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/')
-OS       := solaris
-PROFILE  := debug
-CONFIG   := $(OS)-$(ARCH)-$(PROFILE)
-CC       := gcc
-LD       := /usr/bin/ld
-CFLAGS   := -fPIC -g -mtune=generic -w
-DFLAGS   := -D_REENTRANT -DPIC -DBIT_DEBUG
-IFLAGS   := -I$(CONFIG)/inc -Isrc
-LDFLAGS  := '-g'
-LIBPATHS := -L$(CONFIG)/bin
-LIBS     := -llxnet -lrt -lsocket -lpthread -lm -ldl
+ARCH     ?= $(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/')
+OS       ?= solaris
+CC       ?= gcc
+LD       ?= /usr/bin/ld
+PROFILE  ?= debug
+CONFIG   ?= $(OS)-$(ARCH)-$(PROFILE)
+
+CFLAGS   += -fPIC -mtune=generic -w
+DFLAGS   += -D_REENTRANT -DPIC 
+IFLAGS   += -I$(CONFIG)/inc -Isrc
+LDFLAGS  += '-g'
+LIBPATHS += -L$(CONFIG)/bin
+LIBS     += -llxnet -lrt -lsocket -lpthread -lm -ldl
+
+CFLAGS-debug    := -DBIT_DEBUG -g
+CFLAGS-release  := -O2
+LDFLAGS-debug   := -g
+LDFLAGS-release := 
+CFLAGS          += $(CFLAGS-$(PROFILE))
+LDFLAGS         += $(LDFLAGS-$(PROFILE))
 
 all: prep \
         $(CONFIG)/bin/libmpr.so \
@@ -26,6 +34,7 @@ all: prep \
 .PHONY: prep
 
 prep:
+	@if [ "$(CONFIG)" = "" ] ; then echo WARNING: CONFIG not set ; exit 255 ; fi
 	@[ ! -x $(CONFIG)/inc ] && mkdir -p $(CONFIG)/inc $(CONFIG)/obj $(CONFIG)/lib $(CONFIG)/bin ; true
 	@[ ! -f $(CONFIG)/inc/bit.h ] && cp projects/http-$(OS)-bit.h $(CONFIG)/inc/bit.h ; true
 	@if ! diff $(CONFIG)/inc/bit.h projects/http-$(OS)-bit.h >/dev/null ; then\
@@ -69,6 +78,7 @@ clean:
 	rm -rf $(CONFIG)/obj/rx.o
 	rm -rf $(CONFIG)/obj/sendConnector.o
 	rm -rf $(CONFIG)/obj/session.o
+	rm -rf $(CONFIG)/obj/sockFilter.o
 	rm -rf $(CONFIG)/obj/stage.o
 	rm -rf $(CONFIG)/obj/trace.o
 	rm -rf $(CONFIG)/obj/tx.o
@@ -276,6 +286,12 @@ $(CONFIG)/obj/session.o: \
         src/http.h
 	$(CC) -c -o $(CONFIG)/obj/session.o -Wall -fPIC $(LDFLAGS) -mtune=generic $(DFLAGS) -I$(CONFIG)/inc -Isrc src/session.c
 
+$(CONFIG)/obj/sockFilter.o: \
+        src/sockFilter.c \
+        $(CONFIG)/inc/bit.h \
+        src/http.h
+	$(CC) -c -o $(CONFIG)/obj/sockFilter.o -Wall -fPIC $(LDFLAGS) -mtune=generic $(DFLAGS) -I$(CONFIG)/inc -Isrc src/sockFilter.c
+
 $(CONFIG)/obj/stage.o: \
         src/stage.c \
         $(CONFIG)/inc/bit.h \
@@ -340,13 +356,14 @@ $(CONFIG)/bin/libhttp.so:  \
         $(CONFIG)/obj/rx.o \
         $(CONFIG)/obj/sendConnector.o \
         $(CONFIG)/obj/session.o \
+        $(CONFIG)/obj/sockFilter.o \
         $(CONFIG)/obj/stage.o \
         $(CONFIG)/obj/trace.o \
         $(CONFIG)/obj/tx.o \
         $(CONFIG)/obj/uploadFilter.o \
         $(CONFIG)/obj/uri.o \
         $(CONFIG)/obj/var.o
-	$(CC) -shared -o $(CONFIG)/bin/libhttp.so $(LDFLAGS) $(LIBPATHS) $(CONFIG)/obj/auth.o $(CONFIG)/obj/basic.o $(CONFIG)/obj/cache.o $(CONFIG)/obj/chunkFilter.o $(CONFIG)/obj/client.o $(CONFIG)/obj/conn.o $(CONFIG)/obj/digest.o $(CONFIG)/obj/endpoint.o $(CONFIG)/obj/error.o $(CONFIG)/obj/host.o $(CONFIG)/obj/httpService.o $(CONFIG)/obj/log.o $(CONFIG)/obj/netConnector.o $(CONFIG)/obj/packet.o $(CONFIG)/obj/pam.o $(CONFIG)/obj/passHandler.o $(CONFIG)/obj/pipeline.o $(CONFIG)/obj/procHandler.o $(CONFIG)/obj/queue.o $(CONFIG)/obj/rangeFilter.o $(CONFIG)/obj/route.o $(CONFIG)/obj/rx.o $(CONFIG)/obj/sendConnector.o $(CONFIG)/obj/session.o $(CONFIG)/obj/stage.o $(CONFIG)/obj/trace.o $(CONFIG)/obj/tx.o $(CONFIG)/obj/uploadFilter.o $(CONFIG)/obj/uri.o $(CONFIG)/obj/var.o $(LIBS) -lmpr -lpcre
+	$(CC) -shared -o $(CONFIG)/bin/libhttp.so $(LDFLAGS) $(LIBPATHS) $(CONFIG)/obj/auth.o $(CONFIG)/obj/basic.o $(CONFIG)/obj/cache.o $(CONFIG)/obj/chunkFilter.o $(CONFIG)/obj/client.o $(CONFIG)/obj/conn.o $(CONFIG)/obj/digest.o $(CONFIG)/obj/endpoint.o $(CONFIG)/obj/error.o $(CONFIG)/obj/host.o $(CONFIG)/obj/httpService.o $(CONFIG)/obj/log.o $(CONFIG)/obj/netConnector.o $(CONFIG)/obj/packet.o $(CONFIG)/obj/pam.o $(CONFIG)/obj/passHandler.o $(CONFIG)/obj/pipeline.o $(CONFIG)/obj/procHandler.o $(CONFIG)/obj/queue.o $(CONFIG)/obj/rangeFilter.o $(CONFIG)/obj/route.o $(CONFIG)/obj/rx.o $(CONFIG)/obj/sendConnector.o $(CONFIG)/obj/session.o $(CONFIG)/obj/sockFilter.o $(CONFIG)/obj/stage.o $(CONFIG)/obj/trace.o $(CONFIG)/obj/tx.o $(CONFIG)/obj/uploadFilter.o $(CONFIG)/obj/uri.o $(CONFIG)/obj/var.o $(LIBS) -lmpr -lpcre
 
 $(CONFIG)/obj/http.o: \
         src/http.c \

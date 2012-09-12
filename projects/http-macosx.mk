@@ -1,19 +1,27 @@
 #
-#   http-macosx.mk -- Build It Makefile to build Http Library for macosx
+#   http-macosx.mk -- Makefile to build Http Library for macosx
 #
 
-ARCH     := $(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/')
-OS       := macosx
-PROFILE  := debug
-CONFIG   := $(OS)-$(ARCH)-$(PROFILE)
-CC       := /usr/bin/clang
-LD       := /usr/bin/ld
-CFLAGS   := -Wno-deprecated-declarations -g -w
-DFLAGS   := -DBIT_DEBUG
-IFLAGS   := -I$(CONFIG)/inc -Isrc
-LDFLAGS  := '-Wl,-rpath,@executable_path/' '-Wl,-rpath,@loader_path/' '-g'
-LIBPATHS := -L$(CONFIG)/bin
-LIBS     := -lpthread -lm -ldl
+ARCH     ?= $(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/')
+OS       ?= macosx
+CC       ?= /usr/bin/clang
+LD       ?= /usr/bin/ld
+PROFILE  ?= debug
+CONFIG   ?= $(OS)-$(ARCH)-$(PROFILE)
+
+CFLAGS   += -Wno-deprecated-declarations -w
+DFLAGS   += 
+IFLAGS   += -I$(CONFIG)/inc -Isrc
+LDFLAGS  += '-Wl,-rpath,@executable_path/' '-Wl,-rpath,@loader_path/'
+LIBPATHS += -L$(CONFIG)/bin
+LIBS     += -lpthread -lm -ldl
+
+CFLAGS-debug    := -DBIT_DEBUG -g
+CFLAGS-release  := -O2
+LDFLAGS-debug   := -g
+LDFLAGS-release := 
+CFLAGS          += $(CFLAGS-$(PROFILE))
+LDFLAGS         += $(LDFLAGS-$(PROFILE))
 
 all: prep \
         $(CONFIG)/bin/libmpr.dylib \
@@ -26,6 +34,7 @@ all: prep \
 .PHONY: prep
 
 prep:
+	@if [ "$(CONFIG)" = "" ] ; then echo WARNING: CONFIG not set ; exit 255 ; fi
 	@[ ! -x $(CONFIG)/inc ] && mkdir -p $(CONFIG)/inc $(CONFIG)/obj $(CONFIG)/lib $(CONFIG)/bin ; true
 	@[ ! -f $(CONFIG)/inc/bit.h ] && cp projects/http-$(OS)-bit.h $(CONFIG)/inc/bit.h ; true
 	@if ! diff $(CONFIG)/inc/bit.h projects/http-$(OS)-bit.h >/dev/null ; then\
@@ -69,6 +78,7 @@ clean:
 	rm -rf $(CONFIG)/obj/rx.o
 	rm -rf $(CONFIG)/obj/sendConnector.o
 	rm -rf $(CONFIG)/obj/session.o
+	rm -rf $(CONFIG)/obj/sockFilter.o
 	rm -rf $(CONFIG)/obj/stage.o
 	rm -rf $(CONFIG)/obj/trace.o
 	rm -rf $(CONFIG)/obj/tx.o
@@ -281,6 +291,12 @@ $(CONFIG)/obj/session.o: \
         $(CONFIG)/inc/http.h
 	$(CC) -c -o $(CONFIG)/obj/session.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(CONFIG)/inc -Isrc src/session.c
 
+$(CONFIG)/obj/sockFilter.o: \
+        src/sockFilter.c \
+        $(CONFIG)/inc/bit.h \
+        $(CONFIG)/inc/http.h
+	$(CC) -c -o $(CONFIG)/obj/sockFilter.o -arch x86_64 $(CFLAGS) $(DFLAGS) -I$(CONFIG)/inc -Isrc src/sockFilter.c
+
 $(CONFIG)/obj/stage.o: \
         src/stage.c \
         $(CONFIG)/inc/bit.h \
@@ -345,13 +361,14 @@ $(CONFIG)/bin/libhttp.dylib:  \
         $(CONFIG)/obj/rx.o \
         $(CONFIG)/obj/sendConnector.o \
         $(CONFIG)/obj/session.o \
+        $(CONFIG)/obj/sockFilter.o \
         $(CONFIG)/obj/stage.o \
         $(CONFIG)/obj/trace.o \
         $(CONFIG)/obj/tx.o \
         $(CONFIG)/obj/uploadFilter.o \
         $(CONFIG)/obj/uri.o \
         $(CONFIG)/obj/var.o
-	$(CC) -dynamiclib -o $(CONFIG)/bin/libhttp.dylib -arch x86_64 $(LDFLAGS) $(LIBPATHS) -install_name @rpath/libhttp.dylib $(CONFIG)/obj/auth.o $(CONFIG)/obj/basic.o $(CONFIG)/obj/cache.o $(CONFIG)/obj/chunkFilter.o $(CONFIG)/obj/client.o $(CONFIG)/obj/conn.o $(CONFIG)/obj/digest.o $(CONFIG)/obj/endpoint.o $(CONFIG)/obj/error.o $(CONFIG)/obj/host.o $(CONFIG)/obj/httpService.o $(CONFIG)/obj/log.o $(CONFIG)/obj/netConnector.o $(CONFIG)/obj/packet.o $(CONFIG)/obj/pam.o $(CONFIG)/obj/passHandler.o $(CONFIG)/obj/pipeline.o $(CONFIG)/obj/procHandler.o $(CONFIG)/obj/queue.o $(CONFIG)/obj/rangeFilter.o $(CONFIG)/obj/route.o $(CONFIG)/obj/rx.o $(CONFIG)/obj/sendConnector.o $(CONFIG)/obj/session.o $(CONFIG)/obj/stage.o $(CONFIG)/obj/trace.o $(CONFIG)/obj/tx.o $(CONFIG)/obj/uploadFilter.o $(CONFIG)/obj/uri.o $(CONFIG)/obj/var.o $(LIBS) -lmpr -lpcre -lpam -lpam
+	$(CC) -dynamiclib -o $(CONFIG)/bin/libhttp.dylib -arch x86_64 $(LDFLAGS) $(LIBPATHS) -install_name @rpath/libhttp.dylib $(CONFIG)/obj/auth.o $(CONFIG)/obj/basic.o $(CONFIG)/obj/cache.o $(CONFIG)/obj/chunkFilter.o $(CONFIG)/obj/client.o $(CONFIG)/obj/conn.o $(CONFIG)/obj/digest.o $(CONFIG)/obj/endpoint.o $(CONFIG)/obj/error.o $(CONFIG)/obj/host.o $(CONFIG)/obj/httpService.o $(CONFIG)/obj/log.o $(CONFIG)/obj/netConnector.o $(CONFIG)/obj/packet.o $(CONFIG)/obj/pam.o $(CONFIG)/obj/passHandler.o $(CONFIG)/obj/pipeline.o $(CONFIG)/obj/procHandler.o $(CONFIG)/obj/queue.o $(CONFIG)/obj/rangeFilter.o $(CONFIG)/obj/route.o $(CONFIG)/obj/rx.o $(CONFIG)/obj/sendConnector.o $(CONFIG)/obj/session.o $(CONFIG)/obj/sockFilter.o $(CONFIG)/obj/stage.o $(CONFIG)/obj/trace.o $(CONFIG)/obj/tx.o $(CONFIG)/obj/uploadFilter.o $(CONFIG)/obj/uri.o $(CONFIG)/obj/var.o $(LIBS) -lmpr -lpcre -lpam -lpam
 
 $(CONFIG)/obj/http.o: \
         src/http.c \

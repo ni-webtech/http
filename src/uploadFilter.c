@@ -463,7 +463,7 @@ static int writeToFile(HttpQueue *q, char *data, ssize len)
         rc = mprWriteFile(up->file, data, len);
         if (rc != len) {
             httpError(conn, HTTP_CODE_INTERNAL_SERVER_ERROR, 
-                "Can't write to upload temp file %s, rc %d, errno %d", up->tmpPath, rc, mprGetOsError(up));
+                "Can't write to upload temp file %s, rc %d, errno %d", up->tmpPath, rc, mprGetOsError());
             return MPR_ERR_CANT_WRITE;
         }
         file->size += len;

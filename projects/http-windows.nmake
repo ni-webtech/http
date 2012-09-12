@@ -1,5 +1,5 @@
 #
-#   http-windows.nmake -- Build It Makefile to build Http Library for windows
+#   http-windows.nmake -- Makefile to build Http Library for windows
 #
 
 PA        = $(PROCESSOR_ARCHITECTURE)
@@ -81,6 +81,7 @@ clean:
 	-if exist $(CONFIG)\obj\rx.obj del /Q $(CONFIG)\obj\rx.obj
 	-if exist $(CONFIG)\obj\sendConnector.obj del /Q $(CONFIG)\obj\sendConnector.obj
 	-if exist $(CONFIG)\obj\session.obj del /Q $(CONFIG)\obj\session.obj
+	-if exist $(CONFIG)\obj\sockFilter.obj del /Q $(CONFIG)\obj\sockFilter.obj
 	-if exist $(CONFIG)\obj\stage.obj del /Q $(CONFIG)\obj\stage.obj
 	-if exist $(CONFIG)\obj\trace.obj del /Q $(CONFIG)\obj\trace.obj
 	-if exist $(CONFIG)\obj\tx.obj del /Q $(CONFIG)\obj\tx.obj
@@ -285,6 +286,12 @@ $(CONFIG)\obj\session.obj: \
         src\http.h
 	"$(CC)" -c -Fo$(CONFIG)\obj\session.obj -Fd$(CONFIG)\obj\session.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\session.c
 
+$(CONFIG)\obj\sockFilter.obj: \
+        src\sockFilter.c \
+        $(CONFIG)\inc\bit.h \
+        src\http.h
+	"$(CC)" -c -Fo$(CONFIG)\obj\sockFilter.obj -Fd$(CONFIG)\obj\sockFilter.pdb $(CFLAGS) $(DFLAGS) -I$(CONFIG)\inc -Isrc src\sockFilter.c
+
 $(CONFIG)\obj\stage.obj: \
         src\stage.c \
         $(CONFIG)\inc\bit.h \
@@ -349,13 +356,14 @@ $(CONFIG)\bin\libhttp.dll:  \
         $(CONFIG)\obj\rx.obj \
         $(CONFIG)\obj\sendConnector.obj \
         $(CONFIG)\obj\session.obj \
+        $(CONFIG)\obj\sockFilter.obj \
         $(CONFIG)\obj\stage.obj \
         $(CONFIG)\obj\trace.obj \
         $(CONFIG)\obj\tx.obj \
         $(CONFIG)\obj\uploadFilter.obj \
         $(CONFIG)\obj\uri.obj \
         $(CONFIG)\obj\var.obj
-	"$(LD)" -dll -out:$(CONFIG)\bin\libhttp.dll -entry:$(ENTRY) -def:$(CONFIG)\bin\libhttp.def $(LDFLAGS) $(LIBPATHS) $(CONFIG)\obj\auth.obj $(CONFIG)\obj\basic.obj $(CONFIG)\obj\cache.obj $(CONFIG)\obj\chunkFilter.obj $(CONFIG)\obj\client.obj $(CONFIG)\obj\conn.obj $(CONFIG)\obj\digest.obj $(CONFIG)\obj\endpoint.obj $(CONFIG)\obj\error.obj $(CONFIG)\obj\host.obj $(CONFIG)\obj\httpService.obj $(CONFIG)\obj\log.obj $(CONFIG)\obj\netConnector.obj $(CONFIG)\obj\packet.obj $(CONFIG)\obj\pam.obj $(CONFIG)\obj\passHandler.obj $(CONFIG)\obj\pipeline.obj $(CONFIG)\obj\procHandler.obj $(CONFIG)\obj\queue.obj $(CONFIG)\obj\rangeFilter.obj $(CONFIG)\obj\route.obj $(CONFIG)\obj\rx.obj $(CONFIG)\obj\sendConnector.obj $(CONFIG)\obj\session.obj $(CONFIG)\obj\stage.obj $(CONFIG)\obj\trace.obj $(CONFIG)\obj\tx.obj $(CONFIG)\obj\uploadFilter.obj $(CONFIG)\obj\uri.obj $(CONFIG)\obj\var.obj $(LIBS) libmpr.lib libpcre.lib
+	"$(LD)" -dll -out:$(CONFIG)\bin\libhttp.dll -entry:$(ENTRY) -def:$(CONFIG)\bin\libhttp.def $(LDFLAGS) $(LIBPATHS) $(CONFIG)\obj\auth.obj $(CONFIG)\obj\basic.obj $(CONFIG)\obj\cache.obj $(CONFIG)\obj\chunkFilter.obj $(CONFIG)\obj\client.obj $(CONFIG)\obj\conn.obj $(CONFIG)\obj\digest.obj $(CONFIG)\obj\endpoint.obj $(CONFIG)\obj\error.obj $(CONFIG)\obj\host.obj $(CONFIG)\obj\httpService.obj $(CONFIG)\obj\log.obj $(CONFIG)\obj\netConnector.obj $(CONFIG)\obj\packet.obj $(CONFIG)\obj\pam.obj $(CONFIG)\obj\passHandler.obj $(CONFIG)\obj\pipeline.obj $(CONFIG)\obj\procHandler.obj $(CONFIG)\obj\queue.obj $(CONFIG)\obj\rangeFilter.obj $(CONFIG)\obj\route.obj $(CONFIG)\obj\rx.obj $(CONFIG)\obj\sendConnector.obj $(CONFIG)\obj\session.obj $(CONFIG)\obj\sockFilter.obj $(CONFIG)\obj\stage.obj $(CONFIG)\obj\trace.obj $(CONFIG)\obj\tx.obj $(CONFIG)\obj\uploadFilter.obj $(CONFIG)\obj\uri.obj $(CONFIG)\obj\var.obj $(LIBS) libmpr.lib libpcre.lib
 
 $(CONFIG)\obj\http.obj: \
         src\http.c \
