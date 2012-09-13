@@ -141,7 +141,7 @@ static void traceBuf(HttpConn *conn, int dir, int level, cchar *msg, cchar *buf,
         digits = "0123456789ABCDEF";
         for (i = 0, cp = start, dp = data; cp < &start[len]; cp++) {
             *dp++ = digits[(*cp >> 4) & 0x0f];
-            *dp++ = digits[*cp++ & 0x0f];
+            *dp++ = digits[*cp & 0x0f];
             *dp++ = ' ';
             if ((++i % 16) == 0) {
                 *dp++ = '\n';
